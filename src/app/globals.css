@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+:root {
+  --background: #09090b;
+  --foreground: #fafaf9;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #1e1e22 transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #1e1e22;
+  border-radius: 3px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #2a2a2e;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  overflow: hidden;
+}
+
+/* 텍스트 영역 자동 크기 조절 */
+@supports (field-sizing: content) {
+  textarea {
+    field-sizing: content;
+  }
+}

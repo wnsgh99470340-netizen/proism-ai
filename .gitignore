@@ -1,0 +1,27 @@
+# dependencies
+node_modules/
+/.pnp
+.pnp.*
+.yarn/*
+
+# next.js
+/.next/
+/out/
+/build
+
+# env
+.env*
+
+# uploads (keep folder, ignore contents)
+public/uploads/*
+!public/uploads/.gitkeep
+
+# misc
+.DS_Store
+*.pem
+*.tsbuildinfo
+next-env.d.ts
+npm-debug.log*
+
+# vercel
+.vercel
