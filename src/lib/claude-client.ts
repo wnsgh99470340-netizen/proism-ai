@@ -16,7 +16,8 @@ interface Message {
 export async function callClaude(
   systemPrompt: string,
   messages: Message[],
-  maxTokens = 4096
+  maxTokens = 4096,
+  model = 'claude-sonnet-4-20250514'
 ): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -31,7 +32,7 @@ export async function callClaude(
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
+      model,
       max_tokens: maxTokens,
       system: systemPrompt,
       messages,

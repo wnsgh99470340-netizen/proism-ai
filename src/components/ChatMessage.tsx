@@ -7,13 +7,6 @@ interface ChatMessageProps {
   employeeEmoji?: string;
   employeeColor?: string;
   images?: string[];
-  analysis?: {
-    vehicle: string;
-    stage: string;
-    description: string;
-    suggestion: string;
-    caption: string;
-  } | null;
 }
 
 export default function ChatMessage({
@@ -23,7 +16,6 @@ export default function ChatMessage({
   employeeEmoji,
   employeeColor,
   images,
-  analysis,
 }: ChatMessageProps) {
   if (role === 'user') {
     return (
@@ -63,21 +55,6 @@ export default function ChatMessage({
         {employeeName && (
           <div className="text-xs mb-1" style={{ color: employeeColor || '#C8A951' }}>
             {employeeEmoji} {employeeName}
-          </div>
-        )}
-
-        {/* 사진 분석 결과 */}
-        {analysis && (
-          <div className="bg-[#1a1a1f] border border-[#1e1e22] rounded-xl p-3 mb-2">
-            <div className="text-xs text-[#C8A951] font-medium mb-2">📷 사진 분석 결과</div>
-            <div className="space-y-1 text-xs text-[#a1a1aa]">
-              <div>• 차종: <span className="text-[#fafaf9]">{analysis.vehicle}</span></div>
-              <div>• 장면: <span className="text-[#fafaf9]">{analysis.description}</span></div>
-              <div>• 시공 단계: <span className="text-[#fafaf9]">{analysis.stage}</span></div>
-            </div>
-            <div className="mt-2 text-xs text-[#71717a] border-t border-[#1e1e22] pt-2">
-              💡 {analysis.suggestion}
-            </div>
           </div>
         )}
 

@@ -14,13 +14,6 @@ interface Message {
   employeeEmoji?: string;
   employeeColor?: string;
   images?: string[];
-  analysis?: {
-    vehicle: string;
-    stage: string;
-    description: string;
-    suggestion: string;
-    caption: string;
-  } | null;
 }
 
 interface Draft {
@@ -58,39 +51,29 @@ export default function Home() {
       setMessages((prev) => [...prev, userMsg]);
       setLoading(true);
 
-      // 이미지 분석 결과가 있으면 자동 메시지 추가
-      const analyzedImages = uploadedImages.filter((img) => img.analysis);
-      if (analyzedImages.length > 0 && !message) {
-        const analysisMessages: Message[] = analyzedImages.map((img) => ({
-          role: 'assistant' as const,
-          content: `📷 사진을 분석했습니다.\n\n🔍 분석 결과:\n• 차종: ${img.analysis!.vehicle}\n• 장면: ${img.analysis!.description}\n• 시공 단계: ${img.analysis!.stage}\n\n💡 ${img.analysis!.suggestion}\n\n이 사진을 어떻게 활용할까요?\n1. 시공기 본문에 삽입\n2. 다른 위치에 배치\n3. 이 사진에 대한 캡션 작성`,
-          employeeName: '비주얼 디렉터',
-          employeeEmoji: '🎨',
-          employeeColor: '#EC4899',
-          analysis: img.analysis,
-        }));
-        setMessages((prev) => [...prev, ...analysisMessages]);
-        setActiveEmployeeId('visual-dir');
+      // 이미지만 보내고 메시지가 없으면 안내 메시지 표시
+      if (uploadedImages.length > 0 && !message) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant' as const,
+            content: `사진 ${uploadedImages.length}장이 업로드되었습니다. 글 작성을 요청하시면 사진을 분석하여 블로그 글에 배치합니다.`,
+            employeeName: '비주얼 디렉터',
+            employeeEmoji: '🎨',
+            employeeColor: '#EC4899',
+          },
+        ]);
         setLoading(false);
         setImages([]); // 전송 후 이미지 목록 초기화
         return;
       }
 
       try {
-        // 이미지 base64 변환
-        const imageData = [];
-        for (const img of uploadedImages) {
-          if (img.file) {
-            const buffer = await img.file.arrayBuffer();
-            const base64 = btoa(
-              new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
-            );
-            imageData.push({
-              data: base64,
-              mediaType: img.file.type || 'image/jpeg',
-            });
-          }
-        }
+        // 이미지 URL/filename만 전달 (base64 전송 제거 — 서버에서 디스크 읽음)
+        const imageRefs = uploadedImages.map((img) => ({
+          url: img.url,
+          filename: img.filename,
+        }));
 
         const history = messages.map((m) => ({
           role: m.role,
@@ -103,7 +86,7 @@ export default function Home() {
           body: JSON.stringify({
             message,
             history,
-            images: imageData,
+            images: imageRefs,
           }),
         });
 

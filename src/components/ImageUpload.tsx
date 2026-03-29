@@ -6,23 +6,14 @@ interface UploadedImage {
   url: string;
   filename: string;
   file: File;
-  analysis?: {
-    vehicle: string;
-    stage: string;
-    description: string;
-    suggestion: string;
-    recommendedPosition: string;
-    caption: string;
-  } | null;
 }
 
 interface ImageUploadProps {
   images: UploadedImage[];
   onImagesChange: (images: UploadedImage[]) => void;
-  onAnalysisComplete?: (results: UploadedImage[]) => void;
 }
 
-export default function ImageUpload({ images, onImagesChange, onAnalysisComplete }: ImageUploadProps) {
+export default function ImageUpload({ images, onImagesChange }: ImageUploadProps) {
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -47,7 +38,6 @@ export default function ImageUpload({ images, onImagesChange, onAnalysisComplete
               url: data.url,
               filename: data.filename,
               file,
-              analysis: data.analysis,
             });
           }
         } catch {
@@ -56,19 +46,15 @@ export default function ImageUpload({ images, onImagesChange, onAnalysisComplete
             url: URL.createObjectURL(file),
             filename: file.name,
             file,
-            analysis: null,
           });
         }
       }
 
       const updated = [...images, ...newImages];
       onImagesChange(updated);
-      if (onAnalysisComplete && newImages.some((img) => img.analysis)) {
-        onAnalysisComplete(newImages);
-      }
       setUploading(false);
     },
-    [images, onImagesChange, onAnalysisComplete]
+    [images, onImagesChange]
   );
 
   const handleDrop = useCallback(
@@ -113,11 +99,6 @@ export default function ImageUpload({ images, onImagesChange, onAnalysisComplete
               >
                 ×
               </button>
-              {img.analysis && (
-                <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-[8px] text-center text-[#C8A951] rounded-b-lg px-0.5 truncate">
-                  {img.analysis.stage}
-                </div>
-              )}
             </div>
           ))}
           <button
@@ -146,7 +127,7 @@ export default function ImageUpload({ images, onImagesChange, onAnalysisComplete
           }`}
         >
           {uploading ? (
-            <div className="text-[#C8A951] text-xs">업로드 + AI 분석 중...</div>
+            <div className="text-[#C8A951] text-xs">업로드 중...</div>
           ) : (
             <div className="text-[#71717a] text-xs">
               📷 사진을 드래그하거나 클릭하여 업로드 (여러 장 가능)

@@ -57,9 +57,6 @@ export default function ChatPanel({
     }
   };
 
-  const handleAnalysisComplete = (newImages: UploadedImage[]) => {
-    // 분석 완료된 이미지들에 대해 자동 메시지 생성은 부모에서 처리
-  };
 
   return (
     <div className="flex flex-col h-full">
@@ -120,7 +117,6 @@ export default function ChatPanel({
       <ImageUpload
         images={images}
         onImagesChange={onImagesChange}
-        onAnalysisComplete={handleAnalysisComplete}
       />
 
       {/* 입력 */}
