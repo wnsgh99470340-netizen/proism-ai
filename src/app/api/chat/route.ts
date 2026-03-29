@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { callClaude } from '@/lib/claude-client';
+import { callClaude, analyzeImageWithClaude } from '@/lib/claude-client';
 import { getActiveEmployee } from '@/config/team';
 import { BLOG_SYSTEM_PROMPT } from '@/config/prompts';
 
@@ -13,25 +13,38 @@ export async function POST(request: NextRequest) {
 
     const activeEmployee = getActiveEmployee(message || '');
 
-    // 메시지 content 구성
-    const userContent: Array<{ type: string; text?: string; source?: { type: string; media_type: string; data: string } }> = [];
-
-    // 이미지가 있으면 추가
-    for (const img of images) {
-      userContent.push({
-        type: 'image',
-        source: {
-          type: 'base64',
-          media_type: img.mediaType || 'image/jpeg',
-          data: img.data,
-        },
-      });
+    // 이미지가 있으면 개별 분석 후 텍스트로 변환 (base64 원본을 채팅에 보내지 않음)
+    let imageDescriptions = '';
+    if (images.length > 0) {
+      const BATCH_SIZE = 5;
+      const descriptions: string[] = [];
+      for (let i = 0; i < images.length; i += BATCH_SIZE) {
+        const batch = images.slice(i, i + BATCH_SIZE);
+        const results = await Promise.all(
+          batch.map((img: { data: string; mediaType?: string }, idx: number) =>
+            analyzeImageWithClaude(
+              img.data,
+              img.mediaType || 'image/jpeg',
+              `이 이미지를 자세히 분석해주세요. 블로그 글 작성에 활용할 수 있도록 내용, 분위기, 주요 요소를 설명해주세요. (이미지 ${i + idx + 1}/${images.length})`
+            )
+          )
+        );
+        descriptions.push(...results);
+      }
+      imageDescriptions = descriptions
+        .map((desc, i) => `[이미지 ${i + 1}/${images.length} 분석 결과]\n${desc}`)
+        .join('\n\n');
     }
 
-    // 텍스트 메시지
+    // 텍스트 메시지 구성 (이미지 분석 텍스트 + 유저 메시지)
+    const textParts: string[] = [];
+    if (imageDescriptions) {
+      textParts.push(`첨부된 ${images.length}장의 사진 분석 결과:\n\n${imageDescriptions}`);
+    }
     if (message) {
-      userContent.push({ type: 'text', text: message });
+      textParts.push(message);
     }
+    const combinedMessage = textParts.join('\n\n');
 
     const systemPrompt = `${BLOG_SYSTEM_PROMPT}\n\n현재 담당: ${activeEmployee.emoji} ${activeEmployee.name}\n역할: ${activeEmployee.role}\n\n${activeEmployee.systemPrompt}\n\n블로그 글을 완성했을 때는 반드시 다음 형식으로 출력하세요:\n---BLOG_DRAFT---\n{"title":"제목","content":"본문 내용","tags":["태그1","태그2"],"category":"프로이즘 작업기"}\n---END_DRAFT---`;
 
@@ -43,9 +56,7 @@ export async function POST(request: NextRequest) {
       })),
       {
         role: 'user' as const,
-        content: userContent.length === 1 && userContent[0].type === 'text'
-          ? message
-          : userContent,
+        content: combinedMessage,
       },
     ];
 
