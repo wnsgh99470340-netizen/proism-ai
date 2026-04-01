@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { readFile } from 'fs/promises';
+import { readFile, writeFile, readdir, mkdir } from 'fs/promises';
 import path from 'path';
 import sharp from 'sharp';
 import { callClaude, analyzeImageWithClaude } from '@/lib/claude-client';
@@ -31,6 +31,150 @@ async function readImageForVision(filename: string): Promise<string> {
     .jpeg({ quality: 40 })
     .toBuffer();
   return visionBuffer.toString('base64');
+}
+
+/**
+ * 제목에서 태그를 자동 추출
+ */
+function extractTagsFromTitle(title: string): string[] {
+  const tags: string[] = [];
+
+  // 차종 추출
+  const carBrands = ['BMW', '벤츠', '메르세데스', '포르쉐', '아우디', '테슬라', '제네시스', '렉서스', '볼보', '람보르기니', '페라리', '맥라렌', '롤스로이스', '벤틀리', '마세라티', '재규어', '랜드로버', '링컨', '캐딜락', '현대', '기아', '쉐보레'];
+  for (const brand of carBrands) {
+    if (title.includes(brand)) {
+      tags.push(brand);
+      break;
+    }
+  }
+
+  // 시공 종류 추출
+  const services = [
+    { keywords: ['PPF', 'ppf', '보호필름', '페인트보호'], tag: 'PPF' },
+    { keywords: ['썬팅', '선팅', '틴팅'], tag: '썬팅' },
+    { keywords: ['랩핑', '래핑', 'wrap', 'PWF'], tag: '랩핑' },
+    { keywords: ['디테일링', '세차', '광택'], tag: '디테일링' },
+  ];
+  for (const service of services) {
+    if (service.keywords.some(k => title.toLowerCase().includes(k.toLowerCase()))) {
+      tags.push(service.tag);
+    }
+  }
+
+  // 기본 태그
+  tags.push('3M', '프로이즘', '강남');
+
+  return [...new Set(tags)];
+}
+
+/**
+ * 일반 텍스트 본문을 HTML로 변환
+ * - 빈 줄로 구분된 문단을 <p> 태그로 감싸기
+ * - [사진 N] 태그를 이미지 placeholder로 변환
+ */
+function textToHtml(text: string): string {
+  const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  return paragraphs
+    .map(p => {
+      const trimmed = p.trim().replace(/\n/g, '<br>');
+      return `<p>${trimmed}</p>`;
+    })
+    .join('\n');
+}
+
+/**
+ * Claude 응답이 블로그 글인지 판별하고, 맞다면 draft 객체를 구성
+ * 판별 기준: 응답이 충분히 길고(500자+), 블로그 형식의 텍스트인 경우
+ */
+function tryBuildDraft(
+  reply: string,
+  userMessage: string,
+): { draft: Record<string, unknown>; cleanReply: string } | null {
+  const lines = reply.split('\n');
+
+  // 첫 번째 비어있지 않은 줄을 제목으로
+  const firstNonEmptyIdx = lines.findIndex(l => l.trim().length > 0);
+  if (firstNonEmptyIdx === -1) return null;
+
+  const title = lines[firstNonEmptyIdx].trim();
+  const bodyLines = lines.slice(firstNonEmptyIdx + 1);
+  const body = bodyLines.join('\n').trim();
+
+  // 블로그 글 판별: 본문이 충분히 길어야 함 (공백 제외 500자 이상)
+  const bodyLengthNoSpaces = body.replace(/\s/g, '').length;
+  if (bodyLengthNoSpaces < 500) return null;
+
+  // 블로그 글 작성 요청인지 확인 (사용자 메시지나 컨텍스트 기반)
+  const blogKeywords = ['블로그', '글', '작성', '써줘', '써 줘', '시공기', '포스팅', '작업기', '리뷰'];
+  const isBlogRequest = blogKeywords.some(k => userMessage.includes(k));
+  // [사진 N] 태그가 있으면 블로그 글로 간주
+  const hasPhotoTags = /\[사진\s*\d+\]/.test(body);
+
+  if (!isBlogRequest && !hasPhotoTags) return null;
+
+  const content = textToHtml(body);
+  const tags = extractTagsFromTitle(title);
+
+  return {
+    draft: {
+      title,
+      content,
+      tags,
+      category: '프로이즘 작업기',
+    },
+    cleanReply: '블로그 글이 완성되었습니다. 미리보기를 확인해주세요.',
+  };
+}
+
+const DRAFTS_DIR = path.join(process.cwd(), 'public', 'drafts');
+
+/**
+ * 이전에 저장된 글의 제목 + 도입부 첫 2줄을 반환 (최근 20개)
+ */
+async function getPreviousDrafts(): Promise<{ title: string; intro: string }[]> {
+  try {
+    await mkdir(DRAFTS_DIR, { recursive: true });
+    const files = await readdir(DRAFTS_DIR);
+    const txtFiles = files.filter(f => f.endsWith('.txt')).sort().reverse().slice(0, 20);
+
+    const results = await Promise.all(
+      txtFiles.map(async (f) => {
+        try {
+          const content = await readFile(path.join(DRAFTS_DIR, f), 'utf-8');
+          const lines = content.split('\n').filter(l => l.trim());
+          const title = lines[0] || '';
+          // 제목 다음 비어있지 않은 줄 2개를 도입부로
+          const introLines = lines.slice(1, 3).map(l => l.trim());
+          return { title, intro: introLines.join(' / ') };
+        } catch {
+          const nameWithoutExt = f.replace(/\.txt$/, '');
+          const idx = nameWithoutExt.indexOf('_');
+          return { title: idx >= 0 ? nameWithoutExt.slice(idx + 1) : nameWithoutExt, intro: '' };
+        }
+      })
+    );
+
+    return results;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * 완성된 draft를 파일로 저장
+ */
+async function saveDraft(title: string, body: string): Promise<void> {
+  try {
+    await mkdir(DRAFTS_DIR, { recursive: true });
+    const date = new Date().toISOString().slice(0, 10);
+    const safeTitle = title.replace(/[/\\?%*:|"<>]/g, '').slice(0, 50);
+    const filename = `${date}_${safeTitle}.txt`;
+    const rule = `[유사성 금지] 이 글과 유사한 도입부, 표현, 문장 구조, 비유를 다음 글에서 절대 반복하지 마세요.`;
+    const content = `${title}\n\n${body}\n\n---\n${rule}`;
+    await writeFile(path.join(DRAFTS_DIR, filename), content, 'utf-8');
+  } catch {
+    // 저장 실패해도 응답에는 영향 없음
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -93,7 +237,18 @@ export async function POST(request: NextRequest) {
     }
     const combinedMessage = textParts.join('\n\n');
 
-    const systemPrompt = `${BLOG_SYSTEM_PROMPT}\n\n현재 담당: ${activeEmployee.emoji} ${activeEmployee.name}\n역할: ${activeEmployee.role}\n\n${activeEmployee.systemPrompt}\n\n블로그 글을 완성했을 때는 반드시 다음 형식으로 출력하세요:\n---BLOG_DRAFT---\n{"title":"제목","content":"본문 내용","tags":["태그1","태그2"],"category":"프로이즘 작업기"}\n---END_DRAFT---`;
+    // 이전 글 제목+도입부를 시스템 프롬프트에 포함
+    const previousDrafts = await getPreviousDrafts();
+    let previousContext = '';
+    if (previousDrafts.length > 0) {
+      const list = previousDrafts.map((d, i) => {
+        const intro = d.intro ? ` — 도입부: ${d.intro}` : '';
+        return `${i + 1}. ${d.title}${intro}`;
+      }).join('\n');
+      previousContext = `\n\n[이전에 작성한 글 목록]\n아래는 이전에 작성한 글의 제목과 도입부입니다. 이 글들과 유사한 도입부, 표현, 구조를 절대 반복하지 마세요.\n${list}`;
+    }
+
+    const systemPrompt = `${BLOG_SYSTEM_PROMPT}${previousContext}\n\n현재 담당: ${activeEmployee.emoji} ${activeEmployee.name}\n역할: ${activeEmployee.role}\n\n${activeEmployee.systemPrompt}`;
 
     // 히스토리 + 현재 메시지
     const messages = [
@@ -107,22 +262,23 @@ export async function POST(request: NextRequest) {
       },
     ];
 
-    const reply = await callClaude(systemPrompt, messages, 4096, activeEmployee.model);
+    const reply = await callClaude(systemPrompt, messages, 8192, activeEmployee.model);
 
-    // 드래프트 감지
-    let draft = null;
-    const draftMatch = reply.match(/---BLOG_DRAFT---\s*([\s\S]*?)\s*---END_DRAFT---/);
-    if (draftMatch) {
-      try {
-        draft = JSON.parse(draftMatch[1]);
-      } catch {
-        // 파싱 실패 무시
-      }
+    // 서버에서 직접 draft 구성 (JSON 파싱 불필요)
+    const draftResult = tryBuildDraft(reply, combinedMessage);
+
+    // draft가 완성되면 자동 저장
+    if (draftResult) {
+      const lines = reply.split('\n');
+      const firstNonEmptyIdx = lines.findIndex(l => l.trim().length > 0);
+      const title = lines[firstNonEmptyIdx].trim();
+      const body = lines.slice(firstNonEmptyIdx + 1).join('\n').trim();
+      await saveDraft(title, body);
     }
 
     return Response.json({
-      reply: reply.replace(/---BLOG_DRAFT---[\s\S]*?---END_DRAFT---/, '').trim(),
-      draft,
+      reply: draftResult ? draftResult.cleanReply : reply,
+      draft: draftResult ? draftResult.draft : null,
       activeEmployee: {
         id: activeEmployee.id,
         name: activeEmployee.name,

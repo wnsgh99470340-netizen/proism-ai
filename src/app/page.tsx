@@ -29,7 +29,14 @@ export default function Home() {
   const [images, setImages] = useState<UploadedImage[]>([]);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [activeEmployeeId, setActiveEmployeeId] = useState<string | undefined>();
-  const [qaScore, setQaScore] = useState<{ total: number; details: string } | null>(null);
+  const [qaScore, setQaScore] = useState<{
+    total: number;
+    details: string;
+    violations?: { rule: string; detail: string; penalty: number }[];
+    scores?: { item: string; score: number; max: number; comment: string }[];
+    improvements?: string[];
+    summary?: string;
+  } | null>(null);
   const [qaLoading, setQaLoading] = useState(false);
   const [seoInsight, setSeoInsight] = useState<{
     seoScore?: number;
@@ -104,11 +111,14 @@ export default function Home() {
             },
           ]);
         } else {
+          const displayReply = data.reply;
+          const parsedDraft = data.draft;
+
           setMessages((prev) => [
             ...prev,
             {
               role: 'assistant',
-              content: data.reply,
+              content: displayReply,
               employeeName: data.activeEmployee?.name,
               employeeEmoji: data.activeEmployee?.emoji,
               employeeColor: data.activeEmployee?.color,
@@ -119,10 +129,10 @@ export default function Home() {
             setActiveEmployeeId(data.activeEmployee.id);
           }
 
-          if (data.draft) {
-            setDraft(data.draft);
+          if (parsedDraft) {
+            setDraft(parsedDraft);
             // 자동 SEO 분석
-            fetchSeoInsight(data.draft.title, data.draft.content, data.draft.tags);
+            fetchSeoInsight(parsedDraft.title, parsedDraft.content, parsedDraft.tags);
           }
         }
       } catch (error) {
@@ -189,21 +199,41 @@ export default function Home() {
     if (!draft) return;
     setQaLoading(true);
     try {
-      const res = await fetch('/api/chat', {
+      const res = await fetch('/api/qa', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: `다음 블로그 글의 QA 스코어링을 해줘. 100점 만점으로 채점하고 개선점을 알려줘.\n\n제목: ${draft.title}\n\n본문:\n${draft.content}\n\n태그: ${draft.tags.join(', ')}`,
-          history: [],
-          images: [],
+          title: draft.title,
+          content: draft.content,
+          tags: draft.tags,
         }),
       });
       const data = await res.json();
-      if (data.reply) {
-        // 점수 추출
-        const scoreMatch = data.reply.match(/(\d{1,3})\s*[/\/점]/);
-        const total = scoreMatch ? Math.min(parseInt(scoreMatch[1]), 100) : 75;
-        setQaScore({ total, details: data.reply });
+      if (data.qa) {
+        const qa = data.qa;
+        // violations 텍스트 조합
+        const violationLines = qa.violations.length > 0
+          ? qa.violations.map((v: { rule: string; detail: string; penalty: number }) =>
+              `[${v.rule}] ${v.detail} (${v.penalty}점)`
+            ).join('\n')
+          : '';
+        // scores 텍스트 조합
+        const scoreLines = qa.scores.map((s: { item: string; score: number; max: number; comment: string }) =>
+          `${s.item}: ${s.score}/${s.max} — ${s.comment}`
+        ).join('\n');
+        // improvements 텍스트
+        const improvementLines = qa.improvements.map((imp: string, i: number) =>
+          `${i + 1}. ${imp}`
+        ).join('\n');
+
+        const details = [
+          violationLines ? `⛔ 위반 사항:\n${violationLines}` : '',
+          `📊 품질 점수:\n${scoreLines}`,
+          `💡 개선점:\n${improvementLines}`,
+          `📝 총평: ${qa.summary}`,
+        ].filter(Boolean).join('\n\n');
+
+        setQaScore({ total: qa.total, details, violations: qa.violations, scores: qa.scores, improvements: qa.improvements, summary: qa.summary });
       }
     } catch {
       // QA 실패 무시
