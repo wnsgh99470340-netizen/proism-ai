@@ -153,6 +153,32 @@ export default function CRMPage() {
     customer_id: '', consultation_date: '', content: '', estimate: '', interested_services: '', memo: '',
   });
 
+  // Work order modal state
+  const [showWorkOrder, setShowWorkOrder] = useState(false);
+  const [workOrderAppointment, setWorkOrderAppointment] = useState<Appointment | null>(null);
+  const [workOrder, setWorkOrder] = useState({
+    car_number: '',
+    warranty_issued: false,
+    crm_recorded: false,
+    tinting: {
+      vertex: { selected: [] as string[], density: '' },
+      rainbow: { selected: [] as string[], density: '' },
+      glasstint: { selected: [] as string[], density: '' },
+      tinain: { selected: [] as string[], density: '' },
+    },
+    ppf: [] as string[],
+    wrapping: [] as string[],
+    coating: [] as string[],
+    electrical: [] as string[],
+    electrical_etc: '',
+    polish: [] as string[],
+    polish_etc: '',
+    package_options: [] as string[],
+    ppf_etc: '',
+    wrapping_etc: '',
+    notes: '',
+  });
+
   // Customer picker state (shared)
   const [allCustomers, setAllCustomers] = useState<{ id: string; name: string; phone: string | null }[]>([]);
   const [customerPickerSearch, setCustomerPickerSearch] = useState('');
@@ -288,34 +314,59 @@ export default function CRMPage() {
     fetchAppointments();
   };
 
+  const resetWorkOrder = () => setWorkOrder({
+    car_number: '', warranty_issued: false, crm_recorded: false,
+    tinting: {
+      vertex: { selected: [], density: '' }, rainbow: { selected: [], density: '' },
+      glasstint: { selected: [], density: '' }, tinain: { selected: [], density: '' },
+    },
+    ppf: [], wrapping: [], coating: [], electrical: [], electrical_etc: '',
+    polish: [], polish_etc: '', package_options: [], ppf_etc: '', wrapping_etc: '', notes: '',
+  });
+
   const handleStatusChange = async (appointment: Appointment, newStatus: string) => {
-    await supabase
-      .from('appointments')
-      .update({ status: newStatus })
-      .eq('id', appointment.id);
-
-    // 완료로 변경 시 시공 이력 + 사후관리 자동 생성
-    if (newStatus === '완료' && appointment.service_type) {
-      const today = new Date().toISOString().split('T')[0];
-      const { data: service } = await supabase
-        .from('services')
-        .insert({
-          customer_id: appointment.customer_id,
-          service_type: appointment.service_type,
-          service_date: appointment.appointment_date,
-          completion_date: today,
-          memo: appointment.memo,
-        })
-        .select()
-        .single();
-
-      if (service) {
-        await createAutoFollowUps(service.id, appointment.customer_id, appointment.service_type, today);
-      }
+    // 완료 변경 시 작업 내역서 모달 표시
+    if (newStatus === '완료') {
+      resetWorkOrder();
+      setWorkOrderAppointment(appointment);
+      setShowWorkOrder(true);
+      return;
     }
 
+    await supabase.from('appointments').update({ status: newStatus }).eq('id', appointment.id);
     fetchAppointments();
-    if (newStatus === '완료') fetchFollowUps();
+  };
+
+  const handleWorkOrderSubmit = async () => {
+    if (!workOrderAppointment) return;
+    const appointment = workOrderAppointment;
+    const completionDate = new Date().toISOString().split('T')[0];
+
+    // 시공 이력 생성 (작업 내역서 데이터를 memo에 JSON으로 저장)
+    const { data: service } = await supabase
+      .from('services')
+      .insert({
+        customer_id: appointment.customer_id,
+        service_type: appointment.service_type || '기타',
+        service_date: appointment.appointment_date,
+        completion_date: completionDate,
+        memo: JSON.stringify(workOrder),
+      })
+      .select()
+      .single();
+
+    // 사후관리 자동 생성
+    if (service && appointment.service_type) {
+      await createAutoFollowUps(service.id, appointment.customer_id, appointment.service_type, completionDate);
+    }
+
+    // 예약 상태 완료로 변경
+    await supabase.from('appointments').update({ status: '완료' }).eq('id', appointment.id);
+
+    setShowWorkOrder(false);
+    setWorkOrderAppointment(null);
+    fetchAppointments();
+    fetchFollowUps();
   };
 
   // ─── Follow-up Actions ──────────────────────────────────
@@ -853,6 +904,238 @@ export default function CRMPage() {
           </div>
         </div>
       )}
+      {/* ─── Modal: 작업 내역서 ──────────────────────────────── */}
+      {showWorkOrder && workOrderAppointment && (
+        <WorkOrderModal
+          appointment={workOrderAppointment}
+          workOrder={workOrder}
+          setWorkOrder={setWorkOrder}
+          onSubmit={handleWorkOrderSubmit}
+          onClose={() => { setShowWorkOrder(false); setWorkOrderAppointment(null); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Work Order Modal Component ──────────────────────────
+interface WorkOrderModalProps {
+  appointment: Appointment;
+  workOrder: ReturnType<typeof Object>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  setWorkOrder: (v: any) => void;
+  onSubmit: () => void;
+  onClose: () => void;
+}
+
+function CheckItem({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <label className="flex items-center gap-2 cursor-pointer text-sm text-[#fafaf9] hover:text-[#C8A951] transition-colors">
+      <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors shrink-0 ${checked ? 'bg-[#C8A951] border-[#C8A951]' : 'border-[#71717a]'}`}>
+        {checked && <span className="text-[10px] text-black font-bold">✓</span>}
+      </div>
+      {label}
+    </label>
+  );
+}
+
+function SectionTitle({ title }: { title: string }) {
+  return (
+    <div className="border-t border-[#1e1e22] pt-4 mt-4">
+      <h4 className="text-sm font-semibold text-[#C8A951] mb-3">{title}</h4>
+    </div>
+  );
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function WorkOrderModal({ appointment, workOrder, setWorkOrder, onSubmit, onClose }: WorkOrderModalProps & { workOrder: any }) {
+  const toggleArray = (arr: string[], item: string) =>
+    arr.includes(item) ? arr.filter((v: string) => v !== item) : [...arr, item];
+
+  const toggleTinting = (brand: 'vertex' | 'rainbow' | 'glasstint' | 'tinain', product: string) => {
+    setWorkOrder({
+      ...workOrder,
+      tinting: {
+        ...workOrder.tinting,
+        [brand]: {
+          ...workOrder.tinting[brand],
+          selected: toggleArray(workOrder.tinting[brand].selected, product),
+        },
+      },
+    });
+  };
+
+  const setTintingDensity = (brand: 'vertex' | 'rainbow' | 'glasstint' | 'tinain', density: string) => {
+    setWorkOrder({
+      ...workOrder,
+      tinting: {
+        ...workOrder.tinting,
+        [brand]: { ...workOrder.tinting[brand], density },
+      },
+    });
+  };
+
+  const customer = appointment.customer;
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-[#111113] border border-[#1e1e22] rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="sticky top-0 bg-[#111113] border-b border-[#1e1e22] px-6 py-4 flex items-center justify-between z-10">
+          <h3 className="text-[#fafaf9] font-semibold text-base">작업 내역서</h3>
+          <button onClick={onClose} className="text-[#71717a] hover:text-[#fafaf9] transition-colors text-lg">✕</button>
+        </div>
+
+        <div className="p-6 space-y-0">
+          {/* 고객 정보 */}
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            <div>
+              <label className="text-xs text-[#71717a] mb-1 block">일자</label>
+              <div className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#a1a1aa]">
+                {new Date().toLocaleDateString('ko-KR')}
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-[#71717a] mb-1 block">브랜드/차종</label>
+              <div className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#a1a1aa]">
+                {appointment.service_type || '-'}
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-[#71717a] mb-1 block">차량번호</label>
+              <input type="text" value={workOrder.car_number} onChange={(e) => setWorkOrder({ ...workOrder, car_number: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="12가 3456" />
+            </div>
+            <div>
+              <label className="text-xs text-[#71717a] mb-1 block">성명</label>
+              <div className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#a1a1aa]">
+                {customer?.name || '-'}
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-[#71717a] mb-1 block">유입경로</label>
+              <div className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#a1a1aa]">-</div>
+            </div>
+            <div>
+              <label className="text-xs text-[#71717a] mb-1 block">연락처</label>
+              <div className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#a1a1aa]">
+                {customer?.phone || '-'}
+              </div>
+            </div>
+          </div>
+
+          {/* 체크 */}
+          <div className="flex gap-6 mb-2">
+            <CheckItem label="보증서 발행 유무" checked={workOrder.warranty_issued} onChange={(v) => setWorkOrder({ ...workOrder, warranty_issued: v })} />
+            <CheckItem label="CRM 기재 유무" checked={workOrder.crm_recorded} onChange={(v) => setWorkOrder({ ...workOrder, crm_recorded: v })} />
+          </div>
+
+          {/* 썬팅 */}
+          <SectionTitle title="썬팅" />
+          <div className="space-y-3">
+            {([
+              { brand: 'vertex' as const, label: '버텍스', products: ['1100(비반사)', '900(비반사)', '700(비반사)', '500(비반사)', '기타'] },
+              { brand: 'rainbow' as const, label: '레인보우', products: ['IS200(비반사)', 'IS100(비반사)', 'I55(비반사)', 'VS200(반사)', 'V90(반사)', '기타'] },
+              { brand: 'glasstint' as const, label: '글라스틴트', products: ['산타나(비반사)', '로데(비반사)', '선셋(반사)', '펜더S(비반사)', '기타'] },
+              { brand: 'tinain' as const, label: '티나인', products: ['V100(반사)', 'R100(비반사)', '기타'] },
+            ]).map(({ brand, label, products }) => (
+              <div key={brand} className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-medium text-[#a1a1aa]">{label}</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs text-[#71717a]">농도:</span>
+                    <input type="text" value={workOrder.tinting[brand].density} onChange={(e) => setTintingDensity(brand, e.target.value)} className="w-40 bg-[#111113] border border-[#1e1e22] rounded px-2 py-1 text-xs text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="전면 30 / 측후면 15" />
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  {products.map((p) => (
+                    <CheckItem key={p} label={p} checked={workOrder.tinting[brand].selected.includes(p)} onChange={() => toggleTinting(brand, p)} />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* PPF & 랩핑 */}
+          <SectionTitle title="PPF & 랩핑" />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg p-3">
+              <span className="text-xs font-medium text-[#a1a1aa] mb-2 block">PPF</span>
+              <div className="flex flex-wrap gap-3 mb-2">
+                {['전체PPF', '프론트패키지', '생활보호패키지'].map((p) => (
+                  <CheckItem key={p} label={p} checked={workOrder.ppf.includes(p)} onChange={() => setWorkOrder({ ...workOrder, ppf: toggleArray(workOrder.ppf, p) })} />
+                ))}
+              </div>
+              <input type="text" value={workOrder.ppf_etc} onChange={(e) => setWorkOrder({ ...workOrder, ppf_etc: e.target.value })} className="w-full bg-[#111113] border border-[#1e1e22] rounded px-2 py-1 text-xs text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="기타 (직접 입력)" />
+            </div>
+            <div className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg p-3">
+              <span className="text-xs font-medium text-[#a1a1aa] mb-2 block">랩핑</span>
+              <div className="flex flex-wrap gap-3 mb-2">
+                {['전체랩핑', '부분'].map((p) => (
+                  <CheckItem key={p} label={p} checked={workOrder.wrapping.includes(p)} onChange={() => setWorkOrder({ ...workOrder, wrapping: toggleArray(workOrder.wrapping, p) })} />
+                ))}
+              </div>
+              <input type="text" value={workOrder.wrapping_etc} onChange={(e) => setWorkOrder({ ...workOrder, wrapping_etc: e.target.value })} className="w-full bg-[#111113] border border-[#1e1e22] rounded px-2 py-1 text-xs text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="기타 (직접 입력)" />
+            </div>
+          </div>
+
+          {/* 코팅 */}
+          <SectionTitle title="코팅시공" />
+          <div className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg p-3">
+            <div className="flex flex-wrap gap-3">
+              {['기본유리막', '9H', '10H', '그래핀PRO', '가죽코팅(시트)', '가죽코팅(전체)', '발수코팅', '필름코팅'].map((p) => (
+                <CheckItem key={p} label={p} checked={workOrder.coating.includes(p)} onChange={() => setWorkOrder({ ...workOrder, coating: toggleArray(workOrder.coating, p) })} />
+              ))}
+            </div>
+          </div>
+
+          {/* 기타 */}
+          <SectionTitle title="기타" />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg p-3">
+              <span className="text-xs font-medium text-[#a1a1aa] mb-2 block">전장시공</span>
+              <div className="flex flex-wrap gap-3 mb-2">
+                {['블랙박스', '하이패스'].map((p) => (
+                  <CheckItem key={p} label={p} checked={workOrder.electrical.includes(p)} onChange={() => setWorkOrder({ ...workOrder, electrical: toggleArray(workOrder.electrical, p) })} />
+                ))}
+              </div>
+              <input type="text" value={workOrder.electrical_etc} onChange={(e) => setWorkOrder({ ...workOrder, electrical_etc: e.target.value })} className="w-full bg-[#111113] border border-[#1e1e22] rounded px-2 py-1 text-xs text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="기타 (직접 입력)" />
+            </div>
+            <div className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg p-3">
+              <span className="text-xs font-medium text-[#a1a1aa] mb-2 block">프리미엄광택</span>
+              <div className="flex flex-wrap gap-3 mb-2">
+                {['전체광택', '부분광택'].map((p) => (
+                  <CheckItem key={p} label={p} checked={workOrder.polish.includes(p)} onChange={() => setWorkOrder({ ...workOrder, polish: toggleArray(workOrder.polish, p) })} />
+                ))}
+              </div>
+              <input type="text" value={workOrder.polish_etc} onChange={(e) => setWorkOrder({ ...workOrder, polish_etc: e.target.value })} className="w-full bg-[#111113] border border-[#1e1e22] rounded px-2 py-1 text-xs text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="기타 (직접 입력)" />
+            </div>
+          </div>
+
+          {/* 신차패키지 옵션 */}
+          <SectionTitle title="신차패키지 옵션" />
+          <div className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg p-3">
+            <div className="flex flex-wrap gap-3">
+              {['신차검수', '내외부디테일링세차', '타이어왁스', '피톤치드연막'].map((p) => (
+                <CheckItem key={p} label={p} checked={workOrder.package_options.includes(p)} onChange={() => setWorkOrder({ ...workOrder, package_options: toggleArray(workOrder.package_options, p) })} />
+              ))}
+            </div>
+          </div>
+
+          {/* 특이사항 */}
+          <SectionTitle title="특이사항 및 비고" />
+          <textarea
+            value={workOrder.notes}
+            onChange={(e) => setWorkOrder({ ...workOrder, notes: e.target.value })}
+            className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50 resize-none h-24"
+            placeholder="특이사항을 입력하세요"
+          />
+        </div>
+
+        {/* Footer */}
+        <div className="sticky bottom-0 bg-[#111113] border-t border-[#1e1e22] px-6 py-4 flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-[#71717a] hover:text-[#a1a1aa] transition-colors">취소</button>
+          <button onClick={onSubmit} className="bg-[#E4002B] hover:bg-[#c60026] text-white text-sm font-medium rounded-lg px-6 py-2 transition-colors">시공 완료 처리</button>
+        </div>
+      </div>
     </div>
   );
 }
