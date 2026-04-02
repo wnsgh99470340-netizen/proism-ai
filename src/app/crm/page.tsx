@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -60,11 +60,72 @@ interface Consultation {
   customer?: { name: string; phone: string | null };
 }
 
-type Tab = 'customers' | 'appointments' | 'followups' | 'consultations';
+type Tab = 'customers' | 'appointments' | 'followups' | 'consultations' | 'templates';
 
 const SERVICE_TYPES = ['PPF', '컬러PPF', 'PWF', '랩핑', '크롬죽이기', '썬팅', '유리막코팅', '가죽코팅', '실내PPF', '신차패키지'];
 const APPOINTMENT_STATUSES = ['상담중', '예약확정', '시공중', '완료'];
 const FOLLOW_UP_TYPES = ['QC점검', '메인터넌스'];
+
+const DEFAULT_TEMPLATES: Record<string, string> = {
+  '크롬죽이기': `안녕하세요? 3M 프로이즘 입니다.
+문의주신 견적 안내드리며, 자세한 내용과 서비스 혜택 안내드립니다.
+
+크롬죽이기 전체시공 정가 140>할인가 120만원까지 시공가능하시며 그릴을 가져오신다면 ( 90만원까지 전체크롬죽이기 가능하십니다 ^^)
+
+집중하여 작업하고있는 것을 원칙으로하여, 바로 예약이 안되어
+사전예약을 받고 있으니 참고 부탁드립니다 ^^
+
+사전예약 시 다음 무상시공 혜택을 드립니다.
+[무상시공] 생활보호패키지 4종(컵 엣지 주유구 트렁크리드 )
+[무상시공] 실내PPF [ 액정 )
+[옵션시공] PPF / 랩핑 / 루프스킨 / 크롬딜리트 / 투톤PPF
+
+[참고 해주세요]
+1. 우리는 전 세계적으로 인증받고있는 제품의 3M PRO 취급점 이며 제품과 기술력의 인증이 확실합니다.
+2. 시공 후 6개월 주기로 꾸준한 메인터넌스 헤택을 받을 수 있습니다.
+3. 제품보증과 시공보증 2중발급 시스템으로 확실한 사후관리가 가능합니다.`,
+  'PPF': `안녕하세요? 3M 프로이즘 입니다.
+문의주신 견적 안내드리며, 자세한 내용과 서비스 혜택 안내드립니다.
+
+사전예약 시 다음 무상시공 혜택을 드립니다.
+[무상시공] 필름코팅
+[무상시공] 실내PPF [ T존 ]
+[무상시공] 실내전체코팅
+[옵션시공] PPF / 랩핑 / 루프스킨 / 크롬딜리트 / 투톤PPF
+
+[참고 해주세요]
+1. 우리는 전 세계적으로 인증받고있는 제품의 3M PRO 취급점 이며 제품과 기술력의 인증이 확실합니다.
+2. 시공 후 6개월 주기로 꾸준한 메인터넌스 헤택을 받을 수 있습니다.
+3. 제품보증과 시공보증 2중발급 시스템으로 확실한 사후관리가 가능합니다.`,
+  '신차패키지': `안녕하세요? 3M 프로이즘 입니다.
+문의주신 견적 안내드리며, 자세한 내용과 서비스 혜택 안내드립니다.
+
+사전예약 시 다음 무상시공 혜택을 드립니다.
+[무상시공] 실내PPF [ T존 ]
+[무상시공] B/C필러 PPF
+[무상시공] 유리막코팅 업그레이드 (2layering)
+[옵션시공] PPF / 랩핑 / 루프스킨 / 크롬딜리트 / 투톤PPF
+
+[참고 해주세요]
+1. 신차계약 후 탁송지 지정은 3M 프로이즘으로 해주세요 [서초동 1604-7 1층 3M 프로이즘]
+2. 차량도착 후 정비자격증소지자의 섬세한 검수가 이뤄집니다. [도막/열화상/진단기/스코프/공기압/배터리진단기 사용] 6SET 첨단장비 사용
+3. 인수인계 여부 및 이슈발생 시, 해결방안 피드백까지 전달드립니다.`,
+  '랩핑': `안녕하세요? 3M 프로이즘 입니다.
+문의주신 견적 안내드리며, 자세한 내용과 서비스 혜택 안내드립니다.
+
+사전예약 시 다음 무상시공 혜택을 드립니다.
+[무상시공] 필름코팅
+[무상시공] 실내PPF [ T존 ]
+[무상시공] 생활보호패키지 컵 /엣지 PPF
+[옵션시공] PPF / 랩핑 / 루프스킨 / 크롬딜리트 / 투톤PPF
+
+[참고 해주세요]
+1. 우리는 전 세계적으로 인증받고있는 제품의 3M PRO 취급점 이며 제품과 기술력의 인증이 확실합니다.
+2. 시공 후 6개월 주기로 꾸준한 메인터넌스 헤택을 받을 수 있습니다.
+3. 제품보증과 시공보증 2중발급 시스템으로 확실한 사후관리가 가능합니다.`,
+};
+
+const TEMPLATE_KEYS = ['크롬죽이기', 'PPF', '신차패키지', '랩핑'];
 
 // 사후관리 자동 생성 로직
 async function createAutoFollowUps(
@@ -178,6 +239,115 @@ export default function CRMPage() {
     wrapping_etc: '',
     notes: '',
   });
+
+  // Template state
+  const [templates, setTemplates] = useState<Record<string, string>>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('crm_templates');
+      if (saved) { try { return JSON.parse(saved); } catch { /* ignore */ } }
+    }
+    return { ...DEFAULT_TEMPLATES };
+  });
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const debounceRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  const handleTemplateChange = (key: string, value: string) => {
+    const updated = { ...templates, [key]: value };
+    setTemplates(updated);
+    if (debounceRef.current[key]) clearTimeout(debounceRef.current[key]);
+    debounceRef.current[key] = setTimeout(() => {
+      localStorage.setItem('crm_templates', JSON.stringify(updated));
+    }, 500);
+  };
+
+  const handleCopyTemplate = async (key: string) => {
+    await navigator.clipboard.writeText(templates[key] || '');
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey(null), 2000);
+  };
+
+  const handleResetTemplate = (key: string) => {
+    if (!confirm(`"${key}" 템플릿을 기본값으로 복원하시겠습니까?`)) return;
+    const updated = { ...templates, [key]: DEFAULT_TEMPLATES[key] };
+    setTemplates(updated);
+    localStorage.setItem('crm_templates', JSON.stringify(updated));
+  };
+
+  const handleSaveTemplateImage = (key: string) => {
+    const text = templates[key] || '';
+    const lines = text.split('\n');
+    const W = 800;
+    const PAD = 48;
+    const LINE_H = 28;
+    const FONT_SIZE = 16;
+    const HEADER_H = 80;
+    const FOOTER_H = 70;
+    const bodyH = lines.length * LINE_H + 24;
+    const H = HEADER_H + bodyH + FOOTER_H + PAD * 2;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = W * 2;
+    canvas.height = H * 2;
+    const ctx = canvas.getContext('2d')!;
+    ctx.scale(2, 2);
+
+    // 배경
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, W, H);
+
+    // 상단 로고
+    ctx.fillStyle = '#E4002B';
+    ctx.font = `bold 24px "Pretendard Variable", -apple-system, sans-serif`;
+    ctx.fillText('◆ 3M 프로이즘', PAD, PAD + 30);
+    ctx.fillStyle = '#666666';
+    ctx.font = `14px "Pretendard Variable", -apple-system, sans-serif`;
+    ctx.fillText(`${key} 견적 안내`, PAD + 220, PAD + 30);
+
+    // 구분선
+    ctx.strokeStyle = '#E4002B';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(PAD, HEADER_H + PAD - 10);
+    ctx.lineTo(W - PAD, HEADER_H + PAD - 10);
+    ctx.stroke();
+
+    // 본문
+    ctx.fillStyle = '#1a1a1a';
+    ctx.font = `${FONT_SIZE}px "Pretendard Variable", -apple-system, sans-serif`;
+    lines.forEach((line, i) => {
+      const y = HEADER_H + PAD + 20 + i * LINE_H;
+      if (line.startsWith('[') && line.endsWith(']')) {
+        ctx.font = `bold ${FONT_SIZE}px "Pretendard Variable", -apple-system, sans-serif`;
+        ctx.fillStyle = '#E4002B';
+        ctx.fillText(line, PAD, y);
+        ctx.font = `${FONT_SIZE}px "Pretendard Variable", -apple-system, sans-serif`;
+        ctx.fillStyle = '#1a1a1a';
+      } else {
+        ctx.fillText(line, PAD, y);
+      }
+    });
+
+    // 하단 구분선
+    const footerY = H - FOOTER_H - 10;
+    ctx.strokeStyle = '#dddddd';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(PAD, footerY);
+    ctx.lineTo(W - PAD, footerY);
+    ctx.stroke();
+
+    // 하단 정보
+    ctx.fillStyle = '#888888';
+    ctx.font = `13px "Pretendard Variable", -apple-system, sans-serif`;
+    ctx.fillText('서울특별시 서초구 서초중앙로8길 82 1동 1층 1호 | 3M 프로이즘', PAD, footerY + 25);
+    ctx.fillText('3M 공식 프리퍼드 인스톨러 인증점', PAD, footerY + 48);
+
+    // 다운로드
+    const link = document.createElement('a');
+    link.download = `프로이즘_${key}_견적.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  };
 
   // Customer picker state (shared)
   const [allCustomers, setAllCustomers] = useState<{ id: string; name: string; phone: string | null }[]>([]);
@@ -582,6 +752,7 @@ export default function CRMPage() {
     { key: 'appointments', label: '예약/일정' },
     { key: 'followups', label: '사후관리' },
     { key: 'consultations', label: '상담 기록' },
+    { key: 'templates', label: '견적 템플릿' },
   ];
 
   return (
@@ -917,6 +1088,48 @@ export default function CRMPage() {
                 <div className="text-center py-12 text-sm text-[#71717a]">등록된 상담 기록이 없습니다</div>
               )}
             </div>
+          </div>
+        )}
+        {/* ─── TAB: 견적 템플릿 ──────────────────────────────── */}
+        {activeTab === 'templates' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {TEMPLATE_KEYS.map((key) => (
+              <div key={key} className="bg-[#111113] border border-[#1e1e22] rounded-xl p-4 flex flex-col">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-[#C8A951]">{key}</h3>
+                  <button
+                    onClick={() => handleResetTemplate(key)}
+                    className="text-[10px] text-[#71717a] hover:text-[#a1a1aa] transition-colors"
+                  >
+                    기본값 복원
+                  </button>
+                </div>
+                <textarea
+                  value={templates[key] || ''}
+                  onChange={(e) => handleTemplateChange(key, e.target.value)}
+                  className="flex-1 bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50 resize-y leading-relaxed"
+                  style={{ minHeight: '300px' }}
+                />
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={() => handleCopyTemplate(key)}
+                    className={`flex-1 text-sm font-medium rounded-lg px-4 py-2 transition-colors ${
+                      copiedKey === key
+                        ? 'bg-[#10B981]/20 text-[#34D399]'
+                        : 'bg-[#E4002B] hover:bg-[#c60026] text-white'
+                    }`}
+                  >
+                    {copiedKey === key ? '복사 완료!' : '복사하기'}
+                  </button>
+                  <button
+                    onClick={() => handleSaveTemplateImage(key)}
+                    className="flex-1 bg-[#C8A951]/10 hover:bg-[#C8A951]/20 text-[#C8A951] text-sm font-medium rounded-lg px-4 py-2 transition-colors"
+                  >
+                    이미지 저장
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
