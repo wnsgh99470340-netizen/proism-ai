@@ -132,7 +132,7 @@ export default function CRMPage() {
   const [showAddCustomer, setShowAddCustomer] = useState(false);
   const [customerForm, setCustomerForm] = useState({
     name: '', phone: '', car_brand: '', car_model: '', car_year: '', car_color: '', source: '', memo: '',
-    appointment_date: '', appointment_service_type: '', appointment_memo: '', is_immediate: false,
+    appointment_date: '', appointment_service_type: '', appointment_memo: '',
   });
 
   // Appointment state
@@ -222,7 +222,13 @@ export default function CRMPage() {
       .from('appointments')
       .select('*, customer:customers(name, phone)')
       .order('appointment_date', { ascending: true });
-    if (data) setAppointments(data as Appointment[]);
+    if (data) {
+      // 오늘 기준 가까운 예약이 위로: 오늘/미래 → 날짜 오름차순, 과거 → 날짜 내림차순 (아래로)
+      const todayStr = new Date().toISOString().split('T')[0];
+      const upcoming = (data as Appointment[]).filter((a) => a.appointment_date >= todayStr);
+      const past = (data as Appointment[]).filter((a) => a.appointment_date < todayStr).reverse();
+      setAppointments([...upcoming, ...past]);
+    }
   }, []);
 
   const fetchFollowUps = useCallback(async () => {
@@ -255,79 +261,107 @@ export default function CRMPage() {
   // ─── Customer Actions ───────────────────────────────────
   const handleAddCustomer = async () => {
     if (!customerForm.name.trim()) return;
-    const { data: newCustomer, error: insertError } = await supabase.from('customers').insert({
-      name: customerForm.name,
-      phone: customerForm.phone || null,
-      car_brand: customerForm.car_brand || null,
-      car_model: customerForm.car_model || null,
-      car_year: customerForm.car_year || null,
-      car_color: customerForm.car_color || null,
-      source: customerForm.source || null,
-      memo: customerForm.memo || null,
-    }).select().single();
 
-    console.log('[CRM] insert result:', { newCustomer, insertError });
+    // 폼 값을 먼저 로컬 변수로 복사
+    const formData = { ...customerForm };
 
-    // fallback: insert().select().single()이 null을 반환하면 이름으로 재조회
-    let customerId = newCustomer?.id;
-    if (!customerId && !insertError) {
+    console.log('[CRM] === 고객 등록 시작 ===');
+    console.log('[CRM] formData:', JSON.stringify(formData));
+
+    // 1. 고객 등록
+    const { data: insertData, error: insertError } = await supabase
+      .from('customers')
+      .insert({
+        name: formData.name,
+        phone: formData.phone || null,
+        car_brand: formData.car_brand || null,
+        car_model: formData.car_model || null,
+        car_year: formData.car_year || null,
+        car_color: formData.car_color || null,
+        source: formData.source || null,
+        memo: formData.memo || null,
+      })
+      .select()
+      .single();
+
+    console.log('[CRM] customer insert result:', JSON.stringify(insertData), JSON.stringify(insertError));
+
+    let customerId = insertData?.id;
+
+    if (!customerId) {
       const { data: found } = await supabase
         .from('customers')
         .select('id')
-        .eq('name', customerForm.name)
+        .eq('name', formData.name)
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
-      console.log('[CRM] fallback lookup:', found);
       customerId = found?.id;
+      console.log('[CRM] fallback id:', customerId);
     }
 
-    let hasAppointment = false;
-    let createdAppointment: Appointment | null = null;
-    if (customerId && customerForm.appointment_date) {
-      const appointmentStatus = customerForm.is_immediate ? '시공중' : '예약확정';
-      const { data: appt } = await supabase.from('appointments').insert({
-        customer_id: customerId,
-        appointment_date: customerForm.appointment_date,
-        service_type: customerForm.appointment_service_type || null,
-        status: appointmentStatus,
-        memo: customerForm.appointment_memo || null,
-      }).select('*, customer:customers(name, phone)').single();
-      hasAppointment = true;
-      if (customerForm.is_immediate && appt) {
-        createdAppointment = appt as Appointment;
+    if (!customerId) {
+      alert('고객 등록 실패');
+      return;
+    }
+
+    console.log('[CRM] customerId:', customerId);
+    console.log('[CRM] appointment_date:', formData.appointment_date);
+    console.log('[CRM] appointment_service_type:', formData.appointment_service_type);
+
+    // 2. 예약 생성
+    let appointmentForWorkOrder: Appointment | null = null;
+    const hasDateAndType = !!(formData.appointment_date && formData.appointment_service_type);
+
+    console.log('[CRM] hasDateAndType:', hasDateAndType);
+
+    if (hasDateAndType) {
+      const { data: apptData, error: apptError } = await supabase
+        .from('appointments')
+        .insert({
+          customer_id: customerId,
+          appointment_date: formData.appointment_date,
+          service_type: formData.appointment_service_type,
+          status: '예약확정',
+          memo: formData.appointment_memo || null,
+        })
+        .select()
+        .single();
+
+      console.log('[CRM] appointment result:', JSON.stringify(apptData), JSON.stringify(apptError));
+
+      if (apptData) {
+        appointmentForWorkOrder = {
+          ...apptData,
+          customer: { name: formData.name, phone: formData.phone || null },
+        } as Appointment;
       }
+    } else if (formData.appointment_date) {
+      await supabase.from('appointments').insert({
+        customer_id: customerId,
+        appointment_date: formData.appointment_date,
+        service_type: null,
+        status: '상담중',
+        memo: formData.appointment_memo || null,
+      });
     }
 
-    const savedName = customerForm.name;
-    const savedPhone = customerForm.phone;
-    const isImmediate = customerForm.is_immediate;
-    setCustomerForm({ name: '', phone: '', car_brand: '', car_model: '', car_year: '', car_color: '', source: '', memo: '', appointment_date: '', appointment_service_type: '', appointment_memo: '', is_immediate: false });
+    // 3. 폼 리셋 + 모달 닫기
+    setCustomerForm({ name: '', phone: '', car_brand: '', car_model: '', car_year: '', car_color: '', source: '', memo: '', appointment_date: '', appointment_service_type: '', appointment_memo: '' });
     setShowAddCustomer(false);
     fetchCustomers();
     fetchAllCustomers();
     fetchAppointments();
 
-    if (isImmediate && hasAppointment) {
-      // 바로 시공: 작업 내역서 모달 띄우기
-      if (createdAppointment) {
-        resetWorkOrder();
-        setWorkOrderAppointment(createdAppointment);
-        setShowWorkOrder(true);
-      } else if (customerId) {
-        // fallback: appointment select가 실패한 경우 수동 구성
-        const fallbackAppointment: Appointment = {
-          id: '', customer_id: customerId,
-          appointment_date: new Date().toISOString().split('T')[0],
-          service_type: customerForm.appointment_service_type || null,
-          status: '시공중', memo: null, created_at: '', updated_at: '',
-          customer: { name: savedName, phone: savedPhone || null },
-        };
-        resetWorkOrder();
-        setWorkOrderAppointment(fallbackAppointment);
-        setShowWorkOrder(true);
-      }
-    } else if (hasAppointment) {
+    // 4. 작업 내역서 모달 또는 알림
+    console.log('[CRM] appointmentForWorkOrder:', JSON.stringify(appointmentForWorkOrder));
+
+    if (hasDateAndType && appointmentForWorkOrder) {
+      console.log('[CRM] 작업 내역서 모달 열기!');
+      resetWorkOrder();
+      setWorkOrderAppointment(appointmentForWorkOrder);
+      setTimeout(() => setShowWorkOrder(true), 200);
+    } else if (formData.appointment_date) {
       alert('고객 등록 + 예약 완료');
     } else {
       alert('고객 등록 완료');
@@ -382,11 +416,9 @@ export default function CRMPage() {
   });
 
   const handleStatusChange = async (appointment: Appointment, newStatus: string) => {
-    // 완료 변경 시 작업 내역서 모달 표시
+    // 완료 변경 시 작업 내역서 모달 표시 (기존 데이터 불러오기)
     if (newStatus === '완료') {
-      resetWorkOrder();
-      setWorkOrderAppointment(appointment);
-      setShowWorkOrder(true);
+      handleOpenWorkOrder(appointment);
       return;
     }
 
@@ -424,6 +456,37 @@ export default function CRMPage() {
     setWorkOrderAppointment(null);
     fetchAppointments();
     fetchFollowUps();
+  };
+
+  const handleWorkOrderSaveOnly = async () => {
+    if (!workOrderAppointment) return;
+    // 작업 내역서 데이터만 예약 memo에 JSON으로 저장, 상태는 '예약확정' 유지
+    if (workOrderAppointment.id) {
+      await supabase.from('appointments')
+        .update({ memo: JSON.stringify(workOrder), status: '예약확정' })
+        .eq('id', workOrderAppointment.id);
+    }
+    setShowWorkOrder(false);
+    setWorkOrderAppointment(null);
+    fetchAppointments();
+  };
+
+  const handleOpenWorkOrder = (appointment: Appointment) => {
+    // 기존 memo에 JSON 작업 내역서가 있으면 불러오기
+    if (appointment.memo) {
+      try {
+        const parsed = JSON.parse(appointment.memo);
+        if (parsed && typeof parsed === 'object' && 'car_number' in parsed) {
+          setWorkOrder(parsed);
+          setWorkOrderAppointment(appointment);
+          setShowWorkOrder(true);
+          return;
+        }
+      } catch { /* not JSON, ignore */ }
+    }
+    resetWorkOrder();
+    setWorkOrderAppointment(appointment);
+    setShowWorkOrder(true);
   };
 
   // ─── Follow-up Actions ──────────────────────────────────
@@ -653,55 +716,78 @@ export default function CRMPage() {
             </div>
 
             <div className="space-y-2">
-              {appointments.map((a) => (
-                <div key={a.id} className="bg-[#111113] border border-[#1e1e22] rounded-xl p-4 flex items-center justify-between group">
-                  <div className="flex items-center gap-4">
-                    <div className="text-center min-w-[60px]">
-                      <div className="text-lg font-bold text-[#fafaf9]">
-                        {new Date(a.appointment_date).getDate()}
+              {appointments.map((a) => {
+                const isToday = a.appointment_date === today;
+                const isPast = a.appointment_date < today;
+                const borderClass = a.status === '완료'
+                  ? 'border-[#1e1e22]'
+                  : isToday
+                    ? 'border-[#C8A951]/40'
+                    : isPast
+                      ? 'border-[#EF4444]/20'
+                      : 'border-[#1e1e22]';
+                const opacityClass = a.status === '완료' ? 'opacity-50' : isPast && a.status !== '완료' ? 'opacity-60' : '';
+                // memo가 JSON 작업 내역서인지 판별
+                let memoDisplay = a.memo;
+                try { if (a.memo && JSON.parse(a.memo)?.car_number !== undefined) memoDisplay = null; } catch { /* not JSON */ }
+
+                return (
+                  <div key={a.id} className={`bg-[#111113] border rounded-xl p-4 flex items-center justify-between group ${borderClass} ${opacityClass}`}>
+                    <div className="flex items-center gap-4">
+                      <div className="text-center min-w-[60px]">
+                        <div className={`text-lg font-bold ${isToday ? 'text-[#C8A951]' : 'text-[#fafaf9]'}`}>
+                          {new Date(a.appointment_date).getDate()}
+                        </div>
+                        <div className="text-[10px] text-[#71717a]">
+                          {new Date(a.appointment_date).toLocaleDateString('ko-KR', { month: 'short' })}
+                          {isToday && <span className="text-[#C8A951] ml-0.5">오늘</span>}
+                        </div>
                       </div>
-                      <div className="text-[10px] text-[#71717a]">
-                        {new Date(a.appointment_date).toLocaleDateString('ko-KR', { month: 'short' })}
+                      <div className="h-10 w-px bg-[#1e1e22]" />
+                      <div>
+                        <div className="text-sm font-medium text-[#fafaf9]">
+                          {a.customer?.name || '(삭제된 고객)'}
+                          {a.customer?.phone && <span className="text-[#71717a] ml-2 font-normal">{a.customer.phone}</span>}
+                        </div>
+                        <div className="text-xs text-[#71717a] mt-0.5">
+                          {a.service_type || '미정'}
+                          {memoDisplay && <span className="ml-2">· {memoDisplay}</span>}
+                        </div>
                       </div>
                     </div>
-                    <div className="h-10 w-px bg-[#1e1e22]" />
-                    <div>
-                      <div className="text-sm font-medium text-[#fafaf9]">
-                        {a.customer?.name || '(삭제된 고객)'}
-                        {a.customer?.phone && <span className="text-[#71717a] ml-2 font-normal">{a.customer.phone}</span>}
-                      </div>
-                      <div className="text-xs text-[#71717a] mt-0.5">
-                        {a.service_type || '미정'}
-                        {a.memo && <span className="ml-2">· {a.memo}</span>}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusColor(a.status)}`}>
-                      {a.status}
-                    </span>
-                    {a.status !== '완료' && (
-                      <select
-                        value=""
-                        onChange={(e) => {
-                          if (e.target.value) handleStatusChange(a, e.target.value);
-                        }}
-                        className="bg-[#1e1e22] border border-[#2a2a2e] rounded-lg px-2 py-1 text-xs text-[#a1a1aa] outline-none cursor-pointer"
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusColor(a.status)}`}>
+                        {a.status}
+                      </span>
+                      <button
+                        onClick={() => handleOpenWorkOrder(a)}
+                        className="bg-[#C8A951]/10 hover:bg-[#C8A951]/20 text-[#C8A951] text-xs font-medium rounded-lg px-2.5 py-1 transition-colors"
                       >
-                        <option value="">상태 변경</option>
-                        {APPOINTMENT_STATUSES.filter((s) => s !== a.status).map((s) => (
-                          <option key={s} value={s}>{s}</option>
-                        ))}
-                      </select>
-                    )}
-                    <button
-                      onClick={() => handleDeleteAppointment(a.id)}
-                      className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded flex items-center justify-center text-[#71717a] hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-all text-xs"
-                      title="삭제"
-                    >✕</button>
+                        작업 내역서
+                      </button>
+                      {a.status !== '완료' && (
+                        <select
+                          value=""
+                          onChange={(e) => {
+                            if (e.target.value) handleStatusChange(a, e.target.value);
+                          }}
+                          className="bg-[#1e1e22] border border-[#2a2a2e] rounded-lg px-2 py-1 text-xs text-[#a1a1aa] outline-none cursor-pointer"
+                        >
+                          <option value="">상태 변경</option>
+                          {APPOINTMENT_STATUSES.filter((s) => s !== a.status).map((s) => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                        </select>
+                      )}
+                      <button
+                        onClick={() => handleDeleteAppointment(a.id)}
+                        className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded flex items-center justify-center text-[#71717a] hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-all text-xs"
+                        title="삭제"
+                      >✕</button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               {appointments.length === 0 && (
                 <div className="text-center py-12 text-sm text-[#71717a]">등록된 예약이 없습니다</div>
               )}
@@ -878,7 +964,7 @@ export default function CRMPage() {
               </div>
               <div>
                 <label className="text-xs text-[#71717a] mb-1 block">예약일</label>
-                <input type="date" value={customerForm.appointment_date} onChange={(e) => setCustomerForm({ ...customerForm, appointment_date: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" />
+                <input type="date" value={customerForm.appointment_date} onChange={(e) => setCustomerForm({ ...customerForm, appointment_date: e.target.value })} onInput={(e) => setCustomerForm({ ...customerForm, appointment_date: (e.target as HTMLInputElement).value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" />
               </div>
               <div>
                 <label className="text-xs text-[#71717a] mb-1 block">시공 종류</label>
@@ -890,19 +976,6 @@ export default function CRMPage() {
               <div className="col-span-2">
                 <label className="text-xs text-[#71717a] mb-1 block">예약 메모</label>
                 <textarea value={customerForm.appointment_memo} onChange={(e) => setCustomerForm({ ...customerForm, appointment_memo: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50 resize-none h-16" placeholder="예약 관련 메모" />
-              </div>
-              <div className="col-span-2">
-                <label className={`flex items-center gap-2 cursor-pointer text-sm transition-colors ${customerForm.appointment_service_type ? 'text-[#fafaf9] hover:text-[#C8A951]' : 'text-[#71717a]/50 cursor-not-allowed'}`}>
-                  <div
-                    className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors shrink-0 ${customerForm.is_immediate ? 'bg-[#C8A951] border-[#C8A951]' : 'border-[#71717a]'}`}
-                    onClick={() => { if (customerForm.appointment_service_type) setCustomerForm({ ...customerForm, is_immediate: !customerForm.is_immediate }); }}
-                  >
-                    {customerForm.is_immediate && <span className="text-[10px] text-black font-bold">✓</span>}
-                  </div>
-                  <span onClick={() => { if (customerForm.appointment_service_type) setCustomerForm({ ...customerForm, is_immediate: !customerForm.is_immediate }); }}>
-                    바로 시공 (작업 내역서 바로 작성)
-                  </span>
-                </label>
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-4">
@@ -994,6 +1067,7 @@ export default function CRMPage() {
           workOrder={workOrder}
           setWorkOrder={setWorkOrder}
           onSubmit={handleWorkOrderSubmit}
+          onSaveOnly={handleWorkOrderSaveOnly}
           onClose={() => { setShowWorkOrder(false); setWorkOrderAppointment(null); }}
         />
       )}
@@ -1008,17 +1082,21 @@ interface WorkOrderModalProps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   setWorkOrder: (v: any) => void;
   onSubmit: () => void;
+  onSaveOnly: () => void;
   onClose: () => void;
 }
 
 function CheckItem({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (
-    <label className="flex items-center gap-2 cursor-pointer text-sm text-[#fafaf9] hover:text-[#C8A951] transition-colors">
+    <div
+      onClick={() => onChange(!checked)}
+      className="flex items-center gap-2 cursor-pointer text-sm text-[#fafaf9] hover:text-[#C8A951] transition-colors select-none"
+    >
       <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors shrink-0 ${checked ? 'bg-[#C8A951] border-[#C8A951]' : 'border-[#71717a]'}`}>
         {checked && <span className="text-[10px] text-black font-bold">✓</span>}
       </div>
-      {label}
-    </label>
+      <span>{label}</span>
+    </div>
   );
 }
 
@@ -1031,7 +1109,7 @@ function SectionTitle({ title }: { title: string }) {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function WorkOrderModal({ appointment, workOrder, setWorkOrder, onSubmit, onClose }: WorkOrderModalProps & { workOrder: any }) {
+function WorkOrderModal({ appointment, workOrder, setWorkOrder, onSubmit, onSaveOnly, onClose }: WorkOrderModalProps & { workOrder: any }) {
   const toggleArray = (arr: string[], item: string) =>
     arr.includes(item) ? arr.filter((v: string) => v !== item) : [...arr, item];
 
@@ -1216,6 +1294,7 @@ function WorkOrderModal({ appointment, workOrder, setWorkOrder, onSubmit, onClos
         {/* Footer */}
         <div className="sticky bottom-0 bg-[#111113] border-t border-[#1e1e22] px-6 py-4 flex justify-end gap-2">
           <button onClick={onClose} className="px-4 py-2 text-sm text-[#71717a] hover:text-[#a1a1aa] transition-colors">취소</button>
+          <button onClick={onSaveOnly} className="bg-[#1e1e22] hover:bg-[#2a2a2e] text-[#a1a1aa] text-sm font-medium rounded-lg px-5 py-2 transition-colors border border-[#2a2a2e]">저장만 하기</button>
           <button onClick={onSubmit} className="bg-[#E4002B] hover:bg-[#c60026] text-white text-sm font-medium rounded-lg px-6 py-2 transition-colors">시공 완료 처리</button>
         </div>
       </div>
