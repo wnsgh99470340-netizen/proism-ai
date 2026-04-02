@@ -26,6 +26,7 @@ interface Appointment {
   id: string;
   customer_id: string;
   appointment_date: string;
+  end_date?: string | null;
   service_type: string | null;
   status: string;
   memo: string | null;
@@ -193,15 +194,18 @@ export default function CRMPage() {
   const [showAddCustomer, setShowAddCustomer] = useState(false);
   const [customerForm, setCustomerForm] = useState({
     name: '', phone: '', car_brand: '', car_model: '', car_year: '', car_color: '', source: '', memo: '',
-    appointment_date: '', appointment_service_type: '', appointment_memo: '',
+    appointment_start_date: '', appointment_end_date: '', appointment_service_type: '', appointment_memo: '',
   });
 
   // Appointment state
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [showAddAppointment, setShowAddAppointment] = useState(false);
   const [appointmentForm, setAppointmentForm] = useState({
-    customer_id: '', appointment_date: '', service_type: '', memo: '',
+    customer_id: '', appointment_date: '', end_date: '', service_type: '', memo: '',
   });
+  const [calendarView, setCalendarView] = useState<'calendar' | 'list'>('calendar');
+  const [calendarMonth, setCalendarMonth] = useState(() => { const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() }; });
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   // Follow-up state
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
@@ -476,21 +480,20 @@ export default function CRMPage() {
     }
 
     console.log('[CRM] customerId:', customerId);
-    console.log('[CRM] appointment_date:', formData.appointment_date);
+    console.log('[CRM] appointment_start_date:', formData.appointment_start_date);
     console.log('[CRM] appointment_service_type:', formData.appointment_service_type);
 
     // 2. 예약 생성
     let appointmentForWorkOrder: Appointment | null = null;
-    const hasDateAndType = !!(formData.appointment_date && formData.appointment_service_type);
-
-    console.log('[CRM] hasDateAndType:', hasDateAndType);
+    const hasDateAndType = !!(formData.appointment_start_date && formData.appointment_service_type);
 
     if (hasDateAndType) {
       const { data: apptData, error: apptError } = await supabase
         .from('appointments')
         .insert({
           customer_id: customerId,
-          appointment_date: formData.appointment_date,
+          appointment_date: formData.appointment_start_date,
+          end_date: formData.appointment_end_date || null,
           service_type: formData.appointment_service_type,
           status: '예약확정',
           memo: formData.appointment_memo || null,
@@ -506,10 +509,11 @@ export default function CRMPage() {
           customer: { name: formData.name, phone: formData.phone || null },
         } as Appointment;
       }
-    } else if (formData.appointment_date) {
+    } else if (formData.appointment_start_date) {
       await supabase.from('appointments').insert({
         customer_id: customerId,
-        appointment_date: formData.appointment_date,
+        appointment_date: formData.appointment_start_date,
+        end_date: formData.appointment_end_date || null,
         service_type: null,
         status: '상담중',
         memo: formData.appointment_memo || null,
@@ -517,21 +521,19 @@ export default function CRMPage() {
     }
 
     // 3. 폼 리셋 + 모달 닫기
-    setCustomerForm({ name: '', phone: '', car_brand: '', car_model: '', car_year: '', car_color: '', source: '', memo: '', appointment_date: '', appointment_service_type: '', appointment_memo: '' });
+    setCustomerForm({ name: '', phone: '', car_brand: '', car_model: '', car_year: '', car_color: '', source: '', memo: '', appointment_start_date: '', appointment_end_date: '', appointment_service_type: '', appointment_memo: '' });
     setShowAddCustomer(false);
     fetchCustomers();
     fetchAllCustomers();
     fetchAppointments();
 
     // 4. 작업 내역서 모달 또는 알림
-    console.log('[CRM] appointmentForWorkOrder:', JSON.stringify(appointmentForWorkOrder));
-
     if (hasDateAndType && appointmentForWorkOrder) {
       console.log('[CRM] 작업 내역서 모달 열기!');
       resetWorkOrder();
       setWorkOrderAppointment(appointmentForWorkOrder);
       setTimeout(() => setShowWorkOrder(true), 200);
-    } else if (formData.appointment_date) {
+    } else if (formData.appointment_start_date) {
       alert('고객 등록 + 예약 완료');
     } else {
       alert('고객 등록 완료');
@@ -567,10 +569,11 @@ export default function CRMPage() {
     await supabase.from('appointments').insert({
       customer_id: appointmentForm.customer_id,
       appointment_date: appointmentForm.appointment_date,
+      end_date: appointmentForm.end_date || null,
       service_type: appointmentForm.service_type || null,
       memo: appointmentForm.memo || null,
     });
-    setAppointmentForm({ customer_id: '', appointment_date: '', service_type: '', memo: '' });
+    setAppointmentForm({ customer_id: '', appointment_date: '', end_date: '', service_type: '', memo: '' });
     setShowAddAppointment(false);
     fetchAppointments();
   };
@@ -874,97 +877,228 @@ export default function CRMPage() {
         )}
 
         {/* ─── TAB: 예약/일정 ──────────────────────────────── */}
-        {activeTab === 'appointments' && (
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm text-[#71717a]">{appointments.length}건의 예약</h2>
-              <button
-                onClick={() => setShowAddAppointment(true)}
-                className="bg-[#E4002B] hover:bg-[#c60026] text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors"
-              >
-                + 예약 추가
-              </button>
-            </div>
+        {activeTab === 'appointments' && (() => {
+          const { year: cY, month: cM } = calendarMonth;
+          const firstDay = new Date(cY, cM, 1).getDay();
+          const daysInMonth = new Date(cY, cM + 1, 0).getDate();
+          const prevMonthDays = new Date(cY, cM, 0).getDate();
+          const pad = (n: number) => String(n).padStart(2, '0');
 
-            <div className="space-y-2">
-              {appointments.map((a) => {
-                const isToday = a.appointment_date === today;
-                const isPast = a.appointment_date < today;
-                const borderClass = a.status === '완료'
-                  ? 'border-[#1e1e22]'
-                  : isToday
-                    ? 'border-[#C8A951]/40'
-                    : isPast
-                      ? 'border-[#EF4444]/20'
-                      : 'border-[#1e1e22]';
-                const opacityClass = a.status === '완료' ? 'opacity-50' : isPast && a.status !== '완료' ? 'opacity-60' : '';
-                // memo가 JSON 작업 내역서인지 판별
-                let memoDisplay = a.memo;
-                try { if (a.memo && JSON.parse(a.memo)?.car_number !== undefined) memoDisplay = null; } catch { /* not JSON */ }
+          // 이전달 끝자락 + 이번달 + 다음달 시작 포함한 전체 셀 구성
+          type CalCell = { day: number; month: 'prev' | 'current' | 'next'; dateStr: string };
+          const cells: CalCell[] = [];
+          for (let i = firstDay - 1; i >= 0; i--) {
+            const d = prevMonthDays - i;
+            const pm = cM === 0 ? 11 : cM - 1;
+            const py = cM === 0 ? cY - 1 : cY;
+            cells.push({ day: d, month: 'prev', dateStr: `${py}-${pad(pm + 1)}-${pad(d)}` });
+          }
+          for (let d = 1; d <= daysInMonth; d++) {
+            cells.push({ day: d, month: 'current', dateStr: `${cY}-${pad(cM + 1)}-${pad(d)}` });
+          }
+          const remaining = 7 - (cells.length % 7);
+          if (remaining < 7) {
+            const nm = cM === 11 ? 0 : cM + 1;
+            const ny = cM === 11 ? cY + 1 : cY;
+            for (let d = 1; d <= remaining; d++) {
+              cells.push({ day: d, month: 'next', dateStr: `${ny}-${pad(nm + 1)}-${pad(d)}` });
+            }
+          }
 
-                return (
-                  <div key={a.id} className={`bg-[#111113] border rounded-xl p-4 flex items-center justify-between group ${borderClass} ${opacityClass}`}>
-                    <div className="flex items-center gap-4">
-                      <div className="text-center min-w-[60px]">
-                        <div className={`text-lg font-bold ${isToday ? 'text-[#C8A951]' : 'text-[#fafaf9]'}`}>
-                          {new Date(a.appointment_date).getDate()}
-                        </div>
-                        <div className="text-[10px] text-[#71717a]">
-                          {new Date(a.appointment_date).toLocaleDateString('ko-KR', { month: 'short' })}
-                          {isToday && <span className="text-[#C8A951] ml-0.5">오늘</span>}
-                        </div>
-                      </div>
-                      <div className="h-10 w-px bg-[#1e1e22]" />
-                      <div>
-                        <div className="text-sm font-medium text-[#fafaf9]">
-                          {a.customer?.name || '(삭제된 고객)'}
-                          {a.customer?.phone && <span className="text-[#71717a] ml-2 font-normal">{a.customer.phone}</span>}
-                        </div>
-                        <div className="text-xs text-[#71717a] mt-0.5">
-                          {a.service_type || '미정'}
-                          {memoDisplay && <span className="ml-2">· {memoDisplay}</span>}
-                        </div>
-                      </div>
+          const apptByDate = (dateStr: string) => appointments.filter((a) => {
+            const start = a.appointment_date;
+            const end = a.end_date || a.appointment_date;
+            return dateStr >= start && dateStr <= end;
+          });
+
+          const statusBarColor = (status: string) => {
+            switch (status) {
+              case '상담중': return 'bg-[#71717a]';
+              case '예약확정': return 'bg-[#3B82F6]';
+              case '시공중': return 'bg-[#C8A951]';
+              case '완료': return 'bg-[#22C55E]';
+              default: return 'bg-[#71717a]';
+            }
+          };
+
+          const displayAppointments = calendarView === 'calendar' && selectedDate
+            ? apptByDate(selectedDate)
+            : appointments;
+
+          const goToday = () => {
+            const now = new Date();
+            setCalendarMonth({ year: now.getFullYear(), month: now.getMonth() });
+            setSelectedDate(today);
+          };
+
+          return (
+            <div>
+              {/* 상단 바 */}
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <button onClick={() => setCalendarMonth((p) => { const d = new Date(p.year, p.month - 1); return { year: d.getFullYear(), month: d.getMonth() }; })} className="text-[#71717a] hover:text-[#fafaf9] transition-colors text-lg leading-none">◀</button>
+                  <span className="text-base font-semibold text-[#fafaf9] min-w-[120px] text-center">{cY}년 {cM + 1}월</span>
+                  <button onClick={() => setCalendarMonth((p) => { const d = new Date(p.year, p.month + 1); return { year: d.getFullYear(), month: d.getMonth() }; })} className="text-[#71717a] hover:text-[#fafaf9] transition-colors text-lg leading-none">▶</button>
+                  <button onClick={goToday} className="text-xs bg-[#1e1e22] hover:bg-[#2a2a2e] text-[#a1a1aa] rounded-lg px-3 py-1 transition-colors ml-1">오늘</button>
+                  <div className="flex bg-[#1e1e22] rounded-lg p-0.5 ml-2">
+                    <button onClick={() => setCalendarView('calendar')} className={`text-xs px-3 py-1 rounded-md transition-colors ${calendarView === 'calendar' ? 'bg-[#C8A951]/20 text-[#C8A951]' : 'text-[#71717a]'}`}>달력</button>
+                    <button onClick={() => setCalendarView('list')} className={`text-xs px-3 py-1 rounded-md transition-colors ${calendarView === 'list' ? 'bg-[#C8A951]/20 text-[#C8A951]' : 'text-[#71717a]'}`}>리스트</button>
+                  </div>
+                </div>
+                <button onClick={() => setShowAddAppointment(true)} className="bg-[#E4002B] hover:bg-[#c60026] text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors">+ 예약 추가</button>
+              </div>
+
+              {/* 달력 뷰 */}
+              {calendarView === 'calendar' && (
+                <div style={{ marginBottom: '16px' }}>
+                  <div style={{ backgroundColor: '#111113', border: '1px solid #1e1e22', borderRadius: '12px', overflow: 'hidden' }}>
+                    {/* 요일 헤더 */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+                      {['일', '월', '화', '수', '목', '금', '토'].map((d, i) => (
+                        <div key={d} style={{ textAlign: 'center', padding: '10px 0', fontSize: '12px', fontWeight: 600, borderBottom: '1px solid #1e1e22', color: i === 0 ? '#EF4444' : i === 6 ? '#3B82F6' : '#71717a' }}>{d}</div>
+                      ))}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusColor(a.status)}`}>
-                        {a.status}
-                      </span>
-                      <button
-                        onClick={() => handleOpenWorkOrder(a)}
-                        className="bg-[#C8A951]/10 hover:bg-[#C8A951]/20 text-[#C8A951] text-xs font-medium rounded-lg px-2.5 py-1 transition-colors"
-                      >
-                        작업 내역서
-                      </button>
-                      {a.status !== '완료' && (
-                        <select
-                          value=""
-                          onChange={(e) => {
-                            if (e.target.value) handleStatusChange(a, e.target.value);
-                          }}
-                          className="bg-[#1e1e22] border border-[#2a2a2e] rounded-lg px-2 py-1 text-xs text-[#a1a1aa] outline-none cursor-pointer"
-                        >
-                          <option value="">상태 변경</option>
-                          {APPOINTMENT_STATUSES.filter((s) => s !== a.status).map((s) => (
-                            <option key={s} value={s}>{s}</option>
-                          ))}
-                        </select>
-                      )}
-                      <button
-                        onClick={() => handleDeleteAppointment(a.id)}
-                        className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded flex items-center justify-center text-[#71717a] hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-all text-xs"
-                        title="삭제"
-                      >✕</button>
+                    {/* 날짜 그리드 */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+                      {cells.map((cell, i) => {
+                        const dayAppts = apptByDate(cell.dateStr);
+                        const isT = cell.dateStr === today;
+                        const isSel = cell.dateStr === selectedDate;
+                        const isCurrent = cell.month === 'current';
+                        const dayOfWeek = i % 7;
+                        const dayColor = dayOfWeek === 0 ? '#EF4444' : dayOfWeek === 6 ? '#3B82F6' : '#a1a1aa';
+                        return (
+                          <div
+                            key={cell.dateStr + cell.month}
+                            onClick={() => setSelectedDate(isSel ? null : cell.dateStr)}
+                            style={{
+                              minHeight: '100px',
+                              borderBottom: '1px solid rgba(30,30,34,0.4)',
+                              borderRight: '1px solid rgba(30,30,34,0.4)',
+                              padding: '6px',
+                              cursor: 'pointer',
+                              backgroundColor: isSel ? 'rgba(200,169,81,0.05)' : 'transparent',
+                              opacity: isCurrent ? 1 : 0.3,
+                              transition: 'background-color 0.15s',
+                            }}
+                            onMouseEnter={(e) => { if (!isSel) e.currentTarget.style.backgroundColor = '#1a1a1f'; }}
+                            onMouseLeave={(e) => { if (!isSel) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                          >
+                            {/* 날짜 숫자 */}
+                            <div style={{ marginBottom: '4px' }}>
+                              {isT ? (
+                                <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#C8A951', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#000' }}>{cell.day}</span>
+                                </div>
+                              ) : (
+                                <div style={{ width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <span style={{ fontSize: '12px', fontWeight: 500, color: dayColor }}>{cell.day}</span>
+                                </div>
+                              )}
+                            </div>
+                            {/* 예약 바 */}
+                            {isCurrent && dayAppts.length > 0 && (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                {dayAppts.slice(0, 3).map((a) => {
+                                  const barBg = a.status === '상담중' ? '#71717a' : a.status === '예약확정' ? '#3B82F6' : a.status === '시공중' ? '#C8A951' : '#22C55E';
+                                  const isCompleted = a.status === '완료';
+                                  const isStart = a.appointment_date === cell.dateStr;
+                                  return (
+                                    <div key={a.id} style={{ backgroundColor: barBg, borderRadius: '3px', padding: '2px 6px', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', opacity: isCompleted ? 0.6 : 1 }}>
+                                      <span style={{ fontSize: '10px', fontWeight: 500, color: '#fff' }}>
+                                        {isStart
+                                          ? `${a.customer?.name || '?'}${a.service_type ? ` · ${a.service_type}` : ''}`
+                                          : `→ ${a.customer?.name || '?'}`}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                                {dayAppts.length > 3 && (
+                                  <div style={{ fontSize: '10px', color: '#C8A951', fontWeight: 500, paddingLeft: '4px' }}>+{dayAppts.length - 3}건 더보기</div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
-                );
-              })}
-              {appointments.length === 0 && (
-                <div className="text-center py-12 text-sm text-[#71717a]">등록된 예약이 없습니다</div>
+
+                  {/* 선택된 날짜 헤더 */}
+                  {selectedDate && (
+                    <div style={{ marginTop: '16px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ width: '4px', height: '20px', backgroundColor: '#C8A951', borderRadius: '9999px' }} />
+                      <span style={{ fontSize: '14px', fontWeight: 600, color: '#fafaf9' }}>
+                        {new Date(selectedDate + 'T00:00:00').toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' })}
+                      </span>
+                      <span style={{ fontSize: '12px', color: '#71717a' }}>{apptByDate(selectedDate).length}건</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 예약 카드 리스트 */}
+              {(calendarView === 'list' || (calendarView === 'calendar' && selectedDate)) && (
+                <div className="space-y-2">
+                  {displayAppointments.map((a) => {
+                    const isToday = a.appointment_date === today;
+                    const isPast = a.appointment_date < today;
+                    const borderClass = a.status === '완료' ? 'border-[#1e1e22]' : isToday ? 'border-[#C8A951]/40' : isPast ? 'border-[#EF4444]/20' : 'border-[#1e1e22]';
+                    const opacityClass = a.status === '완료' ? 'opacity-50' : isPast && a.status !== '완료' ? 'opacity-60' : '';
+                    let memoDisplay = a.memo;
+                    try { if (a.memo && JSON.parse(a.memo)?.car_number !== undefined) memoDisplay = null; } catch { /* not JSON */ }
+
+                    return (
+                      <div key={a.id} className={`bg-[#111113] border rounded-xl p-4 flex items-center justify-between group ${borderClass} ${opacityClass}`}>
+                        <div className="flex items-center gap-4">
+                          <div className="text-center min-w-[60px]">
+                            <div className={`text-lg font-bold ${isToday ? 'text-[#C8A951]' : 'text-[#fafaf9]'}`}>
+                              {new Date(a.appointment_date).getDate()}
+                              {a.end_date && a.end_date !== a.appointment_date && (
+                                <span className="text-xs font-normal text-[#71717a]">~{new Date(a.end_date).getDate()}</span>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-[#71717a]">
+                              {new Date(a.appointment_date).toLocaleDateString('ko-KR', { month: 'short' })}
+                              {isToday && <span className="text-[#C8A951] ml-0.5">오늘</span>}
+                            </div>
+                          </div>
+                          <div className="h-10 w-px bg-[#1e1e22]" />
+                          <div>
+                            <div className="text-sm font-medium text-[#fafaf9]">
+                              {a.customer?.name || '(삭제된 고객)'}
+                              {a.customer?.phone && <span className="text-[#71717a] ml-2 font-normal">{a.customer.phone}</span>}
+                            </div>
+                            <div className="text-xs text-[#71717a] mt-0.5">
+                              {a.service_type || '미정'}
+                              {memoDisplay && <span className="ml-2">· {memoDisplay}</span>}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusColor(a.status)}`}>{a.status}</span>
+                          <button onClick={() => handleOpenWorkOrder(a)} className="bg-[#C8A951]/10 hover:bg-[#C8A951]/20 text-[#C8A951] text-xs font-medium rounded-lg px-2.5 py-1 transition-colors">작업 내역서</button>
+                          {a.status !== '완료' && (
+                            <select value="" onChange={(e) => { if (e.target.value) handleStatusChange(a, e.target.value); }} className="bg-[#1e1e22] border border-[#2a2a2e] rounded-lg px-2 py-1 text-xs text-[#a1a1aa] outline-none cursor-pointer">
+                              <option value="">상태 변경</option>
+                              {APPOINTMENT_STATUSES.filter((s) => s !== a.status).map((s) => (<option key={s} value={s}>{s}</option>))}
+                            </select>
+                          )}
+                          <button onClick={() => handleDeleteAppointment(a.id)} className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded flex items-center justify-center text-[#71717a] hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-all text-xs" title="삭제">✕</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {displayAppointments.length === 0 && (
+                    <div className="text-center py-12 text-sm text-[#71717a]">
+                      {calendarView === 'calendar' && selectedDate ? '이 날짜에 예약이 없습니다' : '등록된 예약이 없습니다'}
+                    </div>
+                  )}
+                </div>
               )}
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* ─── TAB: 사후관리 ──────────────────────────────── */}
         {activeTab === 'followups' && (
@@ -1176,10 +1310,14 @@ export default function CRMPage() {
                 <div className="text-xs text-[#C8A951] font-medium mb-2">예약 정보 (선택)</div>
               </div>
               <div>
-                <label className="text-xs text-[#71717a] mb-1 block">예약일</label>
-                <input type="date" value={customerForm.appointment_date} onChange={(e) => setCustomerForm({ ...customerForm, appointment_date: e.target.value })} onInput={(e) => setCustomerForm({ ...customerForm, appointment_date: (e.target as HTMLInputElement).value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" />
+                <label className="text-xs text-[#71717a] mb-1 block">시공 시작일</label>
+                <input type="date" value={customerForm.appointment_start_date} onChange={(e) => setCustomerForm({ ...customerForm, appointment_start_date: e.target.value })} onInput={(e) => setCustomerForm({ ...customerForm, appointment_start_date: (e.target as HTMLInputElement).value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" />
               </div>
               <div>
+                <label className="text-xs text-[#71717a] mb-1 block">시공 종료일</label>
+                <input type="date" value={customerForm.appointment_end_date} onChange={(e) => setCustomerForm({ ...customerForm, appointment_end_date: e.target.value })} onInput={(e) => setCustomerForm({ ...customerForm, appointment_end_date: (e.target as HTMLInputElement).value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" />
+              </div>
+              <div className="col-span-2">
                 <label className="text-xs text-[#71717a] mb-1 block">시공 종류</label>
                 <select value={customerForm.appointment_service_type} onChange={(e) => setCustomerForm({ ...customerForm, appointment_service_type: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50">
                   <option value="">선택...</option>
@@ -1210,8 +1348,12 @@ export default function CRMPage() {
                 <CustomerPicker value={appointmentForm.customer_id} onChange={(id) => setAppointmentForm({ ...appointmentForm, customer_id: id })} />
               </div>
               <div>
-                <label className="text-xs text-[#71717a] mb-1 block">예약 날짜 *</label>
-                <input type="date" value={appointmentForm.appointment_date} onChange={(e) => setAppointmentForm({ ...appointmentForm, appointment_date: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" />
+                <label className="text-xs text-[#71717a] mb-1 block">시공 시작일 *</label>
+                <input type="date" value={appointmentForm.appointment_date} onChange={(e) => setAppointmentForm({ ...appointmentForm, appointment_date: e.target.value })} onInput={(e) => setAppointmentForm({ ...appointmentForm, appointment_date: (e.target as HTMLInputElement).value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" />
+              </div>
+              <div>
+                <label className="text-xs text-[#71717a] mb-1 block">시공 종료일</label>
+                <input type="date" value={appointmentForm.end_date} onChange={(e) => setAppointmentForm({ ...appointmentForm, end_date: e.target.value })} onInput={(e) => setAppointmentForm({ ...appointmentForm, end_date: (e.target as HTMLInputElement).value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" />
               </div>
               <div>
                 <label className="text-xs text-[#71717a] mb-1 block">시공 종류</label>
