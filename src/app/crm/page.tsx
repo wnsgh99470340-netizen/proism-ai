@@ -204,6 +204,7 @@ export default function CRMPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerSearch, setCustomerSearch] = useState('');
   const [showAddCustomer, setShowAddCustomer] = useState(false);
+  const [editCustomerId, setEditCustomerId] = useState<string | null>(null);
   const [customerForm, setCustomerForm] = useState({
     name: '', phone: '', car_brand: '', car_model: '', car_year: '', car_color: '', source: '', memo: '',
     appointment_start_date: '', appointment_end_date: '', appointment_service_type: '', appointment_memo: '',
@@ -569,6 +570,51 @@ export default function CRMPage() {
     fetchAllCustomers();
   };
 
+  const handleEditCustomer = (customer: Customer) => {
+    setCustomerForm({
+      name: customer.name || '',
+      phone: customer.phone || '',
+      car_brand: customer.car_brand || '',
+      car_model: customer.car_model || '',
+      car_year: customer.car_year || '',
+      car_color: customer.car_color || '',
+      source: customer.source || '',
+      memo: customer.memo || '',
+      appointment_start_date: '',
+      appointment_end_date: '',
+      appointment_service_type: '',
+      appointment_memo: '',
+    });
+    setEditCustomerId(customer.id);
+    setShowAddCustomer(true);
+  };
+
+  const handleUpdateCustomer = async () => {
+    if (!editCustomerId || !customerForm.name.trim()) return;
+    const { error } = await supabase
+      .from('customers')
+      .update({
+        name: customerForm.name,
+        phone: customerForm.phone || null,
+        car_brand: customerForm.car_brand || null,
+        car_model: customerForm.car_model || null,
+        car_year: customerForm.car_year || null,
+        car_color: customerForm.car_color || null,
+        source: customerForm.source || null,
+        memo: customerForm.memo || null,
+      })
+      .eq('id', editCustomerId);
+    if (error) {
+      alert('수정 실패: ' + error.message);
+      return;
+    }
+    setCustomerForm({ name: '', phone: '', car_brand: '', car_model: '', car_year: '', car_color: '', source: '', memo: '', appointment_start_date: '', appointment_end_date: '', appointment_service_type: '', appointment_memo: '' });
+    setEditCustomerId(null);
+    setShowAddCustomer(false);
+    fetchCustomers();
+    fetchAllCustomers();
+  };
+
   const handleDeleteAppointment = async (id: string) => {
     if (!confirm('이 예약을 정말 삭제하시겠습니까?')) return;
     await supabase.from('appointments').delete().eq('id', id);
@@ -827,7 +873,7 @@ export default function CRMPage() {
                 <span className="text-xs text-[#71717a]">{filteredCustomers.length}명</span>
               </div>
               <button
-                onClick={() => setShowAddCustomer(true)}
+                onClick={() => { setEditCustomerId(null); setCustomerForm({ name: '', phone: '', car_brand: '', car_model: '', car_year: '', car_color: '', source: '', memo: '', appointment_start_date: '', appointment_end_date: '', appointment_service_type: '', appointment_memo: '' }); setShowAddCustomer(true); }}
                 className="bg-[#E4002B] hover:bg-[#c60026] text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors"
               >
                 + 고객 추가
@@ -843,7 +889,7 @@ export default function CRMPage() {
                     <th className="text-left px-4 py-3 text-xs font-medium text-[#71717a]">차종</th>
                     <th className="text-left px-4 py-3 text-xs font-medium text-[#71717a]">최근 시공</th>
                     <th className="text-left px-4 py-3 text-xs font-medium text-[#71717a]">등록일</th>
-                    <th className="w-10"></th>
+                    <th className="w-20"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -867,11 +913,18 @@ export default function CRMPage() {
                       </td>
                       <td className="px-4 py-3 text-sm text-[#71717a]">{formatDate(c.created_at)}</td>
                       <td className="px-2 py-3">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleDeleteCustomer(c.id, c.name); }}
-                          className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded flex items-center justify-center text-[#71717a] hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-all text-xs"
-                          title="삭제"
-                        >✕</button>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleEditCustomer(c); }}
+                            className="w-6 h-6 rounded flex items-center justify-center text-[#71717a] hover:text-[#C8A951] hover:bg-[#C8A951]/10 transition-all text-xs"
+                            title="수정"
+                          >✎</button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDeleteCustomer(c.id, c.name); }}
+                            className="w-6 h-6 rounded flex items-center justify-center text-[#71717a] hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-all text-xs"
+                            title="삭제"
+                          >✕</button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1323,9 +1376,9 @@ export default function CRMPage() {
 
       {/* ─── Modal: 고객 추가 ────────────────────────────────── */}
       {showAddCustomer && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center" onClick={() => setShowAddCustomer(false)}>
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center" onClick={() => { setShowAddCustomer(false); setEditCustomerId(null); }}>
           <div className="bg-[#111113] border border-[#1e1e22] rounded-xl w-full max-w-lg p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-[#fafaf9] font-semibold text-base mb-4">고객 추가</h3>
+            <h3 className="text-[#fafaf9] font-semibold text-base mb-4">{editCustomerId ? '고객 수정' : '고객 추가'}</h3>
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
                 <label className="text-xs text-[#71717a] mb-1 block">이름 *</label>
@@ -1359,6 +1412,7 @@ export default function CRMPage() {
                 <label className="text-xs text-[#71717a] mb-1 block">메모</label>
                 <textarea value={customerForm.memo} onChange={(e) => setCustomerForm({ ...customerForm, memo: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50 resize-none h-20" placeholder="특이사항" />
               </div>
+              {!editCustomerId && (<>
               <div className="col-span-2 border-t border-[#1e1e22] pt-3 mt-1">
                 <div className="text-xs text-[#C8A951] font-medium mb-2">예약 정보 (선택)</div>
               </div>
@@ -1381,10 +1435,11 @@ export default function CRMPage() {
                 <label className="text-xs text-[#71717a] mb-1 block">예약 메모</label>
                 <textarea value={customerForm.appointment_memo} onChange={(e) => setCustomerForm({ ...customerForm, appointment_memo: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50 resize-none h-16" placeholder="예약 관련 메모" />
               </div>
+              </>)}
             </div>
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setShowAddCustomer(false)} className="px-4 py-2 text-sm text-[#71717a] hover:text-[#a1a1aa] transition-colors">취소</button>
-              <button onClick={handleAddCustomer} className="bg-[#E4002B] hover:bg-[#c60026] text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors">추가</button>
+              <button onClick={() => { setShowAddCustomer(false); setEditCustomerId(null); }} className="px-4 py-2 text-sm text-[#71717a] hover:text-[#a1a1aa] transition-colors">취소</button>
+              <button onClick={editCustomerId ? handleUpdateCustomer : handleAddCustomer} className="bg-[#E4002B] hover:bg-[#c60026] text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors">{editCustomerId ? '수정' : '추가'}</button>
             </div>
           </div>
         </div>
