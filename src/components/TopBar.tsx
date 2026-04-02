@@ -2,6 +2,7 @@
 
 import { team } from '@/config/team';
 import { useState } from 'react';
+import Link from 'next/link';
 
 interface TopBarProps {
   activeEmployeeId?: string;
@@ -19,6 +20,13 @@ export default function TopBar({ activeEmployeeId, onHelpClick }: TopBarProps) {
           <span className="text-[#fafaf9] font-semibold text-sm">3M 프로이즘 AI</span>
         </div>
         <span className="text-[#71717a] text-xs">마케팅 에이전트</span>
+        <span className="text-[#1e1e22]">|</span>
+        <Link
+          href="/crm"
+          className="text-xs text-[#71717a] hover:text-[#C8A951] transition-colors bg-[#1e1e22] hover:bg-[#1e1e22]/80 rounded-lg px-2.5 py-1"
+        >
+          고객 관리 CRM
+        </Link>
       </div>
 
       <div className="flex items-center gap-3">
