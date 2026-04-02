@@ -1504,6 +1504,20 @@ function SectionTitle({ title }: { title: string }) {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function WorkOrderModal({ appointment, workOrder, setWorkOrder, onSubmit, onSaveOnly, onClose }: WorkOrderModalProps & { workOrder: any }) {
+  const printRef = useRef<HTMLDivElement>(null);
+
+  const handlePdfSave = async () => {
+    if (!printRef.current) return;
+    const html2canvas = (await import('html2canvas')).default;
+    const canvas = await html2canvas(printRef.current, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+    const link = document.createElement('a');
+    const customerName = appointment.customer?.name || '고객';
+    const dateStr = new Date().toISOString().split('T')[0];
+    link.download = `프로이즘_작업내역서_${customerName}_${dateStr}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  };
+
   const toggleArray = (arr: string[], item: string) =>
     arr.includes(item) ? arr.filter((v: string) => v !== item) : [...arr, item];
 
@@ -1685,9 +1699,132 @@ function WorkOrderModal({ appointment, workOrder, setWorkOrder, onSubmit, onSave
           />
         </div>
 
+        {/* Hidden Print Div */}
+        <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
+          <div ref={printRef} style={{ width: '800px', padding: '40px', backgroundColor: '#fff', fontFamily: '"Pretendard Variable", -apple-system, sans-serif', color: '#000', fontSize: '12px' }}>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '16px' }}>
+              <div>
+                <div style={{ fontSize: '28px', fontWeight: 800, color: '#E4002B', letterSpacing: '2px' }}>3M PROIZM</div>
+                <div style={{ fontSize: '10px', color: '#888', marginTop: '2px' }}>3M 공식 프리퍼드 인스톨러 인증점</div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: '22px', fontWeight: 700 }}>작업 리스트</div>
+                <div style={{ fontSize: '11px', color: '#888' }}>일반 / 고정</div>
+              </div>
+            </div>
+            {/* 체크 */}
+            <div style={{ display: 'flex', gap: '24px', marginBottom: '12px', fontSize: '12px' }}>
+              <span>{workOrder.warranty_issued ? '☑' : '☐'} 보증서 발행 유무</span>
+              <span>{workOrder.crm_recorded ? '☑' : '☐'} CRM 기재 유무</span>
+            </div>
+            {/* 고객 정보 테이블 */}
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '16px' }}>
+              <tbody>
+                <tr>
+                  <td style={{ border: '1px solid #ccc', padding: '6px 8px', backgroundColor: '#f5f5f5', fontWeight: 600, width: '80px' }}>일자</td>
+                  <td style={{ border: '1px solid #ccc', padding: '6px 8px' }}>{new Date().toLocaleDateString('ko-KR')}</td>
+                  <td style={{ border: '1px solid #ccc', padding: '6px 8px', backgroundColor: '#f5f5f5', fontWeight: 600, width: '80px' }}>브랜드/차종</td>
+                  <td style={{ border: '1px solid #ccc', padding: '6px 8px' }}>{appointment.service_type || '-'}</td>
+                  <td style={{ border: '1px solid #ccc', padding: '6px 8px', backgroundColor: '#f5f5f5', fontWeight: 600, width: '80px' }}>차량번호</td>
+                  <td style={{ border: '1px solid #ccc', padding: '6px 8px' }}>{workOrder.car_number || '-'}</td>
+                </tr>
+                <tr>
+                  <td style={{ border: '1px solid #ccc', padding: '6px 8px', backgroundColor: '#f5f5f5', fontWeight: 600 }}>성명</td>
+                  <td style={{ border: '1px solid #ccc', padding: '6px 8px' }}>{appointment.customer?.name || '-'}</td>
+                  <td style={{ border: '1px solid #ccc', padding: '6px 8px', backgroundColor: '#f5f5f5', fontWeight: 600 }}>유입경로</td>
+                  <td style={{ border: '1px solid #ccc', padding: '6px 8px' }}>-</td>
+                  <td style={{ border: '1px solid #ccc', padding: '6px 8px', backgroundColor: '#f5f5f5', fontWeight: 600 }}>연락처</td>
+                  <td style={{ border: '1px solid #ccc', padding: '6px 8px' }}>{appointment.customer?.phone || '-'}</td>
+                </tr>
+              </tbody>
+            </table>
+            {/* 썬팅 */}
+            <div style={{ fontWeight: 700, fontSize: '13px', marginBottom: '8px', borderBottom: '2px solid #E4002B', paddingBottom: '4px' }}>썬팅</div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '16px' }}>
+              <tbody>
+                {([
+                  { label: '버텍스', brand: 'vertex' as const, items: ['1100(비반사)', '900(비반사)', '700(비반사)', '500(비반사)', '기타'] },
+                  { label: '레인보우', brand: 'rainbow' as const, items: ['IS200(비반사)', 'IS100(비반사)', 'I55(비반사)', 'VS200(반사)', 'V90(반사)', '기타'] },
+                  { label: '글라스틴트', brand: 'glasstint' as const, items: ['산타나(비반사)', '로데(비반사)', '선셋(반사)', '펜더S(비반사)', '기타'] },
+                  { label: '티나인', brand: 'tinain' as const, items: ['V100(반사)', 'R100(비반사)', '기타'] },
+                ] as const).map((row) => (
+                  <tr key={row.brand}>
+                    <td style={{ border: '1px solid #ccc', padding: '6px 8px', backgroundColor: '#f5f5f5', fontWeight: 600, width: '70px', verticalAlign: 'top' }}>{row.label}</td>
+                    <td style={{ border: '1px solid #ccc', padding: '6px 8px' }}>
+                      {row.items.map((item) => (
+                        <span key={item} style={{ marginRight: '12px' }}>
+                          {workOrder.tinting[row.brand]?.selected?.includes(item) ? '☑' : '☐'} {item}
+                        </span>
+                      ))}
+                      {workOrder.tinting[row.brand]?.density && (
+                        <span style={{ marginLeft: '8px', color: '#E4002B' }}>농도: [{workOrder.tinting[row.brand].density}]</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {/* PPF & 랩핑 / 코팅 / 기타 */}
+            <div style={{ fontWeight: 700, fontSize: '13px', marginBottom: '8px', borderBottom: '2px solid #E4002B', paddingBottom: '4px' }}>PPF & 랩핑 / 코팅 / 기타</div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '16px' }}>
+              <tbody>
+                <tr>
+                  <td style={{ border: '1px solid #ccc', padding: '6px 8px', backgroundColor: '#f5f5f5', fontWeight: 600, width: '70px' }}>PPF</td>
+                  <td style={{ border: '1px solid #ccc', padding: '6px 8px' }}>
+                    {['전체PPF', '프론트패키지', '생활보호패키지'].map((p) => <span key={p} style={{ marginRight: '12px' }}>{workOrder.ppf?.includes(p) ? '☑' : '☐'} {p}</span>)}
+                    {workOrder.ppf_etc && <span>기타: {workOrder.ppf_etc}</span>}
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ border: '1px solid #ccc', padding: '6px 8px', backgroundColor: '#f5f5f5', fontWeight: 600 }}>랩핑</td>
+                  <td style={{ border: '1px solid #ccc', padding: '6px 8px' }}>
+                    {['전체랩핑', '부분'].map((p) => <span key={p} style={{ marginRight: '12px' }}>{workOrder.wrapping?.includes(p) ? '☑' : '☐'} {p}</span>)}
+                    {workOrder.wrapping_etc && <span>기타: {workOrder.wrapping_etc}</span>}
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ border: '1px solid #ccc', padding: '6px 8px', backgroundColor: '#f5f5f5', fontWeight: 600 }}>코팅시공</td>
+                  <td style={{ border: '1px solid #ccc', padding: '6px 8px' }}>
+                    {['기본유리막', '9H', '10H', '그래핀PRO', '가죽코팅(시트)', '가죽코팅(전체)', '발수코팅', '필름코팅'].map((p) => <span key={p} style={{ marginRight: '12px' }}>{workOrder.coating?.includes(p) ? '☑' : '☐'} {p}</span>)}
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ border: '1px solid #ccc', padding: '6px 8px', backgroundColor: '#f5f5f5', fontWeight: 600 }}>전장시공</td>
+                  <td style={{ border: '1px solid #ccc', padding: '6px 8px' }}>
+                    {['블랙박스', '하이패스'].map((p) => <span key={p} style={{ marginRight: '12px' }}>{workOrder.electrical?.includes(p) ? '☑' : '☐'} {p}</span>)}
+                    {workOrder.electrical_etc && <span>기타: {workOrder.electrical_etc}</span>}
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ border: '1px solid #ccc', padding: '6px 8px', backgroundColor: '#f5f5f5', fontWeight: 600 }}>프리미엄광택</td>
+                  <td style={{ border: '1px solid #ccc', padding: '6px 8px' }}>
+                    {['전체광택', '부분광택'].map((p) => <span key={p} style={{ marginRight: '12px' }}>{workOrder.polish?.includes(p) ? '☑' : '☐'} {p}</span>)}
+                    {workOrder.polish_etc && <span>기타: {workOrder.polish_etc}</span>}
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ border: '1px solid #ccc', padding: '6px 8px', backgroundColor: '#f5f5f5', fontWeight: 600 }}>신차패키지</td>
+                  <td style={{ border: '1px solid #ccc', padding: '6px 8px' }}>
+                    {['신차검수', '내외부디테일링세차', '타이어왁스', '피톤치드연막'].map((p) => <span key={p} style={{ marginRight: '12px' }}>{workOrder.package_options?.includes(p) ? '☑' : '☐'} {p}</span>)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            {/* 특이사항 */}
+            <div style={{ fontWeight: 700, fontSize: '13px', marginBottom: '8px', borderBottom: '2px solid #E4002B', paddingBottom: '4px' }}>특이사항 및 비고</div>
+            <div style={{ border: '1px solid #ccc', padding: '12px', minHeight: '60px', whiteSpace: 'pre-wrap', fontSize: '12px' }}>{workOrder.notes || ''}</div>
+            {/* 하단 */}
+            <div style={{ marginTop: '20px', textAlign: 'center', fontSize: '10px', color: '#888' }}>
+              서울특별시 서초구 서초중앙로8길 82 1동 1층 1호 | 3M 프로이즘 | 3M 공식 프리퍼드 인스톨러
+            </div>
+          </div>
+        </div>
+
         {/* Footer */}
         <div className="sticky bottom-0 bg-[#111113] border-t border-[#1e1e22] px-6 py-4 flex justify-end gap-2">
           <button onClick={onClose} className="px-4 py-2 text-sm text-[#71717a] hover:text-[#a1a1aa] transition-colors">취소</button>
+          <button onClick={handlePdfSave} className="bg-[#3B82F6] hover:bg-[#2563EB] text-white text-sm font-medium rounded-lg px-5 py-2 transition-colors">PDF 저장</button>
           <button onClick={onSaveOnly} className="bg-[#1e1e22] hover:bg-[#2a2a2e] text-[#a1a1aa] text-sm font-medium rounded-lg px-5 py-2 transition-colors border border-[#2a2a2e]">저장만 하기</button>
           <button onClick={onSubmit} className="bg-[#E4002B] hover:bg-[#c60026] text-white text-sm font-medium rounded-lg px-6 py-2 transition-colors">시공 완료 처리</button>
         </div>
