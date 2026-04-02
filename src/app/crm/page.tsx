@@ -47,6 +47,7 @@ interface FollowUp {
   created_at: string;
   customer?: { name: string; phone: string | null };
   service?: { service_type: string };
+  sms_sent?: Record<string, boolean> | null;
 }
 
 interface Consultation {
@@ -1149,12 +1150,25 @@ export default function CRMPage() {
                 const smsReviewProism = `안녕하세요, 3M프로이즘입니다.\n멋지게 작업이 완료된 차량 사진을 보내드리오니, 소중한 후기 작성 잘 부탁드리겠습니다.\n➊ 아래의 링크 클릭\n➋ 첨부드린 사진으로 후기 작성\n[ 🚩 후기 게시판 링크 ]\nhttps://m.site.naver.com/1S6dj\n고객님의 솔직한 리뷰는 저희에게 아주 큰 힘이 됩니다. 정말 감사드리며, 이후에 이어질 메인터넌스 시기(약 6개월 후)에도 차별화 된 서비스로 다시 또 찾아뵐게요!`;
                 const smsReviewBMW = `안녕하세요, 3M프로이즘입니다.\n멋지게 작업이 완료된 차량 사진을 보내드리오니, 소중한 후기 작성 잘 부탁드리겠습니다.\n➊ 아래의 링크 클릭\n➋ 첨부드린 사진으로 후기 작성\n[ 🚩 후기 게시판 링크 ]\nhttps://m.site.naver.com/1S6e3\n고객님의 솔직한 리뷰는 저희에게 아주 큰 힘이 됩니다. 정말 감사드리며, 이후에 이어질 메인터넌스 시기(약 6개월 후)에도 차별화 된 서비스로 다시 또 찾아뵈겠습니다!`;
                 const smsReviewAudi = `안녕하세요, 3M프로이즘입니다.\n멋지게 작업이 완료된 차량 사진을 보내드리오니, 소중한 후기 작성 잘 부탁드리겠습니다.\n➊ 아래의 링크 클릭\n➋ 첨부드린 사진으로 후기 작성\n[ 🚩 후기 게시판 링크 ]\nhttps://m.site.naver.com/1S6ej\n고객님의 솔직한 리뷰는 저희에게 아주 큰 힘이 됩니다. 정말 감사드리며, 이후에 이어질 메인터넌스 시기(약 6개월 후)에도 차별화 된 서비스로 다시 또 찾아뵈겠습니다!`;
-                const sendSms = (msg: string) => { if (phone) window.open(`sms:${phone}&body=${encodeURIComponent(msg)}`); };
+                const sent = f.sms_sent || {};
+                const sendSmsWithTrack = async (msg: string, key: string) => {
+                  if (!phone) return;
+                  window.open(`sms:${phone}&body=${encodeURIComponent(msg)}`);
+                  if (confirm('문자를 전송하셨나요?')) {
+                    const updated = { ...sent, [key]: true };
+                    await supabase.from('follow_ups').update({ sms_sent: updated }).eq('id', f.id);
+                    fetchFollowUps();
+                  }
+                };
                 const badgeClass = f.follow_up_type === 'QC점검'
                   ? 'bg-[#3B82F6]/20 text-[#60A5FA]'
                   : f.follow_up_type === '후기요청'
                     ? 'bg-[#C8A951]/20 text-[#C8A951]'
                     : 'bg-[#8B5CF6]/20 text-[#A78BFA]';
+                const sentBtn = 'bg-[#10B981]/15 text-[#34D399]';
+                const qcBtn = phone ? (sent.qc ? sentBtn : 'bg-[#3B82F6]/15 text-[#60A5FA] hover:bg-[#3B82F6]/25') : 'bg-[#1e1e22] text-[#71717a]/40 cursor-not-allowed';
+                const maintBtn = phone ? (sent.maintenance ? sentBtn : 'bg-[#8B5CF6]/15 text-[#A78BFA] hover:bg-[#8B5CF6]/25') : 'bg-[#1e1e22] text-[#71717a]/40 cursor-not-allowed';
+                const reviewBtn = (key: string) => phone ? (sent[key] ? sentBtn : 'bg-[#C8A951]/15 text-[#C8A951] hover:bg-[#C8A951]/25') : 'bg-[#1e1e22] text-[#71717a]/40 cursor-not-allowed';
 
                 return (
                   <div
@@ -1198,19 +1212,19 @@ export default function CRMPage() {
                     </div>
                     <div className="flex items-center gap-1.5 flex-wrap justify-end">
                       {f.follow_up_type === 'QC점검' && (
-                        <button onClick={() => sendSms(smsQC)} disabled={!phone} className={`text-[10px] font-medium px-2 py-1 rounded-lg transition-colors ${phone ? 'bg-[#3B82F6]/15 text-[#60A5FA] hover:bg-[#3B82F6]/25' : 'bg-[#1e1e22] text-[#71717a]/40 cursor-not-allowed'}`}>QC 문자</button>
+                        <button onClick={() => sendSmsWithTrack(smsQC, 'qc')} disabled={!phone} className={`text-[10px] font-medium px-2 py-1 rounded-lg transition-colors ${qcBtn}`}>{sent.qc ? '✓ QC 전송완료' : 'QC 문자'}</button>
                       )}
                       {f.follow_up_type === '메인터넌스' && (
-                        <button onClick={() => sendSms(smsMaint)} disabled={!phone} className={`text-[10px] font-medium px-2 py-1 rounded-lg transition-colors ${phone ? 'bg-[#8B5CF6]/15 text-[#A78BFA] hover:bg-[#8B5CF6]/25' : 'bg-[#1e1e22] text-[#71717a]/40 cursor-not-allowed'}`}>메인터넌스 문자</button>
+                        <button onClick={() => sendSmsWithTrack(smsMaint, 'maintenance')} disabled={!phone} className={`text-[10px] font-medium px-2 py-1 rounded-lg transition-colors ${maintBtn}`}>{sent.maintenance ? '✓ 메인터넌스 전송완료' : '메인터넌스 문자'}</button>
                       )}
                       {f.follow_up_type === '후기요청' && (
-                        <button onClick={() => sendSms(smsReviewProism)} disabled={!phone} className={`text-[10px] font-medium px-2 py-1 rounded-lg transition-colors ${phone ? 'bg-[#C8A951]/15 text-[#C8A951] hover:bg-[#C8A951]/25' : 'bg-[#1e1e22] text-[#71717a]/40 cursor-not-allowed'}`}>프로이즘 후기</button>
+                        <button onClick={() => sendSmsWithTrack(smsReviewProism, 'proism')} disabled={!phone} className={`text-[10px] font-medium px-2 py-1 rounded-lg transition-colors ${reviewBtn('proism')}`}>{sent.proism ? '✓ 프로이즘 전송완료' : '프로이즘 후기'}</button>
                       )}
                       {f.follow_up_type === '후기요청' && (
-                        <button onClick={() => sendSms(smsReviewBMW)} disabled={!phone} className={`text-[10px] font-medium px-2 py-1 rounded-lg transition-colors ${phone ? 'bg-[#C8A951]/15 text-[#C8A951] hover:bg-[#C8A951]/25' : 'bg-[#1e1e22] text-[#71717a]/40 cursor-not-allowed'}`}>BMW매니아 후기</button>
+                        <button onClick={() => sendSmsWithTrack(smsReviewBMW, 'bmw')} disabled={!phone} className={`text-[10px] font-medium px-2 py-1 rounded-lg transition-colors ${reviewBtn('bmw')}`}>{sent.bmw ? '✓ BMW 전송완료' : 'BMW매니아 후기'}</button>
                       )}
                       {f.follow_up_type === '후기요청' && (
-                        <button onClick={() => sendSms(smsReviewAudi)} disabled={!phone} className={`text-[10px] font-medium px-2 py-1 rounded-lg transition-colors ${phone ? 'bg-[#C8A951]/15 text-[#C8A951] hover:bg-[#C8A951]/25' : 'bg-[#1e1e22] text-[#71717a]/40 cursor-not-allowed'}`}>아우디매니아 후기</button>
+                        <button onClick={() => sendSmsWithTrack(smsReviewAudi, 'audi')} disabled={!phone} className={`text-[10px] font-medium px-2 py-1 rounded-lg transition-colors ${reviewBtn('audi')}`}>{sent.audi ? '✓ 아우디 전송완료' : '아우디매니아 후기'}</button>
                       )}
                     </div>
                   </div>
