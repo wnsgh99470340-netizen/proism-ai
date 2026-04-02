@@ -132,7 +132,7 @@ export default function CRMPage() {
   const [showAddCustomer, setShowAddCustomer] = useState(false);
   const [customerForm, setCustomerForm] = useState({
     name: '', phone: '', car_brand: '', car_model: '', car_year: '', car_color: '', source: '', memo: '',
-    appointment_date: '', appointment_service_type: '', appointment_memo: '',
+    appointment_date: '', appointment_service_type: '', appointment_memo: '', is_immediate: false,
   });
 
   // Appointment state
@@ -255,7 +255,7 @@ export default function CRMPage() {
   // ─── Customer Actions ───────────────────────────────────
   const handleAddCustomer = async () => {
     if (!customerForm.name.trim()) return;
-    const { data: newCustomer } = await supabase.from('customers').insert({
+    const { data: newCustomer, error: insertError } = await supabase.from('customers').insert({
       name: customerForm.name,
       phone: customerForm.phone || null,
       car_brand: customerForm.car_brand || null,
@@ -266,24 +266,68 @@ export default function CRMPage() {
       memo: customerForm.memo || null,
     }).select().single();
 
-    let hasAppointment = false;
-    if (newCustomer && customerForm.appointment_date) {
-      await supabase.from('appointments').insert({
-        customer_id: newCustomer.id,
-        appointment_date: customerForm.appointment_date,
-        service_type: customerForm.appointment_service_type || null,
-        status: '예약확정',
-        memo: customerForm.appointment_memo || null,
-      });
-      hasAppointment = true;
+    console.log('[CRM] insert result:', { newCustomer, insertError });
+
+    // fallback: insert().select().single()이 null을 반환하면 이름으로 재조회
+    let customerId = newCustomer?.id;
+    if (!customerId && !insertError) {
+      const { data: found } = await supabase
+        .from('customers')
+        .select('id')
+        .eq('name', customerForm.name)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      console.log('[CRM] fallback lookup:', found);
+      customerId = found?.id;
     }
 
-    setCustomerForm({ name: '', phone: '', car_brand: '', car_model: '', car_year: '', car_color: '', source: '', memo: '', appointment_date: '', appointment_service_type: '', appointment_memo: '' });
+    let hasAppointment = false;
+    let createdAppointment: Appointment | null = null;
+    if (customerId && customerForm.appointment_date) {
+      const appointmentStatus = customerForm.is_immediate ? '시공중' : '예약확정';
+      const { data: appt } = await supabase.from('appointments').insert({
+        customer_id: customerId,
+        appointment_date: customerForm.appointment_date,
+        service_type: customerForm.appointment_service_type || null,
+        status: appointmentStatus,
+        memo: customerForm.appointment_memo || null,
+      }).select('*, customer:customers(name, phone)').single();
+      hasAppointment = true;
+      if (customerForm.is_immediate && appt) {
+        createdAppointment = appt as Appointment;
+      }
+    }
+
+    const savedName = customerForm.name;
+    const savedPhone = customerForm.phone;
+    const isImmediate = customerForm.is_immediate;
+    setCustomerForm({ name: '', phone: '', car_brand: '', car_model: '', car_year: '', car_color: '', source: '', memo: '', appointment_date: '', appointment_service_type: '', appointment_memo: '', is_immediate: false });
     setShowAddCustomer(false);
     fetchCustomers();
     fetchAllCustomers();
-    if (hasAppointment) {
-      fetchAppointments();
+    fetchAppointments();
+
+    if (isImmediate && hasAppointment) {
+      // 바로 시공: 작업 내역서 모달 띄우기
+      if (createdAppointment) {
+        resetWorkOrder();
+        setWorkOrderAppointment(createdAppointment);
+        setShowWorkOrder(true);
+      } else if (customerId) {
+        // fallback: appointment select가 실패한 경우 수동 구성
+        const fallbackAppointment: Appointment = {
+          id: '', customer_id: customerId,
+          appointment_date: new Date().toISOString().split('T')[0],
+          service_type: customerForm.appointment_service_type || null,
+          status: '시공중', memo: null, created_at: '', updated_at: '',
+          customer: { name: savedName, phone: savedPhone || null },
+        };
+        resetWorkOrder();
+        setWorkOrderAppointment(fallbackAppointment);
+        setShowWorkOrder(true);
+      }
+    } else if (hasAppointment) {
       alert('고객 등록 + 예약 완료');
     } else {
       alert('고객 등록 완료');
@@ -299,6 +343,19 @@ export default function CRMPage() {
       (c.car_model?.toLowerCase().includes(q))
     );
   });
+
+  const handleDeleteCustomer = async (id: string, name: string) => {
+    if (!confirm(`"${name}" 고객을 정말 삭제하시겠습니까?\n관련 예약, 시공, 상담, 사후관리도 모두 삭제됩니다.`)) return;
+    await supabase.from('customers').delete().eq('id', id);
+    fetchCustomers();
+    fetchAllCustomers();
+  };
+
+  const handleDeleteAppointment = async (id: string) => {
+    if (!confirm('이 예약을 정말 삭제하시겠습니까?')) return;
+    await supabase.from('appointments').delete().eq('id', id);
+    fetchAppointments();
+  };
 
   // ─── Appointment Actions ────────────────────────────────
   const handleAddAppointment = async () => {
@@ -537,6 +594,7 @@ export default function CRMPage() {
                     <th className="text-left px-4 py-3 text-xs font-medium text-[#71717a]">차종</th>
                     <th className="text-left px-4 py-3 text-xs font-medium text-[#71717a]">최근 시공</th>
                     <th className="text-left px-4 py-3 text-xs font-medium text-[#71717a]">등록일</th>
+                    <th className="w-10"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -544,7 +602,7 @@ export default function CRMPage() {
                     <tr
                       key={c.id}
                       onClick={() => router.push(`/crm/${c.id}`)}
-                      className="border-b border-[#1e1e22] last:border-b-0 hover:bg-[#1a1a1f] cursor-pointer transition-colors"
+                      className="border-b border-[#1e1e22] last:border-b-0 hover:bg-[#1a1a1f] cursor-pointer transition-colors group"
                     >
                       <td className="px-4 py-3 text-sm text-[#fafaf9] font-medium">{c.name}</td>
                       <td className="px-4 py-3 text-sm text-[#a1a1aa]">{c.phone || '-'}</td>
@@ -559,6 +617,13 @@ export default function CRMPage() {
                           : '-'}
                       </td>
                       <td className="px-4 py-3 text-sm text-[#71717a]">{formatDate(c.created_at)}</td>
+                      <td className="px-2 py-3">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDeleteCustomer(c.id, c.name); }}
+                          className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded flex items-center justify-center text-[#71717a] hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-all text-xs"
+                          title="삭제"
+                        >✕</button>
+                      </td>
                     </tr>
                   ))}
                   {filteredCustomers.length === 0 && (
@@ -589,7 +654,7 @@ export default function CRMPage() {
 
             <div className="space-y-2">
               {appointments.map((a) => (
-                <div key={a.id} className="bg-[#111113] border border-[#1e1e22] rounded-xl p-4 flex items-center justify-between">
+                <div key={a.id} className="bg-[#111113] border border-[#1e1e22] rounded-xl p-4 flex items-center justify-between group">
                   <div className="flex items-center gap-4">
                     <div className="text-center min-w-[60px]">
                       <div className="text-lg font-bold text-[#fafaf9]">
@@ -629,6 +694,11 @@ export default function CRMPage() {
                         ))}
                       </select>
                     )}
+                    <button
+                      onClick={() => handleDeleteAppointment(a.id)}
+                      className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded flex items-center justify-center text-[#71717a] hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-all text-xs"
+                      title="삭제"
+                    >✕</button>
                   </div>
                 </div>
               ))}
@@ -820,6 +890,19 @@ export default function CRMPage() {
               <div className="col-span-2">
                 <label className="text-xs text-[#71717a] mb-1 block">예약 메모</label>
                 <textarea value={customerForm.appointment_memo} onChange={(e) => setCustomerForm({ ...customerForm, appointment_memo: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50 resize-none h-16" placeholder="예약 관련 메모" />
+              </div>
+              <div className="col-span-2">
+                <label className={`flex items-center gap-2 cursor-pointer text-sm transition-colors ${customerForm.appointment_service_type ? 'text-[#fafaf9] hover:text-[#C8A951]' : 'text-[#71717a]/50 cursor-not-allowed'}`}>
+                  <div
+                    className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors shrink-0 ${customerForm.is_immediate ? 'bg-[#C8A951] border-[#C8A951]' : 'border-[#71717a]'}`}
+                    onClick={() => { if (customerForm.appointment_service_type) setCustomerForm({ ...customerForm, is_immediate: !customerForm.is_immediate }); }}
+                  >
+                    {customerForm.is_immediate && <span className="text-[10px] text-black font-bold">✓</span>}
+                  </div>
+                  <span onClick={() => { if (customerForm.appointment_service_type) setCustomerForm({ ...customerForm, is_immediate: !customerForm.is_immediate }); }}>
+                    바로 시공 (작업 내역서 바로 작성)
+                  </span>
+                </label>
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-4">
