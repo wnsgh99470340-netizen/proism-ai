@@ -62,7 +62,7 @@ interface Consultation {
 
 type Tab = 'customers' | 'appointments' | 'followups' | 'consultations';
 
-const SERVICE_TYPES = ['PPF', '컬러PPF', 'PWF', '크롬죽이기', '랩핑', '썬팅'];
+const SERVICE_TYPES = ['PPF', '컬러PPF', 'PWF', '랩핑', '크롬죽이기', '썬팅', '유리막코팅', '가죽코팅', '실내PPF', '신차패키지'];
 const APPOINTMENT_STATUSES = ['상담중', '예약확정', '시공중', '완료'];
 const FOLLOW_UP_TYPES = ['QC점검', '메인터넌스'];
 
@@ -132,6 +132,7 @@ export default function CRMPage() {
   const [showAddCustomer, setShowAddCustomer] = useState(false);
   const [customerForm, setCustomerForm] = useState({
     name: '', phone: '', car_brand: '', car_model: '', car_year: '', car_color: '', source: '', memo: '',
+    appointment_date: '', appointment_service_type: '', appointment_memo: '',
   });
 
   // Appointment state
@@ -228,7 +229,7 @@ export default function CRMPage() {
   // ─── Customer Actions ───────────────────────────────────
   const handleAddCustomer = async () => {
     if (!customerForm.name.trim()) return;
-    await supabase.from('customers').insert({
+    const { data: newCustomer } = await supabase.from('customers').insert({
       name: customerForm.name,
       phone: customerForm.phone || null,
       car_brand: customerForm.car_brand || null,
@@ -237,11 +238,30 @@ export default function CRMPage() {
       car_color: customerForm.car_color || null,
       source: customerForm.source || null,
       memo: customerForm.memo || null,
-    });
-    setCustomerForm({ name: '', phone: '', car_brand: '', car_model: '', car_year: '', car_color: '', source: '', memo: '' });
+    }).select().single();
+
+    let hasAppointment = false;
+    if (newCustomer && customerForm.appointment_date) {
+      await supabase.from('appointments').insert({
+        customer_id: newCustomer.id,
+        appointment_date: customerForm.appointment_date,
+        service_type: customerForm.appointment_service_type || null,
+        status: '예약확정',
+        memo: customerForm.appointment_memo || null,
+      });
+      hasAppointment = true;
+    }
+
+    setCustomerForm({ name: '', phone: '', car_brand: '', car_model: '', car_year: '', car_color: '', source: '', memo: '', appointment_date: '', appointment_service_type: '', appointment_memo: '' });
     setShowAddCustomer(false);
     fetchCustomers();
     fetchAllCustomers();
+    if (hasAppointment) {
+      fetchAppointments();
+      alert('고객 등록 + 예약 완료');
+    } else {
+      alert('고객 등록 완료');
+    }
   };
 
   const filteredCustomers = customers.filter((c) => {
@@ -731,6 +751,24 @@ export default function CRMPage() {
               <div className="col-span-2">
                 <label className="text-xs text-[#71717a] mb-1 block">메모</label>
                 <textarea value={customerForm.memo} onChange={(e) => setCustomerForm({ ...customerForm, memo: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50 resize-none h-20" placeholder="특이사항" />
+              </div>
+              <div className="col-span-2 border-t border-[#1e1e22] pt-3 mt-1">
+                <div className="text-xs text-[#C8A951] font-medium mb-2">예약 정보 (선택)</div>
+              </div>
+              <div>
+                <label className="text-xs text-[#71717a] mb-1 block">예약일</label>
+                <input type="date" value={customerForm.appointment_date} onChange={(e) => setCustomerForm({ ...customerForm, appointment_date: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" />
+              </div>
+              <div>
+                <label className="text-xs text-[#71717a] mb-1 block">시공 종류</label>
+                <select value={customerForm.appointment_service_type} onChange={(e) => setCustomerForm({ ...customerForm, appointment_service_type: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50">
+                  <option value="">선택...</option>
+                  {SERVICE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div className="col-span-2">
+                <label className="text-xs text-[#71717a] mb-1 block">예약 메모</label>
+                <textarea value={customerForm.appointment_memo} onChange={(e) => setCustomerForm({ ...customerForm, appointment_memo: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50 resize-none h-16" placeholder="예약 관련 메모" />
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-4">
