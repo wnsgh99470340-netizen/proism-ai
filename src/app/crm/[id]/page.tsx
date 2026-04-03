@@ -48,7 +48,15 @@ interface FollowUp {
   service?: { service_type: string };
 }
 
-type DetailTab = 'services' | 'consultations' | 'followups';
+interface Discount {
+  id: string;
+  discount_date: string;
+  discount_type: string;
+  discount_value: string | null;
+  memo: string | null;
+}
+
+type DetailTab = 'services' | 'consultations' | 'followups' | 'discounts';
 
 const SERVICE_TYPE_OPTIONS = ['PPF', '컬러PPF', 'PWF', '랩핑', '크롬죽이기', '썬팅', '유리막코팅', '가죽코팅', '실내PPF', '신차패키지'];
 
@@ -65,7 +73,9 @@ export default function CustomerDetailPage() {
   const [services, setServices] = useState<Service[]>([]);
   const [consultations, setConsultations] = useState<Consultation[]>([]);
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
+  const [discounts, setDiscounts] = useState<Discount[]>([]);
   const [activeTab, setActiveTab] = useState<DetailTab>('services');
+  const [discountForm, setDiscountForm] = useState({ discount_date: '', discount_type: '재방문', discount_value: '', memo: '' });
 
   // Service edit modal state
   const [editService, setEditService] = useState<Service | null>(null);
@@ -118,6 +128,11 @@ export default function CustomerDetailPage() {
     if (s) setServices(s);
     if (con) setConsultations(con);
     if (f) setFollowUps(f as FollowUp[]);
+    // 할인 이력
+    try {
+      const res = await fetch(`/api/discounts?customer_id=${id}`);
+      if (res.ok) setDiscounts(await res.json());
+    } catch { /* ignore */ }
   }, [id]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
@@ -134,6 +149,7 @@ export default function CustomerDetailPage() {
     { key: 'services', label: '시공 이력', count: services.length },
     { key: 'consultations', label: '상담 기록', count: consultations.length },
     { key: 'followups', label: '사후관리', count: followUps.length },
+    { key: 'discounts', label: '할인 이력', count: discounts.length },
   ];
 
   return (
@@ -296,6 +312,62 @@ export default function CustomerDetailPage() {
               );
             })}
             {followUps.length === 0 && <Empty text="사후관리 내역이 없습니다" />}
+          </div>
+        )}
+
+        {activeTab === 'discounts' && (
+          <div>
+            {/* 할인 기록 추가 폼 */}
+            <div className="bg-[#111113] border border-[#1e1e22] rounded-xl p-4 mb-4">
+              <h4 className="text-xs text-[#C8A951] font-semibold mb-3">할인 기록 추가</h4>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <input type="date" value={discountForm.discount_date} onChange={(e) => setDiscountForm({ ...discountForm, discount_date: e.target.value })} className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" />
+                <select value={discountForm.discount_type} onChange={(e) => setDiscountForm({ ...discountForm, discount_type: e.target.value })} className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50">
+                  {['재방문', '프로모션', '소개 할인', '시즌 할인', '기타'].map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+                <input type="text" value={discountForm.discount_value} onChange={(e) => setDiscountForm({ ...discountForm, discount_value: e.target.value })} className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="10% 또는 50,000원" />
+                <button
+                  onClick={async () => {
+                    if (!discountForm.discount_date) { alert('날짜를 입력해주세요.'); return; }
+                    await fetch('/api/discounts', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ customer_id: id, ...discountForm }),
+                    });
+                    setDiscountForm({ discount_date: '', discount_type: '재방문', discount_value: '', memo: '' });
+                    fetchData();
+                  }}
+                  className="bg-[#E4002B] hover:bg-[#c60026] text-white text-sm font-medium rounded-lg px-3 py-2 transition-colors"
+                >추가</button>
+              </div>
+              <input type="text" value={discountForm.memo} onChange={(e) => setDiscountForm({ ...discountForm, memo: e.target.value })} className="w-full mt-2 bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="메모 (선택)" />
+            </div>
+            {/* 할인 이력 목록 */}
+            <div className="space-y-2">
+              {discounts.map((d) => (
+                <div key={d.id} className="bg-[#111113] border border-[#1e1e22] rounded-xl p-4 flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs bg-[#C8A951]/20 text-[#C8A951] px-2 py-0.5 rounded">{d.discount_type}</span>
+                      {d.discount_value && <span className="text-sm font-medium text-[#fafaf9]">{d.discount_value}</span>}
+                    </div>
+                    <div className="text-xs text-[#71717a] mt-1">
+                      {formatDate(d.discount_date)}
+                      {d.memo && <span className="ml-2">· {d.memo}</span>}
+                    </div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      if (!confirm('이 할인 기록을 삭제하시겠습니까?')) return;
+                      await fetch(`/api/discounts?id=${d.id}`, { method: 'DELETE' });
+                      fetchData();
+                    }}
+                    className="text-xs text-[#71717a] hover:text-[#EF4444] transition-colors"
+                  >삭제</button>
+                </div>
+              ))}
+              {discounts.length === 0 && <Empty text="할인 이력이 없습니다" />}
+            </div>
           </div>
         )}
       </div>

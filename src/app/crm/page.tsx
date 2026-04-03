@@ -1840,6 +1840,64 @@ export default function CRMPage() {
                 </div>
               )}
             </div>
+
+            {/* 프로모션 발송 섹션 */}
+            <div className="mt-6 bg-[#111113] border border-[#1e1e22] rounded-xl p-5">
+              <h3 className="text-sm font-semibold text-[#C8A951] mb-4">프로모션 발송</h3>
+              {(() => {
+                const month = new Date().getMonth() + 1;
+                const promos = [
+                  { season: '봄', months: [3,4,5], label: '신차 시즌 패키지', tpl: (n: string) => `${n}님, 3M 프로이즘입니다. 봄 신차 출고 시즌 맞이 신차패키지 특별 할인 진행 중입니다. PPF+썬팅+코팅 풀패키지 문의주세요! 010-7287-7140` },
+                  { season: '여름', months: [6,7,8], label: '썬팅 시즌 할인', tpl: (n: string) => `${n}님, 3M 프로이즘입니다. 여름맞이 썬팅 특별가 진행 중입니다. 3M 크리스탈라인/루마 버텍스 시공 시 사이드미러 PPF 무료! 010-7287-7140` },
+                  { season: '가을', months: [9,10,11], label: '컬러 체인지 시즌', tpl: (n: string) => `${n}님, 3M 프로이즘입니다. 가을 랩핑/컬러PPF 시즌 할인 진행 중입니다. 3M 2080/PWF로 새로운 컬러 체험해보세요! 010-7287-7140` },
+                  { season: '겨울', months: [12,1,2], label: 'PPF 보호 시즌', tpl: (n: string) => `${n}님, 3M 프로이즘입니다. 겨울철 염화칼슘/비산먼지 대비 PPF 시공 특가 진행 중입니다. 프로200 풀랩 할인 문의주세요! 010-7287-7140` },
+                  { season: '연중', months: [1,2,3,4,5,6,7,8,9,10,11,12], label: '재방문 고객 혜택', tpl: (n: string) => `${n}님, 3M 프로이즘입니다. 기존 고객님 대상 재시공 10% 할인 혜택 드립니다. 추가 시공이나 메인터넌스 문의주세요! 010-7287-7140` },
+                ];
+                const activePromos = promos.filter((p) => p.months.includes(month));
+
+                return (
+                  <div className="space-y-3">
+                    {activePromos.map((promo) => (
+                      <div key={promo.label} className="border border-[#1e1e22] rounded-lg p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs bg-[#C8A951]/20 text-[#C8A951] px-2 py-0.5 rounded">{promo.season}</span>
+                            <span className="text-sm text-[#fafaf9] font-medium">{promo.label}</span>
+                          </div>
+                        </div>
+                        <p className="text-xs text-[#71717a] mb-3 leading-relaxed">{promo.tpl('{고객명}')}</p>
+                        <div className="flex items-center gap-2">
+                          <select id={`promo-cust-${promo.label}`} className="flex-1 bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-1.5 text-xs text-[#fafaf9] outline-none">
+                            <option value="">고객 선택</option>
+                            {allCustomers.map((c) => <option key={c.id} value={c.id}>{c.name}{c.phone ? ` (${c.phone})` : ''}</option>)}
+                          </select>
+                          <button
+                            onClick={() => {
+                              const sel = document.getElementById(`promo-cust-${promo.label}`) as HTMLSelectElement;
+                              const custId = sel?.value;
+                              const cust = allCustomers.find((c) => c.id === custId);
+                              if (!cust) { alert('고객을 선택해주세요.'); return; }
+                              const msg = promo.tpl(cust.name);
+                              navigator.clipboard.writeText(msg);
+                              // 발송 이력 저장
+                              fetch('/api/promotions', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ customer_id: custId, customer_name: cust.name, promotion_type: promo.label, message: msg }),
+                              }).catch(() => {});
+                              alert(`${cust.name}님 문구가 복사되었습니다.`);
+                            }}
+                            className="text-xs bg-[#C8A951] hover:bg-[#b89a41] text-[#09090b] font-semibold rounded-lg px-4 py-1.5 transition-colors whitespace-nowrap"
+                          >
+                            문구 복사
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
           </div>
         )}
 
