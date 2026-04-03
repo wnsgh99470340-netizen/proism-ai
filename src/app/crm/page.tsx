@@ -1866,7 +1866,7 @@ export default function CRMPage() {
                 </div>
                 <div>
                   <label className="text-xs text-[#71717a] mb-1 block">예상 금액</label>
-                  <input type="number" value={estimateForm.amount} onChange={(e) => setEstimateForm({ ...estimateForm, amount: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="0" />
+                  <input type="text" inputMode="numeric" value={estimateForm.amount ? Number(estimateForm.amount).toLocaleString() : ''} onChange={(e) => { const raw = e.target.value.replace(/[^0-9]/g, ''); setEstimateForm({ ...estimateForm, amount: raw }); }} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="2,500,000" />
                 </div>
                 <div>
                   <label className="text-xs text-[#71717a] mb-1 block">작업 예정일</label>
