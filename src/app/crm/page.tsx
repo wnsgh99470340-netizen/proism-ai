@@ -1948,7 +1948,131 @@ export default function CRMPage() {
                 <span className="text-base font-semibold text-[#fafaf9] min-w-[80px] text-center">{statsYear}년</span>
                 <button onClick={() => setStatsYear(String(Number(statsYear) + 1))} className="text-[#71717a] hover:text-[#fafaf9] transition-colors text-lg">▶</button>
               </div>
-              <button onClick={fetchStats} className="text-xs bg-[#1e1e22] hover:bg-[#2a2a2e] text-[#a1a1aa] rounded-lg px-3 py-1.5 transition-colors">새로고침</button>
+              <div className="flex items-center gap-2">
+                <select id="report-month" defaultValue={String(new Date().getMonth() + 1)} className="bg-[#1e1e22] border border-[#2a2a2e] rounded-lg px-2 py-1 text-xs text-[#a1a1aa] outline-none">
+                  {Array.from({ length: 12 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}월</option>)}
+                </select>
+                <button
+                  onClick={async () => {
+                    const monthSel = (document.getElementById('report-month') as HTMLSelectElement)?.value || String(new Date().getMonth() + 1);
+                    const res = await fetch(`/api/report/monthly?year=${statsYear}&month=${monthSel}`);
+                    if (!res.ok) { alert('리포트 데이터 로드 실패'); return; }
+                    const d = await res.json();
+                    const { default: jsPDF } = await import('jspdf');
+                    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+                    const W = 210, M = 15;
+                    let y = 20;
+                    // 한글 지원을 위해 기본 폰트 사용
+                    pdf.setFont('helvetica');
+
+                    // 헤더
+                    pdf.setFontSize(18);
+                    pdf.setTextColor(30, 30, 30);
+                    pdf.text('3M Proism Monthly Report', M, y);
+                    y += 8;
+                    pdf.setFontSize(11);
+                    pdf.setTextColor(120, 120, 120);
+                    pdf.text(`${d.year}. ${String(d.month).padStart(2, '0')} | 3M Proism Gangnam`, M, y);
+                    y += 3;
+                    pdf.setDrawColor(200, 169, 81);
+                    pdf.setLineWidth(0.5);
+                    pdf.line(M, y, W - M, y);
+                    y += 10;
+
+                    // 요약
+                    pdf.setFontSize(13);
+                    pdf.setTextColor(30, 30, 30);
+                    pdf.text('Summary', M, y); y += 7;
+                    pdf.setFontSize(10);
+                    pdf.setTextColor(80, 80, 80);
+                    const chg = d.revenueChange !== null ? ` (${d.revenueChange > 0 ? '+' : ''}${d.revenueChange}% MoM)` : '';
+                    pdf.text(`Total: ${d.totalCount} cases | Revenue: ${(d.totalRevenue / 10000).toLocaleString()}M KRW${chg}`, M, y); y += 5;
+                    pdf.text(`Avg/case: ${(d.avgPerCase / 10000).toLocaleString()}M KRW | Prev month: ${(d.prevRevenue / 10000).toLocaleString()}M KRW`, M, y); y += 10;
+
+                    // 서비스별 테이블
+                    pdf.setFontSize(13);
+                    pdf.setTextColor(30, 30, 30);
+                    pdf.text('By Service', M, y); y += 7;
+                    pdf.setFontSize(9);
+                    pdf.setTextColor(100, 100, 100);
+                    pdf.text('Service', M, y); pdf.text('Count', 90, y); pdf.text('Revenue', 130, y); y += 1;
+                    pdf.setDrawColor(220, 220, 220); pdf.line(M, y, W - M, y); y += 4;
+                    pdf.setTextColor(60, 60, 60);
+                    for (const s of d.byService) {
+                      pdf.text(s.name, M, y); pdf.text(`${s.count}`, 90, y); pdf.text(`${(s.revenue / 10000).toLocaleString()}M`, 130, y); y += 5;
+                      if (y > 270) { pdf.addPage(); y = 20; }
+                    }
+                    y += 5;
+
+                    // 차종별
+                    if (d.carAnalysis.length > 0) {
+                      pdf.setFontSize(13); pdf.setTextColor(30, 30, 30);
+                      pdf.text('By Car Model', M, y); y += 7;
+                      pdf.setFontSize(9); pdf.setTextColor(100, 100, 100);
+                      pdf.text('Car', M, y); pdf.text('Services', 80, y); y += 1;
+                      pdf.line(M, y, W - M, y); y += 4;
+                      pdf.setTextColor(60, 60, 60);
+                      for (const c of d.carAnalysis) {
+                        pdf.text(c.car.slice(0, 20), M, y); pdf.text(c.services.slice(0, 50), 80, y); y += 5;
+                        if (y > 270) { pdf.addPage(); y = 20; }
+                      }
+                      y += 5;
+                    }
+
+                    // 유입 경로
+                    if (d.sourceAnalysis.length > 0) {
+                      pdf.setFontSize(13); pdf.setTextColor(30, 30, 30);
+                      pdf.text('By Source', M, y); y += 7;
+                      pdf.setFontSize(9); pdf.setTextColor(100, 100, 100);
+                      pdf.text('Source', M, y); pdf.text('Customers', 70, y); pdf.text('Count', 105, y); pdf.text('Revenue', 135, y); y += 1;
+                      pdf.line(M, y, W - M, y); y += 4;
+                      pdf.setTextColor(60, 60, 60);
+                      for (const s of d.sourceAnalysis) {
+                        pdf.text(s.source.slice(0, 15), M, y); pdf.text(`${s.customerCount}`, 70, y); pdf.text(`${s.count}`, 105, y); pdf.text(`${(s.revenue / 10000).toLocaleString()}M`, 135, y); y += 5;
+                        if (y > 270) { pdf.addPage(); y = 20; }
+                      }
+                      y += 5;
+                    }
+
+                    // 담당자별
+                    pdf.setFontSize(13); pdf.setTextColor(30, 30, 30);
+                    pdf.text('By Manager', M, y); y += 7;
+                    pdf.setFontSize(9); pdf.setTextColor(60, 60, 60);
+                    for (const m of d.managerWorkload) {
+                      pdf.text(`${m.name}: ${m.count} cases`, M, y); y += 5;
+                    }
+                    y += 5;
+
+                    // 수익 분석
+                    const bossS = Number(localStorage.getItem('salary_boss') || '0');
+                    const teamS = Number(localStorage.getItem('salary_team') || '0');
+                    const juniorS = Number(localStorage.getItem('salary_junior') || '0');
+                    const totalSalary = bossS + teamS + juniorS;
+                    if (totalSalary > 0) {
+                      if (y > 250) { pdf.addPage(); y = 20; }
+                      pdf.setFontSize(13); pdf.setTextColor(30, 30, 30);
+                      pdf.text('Profit Analysis', M, y); y += 7;
+                      pdf.setFontSize(9); pdf.setTextColor(60, 60, 60);
+                      const profit = d.totalRevenue - totalSalary;
+                      const ratio = d.totalRevenue > 0 ? Math.round((totalSalary / d.totalRevenue) * 100) : 0;
+                      pdf.text(`Revenue: ${(d.totalRevenue / 10000).toLocaleString()}M`, M, y); y += 5;
+                      pdf.text(`Labor cost: ${(totalSalary / 10000).toLocaleString()}M (${ratio}%)`, M, y); y += 5;
+                      pdf.text(`Operating profit: ${(profit / 10000).toLocaleString()}M`, M, y); y += 10;
+                    }
+
+                    // 하단
+                    pdf.setFontSize(8);
+                    pdf.setTextColor(160, 160, 160);
+                    pdf.text('3M Proism Gangnam | Seoul Seocho-gu Seochojungang-ro 8-gil 82 | 010-7287-7140', M, 285);
+
+                    pdf.save(`proism-report-${d.year}-${String(d.month).padStart(2, '0')}.pdf`);
+                  }}
+                  className="text-xs bg-[#C8A951] hover:bg-[#b89a41] text-[#09090b] font-semibold rounded-lg px-3 py-1.5 transition-colors"
+                >
+                  PDF 다운로드
+                </button>
+                <button onClick={fetchStats} className="text-xs bg-[#1e1e22] hover:bg-[#2a2a2e] text-[#a1a1aa] rounded-lg px-3 py-1.5 transition-colors">새로고침</button>
+              </div>
             </div>
 
             {statsLoading ? (
