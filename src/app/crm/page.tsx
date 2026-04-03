@@ -249,6 +249,7 @@ export default function CRMPage() {
 
   // Warranty modal state
   const [showWarranty, setShowWarranty] = useState(false);
+  const [showCalendarSub, setShowCalendarSub] = useState(false);
   const [warrantyAppointment, setWarrantyAppointment] = useState<Appointment | null>(null);
   const [warrantyForm, setWarrantyForm] = useState({
     date: '', car_type: '', car_number: '', customer_name: '', phone: '',
@@ -727,6 +728,17 @@ export default function CRMPage() {
     const appointment = workOrderAppointment;
     const completionDate = new Date().toISOString().split('T')[0];
 
+    // 기존 memo에서 warranty 관련 데이터 보존
+    let existingExtra: Record<string, unknown> = {};
+    if (appointment.memo) {
+      try {
+        const parsed = JSON.parse(appointment.memo);
+        if (parsed?.warranty) existingExtra.warranty = parsed.warranty;
+        if (parsed?.warranty_issued) existingExtra.warranty_issued = parsed.warranty_issued;
+      } catch { /* ignore */ }
+    }
+    const mergedMemo = JSON.stringify({ ...workOrder, ...existingExtra });
+
     // 시공 이력 생성 (작업 내역서 데이터를 memo에 JSON으로 저장)
     const { data: service } = await supabase
       .from('services')
@@ -735,7 +747,7 @@ export default function CRMPage() {
         service_type: appointment.service_type || '기타',
         service_date: appointment.appointment_date,
         completion_date: completionDate,
-        memo: JSON.stringify(workOrder),
+        memo: mergedMemo,
       })
       .select()
       .single();
@@ -745,8 +757,8 @@ export default function CRMPage() {
       await createAutoFollowUps(service.id, appointment.customer_id, appointment.service_type, completionDate);
     }
 
-    // 예약 상태 완료로 변경
-    await supabase.from('appointments').update({ status: '완료' }).eq('id', appointment.id);
+    // 예약 상태 완료로 변경 + memo 보존
+    await supabase.from('appointments').update({ status: '완료', memo: mergedMemo }).eq('id', appointment.id);
 
     setShowWorkOrder(false);
     setWorkOrderAppointment(null);
@@ -756,10 +768,19 @@ export default function CRMPage() {
 
   const handleWorkOrderSaveOnly = async () => {
     if (!workOrderAppointment) return;
-    // 작업 내역서 데이터만 예약 memo에 JSON으로 저장, 상태는 '예약확정' 유지
+    // 기존 memo에서 warranty 관련 데이터 보존
+    let existingExtra: Record<string, unknown> = {};
+    if (workOrderAppointment.memo) {
+      try {
+        const parsed = JSON.parse(workOrderAppointment.memo);
+        if (parsed?.warranty) existingExtra.warranty = parsed.warranty;
+        if (parsed?.warranty_issued) existingExtra.warranty_issued = parsed.warranty_issued;
+      } catch { /* ignore */ }
+    }
+    const merged = { ...workOrder, ...existingExtra };
     if (workOrderAppointment.id) {
       await supabase.from('appointments')
-        .update({ memo: JSON.stringify(workOrder), status: '예약확정' })
+        .update({ memo: JSON.stringify(merged), status: '예약확정' })
         .eq('id', workOrderAppointment.id);
     }
     setShowWorkOrder(false);
@@ -773,7 +794,10 @@ export default function CRMPage() {
       try {
         const parsed = JSON.parse(appointment.memo);
         if (parsed && typeof parsed === 'object' && 'car_number' in parsed) {
-          setWorkOrder(parsed);
+          // warranty 관련 키는 workOrder 상태에서 제외 (별도 관리)
+          const { warranty, warranty_issued, ...workOrderData } = parsed;
+          void warranty; void warranty_issued;
+          setWorkOrder(workOrderData);
           setWorkOrderAppointment(appointment);
           setShowWorkOrder(true);
           return;
@@ -1213,7 +1237,10 @@ export default function CRMPage() {
                     <button onClick={() => setCalendarView('list')} className={`text-xs px-3 py-1 rounded-md transition-colors ${calendarView === 'list' ? 'bg-[#C8A951]/20 text-[#C8A951]' : 'text-[#71717a]'}`}>리스트</button>
                   </div>
                 </div>
-                <button onClick={() => setShowAddAppointment(true)} className="bg-[#E4002B] hover:bg-[#c60026] text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors">+ 예약 추가</button>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setShowCalendarSub(true)} className="bg-[#3B82F6]/10 hover:bg-[#3B82F6]/20 text-[#3B82F6] text-sm font-medium rounded-lg px-3 py-2 transition-colors">캘린더 구독</button>
+                  <button onClick={() => setShowAddAppointment(true)} className="bg-[#E4002B] hover:bg-[#c60026] text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors">+ 예약 추가</button>
+                </div>
               </div>
 
               {/* 달력 뷰 */}
@@ -1740,6 +1767,29 @@ export default function CRMPage() {
           onClose={() => { setShowWorkOrder(false); setWorkOrderAppointment(null); }}
         />
       )}
+      {showCalendarSub && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center" onClick={() => setShowCalendarSub(false)}>
+          <div className="bg-[#111113] border border-[#1e1e22] rounded-xl w-full max-w-lg p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-[#fafaf9] font-semibold text-base mb-4">캘린더 구독</h3>
+            <p className="text-xs text-[#71717a] mb-3">아래 URL을 캘린더 앱에서 구독하면 예약 일정이 자동으로 동기화됩니다.</p>
+            <div className="flex items-center gap-2 mb-4">
+              <input readOnly value="https://proism-ai.vercel.app/api/calendar?token=proism2026" className="flex-1 bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-xs text-[#fafaf9] outline-none select-all" onFocus={(e) => e.target.select()} />
+              <button onClick={() => { navigator.clipboard.writeText('https://proism-ai.vercel.app/api/calendar?token=proism2026'); alert('URL이 복사되었습니다!'); }} className="bg-[#3B82F6] hover:bg-[#2563EB] text-white text-xs font-medium rounded-lg px-3 py-2 transition-colors whitespace-nowrap">URL 복사</button>
+            </div>
+            <div className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg p-4 text-xs text-[#a1a1aa] space-y-1.5">
+              <div className="text-[#C8A951] font-medium mb-1">구독 방법</div>
+              <div>1. TimeTree 앱 → 설정 → 캘린더 구독 → URL 붙여넣기</div>
+              <div>2. 팀원들도 같은 URL로 구독하면 모두 같이 볼 수 있습니다</div>
+              <div>3. 예약이 추가/변경되면 자동으로 반영됩니다</div>
+              <div className="border-t border-[#1e1e22] pt-1.5 mt-1.5">* Apple 캘린더: 파일 → 새 캘린더 구독 → URL 입력</div>
+              <div>* Google 캘린더: 설정 → 캘린더 추가 → URL로 추가</div>
+            </div>
+            <div className="flex justify-end mt-4">
+              <button onClick={() => setShowCalendarSub(false)} className="px-4 py-2 text-sm text-[#71717a] hover:text-[#a1a1aa] transition-colors">닫기</button>
+            </div>
+          </div>
+        </div>
+      )}
       {showWarranty && warrantyAppointment && (
         <WarrantyModal
           warrantyForm={warrantyForm}
@@ -1792,6 +1842,12 @@ function SectionTitle({ title }: { title: string }) {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
+function PrintCheck({ checked }: { checked: boolean }) {
+  return checked
+    ? <span style={{ background: '#E4002B', color: '#fff', padding: '2px 4px', borderRadius: '3px', fontSize: '14px', fontWeight: 'bold', marginRight: '6px', lineHeight: 1 }}>✓</span>
+    : <span style={{ border: '2px solid #ccc', display: 'inline-block', width: '16px', height: '16px', borderRadius: '3px', marginRight: '6px', verticalAlign: 'middle' }} />;
+}
+
 function WorkOrderModal({ appointment, workOrder, setWorkOrder, onSubmit, onSaveOnly, onClose }: WorkOrderModalProps & { workOrder: any }) {
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -2003,9 +2059,9 @@ function WorkOrderModal({ appointment, workOrder, setWorkOrder, onSubmit, onSave
               </div>
             </div>
             {/* 체크 */}
-            <div style={{ display: 'flex', gap: '24px', marginBottom: '12px', fontSize: '12px' }}>
-              <span>{workOrder.warranty_issued ? '☑' : '☐'} 보증서 발행 유무</span>
-              <span>{workOrder.crm_recorded ? '☑' : '☐'} CRM 기재 유무</span>
+            <div style={{ display: 'flex', gap: '24px', marginBottom: '12px', fontSize: '13px', alignItems: 'center' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center' }}><PrintCheck checked={workOrder.warranty_issued} /> 보증서 발행 유무</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center' }}><PrintCheck checked={workOrder.crm_recorded} /> CRM 기재 유무</span>
             </div>
             {/* 고객 정보 테이블 */}
             <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '16px' }}>
@@ -2042,8 +2098,8 @@ function WorkOrderModal({ appointment, workOrder, setWorkOrder, onSubmit, onSave
                     <td style={{ border: '1px solid #ccc', padding: '6px 8px', backgroundColor: '#f5f5f5', fontWeight: 600, width: '70px', verticalAlign: 'top' }}>{row.label}</td>
                     <td style={{ border: '1px solid #ccc', padding: '6px 8px' }}>
                       {row.items.map((item) => (
-                        <span key={item} style={{ marginRight: '12px' }}>
-                          {workOrder.tinting[row.brand]?.selected?.includes(item) ? '☑' : '☐'} {item}
+                        <span key={item} style={{ marginRight: '16px', fontSize: '13px', display: 'inline-flex', alignItems: 'center' }}>
+                          <PrintCheck checked={workOrder.tinting[row.brand]?.selected?.includes(item)} /> {item}
                         </span>
                       ))}
                       {workOrder.tinting[row.brand]?.density && (
@@ -2061,41 +2117,41 @@ function WorkOrderModal({ appointment, workOrder, setWorkOrder, onSubmit, onSave
                 <tr>
                   <td style={{ border: '1px solid #ccc', padding: '6px 8px', backgroundColor: '#f5f5f5', fontWeight: 600, width: '70px' }}>PPF</td>
                   <td style={{ border: '1px solid #ccc', padding: '6px 8px' }}>
-                    {['전체PPF', '프론트패키지', '생활보호패키지'].map((p) => <span key={p} style={{ marginRight: '12px' }}>{workOrder.ppf?.includes(p) ? '☑' : '☐'} {p}</span>)}
+                    {['전체PPF', '프론트패키지', '생활보호패키지'].map((p) => <span key={p} style={{ marginRight: '16px', fontSize: '13px', display: 'inline-flex', alignItems: 'center' }}><PrintCheck checked={workOrder.ppf?.includes(p)} /> {p}</span>)}
                     {workOrder.ppf_etc && <span>기타: {workOrder.ppf_etc}</span>}
                   </td>
                 </tr>
                 <tr>
                   <td style={{ border: '1px solid #ccc', padding: '6px 8px', backgroundColor: '#f5f5f5', fontWeight: 600 }}>랩핑</td>
                   <td style={{ border: '1px solid #ccc', padding: '6px 8px' }}>
-                    {['전체랩핑', '부분'].map((p) => <span key={p} style={{ marginRight: '12px' }}>{workOrder.wrapping?.includes(p) ? '☑' : '☐'} {p}</span>)}
+                    {['전체랩핑', '부분'].map((p) => <span key={p} style={{ marginRight: '16px', fontSize: '13px', display: 'inline-flex', alignItems: 'center' }}><PrintCheck checked={workOrder.wrapping?.includes(p)} /> {p}</span>)}
                     {workOrder.wrapping_etc && <span>기타: {workOrder.wrapping_etc}</span>}
                   </td>
                 </tr>
                 <tr>
                   <td style={{ border: '1px solid #ccc', padding: '6px 8px', backgroundColor: '#f5f5f5', fontWeight: 600 }}>코팅시공</td>
                   <td style={{ border: '1px solid #ccc', padding: '6px 8px' }}>
-                    {['기본유리막', '9H', '10H', '그래핀PRO', '가죽코팅(시트)', '가죽코팅(전체)', '발수코팅', '필름코팅'].map((p) => <span key={p} style={{ marginRight: '12px' }}>{workOrder.coating?.includes(p) ? '☑' : '☐'} {p}</span>)}
+                    {['기본유리막', '9H', '10H', '그래핀PRO', '가죽코팅(시트)', '가죽코팅(전체)', '발수코팅', '필름코팅'].map((p) => <span key={p} style={{ marginRight: '16px', fontSize: '13px', display: 'inline-flex', alignItems: 'center' }}><PrintCheck checked={workOrder.coating?.includes(p)} /> {p}</span>)}
                   </td>
                 </tr>
                 <tr>
                   <td style={{ border: '1px solid #ccc', padding: '6px 8px', backgroundColor: '#f5f5f5', fontWeight: 600 }}>전장시공</td>
                   <td style={{ border: '1px solid #ccc', padding: '6px 8px' }}>
-                    {['블랙박스', '하이패스'].map((p) => <span key={p} style={{ marginRight: '12px' }}>{workOrder.electrical?.includes(p) ? '☑' : '☐'} {p}</span>)}
+                    {['블랙박스', '하이패스'].map((p) => <span key={p} style={{ marginRight: '16px', fontSize: '13px', display: 'inline-flex', alignItems: 'center' }}><PrintCheck checked={workOrder.electrical?.includes(p)} /> {p}</span>)}
                     {workOrder.electrical_etc && <span>기타: {workOrder.electrical_etc}</span>}
                   </td>
                 </tr>
                 <tr>
                   <td style={{ border: '1px solid #ccc', padding: '6px 8px', backgroundColor: '#f5f5f5', fontWeight: 600 }}>프리미엄광택</td>
                   <td style={{ border: '1px solid #ccc', padding: '6px 8px' }}>
-                    {['전체광택', '부분광택'].map((p) => <span key={p} style={{ marginRight: '12px' }}>{workOrder.polish?.includes(p) ? '☑' : '☐'} {p}</span>)}
+                    {['전체광택', '부분광택'].map((p) => <span key={p} style={{ marginRight: '16px', fontSize: '13px', display: 'inline-flex', alignItems: 'center' }}><PrintCheck checked={workOrder.polish?.includes(p)} /> {p}</span>)}
                     {workOrder.polish_etc && <span>기타: {workOrder.polish_etc}</span>}
                   </td>
                 </tr>
                 <tr>
                   <td style={{ border: '1px solid #ccc', padding: '6px 8px', backgroundColor: '#f5f5f5', fontWeight: 600 }}>신차패키지</td>
                   <td style={{ border: '1px solid #ccc', padding: '6px 8px' }}>
-                    {['신차검수', '내외부디테일링세차', '타이어왁스', '피톤치드연막'].map((p) => <span key={p} style={{ marginRight: '12px' }}>{workOrder.package_options?.includes(p) ? '☑' : '☐'} {p}</span>)}
+                    {['신차검수', '내외부디테일링세차', '타이어왁스', '피톤치드연막'].map((p) => <span key={p} style={{ marginRight: '16px', fontSize: '13px', display: 'inline-flex', alignItems: 'center' }}><PrintCheck checked={workOrder.package_options?.includes(p)} /> {p}</span>)}
                   </td>
                 </tr>
               </tbody>
