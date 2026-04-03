@@ -231,7 +231,7 @@ export default function CRMPage() {
     customer_id: '', appointment_date: '', end_date: '', service_type: '', amount: '', memo: '',
   });
   const [calendarView, setCalendarView] = useState<'calendar' | 'list'>('calendar');
-  const [managerFilter, setManagerFilter] = useState<'전체' | '대표' | '이팀장님'>('전체');
+  const [managerFilter, setManagerFilter] = useState<'전체' | '대표' | '이팀장님' | '김막내'>('전체');
   const [calendarMonth, setCalendarMonth] = useState(() => { const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() }; });
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
@@ -268,6 +268,7 @@ export default function CRMPage() {
   // Salary settings (localStorage)
   const [salaryBoss, setSalaryBoss] = useState('');
   const [salaryTeam, setSalaryTeam] = useState('');
+  const [salaryJunior, setSalaryJunior] = useState('');
 
   // Estimate state
   const [estimateForm, setEstimateForm] = useState({
@@ -513,6 +514,7 @@ export default function CRMPage() {
   useEffect(() => {
     setSalaryBoss(localStorage.getItem('salary_boss') || '');
     setSalaryTeam(localStorage.getItem('salary_team') || '');
+    setSalaryJunior(localStorage.getItem('salary_junior') || '');
   }, []);
 
   useEffect(() => {
@@ -1491,7 +1493,9 @@ export default function CRMPage() {
           };
 
           // 담당자 자동 분류: 틴팅 → 이팀장님, 나머지 → 대표
-          const getManager = (a: Appointment) => {
+          const getManager = (a: Appointment): '대표' | '이팀장님' | '김막내' => {
+            // memo JSON에 수동 배정된 담당자가 있으면 우선
+            try { const m = JSON.parse(a.memo || '{}'); if (m.manager === '김막내') return '김막내'; } catch { /* */ }
             const svc = (a.service_type || '').toLowerCase();
             return svc.includes('틴팅') || svc.includes('썬팅') ? '이팀장님' : '대표';
           };
@@ -1531,7 +1535,7 @@ export default function CRMPage() {
                     <button onClick={() => setCalendarView('list')} className={`text-xs px-3 py-1 rounded-md transition-colors ${calendarView === 'list' ? 'bg-[#C8A951]/20 text-[#C8A951]' : 'text-[#71717a]'}`}>리스트</button>
                   </div>
                   <div className="flex bg-[#1e1e22] rounded-lg p-0.5 ml-2">
-                    {(['전체', '대표', '이팀장님'] as const).map((m) => (
+                    {(['전체', '대표', '이팀장님', '김막내'] as const).map((m) => (
                       <button key={m} onClick={() => setManagerFilter(m)} className={`text-xs px-3 py-1 rounded-md transition-colors ${managerFilter === m ? 'bg-[#3B82F6]/20 text-[#3B82F6]' : 'text-[#71717a]'}`}>{m}</button>
                     ))}
                   </div>
@@ -1669,7 +1673,7 @@ export default function CRMPage() {
                             </div>
                             <div className="text-xs text-[#71717a] mt-0.5">
                               {a.service_type || '미정'}
-                              <span className={`ml-1.5 text-[9px] px-1.5 py-0.5 rounded ${getManager(a) === '이팀장님' ? 'bg-[#22C55E]/15 text-[#22C55E]' : 'bg-[#3B82F6]/15 text-[#3B82F6]'}`}>{getManager(a)}</span>
+                              <span className={`ml-1.5 text-[9px] px-1.5 py-0.5 rounded ${getManager(a) === '이팀장님' ? 'bg-[#22C55E]/15 text-[#22C55E]' : getManager(a) === '김막내' ? 'bg-[#A78BFA]/15 text-[#A78BFA]' : 'bg-[#3B82F6]/15 text-[#3B82F6]'}`}>{getManager(a)}</span>
                               {a.amount ? <span className="ml-2 text-[#C8A951]">{a.amount.toLocaleString()}원</span> : null}
                               {memoDisplay && <span className="ml-2">· {memoDisplay}</span>}
                             </div>
@@ -2095,7 +2099,7 @@ export default function CRMPage() {
                   {/* ── 수익 분석 ──────────────────────────── */}
                   <div className="bg-[#111113] border border-[#1e1e22] rounded-xl p-5">
                     <h3 className="text-sm font-semibold text-[#C8A951] mb-4">수익 분석</h3>
-                    <div className="grid grid-cols-2 gap-3 mb-4">
+                    <div className="grid grid-cols-3 gap-3 mb-4">
                       <div>
                         <label className="text-[10px] text-[#71717a] mb-1 block">대표 월급여</label>
                         <input type="text" inputMode="numeric" value={salaryBoss ? Number(salaryBoss).toLocaleString() : ''} onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ''); setSalaryBoss(v); localStorage.setItem('salary_boss', v); }} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-1.5 text-xs text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="0" />
@@ -2104,9 +2108,13 @@ export default function CRMPage() {
                         <label className="text-[10px] text-[#71717a] mb-1 block">이팀장님 월급여</label>
                         <input type="text" inputMode="numeric" value={salaryTeam ? Number(salaryTeam).toLocaleString() : ''} onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ''); setSalaryTeam(v); localStorage.setItem('salary_team', v); }} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-1.5 text-xs text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="0" />
                       </div>
+                      <div>
+                        <label className="text-[10px] text-[#71717a] mb-1 block">김막내 월급여</label>
+                        <input type="text" inputMode="numeric" value={salaryJunior ? Number(salaryJunior).toLocaleString() : ''} onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ''); setSalaryJunior(v); localStorage.setItem('salary_junior', v); }} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-1.5 text-xs text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="0" />
+                      </div>
                     </div>
                     {(() => {
-                      const totalSalary = (Number(salaryBoss) || 0) + (Number(salaryTeam) || 0);
+                      const totalSalary = (Number(salaryBoss) || 0) + (Number(salaryTeam) || 0) + (Number(salaryJunior) || 0);
                       if (!totalSalary) return <div className="text-xs text-[#71717a] text-center py-4">급여를 입력하면 수익 분석이 표시됩니다</div>;
                       return (
                         <div className="space-y-2">
