@@ -2,8 +2,13 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: '3M 프로이즘 AI 마케팅 에이전트',
-  description: '사진만 올리면 네이버 블로그 글이 자동으로 완성되는 AI 시스템',
+  title: '3M 프로이즘 | PPF·틴팅·코팅 전문',
+  description: '3M 프로이즘 강남서초점 - PPF, 틴팅, 세라믹코팅, 래핑 전문 시공점',
+  openGraph: {
+    title: '3M 프로이즘 | PPF·틴팅·코팅 전문',
+    description: '3M 프로이즘 강남서초점 - PPF, 틴팅, 세라믹코팅, 래핑 전문 시공점',
+    siteName: '3M 프로이즘',
+  },
 };
 
 export default function RootLayout({
