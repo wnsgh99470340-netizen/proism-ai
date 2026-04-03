@@ -2214,7 +2214,10 @@ export default function CRMPage() {
               </div>
               <div>
                 <label className="text-xs text-[#71717a] mb-1 block">유입경로</label>
-                <input type="text" value={customerForm.source} onChange={(e) => setCustomerForm({ ...customerForm, source: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="네이버, 소개, 인스타 등" />
+                <select value={customerForm.source} onChange={(e) => setCustomerForm({ ...customerForm, source: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50">
+                  <option value="">선택...</option>
+                  {['카페', '블로그', '소개/재방문', '유튜브', '고정', '경로X', '기타'].map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
               </div>
               <div>
                 <label className="text-xs text-[#71717a] mb-1 block">차량 브랜드</label>
