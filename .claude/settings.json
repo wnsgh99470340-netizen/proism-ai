@@ -20,11 +20,53 @@
       "Bash(cp *)",
       "Bash(mv *)",
       "Bash(echo *)",
-      "Bash(cd *)"
+      "Bash(cd *)",
+      "Bash(rm -rf .next*)",
+      "Bash(curl *)",
+      "Bash(lsof *)",
+      "Bash(tail *)",
+      "Bash(head *)",
+      "Bash(sleep *)",
+      "Bash(source *)"
     ],
     "deny": [
       "Bash(rm -rf /)",
       "Bash(sudo rm -rf *)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd /Users/junho/Desktop/proism-ai && npx tsc --noEmit 2>&1 | head -5 && echo 'Stop check: TypeScript OK' || echo 'Stop check: TYPE ERROR - 수정 필요'"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "mkdir -p /Users/junho/Desktop/proism-ai/.claude/backups && echo \"Compact at $(date +%Y%m%d-%H%M%S)\" > /Users/junho/Desktop/proism-ai/.claude/backups/compact-$(date +%Y%m%d-%H%M%S).log && echo 'PreCompact: backup marker saved'"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash(git commit*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd /Users/junho/Desktop/proism-ai && npx tsc --noEmit 2>&1 | head -10; if [ $? -ne 0 ]; then echo 'POST-COMMIT CHECK: 타입 에러 발견!'; exit 1; fi; echo 'Post-commit: TypeScript OK'"
+          }
+        ]
+      }
     ]
   }
 }

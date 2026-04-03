@@ -20,6 +20,9 @@ public/uploads/*
 .notion-dbs.json
 data/
 
+# claude backups
+.claude/backups/
+
 # misc
 .DS_Store
 *.pem
