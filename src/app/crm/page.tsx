@@ -713,7 +713,16 @@ export default function CRMPage() {
     fetchAllCustomers();
   };
 
-  const handleEditCustomer = (customer: Customer) => {
+  const handleEditCustomer = async (customer: Customer) => {
+    // 최근 예약의 금액 불러오기
+    const { data: latestAppt } = await supabase
+      .from('appointments')
+      .select('amount')
+      .eq('customer_id', customer.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
     setCustomerForm({
       name: customer.name || '',
       phone: customer.phone || '',
@@ -726,7 +735,7 @@ export default function CRMPage() {
       appointment_start_date: '',
       appointment_end_date: '',
       appointment_service_type: '',
-      appointment_amount: '',
+      appointment_amount: latestAppt?.amount ? String(latestAppt.amount) : '',
       appointment_memo: '',
     });
     setEditCustomerId(customer.id);
@@ -752,11 +761,27 @@ export default function CRMPage() {
       alert('수정 실패: ' + error.message);
       return;
     }
+
+    // 금액이 입력되었으면 최근 예약의 금액도 업데이트
+    if (customerForm.appointment_amount) {
+      const { data: latestAppt } = await supabase
+        .from('appointments')
+        .select('id')
+        .eq('customer_id', editCustomerId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      if (latestAppt) {
+        await supabase.from('appointments').update({ amount: Number(customerForm.appointment_amount) }).eq('id', latestAppt.id);
+      }
+    }
+
     setCustomerForm({ name: '', phone: '', car_brand: '', car_model: '', car_year: '', car_color: '', source: '', memo: '', appointment_start_date: '', appointment_end_date: '', appointment_service_type: '', appointment_amount: '', appointment_memo: '' });
     setEditCustomerId(null);
     setShowAddCustomer(false);
     fetchCustomers();
     fetchAllCustomers();
+    fetchAppointments();
   };
 
   const handleDeleteAppointment = async (id: string) => {
@@ -2068,6 +2093,12 @@ export default function CRMPage() {
                 <label className="text-xs text-[#71717a] mb-1 block">메모</label>
                 <textarea value={customerForm.memo} onChange={(e) => setCustomerForm({ ...customerForm, memo: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50 resize-none h-20" placeholder="특이사항" />
               </div>
+              {editCustomerId && (
+              <div className="col-span-2 border-t border-[#1e1e22] pt-3 mt-1">
+                <label className="text-xs text-[#71717a] mb-1 block">예상 금액</label>
+                <input type="text" inputMode="numeric" value={customerForm.appointment_amount ? Number(customerForm.appointment_amount).toLocaleString() : ''} onChange={(e) => { const raw = e.target.value.replace(/[^0-9]/g, ''); setCustomerForm({ ...customerForm, appointment_amount: raw }); }} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="2,500,000" />
+              </div>
+              )}
               {!editCustomerId && (<>
               <div className="col-span-2 border-t border-[#1e1e22] pt-3 mt-1">
                 <div className="text-xs text-[#C8A951] font-medium mb-2">예약 정보 (선택)</div>
