@@ -37,9 +37,8 @@ export async function POST(request: Request) {
       console.warn('[Estimate] Notion 동기화 실패 (무시):', err);
     }
 
-    const host = request.headers.get('host') || 'localhost:3000';
-    const protocol = host.includes('localhost') ? 'http' : 'https';
-    const publicUrl = `${protocol}://${host}/estimate/${estimate.id}`;
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || `http://localhost:3000`;
+    const publicUrl = `${baseUrl}/estimate/${estimate.id}`;
 
     return Response.json({
       success: true,
