@@ -16,6 +16,10 @@ node_modules/
 public/uploads/*
 !public/uploads/.gitkeep
 
+# notion & data
+.notion-dbs.json
+data/
+
 # misc
 .DS_Store
 *.pem
