@@ -249,7 +249,10 @@ export default function CRMPage() {
   const [statsData, setStatsData] = useState<{
     totalCount: number; totalRevenue: number; avgPerCase: number;
     byService: { name: string; count: number; revenue: number }[];
-    byMonth: { month: string; count: number; revenue: number }[];
+    byMonth: { month: string; count: number; revenue: number; change: number | null }[];
+    quarters: { label: string; count: number; revenue: number }[];
+    carAnalysis: { car: string; totalCount: number; totalRevenue: number; services: { name: string; count: number; revenue: number }[] }[];
+    sourceAnalysis: { source: string; customerCount: number; serviceCount: number; revenue: number; avgPerCustomer: number }[];
   } | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
 
@@ -480,7 +483,7 @@ export default function CRMPage() {
   const fetchStats = useCallback(async () => {
     setStatsLoading(true);
     try {
-      const res = await fetch(`/api/notion/dashboard?year=${statsYear}`);
+      const res = await fetch(`/api/analytics?year=${statsYear}`);
       if (res.ok) setStatsData(await res.json());
     } catch (e) { console.warn('[CRM] 통계 로드 실패:', e); }
     setStatsLoading(false);
@@ -1780,10 +1783,10 @@ export default function CRMPage() {
             </div>
           </div>
         )}
-        {/* ─── TAB: 시공 통계 ───────────────────────────────── */}
+        {/* ─── TAB: 매출 대시보드 ─────────────────────────────── */}
         {activeTab === 'stats' && (
           <div>
-            {/* 연도 선택 + 새로고침 */}
+            {/* 연도 선택 */}
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
                 <button onClick={() => setStatsYear(String(Number(statsYear) - 1))} className="text-[#71717a] hover:text-[#fafaf9] transition-colors text-lg">◀</button>
@@ -1794,13 +1797,13 @@ export default function CRMPage() {
             </div>
 
             {statsLoading ? (
-              <div className="text-center text-[#71717a] py-20">통계 불러오는 중...</div>
+              <div className="text-center text-[#71717a] py-20">분석 데이터 불러오는 중...</div>
             ) : !statsData ? (
-              <div className="text-center text-[#71717a] py-20">데이터가 없습니다. Notion 시공 기록 DB에 데이터를 추가해주세요.</div>
+              <div className="text-center text-[#71717a] py-20">시공 데이터가 없습니다.</div>
             ) : (
-              <>
-                {/* 요약 카드 */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+              <div className="space-y-6">
+                {/* ── 요약 카드 ──────────────────────────────── */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="bg-[#111113] border border-[#1e1e22] rounded-xl p-4">
                     <div className="text-xs text-[#71717a] mb-1">총 시공 건수</div>
                     <div className="text-2xl font-bold text-[#fafaf9]">{statsData.totalCount}<span className="text-sm font-normal text-[#71717a] ml-1">건</span></div>
@@ -1819,8 +1822,19 @@ export default function CRMPage() {
                   </div>
                 </div>
 
+                {/* ── 분기별 매출 ────────────────────────────── */}
+                <div className="grid grid-cols-4 gap-3">
+                  {statsData.quarters.map((q) => (
+                    <div key={q.label} className="bg-[#111113] border border-[#1e1e22] rounded-xl p-4 text-center">
+                      <div className="text-xs text-[#71717a] mb-1">{q.label}</div>
+                      <div className="text-lg font-bold text-[#fafaf9]">{q.revenue > 0 ? `${(q.revenue / 10000).toLocaleString()}만` : '-'}</div>
+                      <div className="text-[10px] text-[#71717a]">{q.count}건</div>
+                    </div>
+                  ))}
+                </div>
+
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* 서비스별 통계 */}
+                  {/* ── 서비스별 현황 ──────────────────────── */}
                   <div className="bg-[#111113] border border-[#1e1e22] rounded-xl p-5">
                     <h3 className="text-sm font-semibold text-[#C8A951] mb-4">서비스별 현황</h3>
                     {statsData.byService.length === 0 ? (
@@ -1828,8 +1842,7 @@ export default function CRMPage() {
                     ) : (
                       <div className="space-y-3">
                         {statsData.byService.map((s) => {
-                          const maxRevenue = Math.max(...statsData.byService.map((x) => x.revenue), 1);
-                          const pct = (s.revenue / maxRevenue) * 100;
+                          const maxRev = Math.max(...statsData.byService.map((x) => x.revenue), 1);
                           return (
                             <div key={s.name}>
                               <div className="flex items-center justify-between mb-1">
@@ -1841,7 +1854,7 @@ export default function CRMPage() {
                                 </div>
                               </div>
                               <div className="w-full h-2 bg-[#1e1e22] rounded-full overflow-hidden">
-                                <div className="h-full bg-[#C8A951] rounded-full transition-all" style={{ width: `${pct}%` }} />
+                                <div className="h-full bg-[#C8A951] rounded-full transition-all" style={{ width: `${(s.revenue / maxRev) * 100}%` }} />
                               </div>
                             </div>
                           );
@@ -1850,29 +1863,25 @@ export default function CRMPage() {
                     )}
                   </div>
 
-                  {/* 월별 매출 차트 */}
+                  {/* ── 월별 매출 + 증감률 ────────────────── */}
                   <div className="bg-[#111113] border border-[#1e1e22] rounded-xl p-5">
                     <h3 className="text-sm font-semibold text-[#C8A951] mb-4">월별 매출</h3>
                     {(() => {
-                      const maxMonthRev = Math.max(...statsData.byMonth.map((m) => m.revenue), 1);
+                      const maxRev = Math.max(...statsData.byMonth.map((m) => m.revenue), 1);
                       return (
-                        <div className="flex items-end gap-1.5" style={{ height: '200px' }}>
+                        <div className="flex items-end gap-1.5" style={{ height: '220px' }}>
                           {statsData.byMonth.map((m) => {
-                            const h = maxMonthRev > 0 ? (m.revenue / maxMonthRev) * 160 : 0;
+                            const h = maxRev > 0 ? (m.revenue / maxRev) * 160 : 0;
                             const monthNum = m.month.split('-')[1];
                             return (
                               <div key={m.month} className="flex-1 flex flex-col items-center justify-end h-full">
-                                {m.revenue > 0 && (
-                                  <div className="text-[10px] text-[#71717a] mb-1">{Math.round(m.revenue / 10000)}</div>
+                                {m.change !== null && m.revenue > 0 && (
+                                  <div className={`text-[9px] mb-0.5 ${m.change > 0 ? 'text-[#22C55E]' : m.change < 0 ? 'text-[#EF4444]' : 'text-[#71717a]'}`}>
+                                    {m.change > 0 ? '+' : ''}{m.change}%
+                                  </div>
                                 )}
-                                <div
-                                  className="w-full rounded-t-sm transition-all"
-                                  style={{
-                                    height: `${Math.max(h, m.revenue > 0 ? 4 : 0)}px`,
-                                    backgroundColor: m.count > 0 ? '#C8A951' : '#1e1e22',
-                                    opacity: m.count > 0 ? 0.8 : 0.3,
-                                  }}
-                                />
+                                {m.revenue > 0 && <div className="text-[10px] text-[#71717a] mb-1">{Math.round(m.revenue / 10000)}</div>}
+                                <div className="w-full rounded-t-sm transition-all" style={{ height: `${Math.max(h, m.revenue > 0 ? 4 : 0)}px`, backgroundColor: m.count > 0 ? '#C8A951' : '#1e1e22', opacity: m.count > 0 ? 0.8 : 0.3 }} />
                                 <div className="text-[10px] text-[#71717a] mt-1.5">{Number(monthNum)}월</div>
                                 {m.count > 0 && <div className="text-[9px] text-[#a1a1aa]">{m.count}건</div>}
                               </div>
@@ -1883,7 +1892,74 @@ export default function CRMPage() {
                     })()}
                   </div>
                 </div>
-              </>
+
+                {/* ── 차종별 인기 서비스 ──────────────────── */}
+                <div className="bg-[#111113] border border-[#1e1e22] rounded-xl p-5">
+                  <h3 className="text-sm font-semibold text-[#C8A951] mb-4">차종별 인기 서비스</h3>
+                  {statsData.carAnalysis.length === 0 ? (
+                    <div className="text-sm text-[#71717a] py-4 text-center">데이터 없음</div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-[#1e1e22]">
+                            <th className="text-left py-2 px-3 text-[#71717a] font-medium text-xs">차종</th>
+                            <th className="text-left py-2 px-3 text-[#71717a] font-medium text-xs">서비스 내역</th>
+                            <th className="text-right py-2 px-3 text-[#71717a] font-medium text-xs">건수</th>
+                            <th className="text-right py-2 px-3 text-[#71717a] font-medium text-xs">매출</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {statsData.carAnalysis.map((c) => (
+                            <tr key={c.car} className="border-b border-[#1e1e22]/50 hover:bg-[#1e1e22]/30">
+                              <td className="py-2.5 px-3 text-[#fafaf9] font-medium">{c.car}</td>
+                              <td className="py-2.5 px-3">
+                                <div className="flex flex-wrap gap-1">
+                                  {c.services.map((s) => (
+                                    <span key={s.name} className="text-[10px] bg-[#1e1e22] text-[#a1a1aa] px-2 py-0.5 rounded">{s.name} {s.count}건</span>
+                                  ))}
+                                </div>
+                              </td>
+                              <td className="py-2.5 px-3 text-right text-[#a1a1aa]">{c.totalCount}</td>
+                              <td className="py-2.5 px-3 text-right text-[#C8A951] font-medium">{c.totalRevenue > 0 ? `${(c.totalRevenue / 10000).toLocaleString()}만` : '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                {/* ── 유입 경로 분석 ──────────────────────── */}
+                <div className="bg-[#111113] border border-[#1e1e22] rounded-xl p-5">
+                  <h3 className="text-sm font-semibold text-[#C8A951] mb-4">고객 유입 경로 분석</h3>
+                  {statsData.sourceAnalysis.length === 0 ? (
+                    <div className="text-sm text-[#71717a] py-4 text-center">데이터 없음</div>
+                  ) : (
+                    <div className="space-y-3">
+                      {statsData.sourceAnalysis.map((s) => {
+                        const maxRev = Math.max(...statsData.sourceAnalysis.map((x) => x.revenue), 1);
+                        return (
+                          <div key={s.source}>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-sm text-[#fafaf9]">{s.source}</span>
+                              <div className="text-xs text-[#71717a] flex gap-3">
+                                <span>고객 <span className="text-[#a1a1aa]">{s.customerCount}명</span></span>
+                                <span>시공 <span className="text-[#a1a1aa]">{s.serviceCount}건</span></span>
+                                <span>매출 <span className="text-[#C8A951]">{s.revenue > 0 ? `${(s.revenue / 10000).toLocaleString()}만` : '-'}</span></span>
+                                <span>인당 <span className="text-[#3B82F6]">{s.avgPerCustomer > 0 ? `${(s.avgPerCustomer / 10000).toLocaleString()}만` : '-'}</span></span>
+                              </div>
+                            </div>
+                            <div className="w-full h-2 bg-[#1e1e22] rounded-full overflow-hidden">
+                              <div className="h-full bg-[#3B82F6] rounded-full transition-all" style={{ width: `${(s.revenue / maxRev) * 100}%` }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
           </div>
         )}
