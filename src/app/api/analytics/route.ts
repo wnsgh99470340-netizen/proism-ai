@@ -109,6 +109,45 @@ export async function GET(request: Request) {
     // ─── 요약 ────────────────────────────────────────────
     const totalRevenue = allServices.reduce((s, r) => s + ((r.amount as number) || 0), 0);
 
+    // ─── 이번 주 일별 작업량 (월~일) ────────────────────
+    const now = new Date();
+    const dayOfWeek = now.getDay(); // 0=일, 1=월
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + mondayOffset);
+    const pad = (n: number) => String(n).padStart(2, '0');
+
+    // 전체 서비스 (연도 필터 없이)에서 이번 주 데이터
+    const allSvcs = services || [];
+    const weekDays = ['월', '화', '수', '목', '금', '토', '일'].map((label, i) => {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      const dateStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      const daySvcs = allSvcs.filter((s: Record<string, unknown>) => {
+        const sd = (s.service_date || s.completion_date || '') as string;
+        return sd === dateStr;
+      });
+      const boss = daySvcs.filter((s: Record<string, unknown>) => {
+        const svc = ((s.service_type as string) || '').toLowerCase();
+        return !svc.includes('틴팅') && !svc.includes('썬팅');
+      }).length;
+      const team = daySvcs.length - boss;
+      return { label, date: dateStr, total: daySvcs.length, boss, team };
+    });
+
+    // 월간 총 작업량
+    const currentMonth = `${now.getFullYear()}-${pad(now.getMonth() + 1)}`;
+    const monthSvcs = allSvcs.filter((s: Record<string, unknown>) => {
+      const sd = (s.service_date || s.completion_date || '') as string;
+      return sd.startsWith(currentMonth);
+    });
+    const daysInCurrentMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const monthWorkload = {
+      month: currentMonth,
+      total: monthSvcs.length,
+      dailyAvg: Math.round((monthSvcs.length / Math.min(now.getDate(), daysInCurrentMonth)) * 10) / 10,
+    };
+
     return Response.json({
       year,
       totalCount: allServices.length,
@@ -119,6 +158,8 @@ export async function GET(request: Request) {
       quarters,
       carAnalysis,
       sourceAnalysis,
+      weekDays,
+      monthWorkload,
     });
   } catch (error) {
     console.error('[Analytics] 분석 실패:', error);

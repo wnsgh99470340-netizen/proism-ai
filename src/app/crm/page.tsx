@@ -64,7 +64,7 @@ interface Consultation {
   customer?: { name: string; phone: string | null };
 }
 
-type Tab = 'customers' | 'appointments' | 'followups' | 'consultations' | 'stats' | 'templates';
+type Tab = 'customers' | 'appointments' | 'followups' | 'consultations' | 'stats' | 'inventory' | 'templates';
 
 const SERVICE_TYPES = ['PPF', '컬러PPF', 'PWF', '랩핑', '크롬죽이기', '썬팅', '유리막코팅', '가죽코팅', '실내PPF', '신차패키지'];
 const APPOINTMENT_STATUSES = ['상담중', '예약확정', '시공중', '완료'];
@@ -255,8 +255,19 @@ export default function CRMPage() {
     quarters: { label: string; count: number; revenue: number }[];
     carAnalysis: { car: string; totalCount: number; totalRevenue: number; services: { name: string; count: number; revenue: number }[] }[];
     sourceAnalysis: { source: string; customerCount: number; serviceCount: number; revenue: number; avgPerCustomer: number }[];
+    weekDays: { label: string; date: string; total: number; boss: number; team: number }[];
+    monthWorkload: { month: string; total: number; dailyAvg: number };
   } | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
+
+  // Inventory state
+  const [inventory, setInventory] = useState<{ id: string; name: string; quantity: number; unit: string; min_stock: number; memo: string | null }[]>([]);
+  const [inventoryForm, setInventoryForm] = useState({ name: '', quantity: '', unit: '롤', min_stock: '', memo: '' });
+  const [editInventoryId, setEditInventoryId] = useState<string | null>(null);
+
+  // Salary settings (localStorage)
+  const [salaryBoss, setSalaryBoss] = useState('');
+  const [salaryTeam, setSalaryTeam] = useState('');
 
   // Estimate state
   const [estimateForm, setEstimateForm] = useState({
@@ -491,13 +502,27 @@ export default function CRMPage() {
     setStatsLoading(false);
   }, [statsYear]);
 
+  const fetchInventory = useCallback(async () => {
+    try {
+      const res = await fetch('/api/inventory');
+      if (res.ok) setInventory(await res.json());
+    } catch { /* ignore */ }
+  }, []);
+
+  // 인건비 설정 로드
+  useEffect(() => {
+    setSalaryBoss(localStorage.getItem('salary_boss') || '');
+    setSalaryTeam(localStorage.getItem('salary_team') || '');
+  }, []);
+
   useEffect(() => {
     if (activeTab === 'customers') fetchCustomers();
     else if (activeTab === 'appointments') fetchAppointments();
     else if (activeTab === 'followups') fetchFollowUps();
     else if (activeTab === 'consultations') fetchConsultations();
     else if (activeTab === 'stats') fetchStats();
-  }, [activeTab, fetchCustomers, fetchAppointments, fetchFollowUps, fetchConsultations, fetchStats]);
+    else if (activeTab === 'inventory') fetchInventory();
+  }, [activeTab, fetchCustomers, fetchAppointments, fetchFollowUps, fetchConsultations, fetchStats, fetchInventory]);
 
   // ─── Customer Actions ───────────────────────────────────
   const handleAddCustomer = async () => {
@@ -1288,6 +1313,7 @@ export default function CRMPage() {
     { key: 'followups', label: '사후관리' },
     { key: 'consultations', label: '상담 기록' },
     { key: 'stats', label: '매출 대시보드' },
+    { key: 'inventory', label: '재고 관리' },
     { key: 'templates', label: '견적 템플릿' },
   ];
 
@@ -2026,8 +2052,155 @@ export default function CRMPage() {
                     </div>
                   )}
                 </div>
+
+                {/* ── 이번 주 작업량 리포트 ───────────────── */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="bg-[#111113] border border-[#1e1e22] rounded-xl p-5">
+                    <h3 className="text-sm font-semibold text-[#C8A951] mb-4">이번 주 작업량</h3>
+                    {statsData.weekDays && (() => {
+                      const maxW = Math.max(...statsData.weekDays.map((d) => d.total), 1);
+                      return (
+                        <div className="flex items-end gap-2" style={{ height: '180px' }}>
+                          {statsData.weekDays.map((d) => {
+                            const h = (d.total / maxW) * 130;
+                            const bossH = d.total > 0 ? (d.boss / d.total) * h : 0;
+                            const teamH = h - bossH;
+                            return (
+                              <div key={d.label} className="flex-1 flex flex-col items-center justify-end h-full">
+                                {d.total > 0 && <div className="text-[10px] text-[#71717a] mb-1">{d.total}</div>}
+                                <div className="w-full flex flex-col">
+                                  {teamH > 0 && <div className="w-full rounded-t-sm bg-[#22C55E]" style={{ height: `${teamH}px`, opacity: 0.7 }} />}
+                                  {bossH > 0 && <div className={`w-full ${teamH > 0 ? '' : 'rounded-t-sm'} bg-[#3B82F6]`} style={{ height: `${bossH}px`, opacity: 0.7 }} />}
+                                  {d.total === 0 && <div className="w-full rounded-t-sm bg-[#1e1e22]" style={{ height: '4px', opacity: 0.3 }} />}
+                                </div>
+                                <div className="text-[10px] text-[#71717a] mt-1.5">{d.label}</div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                    <div className="flex items-center gap-4 mt-3 text-[10px] text-[#71717a]">
+                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-[#3B82F6]" /> 대표</span>
+                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-[#22C55E]" /> 이팀장님</span>
+                    </div>
+                    {statsData.monthWorkload && (
+                      <div className="mt-3 pt-3 border-t border-[#1e1e22] flex gap-4 text-xs text-[#71717a]">
+                        <span>이번 달: <span className="text-[#fafaf9] font-medium">{statsData.monthWorkload.total}건</span></span>
+                        <span>일 평균: <span className="text-[#fafaf9] font-medium">{statsData.monthWorkload.dailyAvg}건</span></span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ── 수익 분석 ──────────────────────────── */}
+                  <div className="bg-[#111113] border border-[#1e1e22] rounded-xl p-5">
+                    <h3 className="text-sm font-semibold text-[#C8A951] mb-4">수익 분석</h3>
+                    <div className="grid grid-cols-2 gap-3 mb-4">
+                      <div>
+                        <label className="text-[10px] text-[#71717a] mb-1 block">대표 월급여</label>
+                        <input type="text" inputMode="numeric" value={salaryBoss ? Number(salaryBoss).toLocaleString() : ''} onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ''); setSalaryBoss(v); localStorage.setItem('salary_boss', v); }} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-1.5 text-xs text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="0" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-[#71717a] mb-1 block">이팀장님 월급여</label>
+                        <input type="text" inputMode="numeric" value={salaryTeam ? Number(salaryTeam).toLocaleString() : ''} onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ''); setSalaryTeam(v); localStorage.setItem('salary_team', v); }} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-1.5 text-xs text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="0" />
+                      </div>
+                    </div>
+                    {(() => {
+                      const totalSalary = (Number(salaryBoss) || 0) + (Number(salaryTeam) || 0);
+                      if (!totalSalary) return <div className="text-xs text-[#71717a] text-center py-4">급여를 입력하면 수익 분석이 표시됩니다</div>;
+                      return (
+                        <div className="space-y-2">
+                          {statsData.byMonth.filter((m) => m.revenue > 0).slice(-6).map((m) => {
+                            const profit = m.revenue - totalSalary;
+                            const ratio = m.revenue > 0 ? Math.round((totalSalary / m.revenue) * 100) : 0;
+                            const monthNum = m.month.split('-')[1];
+                            return (
+                              <div key={m.month} className="flex items-center gap-3 text-xs">
+                                <span className="text-[#71717a] w-8">{Number(monthNum)}월</span>
+                                <div className="flex-1 flex items-center gap-2">
+                                  <span className="text-[#a1a1aa]">{(m.revenue / 10000).toLocaleString()}만</span>
+                                  <span className="text-[#71717a]">-</span>
+                                  <span className="text-[#EF4444]/70">{(totalSalary / 10000).toLocaleString()}만</span>
+                                  <span className="text-[#71717a]">=</span>
+                                  <span className={`font-medium ${profit >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]'}`}>{(profit / 10000).toLocaleString()}만</span>
+                                </div>
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded ${ratio <= 30 ? 'bg-[#22C55E]/15 text-[#22C55E]' : ratio <= 50 ? 'bg-[#C8A951]/15 text-[#C8A951]' : 'bg-[#EF4444]/15 text-[#EF4444]'}`}>인건비 {ratio}%</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
               </div>
             )}
+          </div>
+        )}
+        {/* ─── TAB: 재고 관리 ───────────────────────────────── */}
+        {activeTab === 'inventory' && (
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm text-[#71717a]">{inventory.length}개 품목</h2>
+            </div>
+            {/* 등록/수정 폼 */}
+            <div className="bg-[#111113] border border-[#1e1e22] rounded-xl p-4 mb-4">
+              <h3 className="text-xs text-[#C8A951] font-semibold mb-3">{editInventoryId ? '품목 수정' : '품목 등록'}</h3>
+              <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                <input type="text" value={inventoryForm.name} onChange={(e) => setInventoryForm({ ...inventoryForm, name: e.target.value })} className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="품목명 *" />
+                <input type="text" inputMode="numeric" value={inventoryForm.quantity} onChange={(e) => setInventoryForm({ ...inventoryForm, quantity: e.target.value.replace(/[^0-9]/g, '') })} className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="수량" />
+                <select value={inventoryForm.unit} onChange={(e) => setInventoryForm({ ...inventoryForm, unit: e.target.value })} className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50">
+                  {['롤', 'ft', 'm', '개', '병', '장'].map((u) => <option key={u} value={u}>{u}</option>)}
+                </select>
+                <input type="text" inputMode="numeric" value={inventoryForm.min_stock} onChange={(e) => setInventoryForm({ ...inventoryForm, min_stock: e.target.value.replace(/[^0-9]/g, '') })} className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="최소재고" />
+                <div className="flex gap-2">
+                  <button
+                    onClick={async () => {
+                      if (!inventoryForm.name) return;
+                      const body = { ...inventoryForm, quantity: Number(inventoryForm.quantity) || 0, min_stock: Number(inventoryForm.min_stock) || 0, ...(editInventoryId ? { id: editInventoryId } : {}) };
+                      await fetch('/api/inventory', { method: editInventoryId ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                      setInventoryForm({ name: '', quantity: '', unit: '롤', min_stock: '', memo: '' });
+                      setEditInventoryId(null);
+                      fetchInventory();
+                    }}
+                    className="flex-1 bg-[#E4002B] hover:bg-[#c60026] text-white text-sm font-medium rounded-lg px-3 py-2 transition-colors"
+                  >{editInventoryId ? '수정' : '등록'}</button>
+                  {editInventoryId && <button onClick={() => { setEditInventoryId(null); setInventoryForm({ name: '', quantity: '', unit: '롤', min_stock: '', memo: '' }); }} className="text-xs text-[#71717a] hover:text-[#a1a1aa]">취소</button>}
+                </div>
+              </div>
+            </div>
+            {/* 재고 목록 */}
+            <div className="space-y-2">
+              {inventory.map((item) => {
+                const isLow = item.min_stock > 0 && item.quantity <= item.min_stock;
+                return (
+                  <div key={item.id} className={`bg-[#111113] border rounded-xl p-4 flex items-center justify-between ${isLow ? 'border-[#EF4444]/50' : 'border-[#1e1e22]'}`}>
+                    <div className="flex items-center gap-4">
+                      <div>
+                        <div className="text-sm font-medium text-[#fafaf9]">
+                          {item.name}
+                          {isLow && <span className="ml-2 text-[9px] bg-[#EF4444]/20 text-[#EF4444] px-1.5 py-0.5 rounded-full font-medium">재고 부족</span>}
+                        </div>
+                        <div className="text-xs text-[#71717a] mt-0.5">
+                          최소재고: {item.min_stock}{item.unit}
+                          {item.memo && <span className="ml-2">· {item.memo}</span>}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <div className={`text-lg font-bold ${isLow ? 'text-[#EF4444]' : 'text-[#fafaf9]'}`}>{item.quantity}<span className="text-xs font-normal text-[#71717a] ml-1">{item.unit}</span></div>
+                      </div>
+                      <div className="flex gap-1">
+                        <button onClick={() => { setEditInventoryId(item.id); setInventoryForm({ name: item.name, quantity: String(item.quantity), unit: item.unit, min_stock: String(item.min_stock), memo: item.memo || '' }); }} className="text-xs bg-[#1e1e22] text-[#a1a1aa] hover:bg-[#2a2a2e] px-2 py-1 rounded-lg transition-colors">수정</button>
+                        <button onClick={async () => { if (!confirm(`${item.name}을(를) 삭제하시겠습니까?`)) return; await fetch(`/api/inventory?id=${item.id}`, { method: 'DELETE' }); fetchInventory(); }} className="text-xs text-[#71717a] hover:text-[#EF4444] px-2 py-1 rounded-lg transition-colors">삭제</button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              {inventory.length === 0 && <div className="text-center py-12 text-sm text-[#71717a]">등록된 품목이 없습니다</div>}
+            </div>
           </div>
         )}
         {/* ─── TAB: 견적 템플릿 ──────────────────────────────── */}
