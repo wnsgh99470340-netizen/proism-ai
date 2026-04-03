@@ -9,6 +9,7 @@ interface EstimateData {
   phone?: string | null;
   car_model?: string | null;
   services: string[];
+  service_details?: Record<string, string> | null;
   amount?: number | null;
   scheduled_date?: string | null;
   memo?: string | null;
@@ -93,10 +94,16 @@ export default function EstimatePage() {
           <div style={{ padding: '24px 28px', borderBottom: '1px solid #f0f0f0' }}>
             <div style={{ fontSize: '11px', fontWeight: 600, color: '#999', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '16px' }}>서비스 내역</div>
             {data.services.length > 0 ? (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
-                {data.services.map((svc) => (
-                  <span key={svc} style={{ background: '#f0f0f0', color: '#333', fontSize: '13px', fontWeight: 500, padding: '6px 14px', borderRadius: '20px' }}>{svc}</span>
-                ))}
+              <div style={{ marginBottom: '16px' }}>
+                {data.services.map((svc) => {
+                  const detail = data.service_details?.[svc];
+                  return (
+                    <div key={svc} style={{ display: 'flex', alignItems: 'baseline', gap: '10px', marginBottom: '8px' }}>
+                      <span style={{ background: '#f0f0f0', color: '#333', fontSize: '13px', fontWeight: 600, padding: '4px 12px', borderRadius: '16px', whiteSpace: 'nowrap' }}>{svc}</span>
+                      {detail && <span style={{ fontSize: '13px', color: '#555' }}>{detail}</span>}
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <div style={{ color: '#999', fontSize: '13px', marginBottom: '16px' }}>서비스 항목 미지정</div>

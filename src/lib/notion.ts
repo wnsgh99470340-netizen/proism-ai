@@ -667,6 +667,7 @@ export async function createEstimatePage(input: {
   phone?: string | null;
   carModel?: string | null;
   services: string[];
+  serviceDetails?: Record<string, string> | null;
   amount?: number | null;
   scheduledDate?: string | null;
   memo?: string | null;
@@ -701,10 +702,24 @@ export async function createEstimatePage(input: {
     { type: 'bulleted_list_item', bulleted_list_item: { rich_text: [{ text: { content: `차종: ${input.carModel || '-'}` } }] } },
     { type: 'divider', divider: {} },
     { type: 'heading_3', heading_3: { rich_text: [{ text: { content: '서비스 내역' } }] } },
-    { type: 'bulleted_list_item', bulleted_list_item: { rich_text: [{ text: { content: `서비스: ${serviceList}` } }] } },
+  ];
+
+  // 서비스별 세부 내용
+  const details = input.serviceDetails || {};
+  if (input.services.length > 0) {
+    for (const svc of input.services) {
+      const detail = details[svc];
+      const text = detail ? `${svc}: ${detail}` : svc;
+      children.push({ type: 'bulleted_list_item', bulleted_list_item: { rich_text: [{ text: { content: text } }] } });
+    }
+  } else {
+    children.push({ type: 'bulleted_list_item', bulleted_list_item: { rich_text: [{ text: { content: '서비스 항목 미지정' } }] } });
+  }
+
+  children.push(
     { type: 'bulleted_list_item', bulleted_list_item: { rich_text: [{ text: { content: `예상 금액: ${amountText}` }, annotations: { bold: true } }] } },
     { type: 'bulleted_list_item', bulleted_list_item: { rich_text: [{ text: { content: `작업 예정일: ${scheduleText}` } }] } },
-  ];
+  );
 
   if (input.memo) {
     children.push({ type: 'bulleted_list_item', bulleted_list_item: { rich_text: [{ text: { content: `비고: ${input.memo}` } }] } });

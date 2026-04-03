@@ -254,7 +254,7 @@ export default function CRMPage() {
 
   // Estimate state
   const [estimateForm, setEstimateForm] = useState({
-    customer_id: '', services: [] as string[], amount: '', scheduledDate: '', memo: '',
+    customer_id: '', services: [] as string[], serviceDetails: {} as Record<string, string>, amount: '', scheduledDate: '', memo: '',
   });
   const [estimateUrl, setEstimateUrl] = useState<string | null>(null);
   const [estimateLoading, setEstimateLoading] = useState(false);
@@ -1884,10 +1884,13 @@ export default function CRMPage() {
                   {['PPF', '틴팅', '세라믹코팅', '래핑', '크롬죽이기', '신차패키지'].map((svc) => (
                     <button
                       key={svc}
-                      onClick={() => setEstimateForm((f) => ({
-                        ...f,
-                        services: f.services.includes(svc) ? f.services.filter((s) => s !== svc) : [...f.services, svc],
-                      }))}
+                      onClick={() => setEstimateForm((f) => {
+                        const selected = f.services.includes(svc);
+                        const services = selected ? f.services.filter((s) => s !== svc) : [...f.services, svc];
+                        const serviceDetails = { ...f.serviceDetails };
+                        if (selected) delete serviceDetails[svc];
+                        return { ...f, services, serviceDetails };
+                      })}
                       className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
                         estimateForm.services.includes(svc)
                           ? 'bg-[#C8A951]/20 border-[#C8A951]/50 text-[#C8A951]'
@@ -1898,6 +1901,23 @@ export default function CRMPage() {
                     </button>
                   ))}
                 </div>
+                {/* 서비스별 세부 내용 입력 */}
+                {estimateForm.services.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {estimateForm.services.map((svc) => (
+                      <div key={svc} className="flex items-start gap-2">
+                        <span className="text-xs text-[#C8A951] bg-[#C8A951]/10 rounded px-2 py-1.5 whitespace-nowrap mt-px">{svc}</span>
+                        <input
+                          type="text"
+                          value={estimateForm.serviceDetails[svc] || ''}
+                          onChange={(e) => setEstimateForm((f) => ({ ...f, serviceDetails: { ...f.serviceDetails, [svc]: e.target.value } }))}
+                          className="flex-1 bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-1.5 text-xs text-[#fafaf9] outline-none focus:border-[#C8A951]/50"
+                          placeholder={svc === 'PPF' ? '전면 풀랩 + 사이드미러 + 도어엣지' : svc === '틴팅' ? '전면 크리스탈라인 70% + 측후면 루마 15%' : `${svc} 세부 내용`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
               {/* 생성 버튼 + 결과 */}
               <div className="flex items-center gap-3">
@@ -1916,6 +1936,7 @@ export default function CRMPage() {
                           phone: cust.phone,
                           carModel: [cust.car_brand, cust.car_model].filter(Boolean).join(' ') || null,
                           services: estimateForm.services,
+                          serviceDetails: estimateForm.serviceDetails,
                           amount: estimateForm.amount ? Number(estimateForm.amount) : null,
                           scheduledDate: estimateForm.scheduledDate || null,
                           memo: estimateForm.memo || null,

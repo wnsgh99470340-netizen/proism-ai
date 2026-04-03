@@ -9,12 +9,15 @@ export async function POST(request: Request) {
       return Response.json({ error: '고객명은 필수입니다.' }, { status: 400 });
     }
 
+    const serviceDetails: Record<string, string> = body.serviceDetails || {};
+
     // 1. Supabase에 저장 (공개 URL용)
     const estimate = await createEstimate({
       customerName: body.customerName,
       phone: body.phone || null,
       carModel: body.carModel || null,
       services: body.services || [],
+      serviceDetails,
       amount: body.amount || null,
       scheduledDate: body.scheduledDate || null,
       memo: body.memo || null,
@@ -28,6 +31,7 @@ export async function POST(request: Request) {
         phone: body.phone || null,
         carModel: body.carModel || null,
         services: body.services || [],
+        serviceDetails,
         amount: body.amount || null,
         scheduledDate: body.scheduledDate || null,
         memo: body.memo || null,

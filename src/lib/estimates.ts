@@ -6,6 +6,7 @@ export interface Estimate {
   phone?: string | null;
   car_model?: string | null;
   services: string[];
+  service_details?: Record<string, string> | null;
   amount?: number | null;
   scheduled_date?: string | null;
   memo?: string | null;
@@ -17,6 +18,7 @@ export async function createEstimate(input: {
   phone?: string | null;
   carModel?: string | null;
   services: string[];
+  serviceDetails?: Record<string, string> | null;
   amount?: number | null;
   scheduledDate?: string | null;
   memo?: string | null;
@@ -28,6 +30,7 @@ export async function createEstimate(input: {
       phone: input.phone || null,
       car_model: input.carModel || null,
       services: input.services,
+      service_details: input.serviceDetails || null,
       amount: input.amount || null,
       scheduled_date: input.scheduledDate || null,
       memo: input.memo || null,
