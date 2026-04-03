@@ -234,6 +234,14 @@ export default function CRMPage() {
   // Work order modal state
   const [showWorkOrder, setShowWorkOrder] = useState(false);
   const [workOrderAppointment, setWorkOrderAppointment] = useState<Appointment | null>(null);
+
+  // Warranty modal state
+  const [showWarranty, setShowWarranty] = useState(false);
+  const [warrantyAppointment, setWarrantyAppointment] = useState<Appointment | null>(null);
+  const [warrantyForm, setWarrantyForm] = useState({
+    date: '', car_type: '', car_number: '', customer_name: '', phone: '',
+    work_details: '', warranty_period: '시공일로부터 1년', price: '',
+  });
   const [workOrder, setWorkOrder] = useState({
     car_number: '',
     warranty_issued: false,
@@ -720,6 +728,91 @@ export default function CRMPage() {
     setShowWorkOrder(true);
   };
 
+  // ─── Warranty Actions ────────────────────────────────────
+  const handleOpenWarranty = async (appointment: Appointment) => {
+    // 기존 저장된 보증서 데이터 불러오기
+    const { data: serviceData } = await supabase
+      .from('services')
+      .select('id, memo')
+      .eq('customer_id', appointment.customer_id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    let saved: Record<string, string> | null = null;
+    if (serviceData?.memo) {
+      try {
+        const parsed = JSON.parse(serviceData.memo);
+        if (parsed?.warranty) saved = parsed.warranty;
+      } catch { /* ignore */ }
+    }
+
+    // 기존 memo(work order)에서도 car_number 가져오기
+    let carNumber = '';
+    if (appointment.memo) {
+      try {
+        const parsed = JSON.parse(appointment.memo);
+        if (parsed?.car_number) carNumber = parsed.car_number;
+        if (parsed?.warranty) saved = parsed.warranty;
+      } catch { /* ignore */ }
+    }
+
+    if (saved) {
+      setWarrantyForm({
+        date: saved.date || appointment.appointment_date || '',
+        car_type: saved.car_type || `${appointment.customer?.name ? '' : ''}${carNumber ? ' ' + carNumber : ''}`.trim(),
+        car_number: saved.car_number || carNumber,
+        customer_name: saved.customer_name || appointment.customer?.name || '',
+        phone: saved.phone || appointment.customer?.phone || '',
+        work_details: saved.work_details || '',
+        warranty_period: saved.warranty_period || '시공일로부터 1년',
+        price: saved.price || '',
+      });
+    } else {
+      setWarrantyForm({
+        date: appointment.appointment_date || new Date().toISOString().split('T')[0],
+        car_type: '',
+        car_number: carNumber,
+        customer_name: appointment.customer?.name || '',
+        phone: appointment.customer?.phone || '',
+        work_details: '',
+        warranty_period: '시공일로부터 1년',
+        price: '',
+      });
+    }
+    setWarrantyAppointment(appointment);
+    setShowWarranty(true);
+  };
+
+  const handleSaveWarranty = async () => {
+    if (!warrantyAppointment) return;
+    // 기존 memo에 warranty 키로 저장
+    let existingMemo: Record<string, unknown> = {};
+    if (warrantyAppointment.memo) {
+      try { existingMemo = JSON.parse(warrantyAppointment.memo); } catch { /* ignore */ }
+    }
+    existingMemo.warranty = { ...warrantyForm };
+    await supabase.from('appointments')
+      .update({ memo: JSON.stringify(existingMemo) })
+      .eq('id', warrantyAppointment.id);
+
+    // services 테이블에도 저장
+    const { data: serviceData } = await supabase
+      .from('services')
+      .select('id, memo')
+      .eq('customer_id', warrantyAppointment.customer_id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+    if (serviceData) {
+      let svcMemo: Record<string, unknown> = {};
+      try { svcMemo = JSON.parse(serviceData.memo || '{}'); } catch { /* ignore */ }
+      svcMemo.warranty = { ...warrantyForm };
+      await supabase.from('services').update({ memo: JSON.stringify(svcMemo) }).eq('id', serviceData.id);
+    }
+    fetchAppointments();
+  };
+
   // ─── Follow-up Actions ──────────────────────────────────
   const handleToggleFollowUp = async (followUp: FollowUp) => {
     const newCompleted = !followUp.is_completed;
@@ -1143,6 +1236,7 @@ export default function CRMPage() {
                         <div className="flex items-center gap-2">
                           <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusColor(a.status)}`}>{a.status}</span>
                           <button onClick={() => handleOpenWorkOrder(a)} className="bg-[#C8A951]/10 hover:bg-[#C8A951]/20 text-[#C8A951] text-xs font-medium rounded-lg px-2.5 py-1 transition-colors">작업 내역서</button>
+                          <button onClick={() => handleOpenWarranty(a)} className="bg-[#22c55e]/10 hover:bg-[#22c55e]/20 text-[#22c55e] text-xs font-medium rounded-lg px-2.5 py-1 transition-colors">보증서</button>
                           {a.status !== '완료' && (
                             <select value="" onChange={(e) => { if (e.target.value) handleStatusChange(a, e.target.value); }} className="bg-[#1e1e22] border border-[#2a2a2e] rounded-lg px-2 py-1 text-xs text-[#a1a1aa] outline-none cursor-pointer">
                               <option value="">상태 변경</option>
@@ -1534,6 +1628,14 @@ export default function CRMPage() {
           onClose={() => { setShowWorkOrder(false); setWorkOrderAppointment(null); }}
         />
       )}
+      {showWarranty && warrantyAppointment && (
+        <WarrantyModal
+          warrantyForm={warrantyForm}
+          setWarrantyForm={setWarrantyForm}
+          onSave={handleSaveWarranty}
+          onClose={() => { setShowWarranty(false); setWarrantyAppointment(null); }}
+        />
+      )}
     </div>
   );
 }
@@ -1896,6 +1998,163 @@ function WorkOrderModal({ appointment, workOrder, setWorkOrder, onSubmit, onSave
           <button onClick={handlePdfSave} className="bg-[#3B82F6] hover:bg-[#2563EB] text-white text-sm font-medium rounded-lg px-5 py-2 transition-colors">PDF 저장</button>
           <button onClick={onSaveOnly} className="bg-[#1e1e22] hover:bg-[#2a2a2e] text-[#a1a1aa] text-sm font-medium rounded-lg px-5 py-2 transition-colors border border-[#2a2a2e]">저장만 하기</button>
           <button onClick={onSubmit} className="bg-[#E4002B] hover:bg-[#c60026] text-white text-sm font-medium rounded-lg px-6 py-2 transition-colors">시공 완료 처리</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Warranty Modal Component ───────────────────────────
+interface WarrantyModalProps {
+  warrantyForm: { date: string; car_type: string; car_number: string; customer_name: string; phone: string; work_details: string; warranty_period: string; price: string };
+  setWarrantyForm: (v: WarrantyModalProps['warrantyForm']) => void;
+  onSave: () => Promise<void>;
+  onClose: () => void;
+}
+
+function WarrantyModal({ warrantyForm, setWarrantyForm, onSave, onClose }: WarrantyModalProps) {
+  const printRef = useRef<HTMLDivElement>(null);
+
+  const handleDownloadPng = async () => {
+    await onSave();
+    if (!printRef.current) return;
+    const html2canvas = (await import('html2canvas')).default;
+    const canvas = await html2canvas(printRef.current, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+    const link = document.createElement('a');
+    const dateStr = new Date().toISOString().split('T')[0];
+    link.download = `프로이즘_시공보증서_${warrantyForm.customer_name || '고객'}_${dateStr}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  };
+
+  const inputClass = 'w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#22c55e]/50';
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center" onClick={onClose}>
+      <div className="bg-[#111113] border border-[#1e1e22] rounded-xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="px-6 py-4 border-b border-[#1e1e22]">
+          <h3 className="text-[#fafaf9] font-semibold text-base">시공 보증서 발급</h3>
+        </div>
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-[#71717a] mb-1 block">일자</label>
+              <input type="date" value={warrantyForm.date} onChange={(e) => setWarrantyForm({ ...warrantyForm, date: e.target.value })} className={inputClass} />
+            </div>
+            <div>
+              <label className="text-xs text-[#71717a] mb-1 block">차종</label>
+              <input type="text" value={warrantyForm.car_type} onChange={(e) => setWarrantyForm({ ...warrantyForm, car_type: e.target.value })} className={inputClass} placeholder="BMW X5 등" />
+            </div>
+            <div>
+              <label className="text-xs text-[#71717a] mb-1 block">차량번호</label>
+              <input type="text" value={warrantyForm.car_number} onChange={(e) => setWarrantyForm({ ...warrantyForm, car_number: e.target.value })} className={inputClass} placeholder="12가 3456" />
+            </div>
+            <div>
+              <label className="text-xs text-[#71717a] mb-1 block">성명</label>
+              <input type="text" value={warrantyForm.customer_name} onChange={(e) => setWarrantyForm({ ...warrantyForm, customer_name: e.target.value })} className={inputClass} />
+            </div>
+            <div>
+              <label className="text-xs text-[#71717a] mb-1 block">연락처</label>
+              <input type="text" value={warrantyForm.phone} onChange={(e) => setWarrantyForm({ ...warrantyForm, phone: e.target.value })} className={inputClass} />
+            </div>
+            <div>
+              <label className="text-xs text-[#71717a] mb-1 block">보증기간</label>
+              <input type="text" value={warrantyForm.warranty_period} onChange={(e) => setWarrantyForm({ ...warrantyForm, warranty_period: e.target.value })} className={inputClass} placeholder="시공일로부터 1년" />
+            </div>
+            <div className="col-span-2">
+              <label className="text-xs text-[#71717a] mb-1 block">정상가 금액</label>
+              <input type="text" value={warrantyForm.price} onChange={(e) => setWarrantyForm({ ...warrantyForm, price: e.target.value })} className={inputClass} placeholder="₩1,000,000" />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-[#71717a] mb-1 block">시공 내역</label>
+            <textarea value={warrantyForm.work_details} onChange={(e) => setWarrantyForm({ ...warrantyForm, work_details: e.target.value })} className={`${inputClass} resize-none h-28`} placeholder={'그릴 랩핑 (3M 2080 글로스 블랙) ₩400,000\n루프 랩핑 (3M 2080 새틴 블랙) ₩600,000'} />
+          </div>
+        </div>
+
+        {/* Hidden print area */}
+        <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
+          <div ref={printRef} style={{ width: '800px', padding: '48px', backgroundColor: '#ffffff', fontFamily: 'sans-serif', color: '#111' }}>
+            <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+              <div style={{ fontSize: '28px', fontWeight: 700, letterSpacing: '8px' }}>시공내역서</div>
+            </div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '24px' }}>
+              <tbody>
+                <tr>
+                  <td style={{ border: '1px solid #ccc', padding: '8px 12px', backgroundColor: '#f5f5f5', fontWeight: 600, width: '120px', fontSize: '13px' }}>일자</td>
+                  <td style={{ border: '1px solid #ccc', padding: '8px 12px', fontSize: '13px' }}>{warrantyForm.date}</td>
+                  <td style={{ border: '1px solid #ccc', padding: '8px 12px', backgroundColor: '#f5f5f5', fontWeight: 600, width: '120px', fontSize: '13px' }}>차종</td>
+                  <td style={{ border: '1px solid #ccc', padding: '8px 12px', fontSize: '13px' }}>{warrantyForm.car_type}</td>
+                </tr>
+                <tr>
+                  <td style={{ border: '1px solid #ccc', padding: '8px 12px', backgroundColor: '#f5f5f5', fontWeight: 600, fontSize: '13px' }}>차량번호</td>
+                  <td style={{ border: '1px solid #ccc', padding: '8px 12px', fontSize: '13px' }}>{warrantyForm.car_number}</td>
+                  <td style={{ border: '1px solid #ccc', padding: '8px 12px', backgroundColor: '#f5f5f5', fontWeight: 600, fontSize: '13px' }}>성명</td>
+                  <td style={{ border: '1px solid #ccc', padding: '8px 12px', fontSize: '13px' }}>{warrantyForm.customer_name}</td>
+                </tr>
+                <tr>
+                  <td style={{ border: '1px solid #ccc', padding: '8px 12px', backgroundColor: '#f5f5f5', fontWeight: 600, fontSize: '13px' }}>연락처</td>
+                  <td style={{ border: '1px solid #ccc', padding: '8px 12px', fontSize: '13px' }}>{warrantyForm.phone}</td>
+                  <td style={{ border: '1px solid #ccc', padding: '8px 12px', backgroundColor: '#f5f5f5', fontWeight: 600, fontSize: '13px' }}>보증기간</td>
+                  <td style={{ border: '1px solid #ccc', padding: '8px 12px', fontSize: '13px' }}>{warrantyForm.warranty_period}</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '24px' }}>
+              <thead>
+                <tr>
+                  <th style={{ border: '1px solid #ccc', padding: '8px 12px', backgroundColor: '#f5f5f5', textAlign: 'left', fontSize: '13px' }}>시공 내역</th>
+                  <th style={{ border: '1px solid #ccc', padding: '8px 12px', backgroundColor: '#f5f5f5', textAlign: 'right', fontSize: '13px', width: '160px' }}>금액</th>
+                </tr>
+              </thead>
+              <tbody>
+                {warrantyForm.work_details.split('\n').filter(Boolean).map((line, i) => {
+                  const priceMatch = line.match(/(₩[\d,]+|[\d,]+원)/);
+                  const detail = priceMatch ? line.replace(priceMatch[0], '').trim() : line.trim();
+                  const amount = priceMatch ? priceMatch[0] : '';
+                  return (
+                    <tr key={i}>
+                      <td style={{ border: '1px solid #ccc', padding: '8px 12px', fontSize: '13px' }}>{detail}</td>
+                      <td style={{ border: '1px solid #ccc', padding: '8px 12px', fontSize: '13px', textAlign: 'right' }}>{amount}</td>
+                    </tr>
+                  );
+                })}
+                {warrantyForm.price && (
+                  <tr>
+                    <td style={{ border: '1px solid #ccc', padding: '8px 12px', fontSize: '13px', fontWeight: 700, textAlign: 'right' }}>정상가</td>
+                    <td style={{ border: '1px solid #ccc', padding: '8px 12px', fontSize: '13px', fontWeight: 700, textAlign: 'right' }}>{warrantyForm.price}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+
+            <div style={{ backgroundColor: '#f9f9f9', border: '1px solid #ddd', borderRadius: '6px', padding: '16px', marginBottom: '20px', fontSize: '11.5px', lineHeight: '1.8', color: '#444' }}>
+              <div style={{ fontWeight: 700, marginBottom: '6px', color: '#222' }}>[건적서 발행 참고 내용]</div>
+              <div>- 수정은 이슈에 따라 담당자의 판단에 즉각 진행 가능하다.</div>
+              <div>- 견적표에 없는 시공항목들은 시공내역서 참고 및 작업담당자의 피드백을 받아 시공내역서를 발행한다.</div>
+              <div>- 시공내역서에 있는 견적보다는 정가 견적으로 내역서를 발행한다.</div>
+              <div>- 서비스시공은 내역에서 제외된다</div>
+            </div>
+
+            <div style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px', padding: '16px', marginBottom: '24px', fontSize: '12px', lineHeight: '1.9', color: '#166534' }}>
+              <div style={{ fontWeight: 700, marginBottom: '6px' }}>[기본멘트]</div>
+              <div>고객과 차량관리의 연결고리, 카넥트입니다.</div>
+              <div>작업이 완료된 차량의 &apos;시공내역서&apos; 및 &apos;보증서&apos;를 송부드립니다.</div>
+              <div>시공 후 문의 및 A/S 관련 사항은 010-5716-6009으로 연락을 주시면 담당자가 친절하게 응대하도록 하겠습니다.</div>
+              <div>플러스 가득한 하루 보내시기 바라며, 다시 한번 저희를 믿고 맡겨주셔서 감사드립니다.</div>
+            </div>
+
+            <div style={{ textAlign: 'center', fontSize: '12px', color: '#888', borderTop: '1px solid #ddd', paddingTop: '16px' }}>
+              3M 프로이즘 | 서초동 1604-7 1층
+            </div>
+          </div>
+        </div>
+
+        <div className="sticky bottom-0 bg-[#111113] border-t border-[#1e1e22] px-6 py-4 flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-[#71717a] hover:text-[#a1a1aa] transition-colors">취소</button>
+          <button onClick={async () => { await onSave(); onClose(); }} className="bg-[#1e1e22] hover:bg-[#2a2a2e] text-[#a1a1aa] text-sm font-medium rounded-lg px-5 py-2 transition-colors border border-[#2a2a2e]">저장만 하기</button>
+          <button onClick={handleDownloadPng} className="bg-[#22c55e] hover:bg-[#16a34a] text-white text-sm font-medium rounded-lg px-5 py-2 transition-colors">PNG 다운로드</button>
         </div>
       </div>
     </div>
