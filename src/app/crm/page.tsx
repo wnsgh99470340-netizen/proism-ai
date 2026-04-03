@@ -85,7 +85,10 @@ const DEFAULT_TEMPLATES: Record<string, string> = {
 [참고 해주세요]
 1. 우리는 전 세계적으로 인증받고있는 제품의 3M PRO 취급점 이며 제품과 기술력의 인증이 확실합니다.
 2. 시공 후 6개월 주기로 꾸준한 메인터넌스 헤택을 받을 수 있습니다.
-3. 제품보증과 시공보증 2중발급 시스템으로 확실한 사후관리가 가능합니다.`,
+3. 제품보증과 시공보증 2중발급 시스템으로 확실한 사후관리가 가능합니다.
+
+[입금 안내]
+KB국민은행 77501-04-276096 (브레이브보이즈)`,
   'PPF': `안녕하세요? 3M 프로이즘 입니다.
 문의주신 견적 안내드리며, 자세한 내용과 서비스 혜택 안내드립니다.
 
@@ -98,7 +101,10 @@ const DEFAULT_TEMPLATES: Record<string, string> = {
 [참고 해주세요]
 1. 우리는 전 세계적으로 인증받고있는 제품의 3M PRO 취급점 이며 제품과 기술력의 인증이 확실합니다.
 2. 시공 후 6개월 주기로 꾸준한 메인터넌스 헤택을 받을 수 있습니다.
-3. 제품보증과 시공보증 2중발급 시스템으로 확실한 사후관리가 가능합니다.`,
+3. 제품보증과 시공보증 2중발급 시스템으로 확실한 사후관리가 가능합니다.
+
+[입금 안내]
+KB국민은행 77501-04-276096 (브레이브보이즈)`,
   '신차패키지': `안녕하세요? 3M 프로이즘 입니다.
 문의주신 견적 안내드리며, 자세한 내용과 서비스 혜택 안내드립니다.
 
@@ -109,9 +115,12 @@ const DEFAULT_TEMPLATES: Record<string, string> = {
 [옵션시공] PPF / 랩핑 / 루프스킨 / 크롬딜리트 / 투톤PPF
 
 [참고 해주세요]
-1. 신차계약 후 탁송지 지정은 3M 프로이즘으로 해주세요 [서초동 1604-7 1층 3M 프로이즘]
+1. 신차계약 후 탁송지 지정은 3M 프로이즘으로 해주세요 [서울시 서초구 서초중앙로8길 82, 1동 1층 1호 3M 프로이즘]
 2. 차량도착 후 정비자격증소지자의 섬세한 검수가 이뤄집니다. [도막/열화상/진단기/스코프/공기압/배터리진단기 사용] 6SET 첨단장비 사용
-3. 인수인계 여부 및 이슈발생 시, 해결방안 피드백까지 전달드립니다.`,
+3. 인수인계 여부 및 이슈발생 시, 해결방안 피드백까지 전달드립니다.
+
+[입금 안내]
+KB국민은행 77501-04-276096 (브레이브보이즈)`,
   '랩핑': `안녕하세요? 3M 프로이즘 입니다.
 문의주신 견적 안내드리며, 자세한 내용과 서비스 혜택 안내드립니다.
 
@@ -124,7 +133,10 @@ const DEFAULT_TEMPLATES: Record<string, string> = {
 [참고 해주세요]
 1. 우리는 전 세계적으로 인증받고있는 제품의 3M PRO 취급점 이며 제품과 기술력의 인증이 확실합니다.
 2. 시공 후 6개월 주기로 꾸준한 메인터넌스 헤택을 받을 수 있습니다.
-3. 제품보증과 시공보증 2중발급 시스템으로 확실한 사후관리가 가능합니다.`,
+3. 제품보증과 시공보증 2중발급 시스템으로 확실한 사후관리가 가능합니다.
+
+[입금 안내]
+KB국민은행 77501-04-276096 (브레이브보이즈)`,
 };
 
 const TEMPLATE_KEYS = ['크롬죽이기', 'PPF', '신차패키지', '랩핑'];
@@ -548,17 +560,62 @@ export default function CRMPage() {
     fetchAllCustomers();
     fetchAppointments();
 
-    // 4. 작업 내역서 모달 또는 알림
+    // 4. .ics 캘린더 파일 자동 다운로드
+    if (formData.appointment_start_date && appointmentForWorkOrder) {
+      handleDownloadICS(appointmentForWorkOrder);
+    }
+
+    // 5. 작업 내역서 모달 또는 알림
     if (hasDateAndType && appointmentForWorkOrder) {
       console.log('[CRM] 작업 내역서 모달 열기!');
       resetWorkOrder();
       setWorkOrderAppointment(appointmentForWorkOrder);
       setTimeout(() => setShowWorkOrder(true), 200);
     } else if (formData.appointment_start_date) {
-      alert('고객 등록 + 예약 완료');
+      alert('고객 등록 + 예약 완료 (캘린더 일정이 다운로드되었습니다)');
     } else {
       alert('고객 등록 완료');
     }
+  };
+
+  const generateICS = (appointment: Appointment): string => {
+    const start = appointment.appointment_date.replace(/-/g, '');
+    const endDate = appointment.end_date || appointment.appointment_date;
+    const endNext = new Date(endDate);
+    endNext.setDate(endNext.getDate() + 1);
+    const end = endNext.toISOString().split('T')[0].replace(/-/g, '');
+    const name = appointment.customer?.name || '고객';
+    const phone = appointment.customer?.phone || '';
+    const serviceType = appointment.service_type || '시공';
+    return [
+      'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//3M PROIZM//CRM//KO',
+      'BEGIN:VEVENT',
+      `DTSTART;VALUE=DATE:${start}`, `DTEND;VALUE=DATE:${end}`,
+      `SUMMARY:[프로이즘] ${name} - ${serviceType}`,
+      `DESCRIPTION:고객: ${name}\\n연락처: ${phone}\\n시공: ${serviceType}${appointment.memo ? '\\n메모: ' + appointment.memo.replace(/\n/g, '\\n') : ''}`,
+      'LOCATION:서울시 서초구 서초중앙로8길 82\\, 1동 1층 3M 프로이즘',
+      `UID:${appointment.id}@proism-crm`,
+      'END:VEVENT', 'END:VCALENDAR',
+    ].join('\r\n');
+  };
+
+  const handleDownloadICS = (appointment: Appointment) => {
+    const ics = generateICS(appointment);
+    const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `프로이즘_예약_${appointment.customer?.name || '고객'}_${appointment.appointment_date}.ics`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
+
+  const hasWarrantyIssued = (memo: string | null): boolean => {
+    if (!memo) return false;
+    try { const p = JSON.parse(memo); return !!(p?.warranty_issued || p?.warranty); } catch { return false; }
+  };
+
+  const customerHasWarranty = (customerId: string): boolean => {
+    return appointments.some((a) => a.customer_id === customerId && hasWarrantyIssued(a.memo));
   };
 
   const filteredCustomers = customers.filter((c) => {
@@ -730,6 +787,17 @@ export default function CRMPage() {
 
   // ─── Warranty Actions ────────────────────────────────────
   const handleOpenWarranty = async (appointment: Appointment) => {
+    // 고객 정보 직접 조회
+    const { data: customerData } = await supabase
+      .from('customers')
+      .select('*')
+      .eq('id', appointment.customer_id)
+      .single();
+
+    const custName = customerData?.name || appointment.customer?.name || '';
+    const custPhone = customerData?.phone || appointment.customer?.phone || '';
+    const carType = [customerData?.car_brand, customerData?.car_model].filter(Boolean).join(' ');
+
     // 기존 저장된 보증서 데이터 불러오기
     const { data: serviceData } = await supabase
       .from('services')
@@ -760,10 +828,10 @@ export default function CRMPage() {
     if (saved) {
       setWarrantyForm({
         date: saved.date || appointment.appointment_date || '',
-        car_type: saved.car_type || `${appointment.customer?.name ? '' : ''}${carNumber ? ' ' + carNumber : ''}`.trim(),
+        car_type: saved.car_type || carType,
         car_number: saved.car_number || carNumber,
-        customer_name: saved.customer_name || appointment.customer?.name || '',
-        phone: saved.phone || appointment.customer?.phone || '',
+        customer_name: saved.customer_name || custName,
+        phone: saved.phone || custPhone,
         work_details: saved.work_details || '',
         warranty_period: saved.warranty_period || '시공일로부터 1년',
         price: saved.price || '',
@@ -771,10 +839,10 @@ export default function CRMPage() {
     } else {
       setWarrantyForm({
         date: appointment.appointment_date || new Date().toISOString().split('T')[0],
-        car_type: '',
+        car_type: carType,
         car_number: carNumber,
-        customer_name: appointment.customer?.name || '',
-        phone: appointment.customer?.phone || '',
+        customer_name: custName,
+        phone: custPhone,
         work_details: '',
         warranty_period: '시공일로부터 1년',
         price: '',
@@ -811,6 +879,48 @@ export default function CRMPage() {
       await supabase.from('services').update({ memo: JSON.stringify(svcMemo) }).eq('id', serviceData.id);
     }
     fetchAppointments();
+  };
+
+  const handleWarrantyDownloaded = async () => {
+    if (!warrantyAppointment) return;
+    let existingMemo: Record<string, unknown> = {};
+    if (warrantyAppointment.memo) {
+      try { existingMemo = JSON.parse(warrantyAppointment.memo); } catch { /* ignore */ }
+    }
+    existingMemo.warranty_issued = true;
+    existingMemo.warranty = { ...warrantyForm };
+    const updatedMemo = JSON.stringify(existingMemo);
+    await supabase.from('appointments').update({ memo: updatedMemo }).eq('id', warrantyAppointment.id);
+    setWarrantyAppointment({ ...warrantyAppointment, memo: updatedMemo });
+    fetchAppointments();
+  };
+
+  const handleOpenWarrantyFromFollowUp = async (followUp: FollowUp) => {
+    // 고객의 가장 최근 예약을 찾아서 보증서 모달 열기
+    const { data: appt } = await supabase
+      .from('appointments')
+      .select('*, customer:customers(name, phone)')
+      .eq('customer_id', followUp.customer_id)
+      .order('appointment_date', { ascending: false })
+      .limit(1)
+      .single();
+    if (appt) {
+      handleOpenWarranty(appt as Appointment);
+    } else {
+      // 예약이 없으면 고객 정보만으로 모달 열기
+      setWarrantyForm({
+        date: new Date().toISOString().split('T')[0],
+        car_type: '',
+        car_number: '',
+        customer_name: followUp.customer?.name || '',
+        phone: followUp.customer?.phone || '',
+        work_details: '',
+        warranty_period: '시공일로부터 1년',
+        price: '',
+      });
+      setWarrantyAppointment({ id: '', customer_id: followUp.customer_id, appointment_date: '', status: '', memo: null, created_at: '', updated_at: '', customer: followUp.customer } as Appointment);
+      setShowWarranty(true);
+    }
   };
 
   // ─── Follow-up Actions ──────────────────────────────────
@@ -1236,7 +1346,8 @@ export default function CRMPage() {
                         <div className="flex items-center gap-2">
                           <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusColor(a.status)}`}>{a.status}</span>
                           <button onClick={() => handleOpenWorkOrder(a)} className="bg-[#C8A951]/10 hover:bg-[#C8A951]/20 text-[#C8A951] text-xs font-medium rounded-lg px-2.5 py-1 transition-colors">작업 내역서</button>
-                          <button onClick={() => handleOpenWarranty(a)} className="bg-[#22c55e]/10 hover:bg-[#22c55e]/20 text-[#22c55e] text-xs font-medium rounded-lg px-2.5 py-1 transition-colors">보증서</button>
+                          <button onClick={() => handleOpenWarranty(a)} className={`text-xs font-medium rounded-lg px-2.5 py-1 transition-colors ${hasWarrantyIssued(a.memo) ? 'bg-[#22c55e] text-white' : 'bg-[#22c55e]/10 hover:bg-[#22c55e]/20 text-[#22c55e]'}`}>{hasWarrantyIssued(a.memo) ? '✓ 보증서 발급완료' : '보증서'}</button>
+                          <button onClick={() => handleDownloadICS(a)} className="bg-[#3B82F6]/10 hover:bg-[#3B82F6]/20 text-[#3B82F6] text-xs font-medium rounded-lg px-2.5 py-1 transition-colors">캘린더</button>
                           {a.status !== '완료' && (
                             <select value="" onChange={(e) => { if (e.target.value) handleStatusChange(a, e.target.value); }} className="bg-[#1e1e22] border border-[#2a2a2e] rounded-lg px-2 py-1 text-xs text-[#a1a1aa] outline-none cursor-pointer">
                               <option value="">상태 변경</option>
@@ -1373,6 +1484,7 @@ export default function CRMPage() {
                       {f.follow_up_type === '후기요청' && (
                         <button onClick={() => sendSmsWithTrack(smsReviewAudi, 'audi')} disabled={!phone} className={`text-[10px] font-medium px-2 py-1 rounded-lg transition-colors ${reviewBtn('audi')}`}>{sent.audi ? '✓ 아우디 전송완료' : '아우디매니아 후기'}</button>
                       )}
+                      <button onClick={() => handleOpenWarrantyFromFollowUp(f)} className={`text-[10px] font-medium px-2 py-1 rounded-lg transition-colors ${customerHasWarranty(f.customer_id) ? 'bg-[#22c55e] text-white' : 'bg-[#22c55e]/10 hover:bg-[#22c55e]/20 text-[#22c55e]'}`}>{customerHasWarranty(f.customer_id) ? '✓ 보증서 발급완료' : '보증서'}</button>
                     </div>
                   </div>
                 );
@@ -1633,9 +1745,15 @@ export default function CRMPage() {
           warrantyForm={warrantyForm}
           setWarrantyForm={setWarrantyForm}
           onSave={handleSaveWarranty}
+          onDownloaded={handleWarrantyDownloaded}
           onClose={() => { setShowWarranty(false); setWarrantyAppointment(null); }}
         />
       )}
+
+      {/* Footer */}
+      <div className="fixed bottom-0 left-0 right-0 bg-[#0d0d0f]/80 backdrop-blur-sm border-t border-[#1e1e22] py-1.5 px-4 text-center text-[10px] text-[#52525b] z-10">
+        3M 프로이즘 | 서초중앙로8길 82, 1동 1층 | 010-7287-7140 | poi_1357@naver.com
+      </div>
     </div>
   );
 }
@@ -1987,7 +2105,7 @@ function WorkOrderModal({ appointment, workOrder, setWorkOrder, onSubmit, onSave
             <div style={{ border: '1px solid #ccc', padding: '12px', minHeight: '60px', whiteSpace: 'pre-wrap', fontSize: '12px' }}>{workOrder.notes || ''}</div>
             {/* 하단 */}
             <div style={{ marginTop: '20px', textAlign: 'center', fontSize: '10px', color: '#888' }}>
-              서울특별시 서초구 서초중앙로8길 82 1동 1층 1호 | 3M 프로이즘 | 3M 공식 프리퍼드 인스톨러
+              3M 프로이즘 | 서울시 서초구 서초중앙로8길 82, 1동 1층 1호 | 010-7287-7140
             </div>
           </div>
         </div>
@@ -2009,10 +2127,11 @@ interface WarrantyModalProps {
   warrantyForm: { date: string; car_type: string; car_number: string; customer_name: string; phone: string; work_details: string; warranty_period: string; price: string };
   setWarrantyForm: (v: WarrantyModalProps['warrantyForm']) => void;
   onSave: () => Promise<void>;
+  onDownloaded: () => Promise<void>;
   onClose: () => void;
 }
 
-function WarrantyModal({ warrantyForm, setWarrantyForm, onSave, onClose }: WarrantyModalProps) {
+function WarrantyModal({ warrantyForm, setWarrantyForm, onSave, onDownloaded, onClose }: WarrantyModalProps) {
   const printRef = useRef<HTMLDivElement>(null);
 
   const handleDownloadPng = async () => {
@@ -2025,6 +2144,15 @@ function WarrantyModal({ warrantyForm, setWarrantyForm, onSave, onClose }: Warra
     link.download = `프로이즘_시공보증서_${warrantyForm.customer_name || '고객'}_${dateStr}.png`;
     link.href = canvas.toDataURL('image/png');
     link.click();
+    await onDownloaded();
+    // 문자 전송 제안
+    setTimeout(() => {
+      if (confirm('PNG가 다운로드되었습니다. 보증서를 문자로 보내시겠습니까?\n(문자 앱에서 다운로드된 이미지를 직접 첨부해주세요)')) {
+        const phone = warrantyForm.phone?.replace(/-/g, '') || '';
+        const msg = encodeURIComponent(`안녕하세요, 3M프로이즘입니다 ^^\n시공해드린 차량의 시공내역서 및 보증서를 송부드립니다.\n\n꼼꼼하게 확인해주시고, 궁금하신 사항이나 추가 문의는 언제든 편하게 연락 주세요.\n시공 후에도 저희가 꾸준히 관리해드리겠습니다.\n\n항상 감사합니다!\n3M 프로이즘 ☎ 010-7287-7140`);
+        window.open(`sms:${phone}?body=${msg}`, '_self');
+      }
+    }, 500);
   };
 
   const inputClass = 'w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#22c55e]/50';
@@ -2070,83 +2198,110 @@ function WarrantyModal({ warrantyForm, setWarrantyForm, onSave, onClose }: Warra
             <label className="text-xs text-[#71717a] mb-1 block">시공 내역</label>
             <textarea value={warrantyForm.work_details} onChange={(e) => setWarrantyForm({ ...warrantyForm, work_details: e.target.value })} className={`${inputClass} resize-none h-28`} placeholder={'그릴 랩핑 (3M 2080 글로스 블랙) ₩400,000\n루프 랩핑 (3M 2080 새틴 블랙) ₩600,000'} />
           </div>
+          <div className="mt-3 px-1 py-2 border border-[#22c55e]/20 bg-[#22c55e]/5 rounded-lg text-center text-xs text-[#22c55e]">
+            📎 보증 카드 + 시공 후 안내사항이 함께 첨부됩니다
+          </div>
         </div>
 
         {/* Hidden print area */}
         <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
-          <div ref={printRef} style={{ width: '800px', padding: '48px', backgroundColor: '#ffffff', fontFamily: 'sans-serif', color: '#111' }}>
-            <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-              <div style={{ fontSize: '28px', fontWeight: 700, letterSpacing: '8px' }}>시공내역서</div>
+          <div ref={printRef} style={{ width: '800px', backgroundColor: '#ffffff', fontFamily: 'sans-serif', color: '#111' }}>
+            {/* Header Bar */}
+            <div style={{ backgroundColor: '#E4002B', padding: '20px 40px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <div style={{ fontSize: '20px', fontWeight: 800, color: '#ffffff', letterSpacing: '2px', lineHeight: 1 }}>3M<br/><span style={{ fontSize: '14px', fontWeight: 600, letterSpacing: '1px' }}>PROIZM</span></div>
+                <div style={{ width: '1px', height: '36px', backgroundColor: 'rgba(255,255,255,0.3)' }} />
+                <div style={{ fontSize: '26px', fontWeight: 700, color: '#ffffff', letterSpacing: '6px' }}>시공내역서</div>
+              </div>
+              <div style={{ color: '#ffffff', fontSize: '11px', textAlign: 'right', lineHeight: '1.6' }}>
+                <div>3M Car Wrap Film Preferred Installer</div>
+                <div>3M 프로이즘</div>
+              </div>
             </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '24px' }}>
-              <tbody>
-                <tr>
-                  <td style={{ border: '1px solid #ccc', padding: '8px 12px', backgroundColor: '#f5f5f5', fontWeight: 600, width: '120px', fontSize: '13px' }}>일자</td>
-                  <td style={{ border: '1px solid #ccc', padding: '8px 12px', fontSize: '13px' }}>{warrantyForm.date}</td>
-                  <td style={{ border: '1px solid #ccc', padding: '8px 12px', backgroundColor: '#f5f5f5', fontWeight: 600, width: '120px', fontSize: '13px' }}>차종</td>
-                  <td style={{ border: '1px solid #ccc', padding: '8px 12px', fontSize: '13px' }}>{warrantyForm.car_type}</td>
-                </tr>
-                <tr>
-                  <td style={{ border: '1px solid #ccc', padding: '8px 12px', backgroundColor: '#f5f5f5', fontWeight: 600, fontSize: '13px' }}>차량번호</td>
-                  <td style={{ border: '1px solid #ccc', padding: '8px 12px', fontSize: '13px' }}>{warrantyForm.car_number}</td>
-                  <td style={{ border: '1px solid #ccc', padding: '8px 12px', backgroundColor: '#f5f5f5', fontWeight: 600, fontSize: '13px' }}>성명</td>
-                  <td style={{ border: '1px solid #ccc', padding: '8px 12px', fontSize: '13px' }}>{warrantyForm.customer_name}</td>
-                </tr>
-                <tr>
-                  <td style={{ border: '1px solid #ccc', padding: '8px 12px', backgroundColor: '#f5f5f5', fontWeight: 600, fontSize: '13px' }}>연락처</td>
-                  <td style={{ border: '1px solid #ccc', padding: '8px 12px', fontSize: '13px' }}>{warrantyForm.phone}</td>
-                  <td style={{ border: '1px solid #ccc', padding: '8px 12px', backgroundColor: '#f5f5f5', fontWeight: 600, fontSize: '13px' }}>보증기간</td>
-                  <td style={{ border: '1px solid #ccc', padding: '8px 12px', fontSize: '13px' }}>{warrantyForm.warranty_period}</td>
-                </tr>
-              </tbody>
-            </table>
 
-            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '24px' }}>
-              <thead>
-                <tr>
-                  <th style={{ border: '1px solid #ccc', padding: '8px 12px', backgroundColor: '#f5f5f5', textAlign: 'left', fontSize: '13px' }}>시공 내역</th>
-                  <th style={{ border: '1px solid #ccc', padding: '8px 12px', backgroundColor: '#f5f5f5', textAlign: 'right', fontSize: '13px', width: '160px' }}>금액</th>
-                </tr>
-              </thead>
-              <tbody>
-                {warrantyForm.work_details.split('\n').filter(Boolean).map((line, i) => {
-                  const priceMatch = line.match(/(₩[\d,]+|[\d,]+원)/);
-                  const detail = priceMatch ? line.replace(priceMatch[0], '').trim() : line.trim();
-                  const amount = priceMatch ? priceMatch[0] : '';
-                  return (
-                    <tr key={i}>
-                      <td style={{ border: '1px solid #ccc', padding: '8px 12px', fontSize: '13px' }}>{detail}</td>
-                      <td style={{ border: '1px solid #ccc', padding: '8px 12px', fontSize: '13px', textAlign: 'right' }}>{amount}</td>
-                    </tr>
-                  );
-                })}
-                {warrantyForm.price && (
+            <div style={{ padding: '32px 40px 40px' }}>
+              {/* Customer Info Table */}
+              <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '24px' }}>
+                <tbody>
                   <tr>
-                    <td style={{ border: '1px solid #ccc', padding: '8px 12px', fontSize: '13px', fontWeight: 700, textAlign: 'right' }}>정상가</td>
-                    <td style={{ border: '1px solid #ccc', padding: '8px 12px', fontSize: '13px', fontWeight: 700, textAlign: 'right' }}>{warrantyForm.price}</td>
+                    <td style={{ border: '1px solid #E4002B', padding: '8px 12px', backgroundColor: '#E4002B', color: '#fff', fontWeight: 600, width: '110px', fontSize: '13px' }}>일자</td>
+                    <td style={{ border: '1px solid #ddd', padding: '8px 12px', fontSize: '13px' }}>{warrantyForm.date}</td>
+                    <td style={{ border: '1px solid #E4002B', padding: '8px 12px', backgroundColor: '#E4002B', color: '#fff', fontWeight: 600, width: '110px', fontSize: '13px' }}>차종</td>
+                    <td style={{ border: '1px solid #ddd', padding: '8px 12px', fontSize: '13px' }}>{warrantyForm.car_type}</td>
                   </tr>
-                )}
-              </tbody>
-            </table>
+                  <tr>
+                    <td style={{ border: '1px solid #E4002B', padding: '8px 12px', backgroundColor: '#E4002B', color: '#fff', fontWeight: 600, fontSize: '13px' }}>차량번호</td>
+                    <td style={{ border: '1px solid #ddd', padding: '8px 12px', fontSize: '13px' }}>{warrantyForm.car_number}</td>
+                    <td style={{ border: '1px solid #E4002B', padding: '8px 12px', backgroundColor: '#E4002B', color: '#fff', fontWeight: 600, fontSize: '13px' }}>성명</td>
+                    <td style={{ border: '1px solid #ddd', padding: '8px 12px', fontSize: '13px' }}>{warrantyForm.customer_name}</td>
+                  </tr>
+                  <tr>
+                    <td style={{ border: '1px solid #E4002B', padding: '8px 12px', backgroundColor: '#E4002B', color: '#fff', fontWeight: 600, fontSize: '13px' }}>연락처</td>
+                    <td style={{ border: '1px solid #ddd', padding: '8px 12px', fontSize: '13px' }}>{warrantyForm.phone}</td>
+                    <td style={{ border: '1px solid #E4002B', padding: '8px 12px', backgroundColor: '#E4002B', color: '#fff', fontWeight: 600, fontSize: '13px' }}>보증기간</td>
+                    <td style={{ border: '1px solid #ddd', padding: '8px 12px', fontSize: '13px' }}>{warrantyForm.warranty_period}</td>
+                  </tr>
+                </tbody>
+              </table>
 
-            <div style={{ backgroundColor: '#f9f9f9', border: '1px solid #ddd', borderRadius: '6px', padding: '16px', marginBottom: '20px', fontSize: '11.5px', lineHeight: '1.8', color: '#444' }}>
-              <div style={{ fontWeight: 700, marginBottom: '6px', color: '#222' }}>[건적서 발행 참고 내용]</div>
-              <div>- 수정은 이슈에 따라 담당자의 판단에 즉각 진행 가능하다.</div>
-              <div>- 견적표에 없는 시공항목들은 시공내역서 참고 및 작업담당자의 피드백을 받아 시공내역서를 발행한다.</div>
-              <div>- 시공내역서에 있는 견적보다는 정가 견적으로 내역서를 발행한다.</div>
-              <div>- 서비스시공은 내역에서 제외된다</div>
+              {/* Work Details Table */}
+              <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '24px' }}>
+                <thead>
+                  <tr>
+                    <th style={{ border: '1px solid #E4002B', padding: '8px 12px', backgroundColor: '#E4002B', color: '#fff', textAlign: 'left', fontSize: '13px' }}>시공 내역</th>
+                    <th style={{ border: '1px solid #E4002B', padding: '8px 12px', backgroundColor: '#E4002B', color: '#fff', textAlign: 'right', fontSize: '13px', width: '160px' }}>금액</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {warrantyForm.work_details.split('\n').filter(Boolean).map((line, i) => {
+                    const priceMatch = line.match(/(₩[\d,]+|[\d,]+원)/);
+                    const detail = priceMatch ? line.replace(priceMatch[0], '').trim() : line.trim();
+                    const amount = priceMatch ? priceMatch[0] : '';
+                    return (
+                      <tr key={i}>
+                        <td style={{ border: '1px solid #ddd', padding: '8px 12px', fontSize: '13px' }}>{detail}</td>
+                        <td style={{ border: '1px solid #ddd', padding: '8px 12px', fontSize: '13px', textAlign: 'right' }}>{amount}</td>
+                      </tr>
+                    );
+                  })}
+                  {warrantyForm.price && (
+                    <tr>
+                      <td style={{ border: '1px solid #ddd', padding: '8px 12px', fontSize: '13px', fontWeight: 700, textAlign: 'right', backgroundColor: '#FEF2F2' }}>정상가</td>
+                      <td style={{ border: '1px solid #ddd', padding: '8px 12px', fontSize: '13px', fontWeight: 700, textAlign: 'right', backgroundColor: '#FEF2F2' }}>{warrantyForm.price}</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+
+              {/* 건적서 참고 */}
+              <div style={{ backgroundColor: '#f9f9f9', border: '1px solid #ddd', borderRadius: '6px', padding: '16px', marginBottom: '20px', fontSize: '11.5px', lineHeight: '1.8', color: '#444' }}>
+                <div style={{ fontWeight: 700, marginBottom: '6px', color: '#E4002B' }}>[건적서 발행 참고 내용]</div>
+                <div>- 시공내역서와 동일, 작업보증서는 전자보증서로 발급됩니다.</div>
+                <div>- 제품의 보증은 각 브랜드 및 제품회사의 보증 규격을 준수합니다.</div>
+                <div>- 정가 기준으로 시공내역서가 작성되었습니다.</div>
+              </div>
+
+              {/* 기본멘트 */}
+              <div style={{ backgroundColor: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '6px', padding: '16px', marginBottom: '24px', fontSize: '12px', lineHeight: '1.9', color: '#991B1B' }}>
+                <div style={{ fontWeight: 700, marginBottom: '6px', color: '#E4002B' }}>[기본멘트]</div>
+                <div>세계적 브랜드 신뢰와 프로 정신의 융합, 3M 프로이즘</div>
+                <div>작업이 완료된 차량의 &apos;시공내역서&apos; 및 &apos;보증서&apos;를 송부드립니다.</div>
+                <div>시공 후 문의 및 A/S 관련 사항은 3M 프로이즘 대표번호(☎ 010-7287-7140)로 연락을 주시면 담당자의 친절한 응대를 약속드리겠습니다.</div>
+                <div>행복 가득한 하루를 보내시기 바라며, 다시 한번 저희를 믿고 맡겨주시어 정말 감사드립니다.</div>
+              </div>
+
+              {/* 보증/안내 이미지 */}
+              <div style={{ borderTop: '2px solid #E4002B', marginTop: '24px', paddingTop: '16px' }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/warranty-card.jpeg" alt="보증 카드" style={{ width: '100%', marginBottom: '16px' }} />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/aftercare-notice.jpeg" alt="시공 후 주의사항" style={{ width: '100%', marginBottom: '16px' }} />
+              </div>
             </div>
 
-            <div style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px', padding: '16px', marginBottom: '24px', fontSize: '12px', lineHeight: '1.9', color: '#166534' }}>
-              <div style={{ fontWeight: 700, marginBottom: '6px' }}>[기본멘트]</div>
-              <div>고객과 차량관리의 연결고리, 3M 프로이즘입니다.</div>
-              <div>작업이 완료된 차량의 &apos;시공내역서&apos; 및 &apos;보증서&apos;를 송부드립니다.</div>
-              <div>시공 후 문의 및 A/S 관련 사항은 010-7287-7140으로 연락을 주시면 담당자가 친절하게 응대하도록 하겠습니다.</div>
-              <div>플러스 가득한 하루 보내시기 바라며, 다시 한번 저희를 믿고 맡겨주셔서 감사드립니다.</div>
-            </div>
-
-            <div style={{ textAlign: 'center', fontSize: '12px', color: '#888', borderTop: '1px solid #ddd', paddingTop: '16px' }}>
-              3M 프로이즘 | 서초동 1604-7 1층
+            {/* Footer Bar */}
+            <div style={{ backgroundColor: '#E4002B', padding: '14px 40px', textAlign: 'center', fontSize: '12px', color: '#ffffff', fontWeight: 500 }}>
+              3M 프로이즘 | 서초중앙로8길 82, 1동 1층 | 010-7287-7140
             </div>
           </div>
         </div>

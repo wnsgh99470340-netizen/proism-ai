@@ -50,6 +50,8 @@ interface FollowUp {
 
 type DetailTab = 'services' | 'consultations' | 'followups';
 
+const SERVICE_TYPE_OPTIONS = ['PPF', '컬러PPF', 'PWF', '랩핑', '크롬죽이기', '썬팅', '유리막코팅', '가죽코팅', '실내PPF', '신차패키지'];
+
 function formatDate(dateStr: string | null) {
   if (!dateStr) return '-';
   return new Date(dateStr).toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -64,6 +66,46 @@ export default function CustomerDetailPage() {
   const [consultations, setConsultations] = useState<Consultation[]>([]);
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
   const [activeTab, setActiveTab] = useState<DetailTab>('services');
+
+  // Service edit modal state
+  const [editService, setEditService] = useState<Service | null>(null);
+  const [serviceForm, setServiceForm] = useState({
+    service_type: '', service_date: '', completion_date: '', amount: '', memo: '',
+  });
+
+  const handleEditService = (s: Service) => {
+    setServiceForm({
+      service_type: s.service_type || '',
+      service_date: s.service_date || '',
+      completion_date: s.completion_date || '',
+      amount: s.amount ? String(s.amount) : '',
+      memo: (() => {
+        if (!s.memo) return '';
+        try { const p = JSON.parse(s.memo); return (p && typeof p === 'object' && 'car_number' in p) ? '' : s.memo; } catch { return s.memo; }
+      })(),
+    });
+    setEditService(s);
+  };
+
+  const handleUpdateService = async () => {
+    if (!editService) return;
+    await supabase.from('services').update({
+      service_type: serviceForm.service_type,
+      service_date: serviceForm.service_date || null,
+      completion_date: serviceForm.completion_date || null,
+      amount: serviceForm.amount ? Number(serviceForm.amount) : null,
+      ...(serviceForm.memo ? { memo: serviceForm.memo } : {}),
+    }).eq('id', editService.id);
+    setEditService(null);
+    fetchData();
+  };
+
+  const handleDeleteService = async (serviceId: string) => {
+    if (!confirm('이 시공 이력을 삭제하시겠습니까?\n관련 사후관리도 함께 삭제됩니다.')) return;
+    await supabase.from('follow_ups').delete().eq('service_id', serviceId);
+    await supabase.from('services').delete().eq('id', serviceId);
+    fetchData();
+  };
 
   const fetchData = useCallback(async () => {
     const [{ data: c }, { data: s }, { data: con }, { data: f }] = await Promise.all([
@@ -149,18 +191,50 @@ export default function CustomerDetailPage() {
         {activeTab === 'services' && (
           <div className="space-y-2">
             {services.map((s) => (
-              <div key={s.id} className="bg-[#111113] border border-[#1e1e22] rounded-xl p-4">
+              <div key={s.id} className="bg-[#111113] border border-[#1e1e22] rounded-xl p-4 group">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-[#fafaf9]">{s.service_type}</span>
-                  <div className="flex items-center gap-3 text-xs text-[#71717a]">
-                    {s.amount && <span className="text-[#C8A951]">{s.amount.toLocaleString()}원</span>}
-                    <span>{formatDate(s.service_date)}{s.completion_date && ` → ${formatDate(s.completion_date)}`}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-[#fafaf9]">{s.service_type}</span>
+                    {s.amount != null && s.amount > 0 && <span className="text-xs text-[#C8A951]">{s.amount.toLocaleString()}원</span>}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-[#71717a]">{formatDate(s.service_date)}{s.completion_date && ` → ${formatDate(s.completion_date)}`}</span>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                      <button onClick={() => handleEditService(s)} className="w-6 h-6 rounded flex items-center justify-center text-[#71717a] hover:text-[#C8A951] hover:bg-[#C8A951]/10 transition-all text-xs" title="수정">✎</button>
+                      <button onClick={() => handleDeleteService(s.id)} className="w-6 h-6 rounded flex items-center justify-center text-[#71717a] hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-all text-xs" title="삭제">✕</button>
+                    </div>
                   </div>
                 </div>
-                <div className="flex gap-3 text-xs text-[#71717a]">
+                <div className="flex flex-wrap gap-3 text-xs text-[#71717a]">
                   {s.film_used && <span>필름: {s.film_used}</span>}
                   {s.service_area && <span>부위: {s.service_area}</span>}
-                  {s.memo && <span>메모: {s.memo}</span>}
+                  {s.memo && (() => {
+                    try {
+                      const wo = JSON.parse(s.memo);
+                      if (wo && typeof wo === 'object' && 'car_number' in wo) {
+                        const items: string[] = [];
+                        if (wo.car_number) items.push(`차량번호: ${wo.car_number}`);
+                        const allChecked: string[] = [];
+                        if (wo.tinting) {
+                          for (const [k, v] of Object.entries(wo.tinting) as [string, { selected?: string[]; density?: string }][]) {
+                            if (v?.selected?.length) allChecked.push(`${k}(${v.selected.join(',')}${v.density ? ' ' + v.density : ''})`);
+                          }
+                        }
+                        for (const key of ['ppf', 'wrapping', 'coating', 'electrical', 'polish', 'package_options'] as const) {
+                          const arr = wo[key];
+                          if (Array.isArray(arr) && arr.length) allChecked.push(...arr);
+                        }
+                        if (wo.electrical_etc) allChecked.push(wo.electrical_etc);
+                        if (wo.polish_etc) allChecked.push(wo.polish_etc);
+                        if (wo.ppf_etc) allChecked.push(wo.ppf_etc);
+                        if (wo.wrapping_etc) allChecked.push(wo.wrapping_etc);
+                        if (allChecked.length) items.push(`시공: ${allChecked.join(', ')}`);
+                        if (wo.notes) items.push(`특이사항: ${wo.notes}`);
+                        return <span>{items.join(' | ')}</span>;
+                      }
+                    } catch { /* not JSON */ }
+                    return <span>메모: {s.memo}</span>;
+                  })()}
                 </div>
               </div>
             ))}
@@ -225,6 +299,46 @@ export default function CustomerDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Service Edit Modal */}
+      {editService && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center" onClick={() => setEditService(null)}>
+          <div className="bg-[#111113] border border-[#1e1e22] rounded-xl w-full max-w-lg p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-[#fafaf9] font-semibold text-base mb-4">시공 이력 수정</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-[#71717a] mb-1 block">시공 종류</label>
+                <select value={serviceForm.service_type} onChange={(e) => setServiceForm({ ...serviceForm, service_type: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50">
+                  <option value="">선택...</option>
+                  {SERVICE_TYPE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-[#71717a] mb-1 block">시공일</label>
+                  <input type="date" value={serviceForm.service_date} onChange={(e) => setServiceForm({ ...serviceForm, service_date: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" />
+                </div>
+                <div>
+                  <label className="text-xs text-[#71717a] mb-1 block">완료일</label>
+                  <input type="date" value={serviceForm.completion_date} onChange={(e) => setServiceForm({ ...serviceForm, completion_date: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-[#71717a] mb-1 block">금액</label>
+                <input type="number" value={serviceForm.amount} onChange={(e) => setServiceForm({ ...serviceForm, amount: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="0" />
+              </div>
+              <div>
+                <label className="text-xs text-[#71717a] mb-1 block">메모</label>
+                <textarea value={serviceForm.memo} onChange={(e) => setServiceForm({ ...serviceForm, memo: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50 resize-none h-20" placeholder="특이사항" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={() => setEditService(null)} className="px-4 py-2 text-sm text-[#71717a] hover:text-[#a1a1aa] transition-colors">취소</button>
+              <button onClick={handleUpdateService} className="bg-[#E4002B] hover:bg-[#c60026] text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors">저장</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
