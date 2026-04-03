@@ -20,6 +20,7 @@ interface Customer {
   updated_at: string;
   latest_service: string | null;
   latest_service_date: string | null;
+  service_count: number;
 }
 
 interface Appointment {
@@ -230,6 +231,7 @@ export default function CRMPage() {
     customer_id: '', appointment_date: '', end_date: '', service_type: '', amount: '', memo: '',
   });
   const [calendarView, setCalendarView] = useState<'calendar' | 'list'>('calendar');
+  const [managerFilter, setManagerFilter] = useState<'전체' | '대표' | '이팀장님'>('전체');
   const [calendarMonth, setCalendarMonth] = useState(() => { const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() }; });
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
@@ -427,13 +429,13 @@ export default function CRMPage() {
             .from('services')
             .select('service_type, service_date')
             .eq('customer_id', c.id)
-            .order('service_date', { ascending: false })
-            .limit(1);
+            .order('service_date', { ascending: false });
 
           return {
             ...c,
             latest_service: services?.[0]?.service_type ?? null,
             latest_service_date: services?.[0]?.service_date ?? null,
+            service_count: services?.length ?? 0,
           };
         })
       );
@@ -1112,6 +1114,33 @@ export default function CRMPage() {
     }
     existingMemo.warranty_issued = true;
     existingMemo.warranty = { ...warrantyForm };
+
+    // 공개 보증서 URL 생성 (fire-and-forget)
+    fetch('/api/notion/warranty', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customer_name: warrantyForm.customer_name,
+        phone: warrantyForm.phone,
+        car_type: warrantyForm.car_type,
+        car_number: warrantyForm.car_number,
+        work_details: warrantyForm.work_details,
+        warranty_period: warrantyForm.warranty_period,
+        service_date: warrantyForm.date,
+        price: warrantyForm.price,
+      }),
+    })
+      .then(async (res) => {
+        const data = await res.json();
+        if (data.url) {
+          existingMemo.warranty_url = data.url;
+          const memo = JSON.stringify(existingMemo);
+          await supabase.from('appointments').update({ memo }).eq('id', warrantyAppointment.id);
+          console.log('[CRM] 보증서 공개 URL:', data.url);
+        }
+      })
+      .catch((err) => console.warn('[CRM] 보증서 URL 생성 실패:', err));
+
     const updatedMemo = JSON.stringify(existingMemo);
     await supabase.from('appointments').update({ memo: updatedMemo }).eq('id', warrantyAppointment.id);
     setWarrantyAppointment({ ...warrantyAppointment, memo: updatedMemo });
@@ -1345,7 +1374,10 @@ export default function CRMPage() {
                       onClick={() => router.push(`/crm/${c.id}`)}
                       className="border-b border-[#1e1e22] last:border-b-0 hover:bg-[#1a1a1f] cursor-pointer transition-colors group"
                     >
-                      <td className="px-4 py-3 text-sm text-[#fafaf9] font-medium">{c.name}</td>
+                      <td className="px-4 py-3 text-sm text-[#fafaf9] font-medium">
+                        {c.name}
+                        {c.service_count >= 2 && <span className="ml-1.5 text-[9px] bg-[#C8A951]/20 text-[#C8A951] px-1.5 py-0.5 rounded-full font-medium">재방문</span>}
+                      </td>
                       <td className="px-4 py-3 text-sm text-[#a1a1aa]">{c.phone || '-'}</td>
                       <td className="px-4 py-3 text-sm text-[#a1a1aa]">
                         {c.car_brand || c.car_model
@@ -1432,9 +1464,26 @@ export default function CRMPage() {
             }
           };
 
-          const displayAppointments = calendarView === 'calendar' && selectedDate
+          // 담당자 자동 분류: 틴팅 → 이팀장님, 나머지 → 대표
+          const getManager = (a: Appointment) => {
+            const svc = (a.service_type || '').toLowerCase();
+            return svc.includes('틴팅') || svc.includes('썬팅') ? '이팀장님' : '대표';
+          };
+
+          const baseAppointments = calendarView === 'calendar' && selectedDate
             ? apptByDate(selectedDate)
             : appointments;
+
+          const displayAppointments = managerFilter === '전체'
+            ? baseAppointments
+            : baseAppointments.filter((a) => getManager(a) === managerFilter);
+
+          // 일별/주별 건수
+          const todayCount = appointments.filter((a) => a.appointment_date === today && a.status !== '완료').length;
+          const weekEnd = new Date();
+          weekEnd.setDate(weekEnd.getDate() + (7 - weekEnd.getDay()));
+          const weekEndStr = weekEnd.toISOString().split('T')[0];
+          const weekCount = appointments.filter((a) => a.appointment_date >= today && a.appointment_date <= weekEndStr && a.status !== '완료').length;
 
           const goToday = () => {
             const now = new Date();
@@ -1454,6 +1503,15 @@ export default function CRMPage() {
                   <div className="flex bg-[#1e1e22] rounded-lg p-0.5 ml-2">
                     <button onClick={() => setCalendarView('calendar')} className={`text-xs px-3 py-1 rounded-md transition-colors ${calendarView === 'calendar' ? 'bg-[#C8A951]/20 text-[#C8A951]' : 'text-[#71717a]'}`}>달력</button>
                     <button onClick={() => setCalendarView('list')} className={`text-xs px-3 py-1 rounded-md transition-colors ${calendarView === 'list' ? 'bg-[#C8A951]/20 text-[#C8A951]' : 'text-[#71717a]'}`}>리스트</button>
+                  </div>
+                  <div className="flex bg-[#1e1e22] rounded-lg p-0.5 ml-2">
+                    {(['전체', '대표', '이팀장님'] as const).map((m) => (
+                      <button key={m} onClick={() => setManagerFilter(m)} className={`text-xs px-3 py-1 rounded-md transition-colors ${managerFilter === m ? 'bg-[#3B82F6]/20 text-[#3B82F6]' : 'text-[#71717a]'}`}>{m}</button>
+                    ))}
+                  </div>
+                  <div className="flex gap-2 ml-3">
+                    <span className="text-[10px] bg-[#C8A951]/10 text-[#C8A951] px-2 py-1 rounded">오늘 {todayCount}건</span>
+                    <span className="text-[10px] bg-[#3B82F6]/10 text-[#3B82F6] px-2 py-1 rounded">이번주 {weekCount}건</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1585,6 +1643,7 @@ export default function CRMPage() {
                             </div>
                             <div className="text-xs text-[#71717a] mt-0.5">
                               {a.service_type || '미정'}
+                              <span className={`ml-1.5 text-[9px] px-1.5 py-0.5 rounded ${getManager(a) === '이팀장님' ? 'bg-[#22C55E]/15 text-[#22C55E]' : 'bg-[#3B82F6]/15 text-[#3B82F6]'}`}>{getManager(a)}</span>
                               {a.amount ? <span className="ml-2 text-[#C8A951]">{a.amount.toLocaleString()}원</span> : null}
                               {memoDisplay && <span className="ml-2">· {memoDisplay}</span>}
                             </div>
@@ -1594,6 +1653,7 @@ export default function CRMPage() {
                           <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusColor(a.status)}`}>{a.status}</span>
                           <button onClick={() => handleOpenWorkOrder(a)} className="bg-[#C8A951]/10 hover:bg-[#C8A951]/20 text-[#C8A951] text-xs font-medium rounded-lg px-2.5 py-1 transition-colors">작업 내역서</button>
                           <button onClick={() => handleOpenWarranty(a)} className={`text-xs font-medium rounded-lg px-2.5 py-1 transition-colors ${hasWarrantyIssued(a.memo) ? 'bg-[#22c55e] text-white' : 'bg-[#22c55e]/10 hover:bg-[#22c55e]/20 text-[#22c55e]'}`}>{hasWarrantyIssued(a.memo) ? '✓ 보증서 발급완료' : '보증서'}</button>
+                          {(() => { try { const m = JSON.parse(a.memo || '{}'); if (m.warranty_url) return <button onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(m.warranty_url); alert('보증서 URL이 복사되었습니다.'); }} className="text-[10px] font-medium px-2 py-1 rounded-lg bg-[#22c55e]/10 text-[#22c55e] hover:bg-[#22c55e]/20 transition-colors">URL 복사</button>; } catch {} return null; })()}
                           <button onClick={() => handleDownloadICS(a)} className="bg-[#3B82F6]/10 hover:bg-[#3B82F6]/20 text-[#3B82F6] text-xs font-medium rounded-lg px-2.5 py-1 transition-colors">캘린더</button>
                           {a.status !== '완료' && (
                             <select value="" onChange={(e) => { if (e.target.value) handleStatusChange(a, e.target.value); }} className="bg-[#1e1e22] border border-[#2a2a2e] rounded-lg px-2 py-1 text-xs text-[#a1a1aa] outline-none cursor-pointer">
@@ -1720,7 +1780,14 @@ export default function CRMPage() {
                         <button onClick={() => sendSmsWithTrack(smsQC, 'qc')} disabled={!phone} className={`text-[10px] font-medium px-2 py-1 rounded-lg transition-colors ${qcBtn}`}>{sent.qc ? '✓ QC 전송완료' : 'QC 문자'}</button>
                       )}
                       {f.follow_up_type === '메인터넌스' && (
+                        <>
                         <button onClick={() => sendSmsWithTrack(smsMaint, 'maintenance')} disabled={!phone} className={`text-[10px] font-medium px-2 py-1 rounded-lg transition-colors ${maintBtn}`}>{sent.maintenance ? '✓ 메인터넌스 전송완료' : '메인터넌스 문자'}</button>
+                        <button onClick={() => {
+                          const msg = `${f.customer?.name || ''}님 안녕하세요, 3M 프로이즘 강남서초점입니다. ${f.service?.service_type || '시공'} 시공 후 6개월 메인터넌스 시기가 되어 안내드립니다. 무료 점검 및 관리 받으실 수 있으니 편하신 시간에 연락 부탁드립니다. 010-7287-7140`;
+                          navigator.clipboard.writeText(msg);
+                          alert('안내 문구가 복사되었습니다.');
+                        }} className="text-[10px] font-medium px-2 py-1 rounded-lg transition-colors bg-[#1e1e22] text-[#a1a1aa] hover:bg-[#2a2a2e]">문구 복사</button>
+                        </>
                       )}
                       {f.follow_up_type === '후기요청' && (
                         <button onClick={() => sendSmsWithTrack(smsReviewProism, 'proism')} disabled={!phone} className={`text-[10px] font-medium px-2 py-1 rounded-lg transition-colors ${reviewBtn('proism')}`}>{sent.proism ? '✓ 프로이즘 전송완료' : '프로이즘 후기'}</button>
