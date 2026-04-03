@@ -30,6 +30,7 @@ interface Appointment {
   service_type: string | null;
   status: string;
   memo: string | null;
+  amount?: number | null;
   created_at: string;
   updated_at: string;
   customer?: { name: string; phone: string | null };
@@ -219,14 +220,14 @@ export default function CRMPage() {
   const [editCustomerId, setEditCustomerId] = useState<string | null>(null);
   const [customerForm, setCustomerForm] = useState({
     name: '', phone: '', car_brand: '', car_model: '', car_year: '', car_color: '', source: '', memo: '',
-    appointment_start_date: '', appointment_end_date: '', appointment_service_type: '', appointment_memo: '',
+    appointment_start_date: '', appointment_end_date: '', appointment_service_type: '', appointment_amount: '', appointment_memo: '',
   });
 
   // Appointment state
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [showAddAppointment, setShowAddAppointment] = useState(false);
   const [appointmentForm, setAppointmentForm] = useState({
-    customer_id: '', appointment_date: '', end_date: '', service_type: '', memo: '',
+    customer_id: '', appointment_date: '', end_date: '', service_type: '', amount: '', memo: '',
   });
   const [calendarView, setCalendarView] = useState<'calendar' | 'list'>('calendar');
   const [calendarMonth, setCalendarMonth] = useState(() => { const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() }; });
@@ -273,6 +274,7 @@ export default function CRMPage() {
   });
   const [workOrder, setWorkOrder] = useState({
     car_number: '',
+    amount: '',
     warranty_issued: false,
     crm_recorded: false,
     tinting: {
@@ -547,6 +549,8 @@ export default function CRMPage() {
     let appointmentForWorkOrder: Appointment | null = null;
     const hasDateAndType = !!(formData.appointment_start_date && formData.appointment_service_type);
 
+    const apptAmount = formData.appointment_amount ? Number(formData.appointment_amount) : null;
+
     if (hasDateAndType) {
       const { data: apptData, error: apptError } = await supabase
         .from('appointments')
@@ -556,6 +560,7 @@ export default function CRMPage() {
           end_date: formData.appointment_end_date || null,
           service_type: formData.appointment_service_type,
           status: '예약확정',
+          amount: apptAmount,
           memo: formData.appointment_memo || null,
         })
         .select()
@@ -576,6 +581,7 @@ export default function CRMPage() {
         end_date: formData.appointment_end_date || null,
         service_type: null,
         status: '상담중',
+        amount: apptAmount,
         memo: formData.appointment_memo || null,
       });
     }
@@ -626,7 +632,7 @@ export default function CRMPage() {
       .catch((err) => console.warn('[CRM] Notion 요청 실패:', err));
 
     // 3. 폼 리셋 + 모달 닫기
-    setCustomerForm({ name: '', phone: '', car_brand: '', car_model: '', car_year: '', car_color: '', source: '', memo: '', appointment_start_date: '', appointment_end_date: '', appointment_service_type: '', appointment_memo: '' });
+    setCustomerForm({ name: '', phone: '', car_brand: '', car_model: '', car_year: '', car_color: '', source: '', memo: '', appointment_start_date: '', appointment_end_date: '', appointment_service_type: '', appointment_amount: '', appointment_memo: '' });
     setShowAddCustomer(false);
     fetchCustomers();
     fetchAllCustomers();
@@ -720,6 +726,7 @@ export default function CRMPage() {
       appointment_start_date: '',
       appointment_end_date: '',
       appointment_service_type: '',
+      appointment_amount: '',
       appointment_memo: '',
     });
     setEditCustomerId(customer.id);
@@ -745,7 +752,7 @@ export default function CRMPage() {
       alert('수정 실패: ' + error.message);
       return;
     }
-    setCustomerForm({ name: '', phone: '', car_brand: '', car_model: '', car_year: '', car_color: '', source: '', memo: '', appointment_start_date: '', appointment_end_date: '', appointment_service_type: '', appointment_memo: '' });
+    setCustomerForm({ name: '', phone: '', car_brand: '', car_model: '', car_year: '', car_color: '', source: '', memo: '', appointment_start_date: '', appointment_end_date: '', appointment_service_type: '', appointment_amount: '', appointment_memo: '' });
     setEditCustomerId(null);
     setShowAddCustomer(false);
     fetchCustomers();
@@ -766,6 +773,7 @@ export default function CRMPage() {
       appointment_date: appointmentForm.appointment_date,
       end_date: appointmentForm.end_date || null,
       service_type: appointmentForm.service_type || null,
+      amount: appointmentForm.amount ? Number(appointmentForm.amount) : null,
       memo: appointmentForm.memo || null,
     });
 
@@ -788,13 +796,13 @@ export default function CRMPage() {
         .catch((err) => console.warn('[CRM] Notion 예약 동기화 실패:', err));
     }
 
-    setAppointmentForm({ customer_id: '', appointment_date: '', end_date: '', service_type: '', memo: '' });
+    setAppointmentForm({ customer_id: '', appointment_date: '', end_date: '', service_type: '', amount: '', memo: '' });
     setShowAddAppointment(false);
     fetchAppointments();
   };
 
   const resetWorkOrder = () => setWorkOrder({
-    car_number: '', warranty_issued: false, crm_recorded: false,
+    car_number: '', amount: '', warranty_issued: false, crm_recorded: false,
     tinting: {
       vertex: { selected: [], density: '' }, rainbow: { selected: [], density: '' },
       glasstint: { selected: [], density: '' }, tinain: { selected: [], density: '' },
@@ -831,6 +839,7 @@ export default function CRMPage() {
     const mergedMemo = JSON.stringify({ ...workOrder, ...existingExtra });
 
     // 시공 이력 생성 (작업 내역서 데이터를 memo에 JSON으로 저장)
+    const finalAmount = workOrder.amount ? Number(workOrder.amount) : (appointment.amount || null);
     const { data: service } = await supabase
       .from('services')
       .insert({
@@ -838,6 +847,7 @@ export default function CRMPage() {
         service_type: appointment.service_type || '기타',
         service_date: appointment.appointment_date,
         completion_date: completionDate,
+        amount: finalAmount,
         memo: mergedMemo,
       })
       .select()
@@ -863,7 +873,8 @@ export default function CRMPage() {
             customerName, carModel: null,
             service: appointment.service_type || '기타',
             serviceDate: appointment.appointment_date,
-            amount: null, status: '완료',
+            amount: workOrder.amount ? Number(workOrder.amount) : (appointment.amount || null),
+            status: '완료',
           }),
         });
         const svcResult = await svcRes.json();
@@ -961,6 +972,10 @@ export default function CRMPage() {
       } catch { /* not JSON, ignore */ }
     }
     resetWorkOrder();
+    // 예약 금액을 작업내역서 기본값으로 설정
+    if (appointment.amount) {
+      setWorkOrder((prev) => ({ ...prev, amount: String(appointment.amount) }));
+    }
     setWorkOrderAppointment(appointment);
     setShowWorkOrder(true);
   };
@@ -1276,7 +1291,7 @@ export default function CRMPage() {
                 <span className="text-xs text-[#71717a]">{filteredCustomers.length}명</span>
               </div>
               <button
-                onClick={() => { setEditCustomerId(null); setCustomerForm({ name: '', phone: '', car_brand: '', car_model: '', car_year: '', car_color: '', source: '', memo: '', appointment_start_date: '', appointment_end_date: '', appointment_service_type: '', appointment_memo: '' }); setShowAddCustomer(true); }}
+                onClick={() => { setEditCustomerId(null); setCustomerForm({ name: '', phone: '', car_brand: '', car_model: '', car_year: '', car_color: '', source: '', memo: '', appointment_start_date: '', appointment_end_date: '', appointment_service_type: '', appointment_amount: '', appointment_memo: '' }); setShowAddCustomer(true); }}
                 className="bg-[#E4002B] hover:bg-[#c60026] text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors"
               >
                 + 고객 추가
@@ -1542,6 +1557,7 @@ export default function CRMPage() {
                             </div>
                             <div className="text-xs text-[#71717a] mt-0.5">
                               {a.service_type || '미정'}
+                              {a.amount ? <span className="ml-2 text-[#C8A951]">{a.amount.toLocaleString()}원</span> : null}
                               {memoDisplay && <span className="ml-2">· {memoDisplay}</span>}
                             </div>
                           </div>
@@ -2072,6 +2088,10 @@ export default function CRMPage() {
                 </select>
               </div>
               <div className="col-span-2">
+                <label className="text-xs text-[#71717a] mb-1 block">예상 금액</label>
+                <input type="text" inputMode="numeric" value={customerForm.appointment_amount ? Number(customerForm.appointment_amount).toLocaleString() : ''} onChange={(e) => { const raw = e.target.value.replace(/[^0-9]/g, ''); setCustomerForm({ ...customerForm, appointment_amount: raw }); }} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="2,500,000" />
+              </div>
+              <div className="col-span-2">
                 <label className="text-xs text-[#71717a] mb-1 block">예약 메모</label>
                 <textarea value={customerForm.appointment_memo} onChange={(e) => setCustomerForm({ ...customerForm, appointment_memo: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50 resize-none h-16" placeholder="예약 관련 메모" />
               </div>
@@ -2109,6 +2129,10 @@ export default function CRMPage() {
                   <option value="">선택...</option>
                   {SERVICE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
+              </div>
+              <div>
+                <label className="text-xs text-[#71717a] mb-1 block">예상 금액</label>
+                <input type="text" inputMode="numeric" value={appointmentForm.amount ? Number(appointmentForm.amount).toLocaleString() : ''} onChange={(e) => { const raw = e.target.value.replace(/[^0-9]/g, ''); setAppointmentForm({ ...appointmentForm, amount: raw }); }} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="2,500,000" />
               </div>
               <div>
                 <label className="text-xs text-[#71717a] mb-1 block">메모</label>
