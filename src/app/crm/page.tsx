@@ -2139,9 +2139,9 @@ function WarrantyModal({ warrantyForm, setWarrantyForm, onSave, onClose }: Warra
 
             <div style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px', padding: '16px', marginBottom: '24px', fontSize: '12px', lineHeight: '1.9', color: '#166534' }}>
               <div style={{ fontWeight: 700, marginBottom: '6px' }}>[기본멘트]</div>
-              <div>고객과 차량관리의 연결고리, 카넥트입니다.</div>
+              <div>고객과 차량관리의 연결고리, 3M 프로이즘입니다.</div>
               <div>작업이 완료된 차량의 &apos;시공내역서&apos; 및 &apos;보증서&apos;를 송부드립니다.</div>
-              <div>시공 후 문의 및 A/S 관련 사항은 010-5716-6009으로 연락을 주시면 담당자가 친절하게 응대하도록 하겠습니다.</div>
+              <div>시공 후 문의 및 A/S 관련 사항은 010-7287-7140으로 연락을 주시면 담당자가 친절하게 응대하도록 하겠습니다.</div>
               <div>플러스 가득한 하루 보내시기 바라며, 다시 한번 저희를 믿고 맡겨주셔서 감사드립니다.</div>
             </div>
 
