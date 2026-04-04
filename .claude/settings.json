@@ -66,6 +66,15 @@
             "command": "cd /Users/junho/Desktop/proism-ai && npx tsc --noEmit 2>&1 | head -10; if [ $? -ne 0 ]; then echo 'POST-COMMIT CHECK: 타입 에러 발견!'; exit 1; fi; echo 'Post-commit: TypeScript OK'"
           }
         ]
+      },
+      {
+        "matcher": "Bash(npx vercel*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '직접 vercel 배포 대신 npm run deploy 를 사용하세요 (CRM 검증 포함)'"
+          }
+        ]
       }
     ]
   }
