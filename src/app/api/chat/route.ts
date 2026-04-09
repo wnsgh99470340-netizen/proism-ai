@@ -201,6 +201,71 @@ ${fallbackNote}
 사장님이 알려준 정보가 있으면 최우선 반영.`;
 }
 
+/**
+ * 블로그 글 인라인 QA 채점 (97점 품질 루프용)
+ * QA API와 동일한 채점 기준을 사용하되, 경량 JSON만 반환
+ */
+const INLINE_QA_PROMPT = `당신은 블로그 글 QA 채점관입니다. 아래 글을 채점하고 JSON으로만 응답하세요.
+
+채점 기준 (100점 만점):
+- 위반 감점: PPF에서 열/오버랩 사용(-10), 고객 직접 인용(-10), 패널 나열(-10), AI 추측 기술묘사(-15), 수식어 줄(-10), 작업자 오류(-10)
+- char_count (0~10): 공백제외 2500자+→10, 2000~2499→7, 1700~1999→5, 미만→0
+- photo_tags (0~10): [사진 N] 태그 10개+→10, 7~9개→7, 4~6개→5, 미만→0
+- personal_voice (0~10): 대표 개인 감상, 차량 느낌, 솔직한 감정 표현
+- depth (0~10): 까다로운 부위 3곳 이상 구체적 설명
+- differentiation (0~10): 프로이즘 차별점 2가지 이상 자연스럽게 언급
+- aftercare (0~10): QC 2주 + 메인터넌스 6개월 언급 (해당 시공 유형에 맞게)
+- seo_title (0~10): 제목에 지역+차종+서비스 3개 모두 포함
+- closing (0~10): 프리퍼드 인스톨러 자부심 + 연락처 + 매장주소
+- hashtags (0~5): 해시태그 5~7개 포함
+- paragraph_format (0~5): 문단 3줄 이하, 빈 줄 구분
+
+응답 형식 (JSON만, 다른 텍스트 금지):
+{"total":85,"violations":[{"rule":"heat_violation","detail":"PPF에서 열 성형 언급","penalty":-10}],"improvements":["개선점1","개선점2"]}`;
+
+async function inlineQAScore(title: string, body: string): Promise<{ total: number; violations: { rule: string; detail: string; penalty: number }[]; improvements: string[] }> {
+  const pureText = body.replace(/\[사진\s*\d+\]/g, '').replace(/\s/g, '');
+  const photoCount = (body.match(/\[사진\s*\d+\]/g) || []).length;
+
+  const userMsg = `제목: ${title}\n본문:\n${body}\n\n서버측정: 글자수=${pureText.length}자, 사진태그=${photoCount}개`;
+  try {
+    const reply = await callClaude(INLINE_QA_PROMPT, [{ role: 'user', content: userMsg }], 2048, 'claude-sonnet-4-20250514');
+    const jsonMatch = reply.match(/\{[\s\S]*\}/);
+    if (jsonMatch) return JSON.parse(jsonMatch[0]);
+  } catch { /* fallback */ }
+  return { total: 0, violations: [], improvements: ['QA 채점 실패'] };
+}
+
+/**
+ * QA 피드백을 바탕으로 글 수정 요청
+ */
+async function refineBlogPost(
+  systemPrompt: string,
+  originalReply: string,
+  qaResult: { total: number; violations: { rule: string; detail: string; penalty: number }[]; improvements: string[] },
+): Promise<string> {
+  const violationText = qaResult.violations.length > 0
+    ? qaResult.violations.map(v => `- [${v.rule}] ${v.detail} (${v.penalty}점)`).join('\n')
+    : '(위반 없음)';
+  const improvementText = qaResult.improvements.join('\n- ');
+
+  const refineMsg = `아래 블로그 글이 QA에서 ${qaResult.total}점을 받았습니다. 97점 이상이 되도록 수정해주세요.
+
+[감점 사유]
+${violationText}
+
+[개선 필요 사항]
+- ${improvementText}
+
+[원본 글]
+${originalReply}
+
+위 감점 사유와 개선 사항을 모두 반영하여 글 전체를 다시 작성해주세요.
+수정된 글만 출력하세요. 설명이나 코멘트 없이 제목부터 시작.`;
+
+  return await callClaude(systemPrompt, [{ role: 'user', content: refineMsg }], 8192);
+}
+
 const DRAFTS_DIR = path.join(process.cwd(), 'public', 'drafts');
 
 /**
@@ -346,18 +411,70 @@ export async function POST(request: NextRequest) {
       },
     ];
 
-    const reply = await callClaude(systemPrompt, messages, 8192, activeEmployee.model);
+    let reply = await callClaude(systemPrompt, messages, 8192, activeEmployee.model);
 
     // 서버에서 직접 draft 구성 (JSON 파싱 불필요)
-    const draftResult = tryBuildDraft(reply, combinedMessage);
+    let draftResult = tryBuildDraft(reply, combinedMessage);
 
-    // draft가 완성되면 자동 저장
+    // ─── 97점 품질 자동 루프 (블로그 글일 때만) ───
     if (draftResult) {
       const lines = reply.split('\n');
       const firstNonEmptyIdx = lines.findIndex(l => l.trim().length > 0);
+      let bestReply = reply;
+      let bestScore = 0;
+      let lastQA: { total: number; violations: { rule: string; detail: string; penalty: number }[]; improvements: string[] } = { total: 0, violations: [], improvements: [] };
+
       const title = lines[firstNonEmptyIdx].trim();
       const body = lines.slice(firstNonEmptyIdx + 1).join('\n').trim();
-      await saveDraft(title, body);
+
+      // 1차 QA 채점
+      lastQA = await inlineQAScore(title, body);
+      bestScore = lastQA.total;
+      bestReply = reply;
+
+      // 97점 미만이면 최대 3회 수정 루프
+      let attempt = 0;
+      while (lastQA.total < 97 && attempt < 3) {
+        attempt++;
+        const refined = await refineBlogPost(systemPrompt, bestReply, lastQA);
+        const refinedLines = refined.split('\n');
+        const rIdx = refinedLines.findIndex(l => l.trim().length > 0);
+        if (rIdx === -1) break;
+
+        const rTitle = refinedLines[rIdx].trim();
+        const rBody = refinedLines.slice(rIdx + 1).join('\n').trim();
+        const rQA = await inlineQAScore(rTitle, rBody);
+
+        if (rQA.total > bestScore) {
+          bestScore = rQA.total;
+          bestReply = refined;
+          lastQA = rQA;
+        }
+
+        if (rQA.total >= 97) {
+          lastQA = rQA;
+          break;
+        }
+      }
+
+      reply = bestReply;
+      draftResult = tryBuildDraft(reply, combinedMessage);
+
+      // 최종 점수 정보를 cleanReply에 포함
+      const scoreInfo = bestScore >= 97
+        ? `블로그 글이 완성되었습니다. (QA ${bestScore}점)`
+        : `블로그 글이 완성되었습니다. (QA ${bestScore}점 — ${3}회 수정 후 최고 점수)\n감점 사유: ${lastQA.improvements.join(', ')}`;
+
+      if (draftResult) {
+        draftResult.cleanReply = scoreInfo;
+      }
+
+      // 저장
+      const finalLines = reply.split('\n');
+      const fIdx = finalLines.findIndex(l => l.trim().length > 0);
+      if (fIdx >= 0) {
+        await saveDraft(finalLines[fIdx].trim(), finalLines.slice(fIdx + 1).join('\n').trim());
+      }
     }
 
     return Response.json({
