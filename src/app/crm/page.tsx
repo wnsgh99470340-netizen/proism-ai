@@ -1819,20 +1819,34 @@ export default function CRMPage() {
                 };
                 const sendSms = (msg: string, key: string) => {
                   if (!phone) return;
-                  window.open(`sms:${phone}&body=${encodeURIComponent(msg)}`);
+                  const cleanMsg = msg.replace(/\\n/g, '\n').trim();
+                  // iOS: sms:번호&body= / Android: sms:번호?body=
+                  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+                  const smsUrl = isIOS
+                    ? `sms:${phone}&body=${encodeURIComponent(cleanMsg)}`
+                    : `sms:${phone}?body=${encodeURIComponent(cleanMsg)}`;
+                  window.open(smsUrl);
                   if (confirm('문자를 전송하셨나요?')) markSent(key);
                 };
                 const sendKakao = (msg: string, key: string) => {
                   if (!phone) return;
+                  // \n 리터럴을 실제 줄바꿈으로, 연속 줄바꿈 정리
+                  const cleanMsg = msg.replace(/\\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
                   if (window.Kakao?.isInitialized()) {
-                    window.Kakao.Share.sendDefault({
-                      objectType: 'text',
-                      text: msg,
-                      link: { mobileWebUrl: 'https://blog.naver.com/roice_', webUrl: 'https://blog.naver.com/roice_' },
-                      buttonTitle: '블로그 방문',
-                    });
+                    try {
+                      window.Kakao.Share.sendDefault({
+                        objectType: 'text',
+                        text: cleanMsg,
+                        link: { mobileWebUrl: 'https://blog.naver.com/roice_', webUrl: 'https://blog.naver.com/roice_' },
+                        buttonTitle: '블로그 방문',
+                      });
+                    } catch {
+                      // SDK 에러 시 카카오톡 커스텀 URL scheme fallback
+                      const kakaoLink = `https://sharer.kakao.com/talk/friends/picker/link?url=${encodeURIComponent('https://blog.naver.com/roice_')}&text=${encodeURIComponent(cleanMsg)}`;
+                      window.open(kakaoLink, '_blank', 'width=480,height=600');
+                    }
                   } else {
-                    navigator.clipboard.writeText(msg);
+                    navigator.clipboard.writeText(cleanMsg);
                     alert('카카오 SDK 로딩 중입니다. 문구가 복사되었으니 카톡에 직접 붙여넣기 해주세요.');
                   }
                   if (confirm('카톡을 전송하셨나요?')) markSent(key);
@@ -2011,14 +2025,19 @@ export default function CRMPage() {
                                   onClick={() => {
                                     const cust = getPromoCustomer();
                                     if (!cust) return;
-                                    const msg = promo.tpl(cust.name);
+                                    const msg = promo.tpl(cust.name).replace(/\\n/g, '\n').trim();
                                     if (window.Kakao?.isInitialized()) {
-                                      window.Kakao.Share.sendDefault({
-                                        objectType: 'text',
-                                        text: msg,
-                                        link: { mobileWebUrl: 'https://blog.naver.com/roice_', webUrl: 'https://blog.naver.com/roice_' },
-                                        buttonTitle: '블로그 방문',
-                                      });
+                                      try {
+                                        window.Kakao.Share.sendDefault({
+                                          objectType: 'text',
+                                          text: msg,
+                                          link: { mobileWebUrl: 'https://blog.naver.com/roice_', webUrl: 'https://blog.naver.com/roice_' },
+                                          buttonTitle: '블로그 방문',
+                                        });
+                                      } catch {
+                                        const kakaoLink = `https://sharer.kakao.com/talk/friends/picker/link?url=${encodeURIComponent('https://blog.naver.com/roice_')}&text=${encodeURIComponent(msg)}`;
+                                        window.open(kakaoLink, '_blank', 'width=480,height=600');
+                                      }
                                     } else {
                                       navigator.clipboard.writeText(msg);
                                       alert('카카오 SDK 로딩 중입니다. 문구가 복사되었으니 카톡에 직접 붙여넣기 해주세요.');
