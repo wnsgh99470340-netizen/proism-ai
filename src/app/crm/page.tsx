@@ -1777,14 +1777,25 @@ export default function CRMPage() {
                 const smsReviewBMW = `안녕하세요, 3M프로이즘입니다.\n멋지게 작업이 완료된 차량 사진을 보내드리오니, 소중한 후기 작성 잘 부탁드리겠습니다.\n➊ 아래의 링크 클릭\n➋ 첨부드린 사진으로 후기 작성\n[ 🚩 후기 게시판 링크 ]\nhttps://m.site.naver.com/1S6e3\n고객님의 솔직한 리뷰는 저희에게 아주 큰 힘이 됩니다. 정말 감사드리며, 이후에 이어질 메인터넌스 시기(약 6개월 후)에도 차별화 된 서비스로 다시 또 찾아뵈겠습니다!`;
                 const smsReviewAudi = `안녕하세요, 3M프로이즘입니다.\n멋지게 작업이 완료된 차량 사진을 보내드리오니, 소중한 후기 작성 잘 부탁드리겠습니다.\n➊ 아래의 링크 클릭\n➋ 첨부드린 사진으로 후기 작성\n[ 🚩 후기 게시판 링크 ]\nhttps://m.site.naver.com/1S6ej\n고객님의 솔직한 리뷰는 저희에게 아주 큰 힘이 됩니다. 정말 감사드리며, 이후에 이어질 메인터넌스 시기(약 6개월 후)에도 차별화 된 서비스로 다시 또 찾아뵈겠습니다!`;
                 const sent = f.sms_sent || {};
-                const sendSmsWithTrack = async (msg: string, key: string) => {
+                const markSent = async (key: string) => {
+                  const updated = { ...sent, [key]: true };
+                  await supabase.from('follow_ups').update({ sms_sent: updated }).eq('id', f.id);
+                  fetchFollowUps();
+                };
+                const sendSms = (msg: string, key: string) => {
                   if (!phone) return;
                   window.open(`sms:${phone}&body=${encodeURIComponent(msg)}`);
-                  if (confirm('문자를 전송하셨나요?')) {
-                    const updated = { ...sent, [key]: true };
-                    await supabase.from('follow_ups').update({ sms_sent: updated }).eq('id', f.id);
-                    fetchFollowUps();
-                  }
+                  if (confirm('문자를 전송하셨나요?')) markSent(key);
+                };
+                const sendKakao = (msg: string, key: string) => {
+                  if (!phone) return;
+                  const kakaoUrl = `https://sharer.kakao.com/talk/friends/picker/link?url=${encodeURIComponent('https://blog.naver.com/roice_')}&text=${encodeURIComponent(msg)}`;
+                  window.open(kakaoUrl, '_blank', 'width=500,height=600');
+                  if (confirm('카톡을 전송하셨나요?')) markSent(key);
+                };
+                const copyMsg = (msg: string) => {
+                  navigator.clipboard.writeText(msg);
+                  alert('문구가 복사되었습니다.');
                 };
 
                 const typeBadgeClass = f.follow_up_type === 'QC점검'
@@ -1860,23 +1871,27 @@ export default function CRMPage() {
                     {/* 카드 하단: 액션 버튼 */}
                     <div className="flex items-center gap-1.5 flex-wrap pt-2 border-t border-[var(--c-border)]">
                       {f.follow_up_type === 'QC점검' && (
-                        <button onClick={() => sendSmsWithTrack(smsQC, 'qc')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${qcBtn}`}>{sent.qc ? '✓ QC 전송완료' : '문자 발송'}</button>
+                        <>
+                        <button onClick={() => sendKakao(smsQC, 'qc')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${sent.qc ? sentBtn : 'bg-[#FEE500]/20 text-[#3C1E1E] hover:bg-[#FEE500]/30'}`}>{sent.qc ? '✓ 카톡완료' : '카톡'}</button>
+                        <button onClick={() => sendSms(smsQC, 'qc')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${qcBtn}`}>{sent.qc ? '✓ 문자완료' : '문자'}</button>
+                        <button onClick={() => copyMsg(smsQC)} className="text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors bg-[var(--c-subtle)] text-[var(--c-text-2)] hover:bg-[var(--c-hover)]">복사</button>
+                        </>
                       )}
                       {f.follow_up_type === '메인터넌스' && (
                         <>
-                        <button onClick={() => sendSmsWithTrack(smsMaint, 'maintenance')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${maintBtn}`}>{sent.maintenance ? '✓ 전송완료' : '문자 발송'}</button>
-                        <button onClick={() => {
-                          const msg = `${f.customer?.name || ''}님 안녕하세요, 3M 프로이즘 강남서초점입니다. ${f.service?.service_type || '시공'} 시공 후 6개월 메인터넌스 시기가 되어 안내드립니다. 무료 점검 및 관리 받으실 수 있으니 편하신 시간에 연락 부탁드립니다. 010-7287-7140`;
-                          navigator.clipboard.writeText(msg);
-                          alert('안내 문구가 복사되었습니다.');
-                        }} className="text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors bg-[var(--c-subtle)] text-[var(--c-text-2)] hover:bg-[var(--c-hover)]">문구 복사</button>
+                        <button onClick={() => sendKakao(smsMaint, 'maintenance')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${sent.maintenance ? sentBtn : 'bg-[#FEE500]/20 text-[#3C1E1E] hover:bg-[#FEE500]/30'}`}>{sent.maintenance ? '✓ 카톡완료' : '카톡'}</button>
+                        <button onClick={() => sendSms(smsMaint, 'maintenance')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${maintBtn}`}>{sent.maintenance ? '✓ 문자완료' : '문자'}</button>
+                        <button onClick={() => copyMsg(smsMaint)} className="text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors bg-[var(--c-subtle)] text-[var(--c-text-2)] hover:bg-[var(--c-hover)]">복사</button>
                         </>
                       )}
                       {f.follow_up_type === '후기요청' && (
                         <>
-                        <button onClick={() => sendSmsWithTrack(smsReviewProism, 'proism')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${reviewBtn('proism')}`}>{sent.proism ? '✓ 프로이즘' : '프로이즘 후기'}</button>
-                        <button onClick={() => sendSmsWithTrack(smsReviewBMW, 'bmw')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${reviewBtn('bmw')}`}>{sent.bmw ? '✓ BMW매니아' : 'BMW매니아'}</button>
-                        <button onClick={() => sendSmsWithTrack(smsReviewAudi, 'audi')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${reviewBtn('audi')}`}>{sent.audi ? '✓ 아우디매니아' : '아우디매니아'}</button>
+                        <button onClick={() => sendKakao(smsReviewProism, 'proism')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${sent.proism ? sentBtn : 'bg-[#FEE500]/20 text-[#3C1E1E] hover:bg-[#FEE500]/30'}`}>{sent.proism ? '✓ 프로이즘 카톡' : '프로이즘 카톡'}</button>
+                        <button onClick={() => sendSms(smsReviewProism, 'proism')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${reviewBtn('proism')}`}>{sent.proism ? '✓ 프로이즘 문자' : '프로이즘 문자'}</button>
+                        <button onClick={() => sendKakao(smsReviewBMW, 'bmw')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${sent.bmw ? sentBtn : 'bg-[#FEE500]/20 text-[#3C1E1E] hover:bg-[#FEE500]/30'}`}>{sent.bmw ? '✓ BMW 카톡' : 'BMW 카톡'}</button>
+                        <button onClick={() => sendSms(smsReviewBMW, 'bmw')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${reviewBtn('bmw')}`}>{sent.bmw ? '✓ BMW 문자' : 'BMW 문자'}</button>
+                        <button onClick={() => sendKakao(smsReviewAudi, 'audi')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${sent.audi ? sentBtn : 'bg-[#FEE500]/20 text-[#3C1E1E] hover:bg-[#FEE500]/30'}`}>{sent.audi ? '✓ 아우디 카톡' : '아우디 카톡'}</button>
+                        <button onClick={() => sendSms(smsReviewAudi, 'audi')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${reviewBtn('audi')}`}>{sent.audi ? '✓ 아우디 문자' : '아우디 문자'}</button>
                         </>
                       )}
                       <button
@@ -1931,26 +1946,64 @@ export default function CRMPage() {
                             <option value="">고객 선택</option>
                             {allCustomers.map((c) => <option key={c.id} value={c.id}>{c.name}{c.phone ? ` (${c.phone})` : ''}</option>)}
                           </select>
-                          <button
-                            onClick={() => {
+                          {(() => {
+                            const getPromoCustomer = () => {
                               const sel = document.getElementById(`promo-cust-${promo.label}`) as HTMLSelectElement;
                               const custId = sel?.value;
                               const cust = allCustomers.find((c) => c.id === custId);
-                              if (!cust) { alert('고객을 선택해주세요.'); return; }
-                              const msg = promo.tpl(cust.name);
-                              navigator.clipboard.writeText(msg);
-                              // 발송 이력 저장
+                              if (!cust) { alert('고객을 선택해주세요.'); return null; }
+                              return cust;
+                            };
+                            const trackPromo = (cust: { id: string; name: string }, msg: string) => {
                               fetch('/api/promotions', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ customer_id: custId, customer_name: cust.name, promotion_type: promo.label, message: msg }),
+                                body: JSON.stringify({ customer_id: cust.id, customer_name: cust.name, promotion_type: promo.label, message: msg }),
                               }).catch(() => {});
-                              alert(`${cust.name}님 문구가 복사되었습니다.`);
-                            }}
-                            className="text-xs bg-[#C8A951] hover:bg-[#b89a41] text-[#09090b] font-semibold rounded-lg px-4 py-1.5 transition-colors whitespace-nowrap"
-                          >
-                            문구 복사
-                          </button>
+                            };
+                            return (
+                              <>
+                                <button
+                                  onClick={() => {
+                                    const cust = getPromoCustomer();
+                                    if (!cust) return;
+                                    const msg = promo.tpl(cust.name);
+                                    const kakaoUrl = `https://sharer.kakao.com/talk/friends/picker/link?url=${encodeURIComponent('https://blog.naver.com/roice_')}&text=${encodeURIComponent(msg)}`;
+                                    window.open(kakaoUrl, '_blank', 'width=500,height=600');
+                                    trackPromo(cust, msg);
+                                  }}
+                                  className="text-xs bg-[#FEE500] hover:bg-[#FDD835] text-[#3C1E1E] font-semibold rounded-lg px-3 py-1.5 transition-colors whitespace-nowrap"
+                                >
+                                  카톡
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    const cust = getPromoCustomer();
+                                    if (!cust || !cust.phone) { if (cust) alert('전화번호가 없습니다.'); return; }
+                                    const msg = promo.tpl(cust.name);
+                                    window.open(`sms:${cust.phone}&body=${encodeURIComponent(msg)}`);
+                                    trackPromo(cust, msg);
+                                  }}
+                                  className="text-xs bg-[#3B82F6] hover:bg-[#2563EB] text-white font-semibold rounded-lg px-3 py-1.5 transition-colors whitespace-nowrap"
+                                >
+                                  문자
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    const cust = getPromoCustomer();
+                                    if (!cust) return;
+                                    const msg = promo.tpl(cust.name);
+                                    navigator.clipboard.writeText(msg);
+                                    trackPromo(cust, msg);
+                                    alert(`${cust.name}님 문구가 복사되었습니다.`);
+                                  }}
+                                  className="text-xs bg-[#C8A951] hover:bg-[#b89a41] text-[#09090b] font-semibold rounded-lg px-3 py-1.5 transition-colors whitespace-nowrap"
+                                >
+                                  복사
+                                </button>
+                              </>
+                            );
+                          })()}
                         </div>
                       </div>
                     ))}
