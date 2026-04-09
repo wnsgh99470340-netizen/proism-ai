@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useTheme } from '@/components/ThemeProvider';
 
 // ─── Types ───────────────────────────────────────────────
 interface Customer {
@@ -201,17 +202,18 @@ function formatDate(dateStr: string | null) {
 
 function statusColor(status: string) {
   switch (status) {
-    case '상담중': return 'bg-[#71717a]/20 text-[#a1a1aa]';
+    case '상담중': return 'bg-[#71717a]/20 text-[var(--c-text-2)]';
     case '예약확정': return 'bg-[#3B82F6]/20 text-[#60A5FA]';
     case '시공중': return 'bg-[#F59E0B]/20 text-[#FBBF24]';
     case '완료': return 'bg-[#10B981]/20 text-[#34D399]';
-    default: return 'bg-[#71717a]/20 text-[#a1a1aa]';
+    default: return 'bg-[#71717a]/20 text-[var(--c-text-2)]';
   }
 }
 
 // ─── Main Page ───────────────────────────────────────────
 export default function CRMPage() {
   const router = useRouter();
+  const { theme, toggle: toggleTheme } = useTheme();
   const [activeTab, setActiveTab] = useState<Tab>('customers');
 
   // Customer state
@@ -1278,19 +1280,19 @@ export default function CRMPage() {
         <button
           type="button"
           onClick={() => { setOpen(!open); setCustomerPickerSearch(''); }}
-          className="w-full text-left bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] hover:border-[#C8A951]/50 transition-colors"
+          className="w-full text-left bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] hover:border-[#C8A951]/50 transition-colors"
         >
           {selected ? `${selected.name}${selected.phone ? ` (${selected.phone})` : ''}` : '고객 선택...'}
         </button>
         {open && (
-          <div className="absolute top-full left-0 right-0 mt-1 bg-[#111113] border border-[#1e1e22] rounded-lg shadow-2xl z-50 max-h-48 overflow-y-auto">
-            <div className="p-2 border-b border-[#1e1e22]">
+          <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--c-card)] border border-[var(--c-border)] rounded-lg shadow-2xl z-50 max-h-48 overflow-y-auto">
+            <div className="p-2 border-b border-[var(--c-border)]">
               <input
                 type="text"
                 placeholder="이름 또는 연락처 검색..."
                 value={customerPickerSearch}
                 onChange={(e) => setCustomerPickerSearch(e.target.value)}
-                className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded px-2 py-1.5 text-xs text-[#fafaf9] outline-none focus:border-[#C8A951]/50"
+                className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded px-2 py-1.5 text-xs text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50"
                 autoFocus
               />
             </div>
@@ -1299,13 +1301,13 @@ export default function CRMPage() {
                 key={c.id}
                 type="button"
                 onClick={() => { onChange(c.id); setOpen(false); }}
-                className="w-full text-left px-3 py-2 text-sm text-[#fafaf9] hover:bg-[#1e1e22] transition-colors"
+                className="w-full text-left px-3 py-2 text-sm text-[var(--c-text-1)] hover:bg-[var(--c-subtle)] transition-colors"
               >
-                {c.name} {c.phone && <span className="text-[#71717a]">({c.phone})</span>}
+                {c.name} {c.phone && <span className="text-[var(--c-text-3)]">({c.phone})</span>}
               </button>
             ))}
             {filteredPickerCustomers.length === 0 && (
-              <div className="px-3 py-2 text-xs text-[#71717a]">검색 결과 없음</div>
+              <div className="px-3 py-2 text-xs text-[var(--c-text-3)]">검색 결과 없음</div>
             )}
           </div>
         )}
@@ -1325,27 +1327,36 @@ export default function CRMPage() {
   ];
 
   return (
-    <div className="h-screen flex flex-col bg-[#09090b]">
+    <div className="h-screen flex flex-col bg-[var(--c-page)]">
       {/* Header */}
-      <div className="h-14 border-b border-[#1e1e22] bg-[#111113] flex items-center px-4 justify-between shrink-0">
+      <div className="h-14 border-b border-[var(--c-border)] bg-[var(--c-card)] flex items-center px-4 justify-between shrink-0">
         <div className="flex items-center gap-3">
           <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
             <span className="text-[#E4002B] text-lg font-bold">◆</span>
-            <span className="text-[#fafaf9] font-semibold text-sm">3M 프로이즘 AI</span>
+            <span className="text-[var(--c-text-1)] font-semibold text-sm">3M 프로이즘 AI</span>
           </Link>
-          <span className="text-[#1e1e22]">|</span>
+          <span className="text-[var(--c-border)]">|</span>
           <span className="text-[#C8A951] text-sm font-medium">고객 관리 CRM</span>
         </div>
-        <Link
-          href="/"
-          className="text-xs text-[#71717a] hover:text-[#fafaf9] transition-colors bg-[#1e1e22] hover:bg-[#2a2a2e] rounded-lg px-3 py-1.5"
-        >
-          블로그 에이전트로 돌아가기
-        </Link>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggleTheme}
+            className="w-7 h-7 rounded-full bg-[var(--c-subtle)] flex items-center justify-center hover:bg-[var(--c-hover)] transition-colors text-sm"
+            title={theme === 'dark' ? '라이트 모드' : '다크 모드'}
+          >
+            {theme === 'dark' ? '🌙' : '☀️'}
+          </button>
+          <Link
+            href="/"
+            className="text-xs text-[var(--c-text-3)] hover:text-[var(--c-text-1)] transition-colors bg-[var(--c-subtle)] hover:bg-[var(--c-hover)] rounded-lg px-3 py-1.5"
+          >
+            블로그 에이전트로 돌아가기
+          </Link>
+        </div>
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-[#1e1e22] bg-[#111113] px-4 flex gap-0">
+      <div className="border-b border-[var(--c-border)] bg-[var(--c-card)] px-4 flex gap-0">
         {tabs.map((tab) => (
           <button
             key={tab.key}
@@ -1353,7 +1364,7 @@ export default function CRMPage() {
             className={`px-4 py-3 text-sm font-medium transition-colors relative ${
               activeTab === tab.key
                 ? 'text-[#C8A951]'
-                : 'text-[#71717a] hover:text-[#a1a1aa]'
+                : 'text-[var(--c-text-3)] hover:text-[var(--c-text-2)]'
             }`}
           >
             {tab.label}
@@ -1376,9 +1387,9 @@ export default function CRMPage() {
                   placeholder="이름, 차종으로 검색..."
                   value={customerSearch}
                   onChange={(e) => setCustomerSearch(e.target.value)}
-                  className="bg-[#111113] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] w-64 outline-none focus:border-[#C8A951]/50 transition-colors placeholder:text-[#71717a]"
+                  className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] w-64 outline-none focus:border-[#C8A951]/50 transition-colors placeholder:text-[var(--c-text-3)]"
                 />
-                <span className="text-xs text-[#71717a]">{filteredCustomers.length}명</span>
+                <span className="text-xs text-[var(--c-text-3)]">{filteredCustomers.length}명</span>
               </div>
               <button
                 onClick={() => { setEditCustomerId(null); setCustomerForm({ name: '', phone: '', car_brand: '', car_model: '', car_year: '', car_color: '', source: '', memo: '', appointment_start_date: '', appointment_end_date: '', appointment_service_type: '', appointment_amount: '', appointment_memo: '' }); setShowAddCustomer(true); }}
@@ -1388,15 +1399,15 @@ export default function CRMPage() {
               </button>
             </div>
 
-            <div className="bg-[#111113] border border-[#1e1e22] rounded-xl overflow-hidden">
+            <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl overflow-hidden">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-[#1e1e22]">
-                    <th className="text-left px-4 py-3 text-xs font-medium text-[#71717a]">이름</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-[#71717a]">연락처</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-[#71717a]">차종</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-[#71717a]">최근 시공</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-[#71717a]">등록일</th>
+                  <tr className="border-b border-[var(--c-border)]">
+                    <th className="text-left px-4 py-3 text-xs font-medium text-[var(--c-text-3)]">이름</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-[var(--c-text-3)]">연락처</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-[var(--c-text-3)]">차종</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-[var(--c-text-3)]">최근 시공</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-[var(--c-text-3)]">등록일</th>
                     <th className="w-20"></th>
                   </tr>
                 </thead>
@@ -1405,34 +1416,34 @@ export default function CRMPage() {
                     <tr
                       key={c.id}
                       onClick={() => router.push(`/crm/${c.id}`)}
-                      className="border-b border-[#1e1e22] last:border-b-0 hover:bg-[#1a1a1f] cursor-pointer transition-colors group"
+                      className="border-b border-[var(--c-border)] last:border-b-0 hover:bg-[#1a1a1f] cursor-pointer transition-colors group"
                     >
-                      <td className="px-4 py-3 text-sm text-[#fafaf9] font-medium">
+                      <td className="px-4 py-3 text-sm text-[var(--c-text-1)] font-medium">
                         {c.name}
                         {c.service_count >= 2 && <span className="ml-1.5 text-[9px] bg-[#C8A951]/20 text-[#C8A951] px-1.5 py-0.5 rounded-full font-medium">재방문</span>}
                       </td>
-                      <td className="px-4 py-3 text-sm text-[#a1a1aa]">{c.phone || '-'}</td>
-                      <td className="px-4 py-3 text-sm text-[#a1a1aa]">
+                      <td className="px-4 py-3 text-sm text-[var(--c-text-2)]">{c.phone || '-'}</td>
+                      <td className="px-4 py-3 text-sm text-[var(--c-text-2)]">
                         {c.car_brand || c.car_model
                           ? `${c.car_brand || ''} ${c.car_model || ''}`.trim()
                           : '-'}
                       </td>
-                      <td className="px-4 py-3 text-sm text-[#a1a1aa]">
+                      <td className="px-4 py-3 text-sm text-[var(--c-text-2)]">
                         {c.latest_service
                           ? `${c.latest_service} (${formatDate(c.latest_service_date)})`
                           : '-'}
                       </td>
-                      <td className="px-4 py-3 text-sm text-[#71717a]">{formatDate(c.created_at)}</td>
+                      <td className="px-4 py-3 text-sm text-[var(--c-text-3)]">{formatDate(c.created_at)}</td>
                       <td className="px-2 py-3">
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
                           <button
                             onClick={(e) => { e.stopPropagation(); handleEditCustomer(c); }}
-                            className="w-6 h-6 rounded flex items-center justify-center text-[#71717a] hover:text-[#C8A951] hover:bg-[#C8A951]/10 transition-all text-xs"
+                            className="w-6 h-6 rounded flex items-center justify-center text-[var(--c-text-3)] hover:text-[#C8A951] hover:bg-[#C8A951]/10 transition-all text-xs"
                             title="수정"
                           >✎</button>
                           <button
                             onClick={(e) => { e.stopPropagation(); handleDeleteCustomer(c.id, c.name); }}
-                            className="w-6 h-6 rounded flex items-center justify-center text-[#71717a] hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-all text-xs"
+                            className="w-6 h-6 rounded flex items-center justify-center text-[var(--c-text-3)] hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-all text-xs"
                             title="삭제"
                           >✕</button>
                         </div>
@@ -1441,7 +1452,7 @@ export default function CRMPage() {
                   ))}
                   {filteredCustomers.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="px-4 py-12 text-center text-sm text-[#71717a]">
+                      <td colSpan={5} className="px-4 py-12 text-center text-sm text-[var(--c-text-3)]">
                         {customerSearch ? '검색 결과가 없습니다' : '등록된 고객이 없습니다'}
                       </td>
                     </tr>
@@ -1531,17 +1542,17 @@ export default function CRMPage() {
               {/* 상단 바 */}
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <button onClick={() => setCalendarMonth((p) => { const d = new Date(p.year, p.month - 1); return { year: d.getFullYear(), month: d.getMonth() }; })} className="text-[#71717a] hover:text-[#fafaf9] transition-colors text-lg leading-none">◀</button>
-                  <span className="text-base font-semibold text-[#fafaf9] min-w-[120px] text-center">{cY}년 {cM + 1}월</span>
-                  <button onClick={() => setCalendarMonth((p) => { const d = new Date(p.year, p.month + 1); return { year: d.getFullYear(), month: d.getMonth() }; })} className="text-[#71717a] hover:text-[#fafaf9] transition-colors text-lg leading-none">▶</button>
-                  <button onClick={goToday} className="text-xs bg-[#1e1e22] hover:bg-[#2a2a2e] text-[#a1a1aa] rounded-lg px-3 py-1 transition-colors ml-1">오늘</button>
-                  <div className="flex bg-[#1e1e22] rounded-lg p-0.5 ml-2">
-                    <button onClick={() => setCalendarView('calendar')} className={`text-xs px-3 py-1 rounded-md transition-colors ${calendarView === 'calendar' ? 'bg-[#C8A951]/20 text-[#C8A951]' : 'text-[#71717a]'}`}>달력</button>
-                    <button onClick={() => setCalendarView('list')} className={`text-xs px-3 py-1 rounded-md transition-colors ${calendarView === 'list' ? 'bg-[#C8A951]/20 text-[#C8A951]' : 'text-[#71717a]'}`}>리스트</button>
+                  <button onClick={() => setCalendarMonth((p) => { const d = new Date(p.year, p.month - 1); return { year: d.getFullYear(), month: d.getMonth() }; })} className="text-[var(--c-text-3)] hover:text-[var(--c-text-1)] transition-colors text-lg leading-none">◀</button>
+                  <span className="text-base font-semibold text-[var(--c-text-1)] min-w-[120px] text-center">{cY}년 {cM + 1}월</span>
+                  <button onClick={() => setCalendarMonth((p) => { const d = new Date(p.year, p.month + 1); return { year: d.getFullYear(), month: d.getMonth() }; })} className="text-[var(--c-text-3)] hover:text-[var(--c-text-1)] transition-colors text-lg leading-none">▶</button>
+                  <button onClick={goToday} className="text-xs bg-[var(--c-subtle)] hover:bg-[var(--c-hover)] text-[var(--c-text-2)] rounded-lg px-3 py-1 transition-colors ml-1">오늘</button>
+                  <div className="flex bg-[var(--c-subtle)] rounded-lg p-0.5 ml-2">
+                    <button onClick={() => setCalendarView('calendar')} className={`text-xs px-3 py-1 rounded-md transition-colors ${calendarView === 'calendar' ? 'bg-[#C8A951]/20 text-[#C8A951]' : 'text-[var(--c-text-3)]'}`}>달력</button>
+                    <button onClick={() => setCalendarView('list')} className={`text-xs px-3 py-1 rounded-md transition-colors ${calendarView === 'list' ? 'bg-[#C8A951]/20 text-[#C8A951]' : 'text-[var(--c-text-3)]'}`}>리스트</button>
                   </div>
-                  <div className="flex bg-[#1e1e22] rounded-lg p-0.5 ml-2">
+                  <div className="flex bg-[var(--c-subtle)] rounded-lg p-0.5 ml-2">
                     {(['전체', '대표', '이팀장님', '김막내'] as const).map((m) => (
-                      <button key={m} onClick={() => setManagerFilter(m)} className={`text-xs px-3 py-1 rounded-md transition-colors ${managerFilter === m ? 'bg-[#3B82F6]/20 text-[#3B82F6]' : 'text-[#71717a]'}`}>{m}</button>
+                      <button key={m} onClick={() => setManagerFilter(m)} className={`text-xs px-3 py-1 rounded-md transition-colors ${managerFilter === m ? 'bg-[#3B82F6]/20 text-[#3B82F6]' : 'text-[var(--c-text-3)]'}`}>{m}</button>
                     ))}
                   </div>
                   <div className="flex gap-2 ml-3">
@@ -1558,7 +1569,7 @@ export default function CRMPage() {
               {/* 달력 뷰 */}
               {calendarView === 'calendar' && (
                 <div style={{ marginBottom: '16px' }}>
-                  <div style={{ backgroundColor: '#111113', border: '1px solid #1e1e22', borderRadius: '12px', overflow: 'hidden' }}>
+                  <div style={{ backgroundColor: 'var(--c-card)', border: '1px solid var(--c-border)', borderRadius: '12px', overflow: 'hidden' }}>
                     {/* 요일 헤더 */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
                       {['일', '월', '화', '수', '목', '금', '토'].map((d, i) => (
@@ -1650,33 +1661,33 @@ export default function CRMPage() {
                   {displayAppointments.map((a) => {
                     const isToday = a.appointment_date === today;
                     const isPast = a.appointment_date < today;
-                    const borderClass = a.status === '완료' ? 'border-[#1e1e22]' : isToday ? 'border-[#C8A951]/40' : isPast ? 'border-[#EF4444]/20' : 'border-[#1e1e22]';
+                    const borderClass = a.status === '완료' ? 'border-[var(--c-border)]' : isToday ? 'border-[#C8A951]/40' : isPast ? 'border-[#EF4444]/20' : 'border-[var(--c-border)]';
                     const opacityClass = a.status === '완료' ? 'opacity-50' : isPast && a.status !== '완료' ? 'opacity-60' : '';
                     let memoDisplay = a.memo;
                     try { if (a.memo && JSON.parse(a.memo)?.car_number !== undefined) memoDisplay = null; } catch { /* not JSON */ }
 
                     return (
-                      <div key={a.id} className={`bg-[#111113] border rounded-xl p-4 flex items-center justify-between group ${borderClass} ${opacityClass}`}>
+                      <div key={a.id} className={`bg-[var(--c-card)] border rounded-xl p-4 flex items-center justify-between group ${borderClass} ${opacityClass}`}>
                         <div className="flex items-center gap-4">
                           <div className="text-center min-w-[60px]">
-                            <div className={`text-lg font-bold ${isToday ? 'text-[#C8A951]' : 'text-[#fafaf9]'}`}>
+                            <div className={`text-lg font-bold ${isToday ? 'text-[#C8A951]' : 'text-[var(--c-text-1)]'}`}>
                               {new Date(a.appointment_date).getDate()}
                               {a.end_date && a.end_date !== a.appointment_date && (
-                                <span className="text-xs font-normal text-[#71717a]">~{new Date(a.end_date).getDate()}</span>
+                                <span className="text-xs font-normal text-[var(--c-text-3)]">~{new Date(a.end_date).getDate()}</span>
                               )}
                             </div>
-                            <div className="text-[10px] text-[#71717a]">
+                            <div className="text-[10px] text-[var(--c-text-3)]">
                               {new Date(a.appointment_date).toLocaleDateString('ko-KR', { month: 'short' })}
                               {isToday && <span className="text-[#C8A951] ml-0.5">오늘</span>}
                             </div>
                           </div>
-                          <div className="h-10 w-px bg-[#1e1e22]" />
+                          <div className="h-10 w-px bg-[var(--c-subtle)]" />
                           <div>
-                            <div className="text-sm font-medium text-[#fafaf9]">
+                            <div className="text-sm font-medium text-[var(--c-text-1)]">
                               {a.customer?.name || '(삭제된 고객)'}
-                              {a.customer?.phone && <span className="text-[#71717a] ml-2 font-normal">{a.customer.phone}</span>}
+                              {a.customer?.phone && <span className="text-[var(--c-text-3)] ml-2 font-normal">{a.customer.phone}</span>}
                             </div>
-                            <div className="text-xs text-[#71717a] mt-0.5">
+                            <div className="text-xs text-[var(--c-text-3)] mt-0.5">
                               {a.service_type || '미정'}
                               <span className={`ml-1.5 text-[9px] px-1.5 py-0.5 rounded ${getManager(a) === '이팀장님' ? 'bg-[#22C55E]/15 text-[#22C55E]' : getManager(a) === '김막내' ? 'bg-[#A78BFA]/15 text-[#A78BFA]' : 'bg-[#3B82F6]/15 text-[#3B82F6]'}`}>{getManager(a)}</span>
                               {a.amount ? <span className="ml-2 text-[#C8A951]">{a.amount.toLocaleString()}원</span> : null}
@@ -1691,18 +1702,18 @@ export default function CRMPage() {
                           {(() => { try { const m = JSON.parse(a.memo || '{}'); if (m.warranty_url) return <button onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(m.warranty_url); alert('보증서 URL이 복사되었습니다.'); }} className="text-[10px] font-medium px-2 py-1 rounded-lg bg-[#22c55e]/10 text-[#22c55e] hover:bg-[#22c55e]/20 transition-colors">URL 복사</button>; } catch {} return null; })()}
                           <button onClick={() => handleDownloadICS(a)} className="bg-[#3B82F6]/10 hover:bg-[#3B82F6]/20 text-[#3B82F6] text-xs font-medium rounded-lg px-2.5 py-1 transition-colors">캘린더</button>
                           {a.status !== '완료' && (
-                            <select value="" onChange={(e) => { if (e.target.value) handleStatusChange(a, e.target.value); }} className="bg-[#1e1e22] border border-[#2a2a2e] rounded-lg px-2 py-1 text-xs text-[#a1a1aa] outline-none cursor-pointer">
+                            <select value="" onChange={(e) => { if (e.target.value) handleStatusChange(a, e.target.value); }} className="bg-[var(--c-subtle)] border border-[#2a2a2e] rounded-lg px-2 py-1 text-xs text-[var(--c-text-2)] outline-none cursor-pointer">
                               <option value="">상태 변경</option>
                               {APPOINTMENT_STATUSES.filter((s) => s !== a.status).map((s) => (<option key={s} value={s}>{s}</option>))}
                             </select>
                           )}
-                          <button onClick={() => handleDeleteAppointment(a.id)} className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded flex items-center justify-center text-[#71717a] hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-all text-xs" title="삭제">✕</button>
+                          <button onClick={() => handleDeleteAppointment(a.id)} className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded flex items-center justify-center text-[var(--c-text-3)] hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-all text-xs" title="삭제">✕</button>
                         </div>
                       </div>
                     );
                   })}
                   {displayAppointments.length === 0 && (
-                    <div className="text-center py-12 text-sm text-[#71717a]">
+                    <div className="text-center py-12 text-sm text-[var(--c-text-3)]">
                       {calendarView === 'calendar' && selectedDate ? '이 날짜에 예약이 없습니다' : '등록된 예약이 없습니다'}
                     </div>
                   )}
@@ -1722,9 +1733,9 @@ export default function CRMPage() {
                 { label: '임박 (3일 이내)', count: followUps.filter((f) => { if (f.is_completed) return false; const d = Math.ceil((new Date(f.scheduled_date).getTime() - new Date(today).getTime()) / 86400000); return d >= 0 && d <= 3; }).length, color: '#F59E0B', bg: '#F59E0B' },
                 { label: '처리완료', count: followUps.filter((f) => f.is_completed).length, color: '#10B981', bg: '#10B981' },
               ]).map((s) => (
-                <div key={s.label} className="bg-[#111113] border border-[#1e1e22] rounded-xl p-3 text-center">
-                  <div className="text-xs text-[#71717a] mb-1">{s.label}</div>
-                  <div className="text-xl font-bold" style={{ color: s.color }}>{s.count}<span className="text-xs font-normal text-[#71717a] ml-0.5">건</span></div>
+                <div key={s.label} className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-3 text-center">
+                  <div className="text-xs text-[var(--c-text-3)] mb-1">{s.label}</div>
+                  <div className="text-xl font-bold" style={{ color: s.color }}>{s.count}<span className="text-xs font-normal text-[var(--c-text-3)] ml-0.5">건</span></div>
                 </div>
               ))}
             </div>
@@ -1743,11 +1754,11 @@ export default function CRMPage() {
                   className={`text-sm px-3 py-1.5 rounded-lg transition-colors font-medium ${
                     followUpFilter === f.key
                       ? f.style
-                      : 'bg-[#1e1e22] text-[#71717a] hover:text-[#a1a1aa]'
+                      : 'bg-[var(--c-subtle)] text-[var(--c-text-3)] hover:text-[var(--c-text-2)]'
                   }`}
                 >
                   {f.label}
-                  <span className={`ml-1.5 text-xs ${followUpFilter === f.key ? 'opacity-80' : 'text-[#52525b]'}`}>{f.count}</span>
+                  <span className={`ml-1.5 text-xs ${followUpFilter === f.key ? 'opacity-80' : 'text-[var(--c-text-4)]'}`}>{f.count}</span>
                 </button>
               ))}
             </div>
@@ -1796,17 +1807,17 @@ export default function CRMPage() {
                     ? 'border-[#F59E0B]/40'
                     : f.is_completed
                       ? 'border-[#10B981]/20'
-                      : 'border-[#1e1e22]';
+                      : 'border-[var(--c-border)]';
 
                 const sentBtn = 'bg-[#10B981]/15 text-[#34D399]';
-                const qcBtn = phone ? (sent.qc ? sentBtn : 'bg-[#3B82F6]/15 text-[#60A5FA] hover:bg-[#3B82F6]/25') : 'bg-[#1e1e22] text-[#71717a]/40 cursor-not-allowed';
-                const maintBtn = phone ? (sent.maintenance ? sentBtn : 'bg-[#8B5CF6]/15 text-[#A78BFA] hover:bg-[#8B5CF6]/25') : 'bg-[#1e1e22] text-[#71717a]/40 cursor-not-allowed';
-                const reviewBtn = (key: string) => phone ? (sent[key] ? sentBtn : 'bg-[#F59E0B]/15 text-[#FBBF24] hover:bg-[#F59E0B]/25') : 'bg-[#1e1e22] text-[#71717a]/40 cursor-not-allowed';
+                const qcBtn = phone ? (sent.qc ? sentBtn : 'bg-[#3B82F6]/15 text-[#60A5FA] hover:bg-[#3B82F6]/25') : 'bg-[var(--c-subtle)] text-[var(--c-text-3)]/40 cursor-not-allowed';
+                const maintBtn = phone ? (sent.maintenance ? sentBtn : 'bg-[#8B5CF6]/15 text-[#A78BFA] hover:bg-[#8B5CF6]/25') : 'bg-[var(--c-subtle)] text-[var(--c-text-3)]/40 cursor-not-allowed';
+                const reviewBtn = (key: string) => phone ? (sent[key] ? sentBtn : 'bg-[#F59E0B]/15 text-[#FBBF24] hover:bg-[#F59E0B]/25') : 'bg-[var(--c-subtle)] text-[var(--c-text-3)]/40 cursor-not-allowed';
 
                 return (
                   <div
                     key={f.id}
-                    className={`bg-[#111113] border rounded-xl p-4 ${cardBorder} ${isUrgent ? 'ring-1 ring-[#F59E0B]/20' : ''}`}
+                    className={`bg-[var(--c-card)] border rounded-xl p-4 ${cardBorder} ${isUrgent ? 'ring-1 ring-[#F59E0B]/20' : ''}`}
                   >
                     {/* 카드 상단: 유형 + 상태 뱃지 */}
                     <div className="flex items-center justify-between mb-3">
@@ -1834,20 +1845,20 @@ export default function CRMPage() {
                     <div className="flex items-start justify-between mb-3">
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-semibold text-[#fafaf9]">{f.customer?.name || '-'}</span>
-                          {phone && <span className="text-xs text-[#52525b]">{phone}</span>}
+                          <span className="text-sm font-semibold text-[var(--c-text-1)]">{f.customer?.name || '-'}</span>
+                          {phone && <span className="text-xs text-[var(--c-text-4)]">{phone}</span>}
                         </div>
-                        <div className="flex items-center gap-2 text-xs text-[#71717a]">
-                          <span className="bg-[#1e1e22] px-2 py-0.5 rounded">{f.service?.service_type || '-'}</span>
+                        <div className="flex items-center gap-2 text-xs text-[var(--c-text-3)]">
+                          <span className="bg-[var(--c-subtle)] px-2 py-0.5 rounded">{f.service?.service_type || '-'}</span>
                           <span>{formatDate(f.scheduled_date)}</span>
                           {f.scheduled_date === today && <span className="text-[#F59E0B] font-medium">(오늘)</span>}
                         </div>
-                        {f.memo && <div className="text-xs text-[#52525b] mt-1">{f.memo}</div>}
+                        {f.memo && <div className="text-xs text-[var(--c-text-4)] mt-1">{f.memo}</div>}
                       </div>
                     </div>
 
                     {/* 카드 하단: 액션 버튼 */}
-                    <div className="flex items-center gap-1.5 flex-wrap pt-2 border-t border-[#1e1e22]">
+                    <div className="flex items-center gap-1.5 flex-wrap pt-2 border-t border-[var(--c-border)]">
                       {f.follow_up_type === 'QC점검' && (
                         <button onClick={() => sendSmsWithTrack(smsQC, 'qc')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${qcBtn}`}>{sent.qc ? '✓ QC 전송완료' : '문자 발송'}</button>
                       )}
@@ -1858,7 +1869,7 @@ export default function CRMPage() {
                           const msg = `${f.customer?.name || ''}님 안녕하세요, 3M 프로이즘 강남서초점입니다. ${f.service?.service_type || '시공'} 시공 후 6개월 메인터넌스 시기가 되어 안내드립니다. 무료 점검 및 관리 받으실 수 있으니 편하신 시간에 연락 부탁드립니다. 010-7287-7140`;
                           navigator.clipboard.writeText(msg);
                           alert('안내 문구가 복사되었습니다.');
-                        }} className="text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors bg-[#1e1e22] text-[#a1a1aa] hover:bg-[#2a2a2e]">문구 복사</button>
+                        }} className="text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors bg-[var(--c-subtle)] text-[var(--c-text-2)] hover:bg-[var(--c-hover)]">문구 복사</button>
                         </>
                       )}
                       {f.follow_up_type === '후기요청' && (
@@ -1873,7 +1884,7 @@ export default function CRMPage() {
                         className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ml-auto ${
                           f.is_completed
                             ? 'bg-[#10B981]/15 text-[#34D399]'
-                            : 'bg-[#1e1e22] text-[#a1a1aa] hover:bg-[#2a2a2e]'
+                            : 'bg-[var(--c-subtle)] text-[var(--c-text-2)] hover:bg-[var(--c-hover)]'
                         }`}
                       >
                         {f.is_completed ? '✓ 완료됨' : '완료 처리'}
@@ -1884,14 +1895,14 @@ export default function CRMPage() {
                 );
               })}
               {filteredFollowUps.length === 0 && (
-                <div className="text-center py-12 text-sm text-[#71717a]">
+                <div className="text-center py-12 text-sm text-[var(--c-text-3)]">
                   {followUpFilter === 'all' ? '사후관리 항목이 없습니다' : `${followUpFilter} 항목이 없습니다`}
                 </div>
               )}
             </div>
 
             {/* 프로모션 발송 섹션 */}
-            <div className="mt-6 bg-[#111113] border border-[#1e1e22] rounded-xl p-5">
+            <div className="mt-6 bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-5">
               <h3 className="text-sm font-semibold text-[#C8A951] mb-4">프로모션 발송</h3>
               {(() => {
                 const month = new Date().getMonth() + 1;
@@ -1907,16 +1918,16 @@ export default function CRMPage() {
                 return (
                   <div className="space-y-3">
                     {activePromos.map((promo) => (
-                      <div key={promo.label} className="border border-[#1e1e22] rounded-lg p-3">
+                      <div key={promo.label} className="border border-[var(--c-border)] rounded-lg p-3">
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
                             <span className="text-xs bg-[#C8A951]/20 text-[#C8A951] px-2 py-0.5 rounded">{promo.season}</span>
-                            <span className="text-sm text-[#fafaf9] font-medium">{promo.label}</span>
+                            <span className="text-sm text-[var(--c-text-1)] font-medium">{promo.label}</span>
                           </div>
                         </div>
-                        <p className="text-xs text-[#71717a] mb-3 leading-relaxed">{promo.tpl('{고객명}')}</p>
+                        <p className="text-xs text-[var(--c-text-3)] mb-3 leading-relaxed">{promo.tpl('{고객명}')}</p>
                         <div className="flex items-center gap-2">
-                          <select id={`promo-cust-${promo.label}`} className="flex-1 bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-1.5 text-xs text-[#fafaf9] outline-none">
+                          <select id={`promo-cust-${promo.label}`} className="flex-1 bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-1.5 text-xs text-[var(--c-text-1)] outline-none">
                             <option value="">고객 선택</option>
                             {allCustomers.map((c) => <option key={c.id} value={c.id}>{c.name}{c.phone ? ` (${c.phone})` : ''}</option>)}
                           </select>
@@ -1954,7 +1965,7 @@ export default function CRMPage() {
         {activeTab === 'consultations' && (
           <div>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm text-[#71717a]">{consultations.length}건의 상담</h2>
+              <h2 className="text-sm text-[var(--c-text-3)]">{consultations.length}건의 상담</h2>
               <button
                 onClick={() => setShowAddConsultation(true)}
                 className="bg-[#E4002B] hover:bg-[#c60026] text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors"
@@ -1965,24 +1976,24 @@ export default function CRMPage() {
 
             <div className="space-y-2">
               {consultations.map((c) => (
-                <div key={c.id} className="bg-[#111113] border border-[#1e1e22] rounded-xl p-4">
+                <div key={c.id} className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-4">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-[#fafaf9]">{c.customer?.name || '-'}</span>
-                      {c.customer?.phone && <span className="text-xs text-[#71717a]">{c.customer.phone}</span>}
+                      <span className="text-sm font-medium text-[var(--c-text-1)]">{c.customer?.name || '-'}</span>
+                      {c.customer?.phone && <span className="text-xs text-[var(--c-text-3)]">{c.customer.phone}</span>}
                     </div>
-                    <span className="text-xs text-[#71717a]">{formatDate(c.consultation_date)}</span>
+                    <span className="text-xs text-[var(--c-text-3)]">{formatDate(c.consultation_date)}</span>
                   </div>
-                  {c.content && <p className="text-sm text-[#a1a1aa] mb-2">{c.content}</p>}
-                  <div className="flex items-center gap-3 text-xs text-[#71717a]">
+                  {c.content && <p className="text-sm text-[var(--c-text-2)] mb-2">{c.content}</p>}
+                  <div className="flex items-center gap-3 text-xs text-[var(--c-text-3)]">
                     {c.estimate && <span>견적: <span className="text-[#C8A951]">{c.estimate}</span></span>}
-                    {c.interested_services && <span>관심: <span className="text-[#a1a1aa]">{c.interested_services}</span></span>}
+                    {c.interested_services && <span>관심: <span className="text-[var(--c-text-2)]">{c.interested_services}</span></span>}
                     {c.memo && <span>메모: {c.memo}</span>}
                   </div>
                 </div>
               ))}
               {consultations.length === 0 && (
-                <div className="text-center py-12 text-sm text-[#71717a]">등록된 상담 기록이 없습니다</div>
+                <div className="text-center py-12 text-sm text-[var(--c-text-3)]">등록된 상담 기록이 없습니다</div>
               )}
             </div>
           </div>
@@ -1993,12 +2004,12 @@ export default function CRMPage() {
             {/* 연도 선택 */}
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
-                <button onClick={() => setStatsYear(String(Number(statsYear) - 1))} className="text-[#71717a] hover:text-[#fafaf9] transition-colors text-lg">◀</button>
-                <span className="text-base font-semibold text-[#fafaf9] min-w-[80px] text-center">{statsYear}년</span>
-                <button onClick={() => setStatsYear(String(Number(statsYear) + 1))} className="text-[#71717a] hover:text-[#fafaf9] transition-colors text-lg">▶</button>
+                <button onClick={() => setStatsYear(String(Number(statsYear) - 1))} className="text-[var(--c-text-3)] hover:text-[var(--c-text-1)] transition-colors text-lg">◀</button>
+                <span className="text-base font-semibold text-[var(--c-text-1)] min-w-[80px] text-center">{statsYear}년</span>
+                <button onClick={() => setStatsYear(String(Number(statsYear) + 1))} className="text-[var(--c-text-3)] hover:text-[var(--c-text-1)] transition-colors text-lg">▶</button>
               </div>
               <div className="flex items-center gap-2">
-                <select id="report-month" defaultValue={String(new Date().getMonth() + 1)} className="bg-[#1e1e22] border border-[#2a2a2e] rounded-lg px-2 py-1 text-xs text-[#a1a1aa] outline-none">
+                <select id="report-month" defaultValue={String(new Date().getMonth() + 1)} className="bg-[var(--c-subtle)] border border-[#2a2a2e] rounded-lg px-2 py-1 text-xs text-[var(--c-text-2)] outline-none">
                   {Array.from({ length: 12 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}월</option>)}
                 </select>
                 <button
@@ -2091,53 +2102,53 @@ export default function CRMPage() {
                 >
                   월간 리포트 PDF
                 </button>
-                <button onClick={fetchStats} className="text-xs bg-[#1e1e22] hover:bg-[#2a2a2e] text-[#a1a1aa] rounded-lg px-3 py-1.5 transition-colors">새로고침</button>
+                <button onClick={fetchStats} className="text-xs bg-[var(--c-subtle)] hover:bg-[var(--c-hover)] text-[var(--c-text-2)] rounded-lg px-3 py-1.5 transition-colors">새로고침</button>
               </div>
             </div>
 
             {statsLoading ? (
-              <div className="text-center text-[#71717a] py-20">분석 데이터 불러오는 중...</div>
+              <div className="text-center text-[var(--c-text-3)] py-20">분석 데이터 불러오는 중...</div>
             ) : !statsData ? (
-              <div className="text-center text-[#71717a] py-20">시공 데이터가 없습니다.</div>
+              <div className="text-center text-[var(--c-text-3)] py-20">시공 데이터가 없습니다.</div>
             ) : (
               <div className="space-y-6">
                 {/* ── 요약 카드 ──────────────────────────────── */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div className="bg-[#111113] border border-[#1e1e22] rounded-xl p-4">
-                    <div className="text-xs text-[#71717a] mb-1">총 시공 건수</div>
-                    <div className="text-2xl font-bold text-[#fafaf9]">{statsData.totalCount}<span className="text-sm font-normal text-[#71717a] ml-1">건</span></div>
+                  <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-4">
+                    <div className="text-xs text-[var(--c-text-3)] mb-1">총 시공 건수</div>
+                    <div className="text-2xl font-bold text-[var(--c-text-1)]">{statsData.totalCount}<span className="text-sm font-normal text-[var(--c-text-3)] ml-1">건</span></div>
                   </div>
-                  <div className="bg-[#111113] border border-[#1e1e22] rounded-xl p-4">
-                    <div className="text-xs text-[#71717a] mb-1">총 매출</div>
-                    <div className="text-2xl font-bold text-[#C8A951]">{(statsData.totalRevenue / 10000).toLocaleString()}<span className="text-sm font-normal text-[#71717a] ml-1">만원</span></div>
+                  <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-4">
+                    <div className="text-xs text-[var(--c-text-3)] mb-1">총 매출</div>
+                    <div className="text-2xl font-bold text-[#C8A951]">{(statsData.totalRevenue / 10000).toLocaleString()}<span className="text-sm font-normal text-[var(--c-text-3)] ml-1">만원</span></div>
                   </div>
-                  <div className="bg-[#111113] border border-[#1e1e22] rounded-xl p-4">
-                    <div className="text-xs text-[#71717a] mb-1">건당 평균</div>
-                    <div className="text-2xl font-bold text-[#fafaf9]">{(statsData.avgPerCase / 10000).toLocaleString()}<span className="text-sm font-normal text-[#71717a] ml-1">만원</span></div>
+                  <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-4">
+                    <div className="text-xs text-[var(--c-text-3)] mb-1">건당 평균</div>
+                    <div className="text-2xl font-bold text-[var(--c-text-1)]">{(statsData.avgPerCase / 10000).toLocaleString()}<span className="text-sm font-normal text-[var(--c-text-3)] ml-1">만원</span></div>
                   </div>
-                  <div className="bg-[#111113] border border-[#1e1e22] rounded-xl p-4">
-                    <div className="text-xs text-[#71717a] mb-1">서비스 종류</div>
-                    <div className="text-2xl font-bold text-[#fafaf9]">{statsData.byService.length}<span className="text-sm font-normal text-[#71717a] ml-1">개</span></div>
+                  <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-4">
+                    <div className="text-xs text-[var(--c-text-3)] mb-1">서비스 종류</div>
+                    <div className="text-2xl font-bold text-[var(--c-text-1)]">{statsData.byService.length}<span className="text-sm font-normal text-[var(--c-text-3)] ml-1">개</span></div>
                   </div>
                 </div>
 
                 {/* ── 분기별 매출 ────────────────────────────── */}
                 <div className="grid grid-cols-4 gap-3">
                   {statsData.quarters.map((q) => (
-                    <div key={q.label} className="bg-[#111113] border border-[#1e1e22] rounded-xl p-4 text-center">
-                      <div className="text-xs text-[#71717a] mb-1">{q.label}</div>
-                      <div className="text-lg font-bold text-[#fafaf9]">{q.revenue > 0 ? `${(q.revenue / 10000).toLocaleString()}만` : '-'}</div>
-                      <div className="text-[10px] text-[#71717a]">{q.count}건</div>
+                    <div key={q.label} className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-4 text-center">
+                      <div className="text-xs text-[var(--c-text-3)] mb-1">{q.label}</div>
+                      <div className="text-lg font-bold text-[var(--c-text-1)]">{q.revenue > 0 ? `${(q.revenue / 10000).toLocaleString()}만` : '-'}</div>
+                      <div className="text-[10px] text-[var(--c-text-3)]">{q.count}건</div>
                     </div>
                   ))}
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* ── 서비스별 현황 ──────────────────────── */}
-                  <div className="bg-[#111113] border border-[#1e1e22] rounded-xl p-5">
+                  <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-5">
                     <h3 className="text-sm font-semibold text-[#C8A951] mb-4">서비스별 현황</h3>
                     {statsData.byService.length === 0 ? (
-                      <div className="text-sm text-[#71717a] py-4 text-center">데이터 없음</div>
+                      <div className="text-sm text-[var(--c-text-3)] py-4 text-center">데이터 없음</div>
                     ) : (
                       <div className="space-y-3">
                         {statsData.byService.map((s) => {
@@ -2145,14 +2156,14 @@ export default function CRMPage() {
                           return (
                             <div key={s.name}>
                               <div className="flex items-center justify-between mb-1">
-                                <span className="text-sm text-[#fafaf9]">{s.name}</span>
-                                <div className="text-xs text-[#71717a]">
-                                  <span className="text-[#a1a1aa]">{s.count}건</span>
+                                <span className="text-sm text-[var(--c-text-1)]">{s.name}</span>
+                                <div className="text-xs text-[var(--c-text-3)]">
+                                  <span className="text-[var(--c-text-2)]">{s.count}건</span>
                                   <span className="mx-1.5">·</span>
                                   <span className="text-[#C8A951]">{(s.revenue / 10000).toLocaleString()}만원</span>
                                 </div>
                               </div>
-                              <div className="w-full h-2 bg-[#1e1e22] rounded-full overflow-hidden">
+                              <div className="w-full h-2 bg-[var(--c-subtle)] rounded-full overflow-hidden">
                                 <div className="h-full bg-[#C8A951] rounded-full transition-all" style={{ width: `${(s.revenue / maxRev) * 100}%` }} />
                               </div>
                             </div>
@@ -2163,7 +2174,7 @@ export default function CRMPage() {
                   </div>
 
                   {/* ── 월별 매출 + 증감률 ────────────────── */}
-                  <div className="bg-[#111113] border border-[#1e1e22] rounded-xl p-5">
+                  <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-5">
                     <h3 className="text-sm font-semibold text-[#C8A951] mb-4">월별 매출</h3>
                     {(() => {
                       const maxRev = Math.max(...statsData.byMonth.map((m) => m.revenue), 1);
@@ -2175,14 +2186,14 @@ export default function CRMPage() {
                             return (
                               <div key={m.month} className="flex-1 flex flex-col items-center justify-end h-full">
                                 {m.change !== null && m.revenue > 0 && (
-                                  <div className={`text-[9px] mb-0.5 ${m.change > 0 ? 'text-[#22C55E]' : m.change < 0 ? 'text-[#EF4444]' : 'text-[#71717a]'}`}>
+                                  <div className={`text-[9px] mb-0.5 ${m.change > 0 ? 'text-[#22C55E]' : m.change < 0 ? 'text-[#EF4444]' : 'text-[var(--c-text-3)]'}`}>
                                     {m.change > 0 ? '+' : ''}{m.change}%
                                   </div>
                                 )}
-                                {m.revenue > 0 && <div className="text-[10px] text-[#71717a] mb-1">{Math.round(m.revenue / 10000)}</div>}
+                                {m.revenue > 0 && <div className="text-[10px] text-[var(--c-text-3)] mb-1">{Math.round(m.revenue / 10000)}</div>}
                                 <div className="w-full rounded-t-sm transition-all" style={{ height: `${Math.max(h, m.revenue > 0 ? 4 : 0)}px`, backgroundColor: m.count > 0 ? '#C8A951' : '#1e1e22', opacity: m.count > 0 ? 0.8 : 0.3 }} />
-                                <div className="text-[10px] text-[#71717a] mt-1.5">{Number(monthNum)}월</div>
-                                {m.count > 0 && <div className="text-[9px] text-[#a1a1aa]">{m.count}건</div>}
+                                <div className="text-[10px] text-[var(--c-text-3)] mt-1.5">{Number(monthNum)}월</div>
+                                {m.count > 0 && <div className="text-[9px] text-[var(--c-text-2)]">{m.count}건</div>}
                               </div>
                             );
                           })}
@@ -2193,33 +2204,33 @@ export default function CRMPage() {
                 </div>
 
                 {/* ── 차종별 인기 서비스 ──────────────────── */}
-                <div className="bg-[#111113] border border-[#1e1e22] rounded-xl p-5">
+                <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-5">
                   <h3 className="text-sm font-semibold text-[#C8A951] mb-4">차종별 인기 서비스</h3>
                   {statsData.carAnalysis.length === 0 ? (
-                    <div className="text-sm text-[#71717a] py-4 text-center">데이터 없음</div>
+                    <div className="text-sm text-[var(--c-text-3)] py-4 text-center">데이터 없음</div>
                   ) : (
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
-                          <tr className="border-b border-[#1e1e22]">
-                            <th className="text-left py-2 px-3 text-[#71717a] font-medium text-xs">차종</th>
-                            <th className="text-left py-2 px-3 text-[#71717a] font-medium text-xs">서비스 내역</th>
-                            <th className="text-right py-2 px-3 text-[#71717a] font-medium text-xs">건수</th>
-                            <th className="text-right py-2 px-3 text-[#71717a] font-medium text-xs">매출</th>
+                          <tr className="border-b border-[var(--c-border)]">
+                            <th className="text-left py-2 px-3 text-[var(--c-text-3)] font-medium text-xs">차종</th>
+                            <th className="text-left py-2 px-3 text-[var(--c-text-3)] font-medium text-xs">서비스 내역</th>
+                            <th className="text-right py-2 px-3 text-[var(--c-text-3)] font-medium text-xs">건수</th>
+                            <th className="text-right py-2 px-3 text-[var(--c-text-3)] font-medium text-xs">매출</th>
                           </tr>
                         </thead>
                         <tbody>
                           {statsData.carAnalysis.map((c) => (
-                            <tr key={c.car} className="border-b border-[#1e1e22]/50 hover:bg-[#1e1e22]/30">
-                              <td className="py-2.5 px-3 text-[#fafaf9] font-medium">{c.car}</td>
+                            <tr key={c.car} className="border-b border-[var(--c-border)]/50 hover:bg-[var(--c-subtle)]/30">
+                              <td className="py-2.5 px-3 text-[var(--c-text-1)] font-medium">{c.car}</td>
                               <td className="py-2.5 px-3">
                                 <div className="flex flex-wrap gap-1">
                                   {c.services.map((s) => (
-                                    <span key={s.name} className="text-[10px] bg-[#1e1e22] text-[#a1a1aa] px-2 py-0.5 rounded">{s.name} {s.count}건</span>
+                                    <span key={s.name} className="text-[10px] bg-[var(--c-subtle)] text-[var(--c-text-2)] px-2 py-0.5 rounded">{s.name} {s.count}건</span>
                                   ))}
                                 </div>
                               </td>
-                              <td className="py-2.5 px-3 text-right text-[#a1a1aa]">{c.totalCount}</td>
+                              <td className="py-2.5 px-3 text-right text-[var(--c-text-2)]">{c.totalCount}</td>
                               <td className="py-2.5 px-3 text-right text-[#C8A951] font-medium">{c.totalRevenue > 0 ? `${(c.totalRevenue / 10000).toLocaleString()}만` : '-'}</td>
                             </tr>
                           ))}
@@ -2230,10 +2241,10 @@ export default function CRMPage() {
                 </div>
 
                 {/* ── 유입 경로 분석 ──────────────────────── */}
-                <div className="bg-[#111113] border border-[#1e1e22] rounded-xl p-5">
+                <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-5">
                   <h3 className="text-sm font-semibold text-[#C8A951] mb-4">고객 유입 경로 분석</h3>
                   {statsData.sourceAnalysis.length === 0 ? (
-                    <div className="text-sm text-[#71717a] py-4 text-center">데이터 없음</div>
+                    <div className="text-sm text-[var(--c-text-3)] py-4 text-center">데이터 없음</div>
                   ) : (
                     <div className="space-y-3">
                       {statsData.sourceAnalysis.map((s) => {
@@ -2241,15 +2252,15 @@ export default function CRMPage() {
                         return (
                           <div key={s.source}>
                             <div className="flex items-center justify-between mb-1">
-                              <span className="text-sm text-[#fafaf9]">{s.source}</span>
-                              <div className="text-xs text-[#71717a] flex gap-3">
-                                <span>고객 <span className="text-[#a1a1aa]">{s.customerCount}명</span></span>
-                                <span>시공 <span className="text-[#a1a1aa]">{s.serviceCount}건</span></span>
+                              <span className="text-sm text-[var(--c-text-1)]">{s.source}</span>
+                              <div className="text-xs text-[var(--c-text-3)] flex gap-3">
+                                <span>고객 <span className="text-[var(--c-text-2)]">{s.customerCount}명</span></span>
+                                <span>시공 <span className="text-[var(--c-text-2)]">{s.serviceCount}건</span></span>
                                 <span>매출 <span className="text-[#C8A951]">{s.revenue > 0 ? `${(s.revenue / 10000).toLocaleString()}만` : '-'}</span></span>
                                 <span>인당 <span className="text-[#3B82F6]">{s.avgPerCustomer > 0 ? `${(s.avgPerCustomer / 10000).toLocaleString()}만` : '-'}</span></span>
                               </div>
                             </div>
-                            <div className="w-full h-2 bg-[#1e1e22] rounded-full overflow-hidden">
+                            <div className="w-full h-2 bg-[var(--c-subtle)] rounded-full overflow-hidden">
                               <div className="h-full bg-[#3B82F6] rounded-full transition-all" style={{ width: `${(s.revenue / maxRev) * 100}%` }} />
                             </div>
                           </div>
@@ -2261,7 +2272,7 @@ export default function CRMPage() {
 
                 {/* ── 이번 주 작업량 리포트 ───────────────── */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <div className="bg-[#111113] border border-[#1e1e22] rounded-xl p-5">
+                  <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-5">
                     <h3 className="text-sm font-semibold text-[#C8A951] mb-4">이번 주 작업량</h3>
                     {statsData.weekDays && (() => {
                       const maxW = Math.max(...statsData.weekDays.map((d) => d.total), 1);
@@ -2273,51 +2284,51 @@ export default function CRMPage() {
                             const teamH = h - bossH;
                             return (
                               <div key={d.label} className="flex-1 flex flex-col items-center justify-end h-full">
-                                {d.total > 0 && <div className="text-[10px] text-[#71717a] mb-1">{d.total}</div>}
+                                {d.total > 0 && <div className="text-[10px] text-[var(--c-text-3)] mb-1">{d.total}</div>}
                                 <div className="w-full flex flex-col">
                                   {teamH > 0 && <div className="w-full rounded-t-sm bg-[#22C55E]" style={{ height: `${teamH}px`, opacity: 0.7 }} />}
                                   {bossH > 0 && <div className={`w-full ${teamH > 0 ? '' : 'rounded-t-sm'} bg-[#3B82F6]`} style={{ height: `${bossH}px`, opacity: 0.7 }} />}
-                                  {d.total === 0 && <div className="w-full rounded-t-sm bg-[#1e1e22]" style={{ height: '4px', opacity: 0.3 }} />}
+                                  {d.total === 0 && <div className="w-full rounded-t-sm bg-[var(--c-subtle)]" style={{ height: '4px', opacity: 0.3 }} />}
                                 </div>
-                                <div className="text-[10px] text-[#71717a] mt-1.5">{d.label}</div>
+                                <div className="text-[10px] text-[var(--c-text-3)] mt-1.5">{d.label}</div>
                               </div>
                             );
                           })}
                         </div>
                       );
                     })()}
-                    <div className="flex items-center gap-4 mt-3 text-[10px] text-[#71717a]">
+                    <div className="flex items-center gap-4 mt-3 text-[10px] text-[var(--c-text-3)]">
                       <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-[#3B82F6]" /> 대표</span>
                       <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-[#22C55E]" /> 이팀장님</span>
                     </div>
                     {statsData.monthWorkload && (
-                      <div className="mt-3 pt-3 border-t border-[#1e1e22] flex gap-4 text-xs text-[#71717a]">
-                        <span>이번 달: <span className="text-[#fafaf9] font-medium">{statsData.monthWorkload.total}건</span></span>
-                        <span>일 평균: <span className="text-[#fafaf9] font-medium">{statsData.monthWorkload.dailyAvg}건</span></span>
+                      <div className="mt-3 pt-3 border-t border-[var(--c-border)] flex gap-4 text-xs text-[var(--c-text-3)]">
+                        <span>이번 달: <span className="text-[var(--c-text-1)] font-medium">{statsData.monthWorkload.total}건</span></span>
+                        <span>일 평균: <span className="text-[var(--c-text-1)] font-medium">{statsData.monthWorkload.dailyAvg}건</span></span>
                       </div>
                     )}
                   </div>
 
                   {/* ── 수익 분석 ──────────────────────────── */}
-                  <div className="bg-[#111113] border border-[#1e1e22] rounded-xl p-5">
+                  <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-5">
                     <h3 className="text-sm font-semibold text-[#C8A951] mb-4">수익 분석</h3>
                     <div className="grid grid-cols-3 gap-3 mb-4">
                       <div>
-                        <label className="text-[10px] text-[#71717a] mb-1 block">대표 월급여</label>
-                        <input type="text" inputMode="numeric" value={salaryBoss ? Number(salaryBoss).toLocaleString() : ''} onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ''); setSalaryBoss(v); localStorage.setItem('salary_boss', v); }} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-1.5 text-xs text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="0" />
+                        <label className="text-[10px] text-[var(--c-text-3)] mb-1 block">대표 월급여</label>
+                        <input type="text" inputMode="numeric" value={salaryBoss ? Number(salaryBoss).toLocaleString() : ''} onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ''); setSalaryBoss(v); localStorage.setItem('salary_boss', v); }} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-1.5 text-xs text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="0" />
                       </div>
                       <div>
-                        <label className="text-[10px] text-[#71717a] mb-1 block">이팀장님 월급여</label>
-                        <input type="text" inputMode="numeric" value={salaryTeam ? Number(salaryTeam).toLocaleString() : ''} onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ''); setSalaryTeam(v); localStorage.setItem('salary_team', v); }} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-1.5 text-xs text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="0" />
+                        <label className="text-[10px] text-[var(--c-text-3)] mb-1 block">이팀장님 월급여</label>
+                        <input type="text" inputMode="numeric" value={salaryTeam ? Number(salaryTeam).toLocaleString() : ''} onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ''); setSalaryTeam(v); localStorage.setItem('salary_team', v); }} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-1.5 text-xs text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="0" />
                       </div>
                       <div>
-                        <label className="text-[10px] text-[#71717a] mb-1 block">김막내 월급여</label>
-                        <input type="text" inputMode="numeric" value={salaryJunior ? Number(salaryJunior).toLocaleString() : ''} onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ''); setSalaryJunior(v); localStorage.setItem('salary_junior', v); }} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-1.5 text-xs text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="0" />
+                        <label className="text-[10px] text-[var(--c-text-3)] mb-1 block">김막내 월급여</label>
+                        <input type="text" inputMode="numeric" value={salaryJunior ? Number(salaryJunior).toLocaleString() : ''} onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ''); setSalaryJunior(v); localStorage.setItem('salary_junior', v); }} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-1.5 text-xs text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="0" />
                       </div>
                     </div>
                     {(() => {
                       const totalSalary = (Number(salaryBoss) || 0) + (Number(salaryTeam) || 0) + (Number(salaryJunior) || 0);
-                      if (!totalSalary) return <div className="text-xs text-[#71717a] text-center py-4">급여를 입력하면 수익 분석이 표시됩니다</div>;
+                      if (!totalSalary) return <div className="text-xs text-[var(--c-text-3)] text-center py-4">급여를 입력하면 수익 분석이 표시됩니다</div>;
                       return (
                         <div className="space-y-2">
                           {statsData.byMonth.filter((m) => m.revenue > 0).slice(-6).map((m) => {
@@ -2326,12 +2337,12 @@ export default function CRMPage() {
                             const monthNum = m.month.split('-')[1];
                             return (
                               <div key={m.month} className="flex items-center gap-3 text-xs">
-                                <span className="text-[#71717a] w-8">{Number(monthNum)}월</span>
+                                <span className="text-[var(--c-text-3)] w-8">{Number(monthNum)}월</span>
                                 <div className="flex-1 flex items-center gap-2">
-                                  <span className="text-[#a1a1aa]">{(m.revenue / 10000).toLocaleString()}만</span>
-                                  <span className="text-[#71717a]">-</span>
+                                  <span className="text-[var(--c-text-2)]">{(m.revenue / 10000).toLocaleString()}만</span>
+                                  <span className="text-[var(--c-text-3)]">-</span>
                                   <span className="text-[#EF4444]/70">{(totalSalary / 10000).toLocaleString()}만</span>
-                                  <span className="text-[#71717a]">=</span>
+                                  <span className="text-[var(--c-text-3)]">=</span>
                                   <span className={`font-medium ${profit >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]'}`}>{(profit / 10000).toLocaleString()}만</span>
                                 </div>
                                 <span className={`text-[10px] px-1.5 py-0.5 rounded ${ratio <= 30 ? 'bg-[#22C55E]/15 text-[#22C55E]' : ratio <= 50 ? 'bg-[#C8A951]/15 text-[#C8A951]' : 'bg-[#EF4444]/15 text-[#EF4444]'}`}>인건비 {ratio}%</span>
@@ -2351,18 +2362,18 @@ export default function CRMPage() {
         {activeTab === 'inventory' && (
           <div>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm text-[#71717a]">{inventory.length}개 품목</h2>
+              <h2 className="text-sm text-[var(--c-text-3)]">{inventory.length}개 품목</h2>
             </div>
             {/* 등록/수정 폼 */}
-            <div className="bg-[#111113] border border-[#1e1e22] rounded-xl p-4 mb-4">
+            <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-4 mb-4">
               <h3 className="text-xs text-[#C8A951] font-semibold mb-3">{editInventoryId ? '품목 수정' : '품목 등록'}</h3>
               <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-                <input type="text" value={inventoryForm.name} onChange={(e) => setInventoryForm({ ...inventoryForm, name: e.target.value })} className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="품목명 *" />
-                <input type="text" inputMode="numeric" value={inventoryForm.quantity} onChange={(e) => setInventoryForm({ ...inventoryForm, quantity: e.target.value.replace(/[^0-9]/g, '') })} className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="수량" />
-                <select value={inventoryForm.unit} onChange={(e) => setInventoryForm({ ...inventoryForm, unit: e.target.value })} className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50">
+                <input type="text" value={inventoryForm.name} onChange={(e) => setInventoryForm({ ...inventoryForm, name: e.target.value })} className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="품목명 *" />
+                <input type="text" inputMode="numeric" value={inventoryForm.quantity} onChange={(e) => setInventoryForm({ ...inventoryForm, quantity: e.target.value.replace(/[^0-9]/g, '') })} className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="수량" />
+                <select value={inventoryForm.unit} onChange={(e) => setInventoryForm({ ...inventoryForm, unit: e.target.value })} className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50">
                   {['롤', 'ft', 'm', '개', '병', '장'].map((u) => <option key={u} value={u}>{u}</option>)}
                 </select>
-                <input type="text" inputMode="numeric" value={inventoryForm.min_stock} onChange={(e) => setInventoryForm({ ...inventoryForm, min_stock: e.target.value.replace(/[^0-9]/g, '') })} className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="최소재고" />
+                <input type="text" inputMode="numeric" value={inventoryForm.min_stock} onChange={(e) => setInventoryForm({ ...inventoryForm, min_stock: e.target.value.replace(/[^0-9]/g, '') })} className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="최소재고" />
                 <div className="flex gap-2">
                   <button
                     onClick={async () => {
@@ -2375,7 +2386,7 @@ export default function CRMPage() {
                     }}
                     className="flex-1 bg-[#E4002B] hover:bg-[#c60026] text-white text-sm font-medium rounded-lg px-3 py-2 transition-colors"
                   >{editInventoryId ? '수정' : '등록'}</button>
-                  {editInventoryId && <button onClick={() => { setEditInventoryId(null); setInventoryForm({ name: '', quantity: '', unit: '롤', min_stock: '', memo: '' }); }} className="text-xs text-[#71717a] hover:text-[#a1a1aa]">취소</button>}
+                  {editInventoryId && <button onClick={() => { setEditInventoryId(null); setInventoryForm({ name: '', quantity: '', unit: '롤', min_stock: '', memo: '' }); }} className="text-xs text-[var(--c-text-3)] hover:text-[var(--c-text-2)]">취소</button>}
                 </div>
               </div>
             </div>
@@ -2384,14 +2395,14 @@ export default function CRMPage() {
               {inventory.map((item) => {
                 const isLow = item.min_stock > 0 && item.quantity <= item.min_stock;
                 return (
-                  <div key={item.id} className={`bg-[#111113] border rounded-xl p-4 flex items-center justify-between ${isLow ? 'border-[#EF4444]/50' : 'border-[#1e1e22]'}`}>
+                  <div key={item.id} className={`bg-[var(--c-card)] border rounded-xl p-4 flex items-center justify-between ${isLow ? 'border-[#EF4444]/50' : 'border-[var(--c-border)]'}`}>
                     <div className="flex items-center gap-4">
                       <div>
-                        <div className="text-sm font-medium text-[#fafaf9]">
+                        <div className="text-sm font-medium text-[var(--c-text-1)]">
                           {item.name}
                           {isLow && <span className="ml-2 text-[9px] bg-[#EF4444]/20 text-[#EF4444] px-1.5 py-0.5 rounded-full font-medium">재고 부족</span>}
                         </div>
-                        <div className="text-xs text-[#71717a] mt-0.5">
+                        <div className="text-xs text-[var(--c-text-3)] mt-0.5">
                           최소재고: {item.min_stock}{item.unit}
                           {item.memo && <span className="ml-2">· {item.memo}</span>}
                         </div>
@@ -2399,17 +2410,17 @@ export default function CRMPage() {
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="text-right">
-                        <div className={`text-lg font-bold ${isLow ? 'text-[#EF4444]' : 'text-[#fafaf9]'}`}>{item.quantity}<span className="text-xs font-normal text-[#71717a] ml-1">{item.unit}</span></div>
+                        <div className={`text-lg font-bold ${isLow ? 'text-[#EF4444]' : 'text-[var(--c-text-1)]'}`}>{item.quantity}<span className="text-xs font-normal text-[var(--c-text-3)] ml-1">{item.unit}</span></div>
                       </div>
                       <div className="flex gap-1">
-                        <button onClick={() => { setEditInventoryId(item.id); setInventoryForm({ name: item.name, quantity: String(item.quantity), unit: item.unit, min_stock: String(item.min_stock), memo: item.memo || '' }); }} className="text-xs bg-[#1e1e22] text-[#a1a1aa] hover:bg-[#2a2a2e] px-2 py-1 rounded-lg transition-colors">수정</button>
-                        <button onClick={async () => { if (!confirm(`${item.name}을(를) 삭제하시겠습니까?`)) return; await fetch(`/api/inventory?id=${item.id}`, { method: 'DELETE' }); fetchInventory(); }} className="text-xs text-[#71717a] hover:text-[#EF4444] px-2 py-1 rounded-lg transition-colors">삭제</button>
+                        <button onClick={() => { setEditInventoryId(item.id); setInventoryForm({ name: item.name, quantity: String(item.quantity), unit: item.unit, min_stock: String(item.min_stock), memo: item.memo || '' }); }} className="text-xs bg-[var(--c-subtle)] text-[var(--c-text-2)] hover:bg-[var(--c-hover)] px-2 py-1 rounded-lg transition-colors">수정</button>
+                        <button onClick={async () => { if (!confirm(`${item.name}을(를) 삭제하시겠습니까?`)) return; await fetch(`/api/inventory?id=${item.id}`, { method: 'DELETE' }); fetchInventory(); }} className="text-xs text-[var(--c-text-3)] hover:text-[#EF4444] px-2 py-1 rounded-lg transition-colors">삭제</button>
                       </div>
                     </div>
                   </div>
                 );
               })}
-              {inventory.length === 0 && <div className="text-center py-12 text-sm text-[#71717a]">등록된 품목이 없습니다</div>}
+              {inventory.length === 0 && <div className="text-center py-12 text-sm text-[var(--c-text-3)]">등록된 품목이 없습니다</div>}
             </div>
           </div>
         )}
@@ -2417,36 +2428,36 @@ export default function CRMPage() {
         {activeTab === 'templates' && (
           <div className="space-y-6">
             {/* 견적서 생성 */}
-            <div className="bg-[#111113] border border-[#1e1e22] rounded-xl p-5">
+            <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-5">
               <h3 className="text-sm font-semibold text-[#C8A951] mb-4">Notion 견적서 생성</h3>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
                 <div className="col-span-2 lg:col-span-1">
-                  <label className="text-xs text-[#71717a] mb-1 block">고객 선택 *</label>
+                  <label className="text-xs text-[var(--c-text-3)] mb-1 block">고객 선택 *</label>
                   <select
                     value={estimateForm.customer_id}
                     onChange={(e) => setEstimateForm({ ...estimateForm, customer_id: e.target.value })}
-                    className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50"
+                    className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50"
                   >
                     <option value="">선택</option>
                     {allCustomers.map((c) => <option key={c.id} value={c.id}>{c.name}{c.car_brand ? ` (${c.car_brand} ${c.car_model || ''})` : ''}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs text-[#71717a] mb-1 block">예상 금액</label>
-                  <input type="text" inputMode="numeric" value={estimateForm.amount ? Number(estimateForm.amount).toLocaleString() : ''} onChange={(e) => { const raw = e.target.value.replace(/[^0-9]/g, ''); setEstimateForm({ ...estimateForm, amount: raw }); }} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="2,500,000" />
+                  <label className="text-xs text-[var(--c-text-3)] mb-1 block">예상 금액</label>
+                  <input type="text" inputMode="numeric" value={estimateForm.amount ? Number(estimateForm.amount).toLocaleString() : ''} onChange={(e) => { const raw = e.target.value.replace(/[^0-9]/g, ''); setEstimateForm({ ...estimateForm, amount: raw }); }} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="2,500,000" />
                 </div>
                 <div>
-                  <label className="text-xs text-[#71717a] mb-1 block">작업 예정일</label>
-                  <input type="date" value={estimateForm.scheduledDate} onChange={(e) => setEstimateForm({ ...estimateForm, scheduledDate: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" />
+                  <label className="text-xs text-[var(--c-text-3)] mb-1 block">작업 예정일</label>
+                  <input type="date" value={estimateForm.scheduledDate} onChange={(e) => setEstimateForm({ ...estimateForm, scheduledDate: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" />
                 </div>
                 <div>
-                  <label className="text-xs text-[#71717a] mb-1 block">비고</label>
-                  <input type="text" value={estimateForm.memo} onChange={(e) => setEstimateForm({ ...estimateForm, memo: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="추가 메모" />
+                  <label className="text-xs text-[var(--c-text-3)] mb-1 block">비고</label>
+                  <input type="text" value={estimateForm.memo} onChange={(e) => setEstimateForm({ ...estimateForm, memo: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="추가 메모" />
                 </div>
               </div>
               {/* 서비스 선택 */}
               <div className="mb-4">
-                <label className="text-xs text-[#71717a] mb-2 block">서비스 선택</label>
+                <label className="text-xs text-[var(--c-text-3)] mb-2 block">서비스 선택</label>
                 <div className="flex flex-wrap gap-2">
                   {['PPF', '틴팅', '세라믹코팅', '래핑', '크롬죽이기', '신차패키지'].map((svc) => (
                     <button
@@ -2461,7 +2472,7 @@ export default function CRMPage() {
                       className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
                         estimateForm.services.includes(svc)
                           ? 'bg-[#C8A951]/20 border-[#C8A951]/50 text-[#C8A951]'
-                          : 'bg-[#0d0d0f] border-[#1e1e22] text-[#71717a] hover:text-[#a1a1aa]'
+                          : 'bg-[var(--c-input)] border-[var(--c-border)] text-[var(--c-text-3)] hover:text-[var(--c-text-2)]'
                       }`}
                     >
                       {svc}
@@ -2478,7 +2489,7 @@ export default function CRMPage() {
                           type="text"
                           value={estimateForm.serviceDetails[svc] || ''}
                           onChange={(e) => setEstimateForm((f) => ({ ...f, serviceDetails: { ...f.serviceDetails, [svc]: e.target.value } }))}
-                          className="flex-1 bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-1.5 text-xs text-[#fafaf9] outline-none focus:border-[#C8A951]/50"
+                          className="flex-1 bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-1.5 text-xs text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50"
                           placeholder={svc === 'PPF' ? '전면 풀랩 + 사이드미러 + 도어엣지' : svc === '틴팅' ? '전면 크리스탈라인 70% + 측후면 루마 15%' : `${svc} 세부 내용`}
                         />
                       </div>
@@ -2540,12 +2551,12 @@ export default function CRMPage() {
             {/* 기존 견적 템플릿 */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {TEMPLATE_KEYS.map((key) => (
-              <div key={key} className="bg-[#111113] border border-[#1e1e22] rounded-xl p-4 flex flex-col">
+              <div key={key} className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-4 flex flex-col">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-semibold text-[#C8A951]">{key}</h3>
                   <button
                     onClick={() => handleResetTemplate(key)}
-                    className="text-[10px] text-[#71717a] hover:text-[#a1a1aa] transition-colors"
+                    className="text-[10px] text-[var(--c-text-3)] hover:text-[var(--c-text-2)] transition-colors"
                   >
                     기본값 복원
                   </button>
@@ -2553,7 +2564,7 @@ export default function CRMPage() {
                 <textarea
                   value={templates[key] || ''}
                   onChange={(e) => handleTemplateChange(key, e.target.value)}
-                  className="flex-1 bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50 resize-y leading-relaxed"
+                  className="flex-1 bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50 resize-y leading-relaxed"
                   style={{ minHeight: '300px' }}
                 />
                 <div className="flex gap-2 mt-3">
@@ -2584,81 +2595,81 @@ export default function CRMPage() {
       {/* ─── Modal: 고객 추가 ────────────────────────────────── */}
       {showAddCustomer && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center" onClick={() => { setShowAddCustomer(false); setEditCustomerId(null); }}>
-          <div className="bg-[#111113] border border-[#1e1e22] rounded-xl w-full max-w-lg p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-[#fafaf9] font-semibold text-base mb-4">{editCustomerId ? '고객 수정' : '고객 추가'}</h3>
+          <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl w-full max-w-lg p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-[var(--c-text-1)] font-semibold text-base mb-4">{editCustomerId ? '고객 수정' : '고객 추가'}</h3>
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
-                <label className="text-xs text-[#71717a] mb-1 block">이름 *</label>
-                <input type="text" value={customerForm.name} onChange={(e) => setCustomerForm({ ...customerForm, name: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="고객 이름" />
+                <label className="text-xs text-[var(--c-text-3)] mb-1 block">이름 *</label>
+                <input type="text" value={customerForm.name} onChange={(e) => setCustomerForm({ ...customerForm, name: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="고객 이름" />
               </div>
               <div>
-                <label className="text-xs text-[#71717a] mb-1 block">연락처</label>
-                <input type="text" value={customerForm.phone} onChange={(e) => setCustomerForm({ ...customerForm, phone: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="010-0000-0000" />
+                <label className="text-xs text-[var(--c-text-3)] mb-1 block">연락처</label>
+                <input type="text" value={customerForm.phone} onChange={(e) => setCustomerForm({ ...customerForm, phone: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="010-0000-0000" />
               </div>
               <div>
-                <label className="text-xs text-[#71717a] mb-1 block">유입경로</label>
-                <select value={customerForm.source} onChange={(e) => setCustomerForm({ ...customerForm, source: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50">
+                <label className="text-xs text-[var(--c-text-3)] mb-1 block">유입경로</label>
+                <select value={customerForm.source} onChange={(e) => setCustomerForm({ ...customerForm, source: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50">
                   <option value="">선택...</option>
                   {['카페', '블로그', '소개/재방문', '유튜브', '고정', '경로X', '기타'].map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-xs text-[#71717a] mb-1 block">차량 브랜드</label>
-                <input type="text" value={customerForm.car_brand} onChange={(e) => setCustomerForm({ ...customerForm, car_brand: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="BMW, 벤츠, 포르쉐 등" />
+                <label className="text-xs text-[var(--c-text-3)] mb-1 block">차량 브랜드</label>
+                <input type="text" value={customerForm.car_brand} onChange={(e) => setCustomerForm({ ...customerForm, car_brand: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="BMW, 벤츠, 포르쉐 등" />
               </div>
               <div>
-                <label className="text-xs text-[#71717a] mb-1 block">차량 모델</label>
-                <input type="text" value={customerForm.car_model} onChange={(e) => setCustomerForm({ ...customerForm, car_model: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="X5, GLE, 카이엔 등" />
+                <label className="text-xs text-[var(--c-text-3)] mb-1 block">차량 모델</label>
+                <input type="text" value={customerForm.car_model} onChange={(e) => setCustomerForm({ ...customerForm, car_model: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="X5, GLE, 카이엔 등" />
               </div>
               <div>
-                <label className="text-xs text-[#71717a] mb-1 block">연식</label>
-                <input type="text" value={customerForm.car_year} onChange={(e) => setCustomerForm({ ...customerForm, car_year: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="2024" />
+                <label className="text-xs text-[var(--c-text-3)] mb-1 block">연식</label>
+                <input type="text" value={customerForm.car_year} onChange={(e) => setCustomerForm({ ...customerForm, car_year: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="2024" />
               </div>
               <div>
-                <label className="text-xs text-[#71717a] mb-1 block">색상</label>
-                <input type="text" value={customerForm.car_color} onChange={(e) => setCustomerForm({ ...customerForm, car_color: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="블랙, 화이트 등" />
+                <label className="text-xs text-[var(--c-text-3)] mb-1 block">색상</label>
+                <input type="text" value={customerForm.car_color} onChange={(e) => setCustomerForm({ ...customerForm, car_color: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="블랙, 화이트 등" />
               </div>
               <div className="col-span-2">
-                <label className="text-xs text-[#71717a] mb-1 block">메모</label>
-                <textarea value={customerForm.memo} onChange={(e) => setCustomerForm({ ...customerForm, memo: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50 resize-none h-20" placeholder="특이사항" />
+                <label className="text-xs text-[var(--c-text-3)] mb-1 block">메모</label>
+                <textarea value={customerForm.memo} onChange={(e) => setCustomerForm({ ...customerForm, memo: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50 resize-none h-20" placeholder="특이사항" />
               </div>
               {editCustomerId && (
-              <div className="col-span-2 border-t border-[#1e1e22] pt-3 mt-1">
-                <label className="text-xs text-[#71717a] mb-1 block">예상 금액</label>
-                <input type="text" inputMode="numeric" value={customerForm.appointment_amount ? Number(customerForm.appointment_amount).toLocaleString() : ''} onChange={(e) => { const raw = e.target.value.replace(/[^0-9]/g, ''); setCustomerForm({ ...customerForm, appointment_amount: raw }); }} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="2,500,000" />
+              <div className="col-span-2 border-t border-[var(--c-border)] pt-3 mt-1">
+                <label className="text-xs text-[var(--c-text-3)] mb-1 block">예상 금액</label>
+                <input type="text" inputMode="numeric" value={customerForm.appointment_amount ? Number(customerForm.appointment_amount).toLocaleString() : ''} onChange={(e) => { const raw = e.target.value.replace(/[^0-9]/g, ''); setCustomerForm({ ...customerForm, appointment_amount: raw }); }} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="2,500,000" />
               </div>
               )}
               {!editCustomerId && (<>
-              <div className="col-span-2 border-t border-[#1e1e22] pt-3 mt-1">
+              <div className="col-span-2 border-t border-[var(--c-border)] pt-3 mt-1">
                 <div className="text-xs text-[#C8A951] font-medium mb-2">예약 정보 (선택)</div>
               </div>
               <div>
-                <label className="text-xs text-[#71717a] mb-1 block">시공 시작일</label>
-                <input type="date" value={customerForm.appointment_start_date} onChange={(e) => setCustomerForm({ ...customerForm, appointment_start_date: e.target.value })} onInput={(e) => setCustomerForm({ ...customerForm, appointment_start_date: (e.target as HTMLInputElement).value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" />
+                <label className="text-xs text-[var(--c-text-3)] mb-1 block">시공 시작일</label>
+                <input type="date" value={customerForm.appointment_start_date} onChange={(e) => setCustomerForm({ ...customerForm, appointment_start_date: e.target.value })} onInput={(e) => setCustomerForm({ ...customerForm, appointment_start_date: (e.target as HTMLInputElement).value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" />
               </div>
               <div>
-                <label className="text-xs text-[#71717a] mb-1 block">시공 종료일</label>
-                <input type="date" value={customerForm.appointment_end_date} onChange={(e) => setCustomerForm({ ...customerForm, appointment_end_date: e.target.value })} onInput={(e) => setCustomerForm({ ...customerForm, appointment_end_date: (e.target as HTMLInputElement).value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" />
+                <label className="text-xs text-[var(--c-text-3)] mb-1 block">시공 종료일</label>
+                <input type="date" value={customerForm.appointment_end_date} onChange={(e) => setCustomerForm({ ...customerForm, appointment_end_date: e.target.value })} onInput={(e) => setCustomerForm({ ...customerForm, appointment_end_date: (e.target as HTMLInputElement).value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" />
               </div>
               <div className="col-span-2">
-                <label className="text-xs text-[#71717a] mb-1 block">시공 종류</label>
-                <select value={customerForm.appointment_service_type} onChange={(e) => setCustomerForm({ ...customerForm, appointment_service_type: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50">
+                <label className="text-xs text-[var(--c-text-3)] mb-1 block">시공 종류</label>
+                <select value={customerForm.appointment_service_type} onChange={(e) => setCustomerForm({ ...customerForm, appointment_service_type: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50">
                   <option value="">선택...</option>
                   {SERVICE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <div className="col-span-2">
-                <label className="text-xs text-[#71717a] mb-1 block">예상 금액</label>
-                <input type="text" inputMode="numeric" value={customerForm.appointment_amount ? Number(customerForm.appointment_amount).toLocaleString() : ''} onChange={(e) => { const raw = e.target.value.replace(/[^0-9]/g, ''); setCustomerForm({ ...customerForm, appointment_amount: raw }); }} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="2,500,000" />
+                <label className="text-xs text-[var(--c-text-3)] mb-1 block">예상 금액</label>
+                <input type="text" inputMode="numeric" value={customerForm.appointment_amount ? Number(customerForm.appointment_amount).toLocaleString() : ''} onChange={(e) => { const raw = e.target.value.replace(/[^0-9]/g, ''); setCustomerForm({ ...customerForm, appointment_amount: raw }); }} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="2,500,000" />
               </div>
               <div className="col-span-2">
-                <label className="text-xs text-[#71717a] mb-1 block">예약 메모</label>
-                <textarea value={customerForm.appointment_memo} onChange={(e) => setCustomerForm({ ...customerForm, appointment_memo: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50 resize-none h-16" placeholder="예약 관련 메모" />
+                <label className="text-xs text-[var(--c-text-3)] mb-1 block">예약 메모</label>
+                <textarea value={customerForm.appointment_memo} onChange={(e) => setCustomerForm({ ...customerForm, appointment_memo: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50 resize-none h-16" placeholder="예약 관련 메모" />
               </div>
               </>)}
             </div>
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => { setShowAddCustomer(false); setEditCustomerId(null); }} className="px-4 py-2 text-sm text-[#71717a] hover:text-[#a1a1aa] transition-colors">취소</button>
+              <button onClick={() => { setShowAddCustomer(false); setEditCustomerId(null); }} className="px-4 py-2 text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-2)] transition-colors">취소</button>
               <button onClick={editCustomerId ? handleUpdateCustomer : handleAddCustomer} className="bg-[#E4002B] hover:bg-[#c60026] text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors">{editCustomerId ? '수정' : '추가'}</button>
             </div>
           </div>
@@ -2668,39 +2679,39 @@ export default function CRMPage() {
       {/* ─── Modal: 예약 추가 ────────────────────────────────── */}
       {showAddAppointment && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center" onClick={() => setShowAddAppointment(false)}>
-          <div className="bg-[#111113] border border-[#1e1e22] rounded-xl w-full max-w-lg p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-[#fafaf9] font-semibold text-base mb-4">예약 추가</h3>
+          <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl w-full max-w-lg p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-[var(--c-text-1)] font-semibold text-base mb-4">예약 추가</h3>
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-[#71717a] mb-1 block">고객 *</label>
+                <label className="text-xs text-[var(--c-text-3)] mb-1 block">고객 *</label>
                 <CustomerPicker value={appointmentForm.customer_id} onChange={(id) => setAppointmentForm({ ...appointmentForm, customer_id: id })} />
               </div>
               <div>
-                <label className="text-xs text-[#71717a] mb-1 block">시공 시작일 *</label>
-                <input type="date" value={appointmentForm.appointment_date} onChange={(e) => setAppointmentForm({ ...appointmentForm, appointment_date: e.target.value })} onInput={(e) => setAppointmentForm({ ...appointmentForm, appointment_date: (e.target as HTMLInputElement).value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" />
+                <label className="text-xs text-[var(--c-text-3)] mb-1 block">시공 시작일 *</label>
+                <input type="date" value={appointmentForm.appointment_date} onChange={(e) => setAppointmentForm({ ...appointmentForm, appointment_date: e.target.value })} onInput={(e) => setAppointmentForm({ ...appointmentForm, appointment_date: (e.target as HTMLInputElement).value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" />
               </div>
               <div>
-                <label className="text-xs text-[#71717a] mb-1 block">시공 종료일</label>
-                <input type="date" value={appointmentForm.end_date} onChange={(e) => setAppointmentForm({ ...appointmentForm, end_date: e.target.value })} onInput={(e) => setAppointmentForm({ ...appointmentForm, end_date: (e.target as HTMLInputElement).value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" />
+                <label className="text-xs text-[var(--c-text-3)] mb-1 block">시공 종료일</label>
+                <input type="date" value={appointmentForm.end_date} onChange={(e) => setAppointmentForm({ ...appointmentForm, end_date: e.target.value })} onInput={(e) => setAppointmentForm({ ...appointmentForm, end_date: (e.target as HTMLInputElement).value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" />
               </div>
               <div>
-                <label className="text-xs text-[#71717a] mb-1 block">시공 종류</label>
-                <select value={appointmentForm.service_type} onChange={(e) => setAppointmentForm({ ...appointmentForm, service_type: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50">
+                <label className="text-xs text-[var(--c-text-3)] mb-1 block">시공 종류</label>
+                <select value={appointmentForm.service_type} onChange={(e) => setAppointmentForm({ ...appointmentForm, service_type: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50">
                   <option value="">선택...</option>
                   {SERVICE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-xs text-[#71717a] mb-1 block">예상 금액</label>
-                <input type="text" inputMode="numeric" value={appointmentForm.amount ? Number(appointmentForm.amount).toLocaleString() : ''} onChange={(e) => { const raw = e.target.value.replace(/[^0-9]/g, ''); setAppointmentForm({ ...appointmentForm, amount: raw }); }} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="2,500,000" />
+                <label className="text-xs text-[var(--c-text-3)] mb-1 block">예상 금액</label>
+                <input type="text" inputMode="numeric" value={appointmentForm.amount ? Number(appointmentForm.amount).toLocaleString() : ''} onChange={(e) => { const raw = e.target.value.replace(/[^0-9]/g, ''); setAppointmentForm({ ...appointmentForm, amount: raw }); }} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="2,500,000" />
               </div>
               <div>
-                <label className="text-xs text-[#71717a] mb-1 block">메모</label>
-                <textarea value={appointmentForm.memo} onChange={(e) => setAppointmentForm({ ...appointmentForm, memo: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50 resize-none h-20" placeholder="메모" />
+                <label className="text-xs text-[var(--c-text-3)] mb-1 block">메모</label>
+                <textarea value={appointmentForm.memo} onChange={(e) => setAppointmentForm({ ...appointmentForm, memo: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50 resize-none h-20" placeholder="메모" />
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setShowAddAppointment(false)} className="px-4 py-2 text-sm text-[#71717a] hover:text-[#a1a1aa] transition-colors">취소</button>
+              <button onClick={() => setShowAddAppointment(false)} className="px-4 py-2 text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-2)] transition-colors">취소</button>
               <button onClick={handleAddAppointment} className="bg-[#E4002B] hover:bg-[#c60026] text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors">추가</button>
             </div>
           </div>
@@ -2710,38 +2721,38 @@ export default function CRMPage() {
       {/* ─── Modal: 상담 추가 ────────────────────────────────── */}
       {showAddConsultation && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center" onClick={() => setShowAddConsultation(false)}>
-          <div className="bg-[#111113] border border-[#1e1e22] rounded-xl w-full max-w-lg p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-[#fafaf9] font-semibold text-base mb-4">상담 추가</h3>
+          <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl w-full max-w-lg p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-[var(--c-text-1)] font-semibold text-base mb-4">상담 추가</h3>
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-[#71717a] mb-1 block">고객 *</label>
+                <label className="text-xs text-[var(--c-text-3)] mb-1 block">고객 *</label>
                 <CustomerPicker value={consultationForm.customer_id} onChange={(id) => setConsultationForm({ ...consultationForm, customer_id: id })} />
               </div>
               <div>
-                <label className="text-xs text-[#71717a] mb-1 block">상담 날짜 *</label>
-                <input type="date" value={consultationForm.consultation_date} onChange={(e) => setConsultationForm({ ...consultationForm, consultation_date: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" />
+                <label className="text-xs text-[var(--c-text-3)] mb-1 block">상담 날짜 *</label>
+                <input type="date" value={consultationForm.consultation_date} onChange={(e) => setConsultationForm({ ...consultationForm, consultation_date: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" />
               </div>
               <div>
-                <label className="text-xs text-[#71717a] mb-1 block">상담 내용</label>
-                <textarea value={consultationForm.content} onChange={(e) => setConsultationForm({ ...consultationForm, content: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50 resize-none h-24" placeholder="상담 내용을 입력하세요" />
+                <label className="text-xs text-[var(--c-text-3)] mb-1 block">상담 내용</label>
+                <textarea value={consultationForm.content} onChange={(e) => setConsultationForm({ ...consultationForm, content: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50 resize-none h-24" placeholder="상담 내용을 입력하세요" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-[#71717a] mb-1 block">견적</label>
-                  <input type="text" value={consultationForm.estimate} onChange={(e) => setConsultationForm({ ...consultationForm, estimate: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="예: 350만원" />
+                  <label className="text-xs text-[var(--c-text-3)] mb-1 block">견적</label>
+                  <input type="text" value={consultationForm.estimate} onChange={(e) => setConsultationForm({ ...consultationForm, estimate: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="예: 350만원" />
                 </div>
                 <div>
-                  <label className="text-xs text-[#71717a] mb-1 block">관심 시공</label>
-                  <input type="text" value={consultationForm.interested_services} onChange={(e) => setConsultationForm({ ...consultationForm, interested_services: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="PPF, 썬팅 등" />
+                  <label className="text-xs text-[var(--c-text-3)] mb-1 block">관심 시공</label>
+                  <input type="text" value={consultationForm.interested_services} onChange={(e) => setConsultationForm({ ...consultationForm, interested_services: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="PPF, 썬팅 등" />
                 </div>
               </div>
               <div>
-                <label className="text-xs text-[#71717a] mb-1 block">메모</label>
-                <input type="text" value={consultationForm.memo} onChange={(e) => setConsultationForm({ ...consultationForm, memo: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="메모" />
+                <label className="text-xs text-[var(--c-text-3)] mb-1 block">메모</label>
+                <input type="text" value={consultationForm.memo} onChange={(e) => setConsultationForm({ ...consultationForm, memo: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="메모" />
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setShowAddConsultation(false)} className="px-4 py-2 text-sm text-[#71717a] hover:text-[#a1a1aa] transition-colors">취소</button>
+              <button onClick={() => setShowAddConsultation(false)} className="px-4 py-2 text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-2)] transition-colors">취소</button>
               <button onClick={handleAddConsultation} className="bg-[#E4002B] hover:bg-[#c60026] text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors">추가</button>
             </div>
           </div>
@@ -2760,23 +2771,23 @@ export default function CRMPage() {
       )}
       {showCalendarSub && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center" onClick={() => setShowCalendarSub(false)}>
-          <div className="bg-[#111113] border border-[#1e1e22] rounded-xl w-full max-w-lg p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-[#fafaf9] font-semibold text-base mb-4">캘린더 구독</h3>
-            <p className="text-xs text-[#71717a] mb-3">아래 URL을 캘린더 앱에서 구독하면 예약 일정이 자동으로 동기화됩니다.</p>
+          <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl w-full max-w-lg p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-[var(--c-text-1)] font-semibold text-base mb-4">캘린더 구독</h3>
+            <p className="text-xs text-[var(--c-text-3)] mb-3">아래 URL을 캘린더 앱에서 구독하면 예약 일정이 자동으로 동기화됩니다.</p>
             <div className="flex items-center gap-2 mb-4">
-              <input readOnly value="https://proism-ai.vercel.app/api/calendar?token=proism2026" className="flex-1 bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-xs text-[#fafaf9] outline-none select-all" onFocus={(e) => e.target.select()} />
+              <input readOnly value="https://proism-ai.vercel.app/api/calendar?token=proism2026" className="flex-1 bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-xs text-[var(--c-text-1)] outline-none select-all" onFocus={(e) => e.target.select()} />
               <button onClick={() => { navigator.clipboard.writeText('https://proism-ai.vercel.app/api/calendar?token=proism2026'); alert('URL이 복사되었습니다!'); }} className="bg-[#3B82F6] hover:bg-[#2563EB] text-white text-xs font-medium rounded-lg px-3 py-2 transition-colors whitespace-nowrap">URL 복사</button>
             </div>
-            <div className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg p-4 text-xs text-[#a1a1aa] space-y-1.5">
+            <div className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg p-4 text-xs text-[var(--c-text-2)] space-y-1.5">
               <div className="text-[#C8A951] font-medium mb-1">구독 방법</div>
               <div>1. TimeTree 앱 → 설정 → 캘린더 구독 → URL 붙여넣기</div>
               <div>2. 팀원들도 같은 URL로 구독하면 모두 같이 볼 수 있습니다</div>
               <div>3. 예약이 추가/변경되면 자동으로 반영됩니다</div>
-              <div className="border-t border-[#1e1e22] pt-1.5 mt-1.5">* Apple 캘린더: 파일 → 새 캘린더 구독 → URL 입력</div>
+              <div className="border-t border-[var(--c-border)] pt-1.5 mt-1.5">* Apple 캘린더: 파일 → 새 캘린더 구독 → URL 입력</div>
               <div>* Google 캘린더: 설정 → 캘린더 추가 → URL로 추가</div>
             </div>
             <div className="flex justify-end mt-4">
-              <button onClick={() => setShowCalendarSub(false)} className="px-4 py-2 text-sm text-[#71717a] hover:text-[#a1a1aa] transition-colors">닫기</button>
+              <button onClick={() => setShowCalendarSub(false)} className="px-4 py-2 text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-2)] transition-colors">닫기</button>
             </div>
           </div>
         </div>
@@ -2792,7 +2803,7 @@ export default function CRMPage() {
       )}
 
       {/* Footer */}
-      <div className="fixed bottom-0 left-0 right-0 bg-[#0d0d0f]/80 backdrop-blur-sm border-t border-[#1e1e22] py-1.5 px-4 text-center text-[10px] text-[#52525b] z-10">
+      <div className="fixed bottom-0 left-0 right-0 bg-[var(--c-input)]/80 backdrop-blur-sm border-t border-[var(--c-border)] py-1.5 px-4 text-center text-[10px] text-[var(--c-text-4)] z-10">
         3M 프로이즘 | 서초중앙로8길 82, 1동 1층 | 010-7287-7140 | poi_1357@naver.com
       </div>
     </div>
@@ -2814,7 +2825,7 @@ function CheckItem({ label, checked, onChange }: { label: string; checked: boole
   return (
     <div
       onClick={() => onChange(!checked)}
-      className="flex items-center gap-2 cursor-pointer text-sm text-[#fafaf9] hover:text-[#C8A951] transition-colors select-none"
+      className="flex items-center gap-2 cursor-pointer text-sm text-[var(--c-text-1)] hover:text-[#C8A951] transition-colors select-none"
     >
       <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors shrink-0 ${checked ? 'bg-[#C8A951] border-[#C8A951]' : 'border-[#71717a]'}`}>
         {checked && <span className="text-[10px] text-black font-bold">✓</span>}
@@ -2826,7 +2837,7 @@ function CheckItem({ label, checked, onChange }: { label: string; checked: boole
 
 function SectionTitle({ title }: { title: string }) {
   return (
-    <div className="border-t border-[#1e1e22] pt-4 mt-4">
+    <div className="border-t border-[var(--c-border)] pt-4 mt-4">
       <h4 className="text-sm font-semibold text-[#C8A951] mb-3">{title}</h4>
     </div>
   );
@@ -2884,44 +2895,44 @@ function WorkOrderModal({ appointment, workOrder, setWorkOrder, onSubmit, onSave
 
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-[#111113] border border-[#1e1e22] rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="sticky top-0 bg-[#111113] border-b border-[#1e1e22] px-6 py-4 flex items-center justify-between z-10">
-          <h3 className="text-[#fafaf9] font-semibold text-base">작업 내역서</h3>
-          <button onClick={onClose} className="text-[#71717a] hover:text-[#fafaf9] transition-colors text-lg">✕</button>
+      <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="sticky top-0 bg-[var(--c-card)] border-b border-[var(--c-border)] px-6 py-4 flex items-center justify-between z-10">
+          <h3 className="text-[var(--c-text-1)] font-semibold text-base">작업 내역서</h3>
+          <button onClick={onClose} className="text-[var(--c-text-3)] hover:text-[var(--c-text-1)] transition-colors text-lg">✕</button>
         </div>
 
         <div className="p-6 space-y-0">
           {/* 고객 정보 */}
           <div className="grid grid-cols-3 gap-3 mb-4">
             <div>
-              <label className="text-xs text-[#71717a] mb-1 block">일자</label>
-              <div className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#a1a1aa]">
+              <label className="text-xs text-[var(--c-text-3)] mb-1 block">일자</label>
+              <div className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-2)]">
                 {new Date().toLocaleDateString('ko-KR')}
               </div>
             </div>
             <div>
-              <label className="text-xs text-[#71717a] mb-1 block">브랜드/차종</label>
-              <div className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#a1a1aa]">
+              <label className="text-xs text-[var(--c-text-3)] mb-1 block">브랜드/차종</label>
+              <div className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-2)]">
                 {appointment.service_type || '-'}
               </div>
             </div>
             <div>
-              <label className="text-xs text-[#71717a] mb-1 block">차량번호</label>
-              <input type="text" value={workOrder.car_number} onChange={(e) => setWorkOrder({ ...workOrder, car_number: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="12가 3456" />
+              <label className="text-xs text-[var(--c-text-3)] mb-1 block">차량번호</label>
+              <input type="text" value={workOrder.car_number} onChange={(e) => setWorkOrder({ ...workOrder, car_number: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="12가 3456" />
             </div>
             <div>
-              <label className="text-xs text-[#71717a] mb-1 block">성명</label>
-              <div className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#a1a1aa]">
+              <label className="text-xs text-[var(--c-text-3)] mb-1 block">성명</label>
+              <div className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-2)]">
                 {customer?.name || '-'}
               </div>
             </div>
             <div>
-              <label className="text-xs text-[#71717a] mb-1 block">유입경로</label>
-              <div className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#a1a1aa]">-</div>
+              <label className="text-xs text-[var(--c-text-3)] mb-1 block">유입경로</label>
+              <div className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-2)]">-</div>
             </div>
             <div>
-              <label className="text-xs text-[#71717a] mb-1 block">연락처</label>
-              <div className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#a1a1aa]">
+              <label className="text-xs text-[var(--c-text-3)] mb-1 block">연락처</label>
+              <div className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-2)]">
                 {customer?.phone || '-'}
               </div>
             </div>
@@ -2942,12 +2953,12 @@ function WorkOrderModal({ appointment, workOrder, setWorkOrder, onSubmit, onSave
               { brand: 'glasstint' as const, label: '글라스틴트', products: ['산타나(비반사)', '로데(비반사)', '선셋(반사)', '펜더S(비반사)', '기타'] },
               { brand: 'tinain' as const, label: '티나인', products: ['V100(반사)', 'R100(비반사)', '기타'] },
             ]).map(({ brand, label, products }) => (
-              <div key={brand} className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg p-3">
+              <div key={brand} className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg p-3">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-medium text-[#a1a1aa]">{label}</span>
+                  <span className="text-xs font-medium text-[var(--c-text-2)]">{label}</span>
                   <div className="flex items-center gap-1">
-                    <span className="text-xs text-[#71717a]">농도:</span>
-                    <input type="text" value={workOrder.tinting[brand].density} onChange={(e) => setTintingDensity(brand, e.target.value)} className="w-40 bg-[#111113] border border-[#1e1e22] rounded px-2 py-1 text-xs text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="전면 30 / 측후면 15" />
+                    <span className="text-xs text-[var(--c-text-3)]">농도:</span>
+                    <input type="text" value={workOrder.tinting[brand].density} onChange={(e) => setTintingDensity(brand, e.target.value)} className="w-40 bg-[var(--c-card)] border border-[var(--c-border)] rounded px-2 py-1 text-xs text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="전면 30 / 측후면 15" />
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-3">
@@ -2962,29 +2973,29 @@ function WorkOrderModal({ appointment, workOrder, setWorkOrder, onSubmit, onSave
           {/* PPF & 랩핑 */}
           <SectionTitle title="PPF & 랩핑" />
           <div className="grid grid-cols-2 gap-3">
-            <div className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg p-3">
-              <span className="text-xs font-medium text-[#a1a1aa] mb-2 block">PPF</span>
+            <div className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg p-3">
+              <span className="text-xs font-medium text-[var(--c-text-2)] mb-2 block">PPF</span>
               <div className="flex flex-wrap gap-3 mb-2">
                 {['전체PPF', '프론트패키지', '생활보호패키지'].map((p) => (
                   <CheckItem key={p} label={p} checked={workOrder.ppf.includes(p)} onChange={() => setWorkOrder({ ...workOrder, ppf: toggleArray(workOrder.ppf, p) })} />
                 ))}
               </div>
-              <input type="text" value={workOrder.ppf_etc} onChange={(e) => setWorkOrder({ ...workOrder, ppf_etc: e.target.value })} className="w-full bg-[#111113] border border-[#1e1e22] rounded px-2 py-1 text-xs text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="기타 (직접 입력)" />
+              <input type="text" value={workOrder.ppf_etc} onChange={(e) => setWorkOrder({ ...workOrder, ppf_etc: e.target.value })} className="w-full bg-[var(--c-card)] border border-[var(--c-border)] rounded px-2 py-1 text-xs text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="기타 (직접 입력)" />
             </div>
-            <div className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg p-3">
-              <span className="text-xs font-medium text-[#a1a1aa] mb-2 block">랩핑</span>
+            <div className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg p-3">
+              <span className="text-xs font-medium text-[var(--c-text-2)] mb-2 block">랩핑</span>
               <div className="flex flex-wrap gap-3 mb-2">
                 {['전체랩핑', '부분'].map((p) => (
                   <CheckItem key={p} label={p} checked={workOrder.wrapping.includes(p)} onChange={() => setWorkOrder({ ...workOrder, wrapping: toggleArray(workOrder.wrapping, p) })} />
                 ))}
               </div>
-              <input type="text" value={workOrder.wrapping_etc} onChange={(e) => setWorkOrder({ ...workOrder, wrapping_etc: e.target.value })} className="w-full bg-[#111113] border border-[#1e1e22] rounded px-2 py-1 text-xs text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="기타 (직접 입력)" />
+              <input type="text" value={workOrder.wrapping_etc} onChange={(e) => setWorkOrder({ ...workOrder, wrapping_etc: e.target.value })} className="w-full bg-[var(--c-card)] border border-[var(--c-border)] rounded px-2 py-1 text-xs text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="기타 (직접 입력)" />
             </div>
           </div>
 
           {/* 코팅 */}
           <SectionTitle title="코팅시공" />
-          <div className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg p-3">
+          <div className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg p-3">
             <div className="flex flex-wrap gap-3">
               {['기본유리막', '9H', '10H', '그래핀PRO', '가죽코팅(시트)', '가죽코팅(전체)', '발수코팅', '필름코팅'].map((p) => (
                 <CheckItem key={p} label={p} checked={workOrder.coating.includes(p)} onChange={() => setWorkOrder({ ...workOrder, coating: toggleArray(workOrder.coating, p) })} />
@@ -2995,29 +3006,29 @@ function WorkOrderModal({ appointment, workOrder, setWorkOrder, onSubmit, onSave
           {/* 기타 */}
           <SectionTitle title="기타" />
           <div className="grid grid-cols-2 gap-3">
-            <div className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg p-3">
-              <span className="text-xs font-medium text-[#a1a1aa] mb-2 block">전장시공</span>
+            <div className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg p-3">
+              <span className="text-xs font-medium text-[var(--c-text-2)] mb-2 block">전장시공</span>
               <div className="flex flex-wrap gap-3 mb-2">
                 {['블랙박스', '하이패스'].map((p) => (
                   <CheckItem key={p} label={p} checked={workOrder.electrical.includes(p)} onChange={() => setWorkOrder({ ...workOrder, electrical: toggleArray(workOrder.electrical, p) })} />
                 ))}
               </div>
-              <input type="text" value={workOrder.electrical_etc} onChange={(e) => setWorkOrder({ ...workOrder, electrical_etc: e.target.value })} className="w-full bg-[#111113] border border-[#1e1e22] rounded px-2 py-1 text-xs text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="기타 (직접 입력)" />
+              <input type="text" value={workOrder.electrical_etc} onChange={(e) => setWorkOrder({ ...workOrder, electrical_etc: e.target.value })} className="w-full bg-[var(--c-card)] border border-[var(--c-border)] rounded px-2 py-1 text-xs text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="기타 (직접 입력)" />
             </div>
-            <div className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg p-3">
-              <span className="text-xs font-medium text-[#a1a1aa] mb-2 block">프리미엄광택</span>
+            <div className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg p-3">
+              <span className="text-xs font-medium text-[var(--c-text-2)] mb-2 block">프리미엄광택</span>
               <div className="flex flex-wrap gap-3 mb-2">
                 {['전체광택', '부분광택'].map((p) => (
                   <CheckItem key={p} label={p} checked={workOrder.polish.includes(p)} onChange={() => setWorkOrder({ ...workOrder, polish: toggleArray(workOrder.polish, p) })} />
                 ))}
               </div>
-              <input type="text" value={workOrder.polish_etc} onChange={(e) => setWorkOrder({ ...workOrder, polish_etc: e.target.value })} className="w-full bg-[#111113] border border-[#1e1e22] rounded px-2 py-1 text-xs text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="기타 (직접 입력)" />
+              <input type="text" value={workOrder.polish_etc} onChange={(e) => setWorkOrder({ ...workOrder, polish_etc: e.target.value })} className="w-full bg-[var(--c-card)] border border-[var(--c-border)] rounded px-2 py-1 text-xs text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="기타 (직접 입력)" />
             </div>
           </div>
 
           {/* 신차패키지 옵션 */}
           <SectionTitle title="신차패키지 옵션" />
-          <div className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg p-3">
+          <div className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg p-3">
             <div className="flex flex-wrap gap-3">
               {['신차검수', '내외부디테일링세차', '타이어왁스', '피톤치드연막'].map((p) => (
                 <CheckItem key={p} label={p} checked={workOrder.package_options.includes(p)} onChange={() => setWorkOrder({ ...workOrder, package_options: toggleArray(workOrder.package_options, p) })} />
@@ -3030,7 +3041,7 @@ function WorkOrderModal({ appointment, workOrder, setWorkOrder, onSubmit, onSave
           <textarea
             value={workOrder.notes}
             onChange={(e) => setWorkOrder({ ...workOrder, notes: e.target.value })}
-            className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50 resize-none h-24"
+            className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50 resize-none h-24"
             placeholder="특이사항을 입력하세요"
           />
         </div>
@@ -3158,10 +3169,10 @@ function WorkOrderModal({ appointment, workOrder, setWorkOrder, onSubmit, onSave
         </div>
 
         {/* Footer */}
-        <div className="sticky bottom-0 bg-[#111113] border-t border-[#1e1e22] px-6 py-4 flex justify-end gap-2">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-[#71717a] hover:text-[#a1a1aa] transition-colors">취소</button>
+        <div className="sticky bottom-0 bg-[var(--c-card)] border-t border-[var(--c-border)] px-6 py-4 flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-2)] transition-colors">취소</button>
           <button onClick={handlePdfSave} className="bg-[#3B82F6] hover:bg-[#2563EB] text-white text-sm font-medium rounded-lg px-5 py-2 transition-colors">PDF 저장</button>
-          <button onClick={onSaveOnly} className="bg-[#1e1e22] hover:bg-[#2a2a2e] text-[#a1a1aa] text-sm font-medium rounded-lg px-5 py-2 transition-colors border border-[#2a2a2e]">저장만 하기</button>
+          <button onClick={onSaveOnly} className="bg-[var(--c-subtle)] hover:bg-[var(--c-hover)] text-[var(--c-text-2)] text-sm font-medium rounded-lg px-5 py-2 transition-colors border border-[#2a2a2e]">저장만 하기</button>
           <button onClick={onSubmit} className="bg-[#E4002B] hover:bg-[#c60026] text-white text-sm font-medium rounded-lg px-6 py-2 transition-colors">시공 완료 처리</button>
         </div>
       </div>
@@ -3202,47 +3213,47 @@ function WarrantyModal({ warrantyForm, setWarrantyForm, onSave, onDownloaded, on
     }, 500);
   };
 
-  const inputClass = 'w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#22c55e]/50';
+  const inputClass = 'w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#22c55e]/50';
 
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center" onClick={onClose}>
-      <div className="bg-[#111113] border border-[#1e1e22] rounded-xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="px-6 py-4 border-b border-[#1e1e22]">
-          <h3 className="text-[#fafaf9] font-semibold text-base">시공 보증서 발급</h3>
+      <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="px-6 py-4 border-b border-[var(--c-border)]">
+          <h3 className="text-[var(--c-text-1)] font-semibold text-base">시공 보증서 발급</h3>
         </div>
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-[#71717a] mb-1 block">일자</label>
+              <label className="text-xs text-[var(--c-text-3)] mb-1 block">일자</label>
               <input type="date" value={warrantyForm.date} onChange={(e) => setWarrantyForm({ ...warrantyForm, date: e.target.value })} className={inputClass} />
             </div>
             <div>
-              <label className="text-xs text-[#71717a] mb-1 block">차종</label>
+              <label className="text-xs text-[var(--c-text-3)] mb-1 block">차종</label>
               <input type="text" value={warrantyForm.car_type} onChange={(e) => setWarrantyForm({ ...warrantyForm, car_type: e.target.value })} className={inputClass} placeholder="BMW X5 등" />
             </div>
             <div>
-              <label className="text-xs text-[#71717a] mb-1 block">차량번호</label>
+              <label className="text-xs text-[var(--c-text-3)] mb-1 block">차량번호</label>
               <input type="text" value={warrantyForm.car_number} onChange={(e) => setWarrantyForm({ ...warrantyForm, car_number: e.target.value })} className={inputClass} placeholder="12가 3456" />
             </div>
             <div>
-              <label className="text-xs text-[#71717a] mb-1 block">성명</label>
+              <label className="text-xs text-[var(--c-text-3)] mb-1 block">성명</label>
               <input type="text" value={warrantyForm.customer_name} onChange={(e) => setWarrantyForm({ ...warrantyForm, customer_name: e.target.value })} className={inputClass} />
             </div>
             <div>
-              <label className="text-xs text-[#71717a] mb-1 block">연락처</label>
+              <label className="text-xs text-[var(--c-text-3)] mb-1 block">연락처</label>
               <input type="text" value={warrantyForm.phone} onChange={(e) => setWarrantyForm({ ...warrantyForm, phone: e.target.value })} className={inputClass} />
             </div>
             <div>
-              <label className="text-xs text-[#71717a] mb-1 block">보증기간</label>
+              <label className="text-xs text-[var(--c-text-3)] mb-1 block">보증기간</label>
               <input type="text" value={warrantyForm.warranty_period} onChange={(e) => setWarrantyForm({ ...warrantyForm, warranty_period: e.target.value })} className={inputClass} placeholder="시공일로부터 1년" />
             </div>
             <div className="col-span-2">
-              <label className="text-xs text-[#71717a] mb-1 block">정상가 금액</label>
+              <label className="text-xs text-[var(--c-text-3)] mb-1 block">정상가 금액</label>
               <input type="text" value={warrantyForm.price} onChange={(e) => setWarrantyForm({ ...warrantyForm, price: e.target.value })} className={inputClass} placeholder="₩1,000,000" />
             </div>
           </div>
           <div>
-            <label className="text-xs text-[#71717a] mb-1 block">시공 내역</label>
+            <label className="text-xs text-[var(--c-text-3)] mb-1 block">시공 내역</label>
             <textarea value={warrantyForm.work_details} onChange={(e) => setWarrantyForm({ ...warrantyForm, work_details: e.target.value })} className={`${inputClass} resize-none h-28`} placeholder={'그릴 랩핑 (3M 2080 글로스 블랙) ₩400,000\n루프 랩핑 (3M 2080 새틴 블랙) ₩600,000'} />
           </div>
           <div className="mt-3 px-1 py-2 border border-[#22c55e]/20 bg-[#22c55e]/5 rounded-lg text-center text-xs text-[#22c55e]">
@@ -3353,9 +3364,9 @@ function WarrantyModal({ warrantyForm, setWarrantyForm, onSave, onDownloaded, on
           </div>
         </div>
 
-        <div className="sticky bottom-0 bg-[#111113] border-t border-[#1e1e22] px-6 py-4 flex justify-end gap-2">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-[#71717a] hover:text-[#a1a1aa] transition-colors">취소</button>
-          <button onClick={async () => { await onSave(); onClose(); }} className="bg-[#1e1e22] hover:bg-[#2a2a2e] text-[#a1a1aa] text-sm font-medium rounded-lg px-5 py-2 transition-colors border border-[#2a2a2e]">저장만 하기</button>
+        <div className="sticky bottom-0 bg-[var(--c-card)] border-t border-[var(--c-border)] px-6 py-4 flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-2)] transition-colors">취소</button>
+          <button onClick={async () => { await onSave(); onClose(); }} className="bg-[var(--c-subtle)] hover:bg-[var(--c-hover)] text-[var(--c-text-2)] text-sm font-medium rounded-lg px-5 py-2 transition-colors border border-[#2a2a2e]">저장만 하기</button>
           <button onClick={handleDownloadPng} className="bg-[#22c55e] hover:bg-[#16a34a] text-white text-sm font-medium rounded-lg px-5 py-2 transition-colors">PNG 다운로드</button>
         </div>
       </div>

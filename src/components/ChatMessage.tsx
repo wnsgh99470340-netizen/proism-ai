@@ -28,7 +28,7 @@ export default function ChatMessage({
                   key={i}
                   src={img}
                   alt={`업로드 ${i + 1}`}
-                  className="w-20 h-20 object-cover rounded-lg border border-[#1e1e22]"
+                  className="w-20 h-20 object-cover rounded-lg border border-[var(--c-border)]"
                 />
               ))}
             </div>
@@ -58,7 +58,7 @@ export default function ChatMessage({
           </div>
         )}
 
-        <div className="bg-[#1a1a1f] border border-[#1e1e22] rounded-2xl rounded-bl-md px-4 py-2.5 text-sm text-[#e4e4e7] leading-relaxed whitespace-pre-wrap">
+        <div className="bg-[#1a1a1f] border border-[var(--c-border)] rounded-2xl rounded-bl-md px-4 py-2.5 text-sm text-[#e4e4e7] leading-relaxed whitespace-pre-wrap">
           {content}
         </div>
       </div>

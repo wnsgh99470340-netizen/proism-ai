@@ -3,6 +3,32 @@
 :root {
   --background: #09090b;
   --foreground: #fafaf9;
+  /* Theme tokens — dark (default) */
+  --c-page: #09090b;
+  --c-card: #111113;
+  --c-subtle: #1e1e22;
+  --c-hover: #2a2a2e;
+  --c-input: #0d0d0f;
+  --c-border: #1e1e22;
+  --c-text-1: #fafaf9;
+  --c-text-2: #a1a1aa;
+  --c-text-3: #71717a;
+  --c-text-4: #52525b;
+}
+
+[data-theme="light"] {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --c-page: #f1f5f9;
+  --c-card: #ffffff;
+  --c-subtle: #e2e8f0;
+  --c-hover: #cbd5e1;
+  --c-input: #f8fafc;
+  --c-border: #cbd5e1;
+  --c-text-1: #0f172a;
+  --c-text-2: #475569;
+  --c-text-3: #64748b;
+  --c-text-4: #94a3b8;
 }
 
 @theme inline {
@@ -12,7 +38,7 @@
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: #1e1e22 transparent;
+  scrollbar-color: var(--c-subtle) transparent;
 }
 
 *::-webkit-scrollbar {
@@ -24,12 +50,12 @@
 }
 
 *::-webkit-scrollbar-thumb {
-  background: #1e1e22;
+  background: var(--c-subtle);
   border-radius: 3px;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: #2a2a2e;
+  background: var(--c-hover);
 }
 
 body {

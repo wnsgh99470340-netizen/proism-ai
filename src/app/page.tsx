@@ -242,7 +242,7 @@ export default function Home() {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-[#09090b]">
+    <div className="h-screen flex flex-col bg-[var(--c-page)]">
       <TopBar activeEmployeeId={activeEmployeeId} onHelpClick={() => setHelpOpen(true)} />
 
       <div className="flex-1 flex min-h-0">

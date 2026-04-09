@@ -139,7 +139,7 @@ export default function CustomerDetailPage() {
 
   if (!customer) {
     return (
-      <div className="h-screen bg-[#09090b] flex items-center justify-center text-[#71717a] text-sm">
+      <div className="h-screen bg-[var(--c-page)] flex items-center justify-center text-[var(--c-text-3)] text-sm">
         불러오는 중...
       </div>
     );
@@ -153,22 +153,22 @@ export default function CustomerDetailPage() {
   ];
 
   return (
-    <div className="h-screen flex flex-col bg-[#09090b]">
+    <div className="h-screen flex flex-col bg-[var(--c-page)]">
       {/* Header */}
-      <div className="h-14 border-b border-[#1e1e22] bg-[#111113] flex items-center px-4 justify-between shrink-0">
+      <div className="h-14 border-b border-[var(--c-border)] bg-[var(--c-card)] flex items-center px-4 justify-between shrink-0">
         <div className="flex items-center gap-3">
-          <Link href="/crm" className="text-[#71717a] hover:text-[#fafaf9] transition-colors text-sm">
+          <Link href="/crm" className="text-[var(--c-text-3)] hover:text-[var(--c-text-1)] transition-colors text-sm">
             ← CRM
           </Link>
-          <span className="text-[#1e1e22]">|</span>
-          <span className="text-[#fafaf9] font-semibold text-sm">{customer.name}</span>
-          {customer.phone && <span className="text-[#71717a] text-xs">{customer.phone}</span>}
+          <span className="text-[var(--c-border)]">|</span>
+          <span className="text-[var(--c-text-1)] font-semibold text-sm">{customer.name}</span>
+          {customer.phone && <span className="text-[var(--c-text-3)] text-xs">{customer.phone}</span>}
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-6">
         {/* Customer Info Card */}
-        <div className="bg-[#111113] border border-[#1e1e22] rounded-xl p-5 mb-6">
+        <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-5 mb-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <InfoItem label="차량" value={
               [customer.car_brand, customer.car_model].filter(Boolean).join(' ') || '-'
@@ -188,13 +188,13 @@ export default function CustomerDetailPage() {
         </div>
 
         {/* Detail Tabs */}
-        <div className="border-b border-[#1e1e22] flex gap-0 mb-4">
+        <div className="border-b border-[var(--c-border)] flex gap-0 mb-4">
           {tabs.map((tab) => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
               className={`px-4 py-2.5 text-sm font-medium transition-colors relative ${
-                activeTab === tab.key ? 'text-[#C8A951]' : 'text-[#71717a] hover:text-[#a1a1aa]'
+                activeTab === tab.key ? 'text-[#C8A951]' : 'text-[var(--c-text-3)] hover:text-[var(--c-text-2)]'
               }`}
             >
               {tab.label} <span className="text-xs ml-1 opacity-60">{tab.count}</span>
@@ -207,21 +207,21 @@ export default function CustomerDetailPage() {
         {activeTab === 'services' && (
           <div className="space-y-2">
             {services.map((s) => (
-              <div key={s.id} className="bg-[#111113] border border-[#1e1e22] rounded-xl p-4 group">
+              <div key={s.id} className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-4 group">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-[#fafaf9]">{s.service_type}</span>
+                    <span className="text-sm font-medium text-[var(--c-text-1)]">{s.service_type}</span>
                     {s.amount != null && s.amount > 0 && <span className="text-xs text-[#C8A951]">{s.amount.toLocaleString()}원</span>}
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-[#71717a]">{formatDate(s.service_date)}{s.completion_date && ` → ${formatDate(s.completion_date)}`}</span>
+                    <span className="text-xs text-[var(--c-text-3)]">{formatDate(s.service_date)}{s.completion_date && ` → ${formatDate(s.completion_date)}`}</span>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                      <button onClick={() => handleEditService(s)} className="w-6 h-6 rounded flex items-center justify-center text-[#71717a] hover:text-[#C8A951] hover:bg-[#C8A951]/10 transition-all text-xs" title="수정">✎</button>
-                      <button onClick={() => handleDeleteService(s.id)} className="w-6 h-6 rounded flex items-center justify-center text-[#71717a] hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-all text-xs" title="삭제">✕</button>
+                      <button onClick={() => handleEditService(s)} className="w-6 h-6 rounded flex items-center justify-center text-[var(--c-text-3)] hover:text-[#C8A951] hover:bg-[#C8A951]/10 transition-all text-xs" title="수정">✎</button>
+                      <button onClick={() => handleDeleteService(s.id)} className="w-6 h-6 rounded flex items-center justify-center text-[var(--c-text-3)] hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-all text-xs" title="삭제">✕</button>
                     </div>
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-3 text-xs text-[#71717a]">
+                <div className="flex flex-wrap gap-3 text-xs text-[var(--c-text-3)]">
                   {s.film_used && <span>필름: {s.film_used}</span>}
                   {s.service_area && <span>부위: {s.service_area}</span>}
                   {s.memo && (() => {
@@ -262,13 +262,13 @@ export default function CustomerDetailPage() {
         {activeTab === 'consultations' && (
           <div className="space-y-2">
             {consultations.map((c) => (
-              <div key={c.id} className="bg-[#111113] border border-[#1e1e22] rounded-xl p-4">
+              <div key={c.id} className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-[#71717a]">{formatDate(c.consultation_date)}</span>
+                  <span className="text-xs text-[var(--c-text-3)]">{formatDate(c.consultation_date)}</span>
                   {c.estimate && <span className="text-xs text-[#C8A951]">견적: {c.estimate}</span>}
                 </div>
-                {c.content && <p className="text-sm text-[#a1a1aa] mb-2">{c.content}</p>}
-                <div className="flex gap-3 text-xs text-[#71717a]">
+                {c.content && <p className="text-sm text-[var(--c-text-2)] mb-2">{c.content}</p>}
+                <div className="flex gap-3 text-xs text-[var(--c-text-3)]">
                   {c.interested_services && <span>관심 시공: {c.interested_services}</span>}
                   {c.memo && <span>메모: {c.memo}</span>}
                 </div>
@@ -285,8 +285,8 @@ export default function CustomerDetailPage() {
               const today = new Date().toISOString().split('T')[0];
               const isOverdue = !f.is_completed && f.scheduled_date < today;
               return (
-                <div key={f.id} className={`bg-[#111113] border rounded-xl p-4 ${
-                  isOverdue ? 'border-[#EF4444]/30' : 'border-[#1e1e22]'
+                <div key={f.id} className={`bg-[var(--c-card)] border rounded-xl p-4 ${
+                  isOverdue ? 'border-[#EF4444]/30' : 'border-[var(--c-border)]'
                 }`}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -295,10 +295,10 @@ export default function CustomerDetailPage() {
                           ? 'bg-[#3B82F6]/20 text-[#60A5FA]'
                           : 'bg-[#8B5CF6]/20 text-[#A78BFA]'
                       }`}>{f.follow_up_type}</span>
-                      <span className="text-xs text-[#71717a]">{f.service?.service_type || ''}</span>
+                      <span className="text-xs text-[var(--c-text-3)]">{f.service?.service_type || ''}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-[#71717a]">{formatDate(f.scheduled_date)}</span>
+                      <span className="text-xs text-[var(--c-text-3)]">{formatDate(f.scheduled_date)}</span>
                       {f.is_completed
                         ? <span className="text-xs text-[#10B981]">완료</span>
                         : isOverdue
@@ -307,7 +307,7 @@ export default function CustomerDetailPage() {
                       }
                     </div>
                   </div>
-                  {f.memo && <p className="text-xs text-[#71717a] mt-1">{f.memo}</p>}
+                  {f.memo && <p className="text-xs text-[var(--c-text-3)] mt-1">{f.memo}</p>}
                 </div>
               );
             })}
@@ -318,14 +318,14 @@ export default function CustomerDetailPage() {
         {activeTab === 'discounts' && (
           <div>
             {/* 할인 기록 추가 폼 */}
-            <div className="bg-[#111113] border border-[#1e1e22] rounded-xl p-4 mb-4">
+            <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-4 mb-4">
               <h4 className="text-xs text-[#C8A951] font-semibold mb-3">할인 기록 추가</h4>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                <input type="date" value={discountForm.discount_date} onChange={(e) => setDiscountForm({ ...discountForm, discount_date: e.target.value })} className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" />
-                <select value={discountForm.discount_type} onChange={(e) => setDiscountForm({ ...discountForm, discount_type: e.target.value })} className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50">
+                <input type="date" value={discountForm.discount_date} onChange={(e) => setDiscountForm({ ...discountForm, discount_date: e.target.value })} className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" />
+                <select value={discountForm.discount_type} onChange={(e) => setDiscountForm({ ...discountForm, discount_type: e.target.value })} className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50">
                   {['재방문', '프로모션', '소개 할인', '시즌 할인', '기타'].map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
-                <input type="text" value={discountForm.discount_value} onChange={(e) => setDiscountForm({ ...discountForm, discount_value: e.target.value })} className="bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="10% 또는 50,000원" />
+                <input type="text" value={discountForm.discount_value} onChange={(e) => setDiscountForm({ ...discountForm, discount_value: e.target.value })} className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="10% 또는 50,000원" />
                 <button
                   onClick={async () => {
                     if (!discountForm.discount_date) { alert('날짜를 입력해주세요.'); return; }
@@ -340,18 +340,18 @@ export default function CustomerDetailPage() {
                   className="bg-[#E4002B] hover:bg-[#c60026] text-white text-sm font-medium rounded-lg px-3 py-2 transition-colors"
                 >추가</button>
               </div>
-              <input type="text" value={discountForm.memo} onChange={(e) => setDiscountForm({ ...discountForm, memo: e.target.value })} className="w-full mt-2 bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="메모 (선택)" />
+              <input type="text" value={discountForm.memo} onChange={(e) => setDiscountForm({ ...discountForm, memo: e.target.value })} className="w-full mt-2 bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="메모 (선택)" />
             </div>
             {/* 할인 이력 목록 */}
             <div className="space-y-2">
               {discounts.map((d) => (
-                <div key={d.id} className="bg-[#111113] border border-[#1e1e22] rounded-xl p-4 flex items-center justify-between">
+                <div key={d.id} className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-4 flex items-center justify-between">
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="text-xs bg-[#C8A951]/20 text-[#C8A951] px-2 py-0.5 rounded">{d.discount_type}</span>
-                      {d.discount_value && <span className="text-sm font-medium text-[#fafaf9]">{d.discount_value}</span>}
+                      {d.discount_value && <span className="text-sm font-medium text-[var(--c-text-1)]">{d.discount_value}</span>}
                     </div>
-                    <div className="text-xs text-[#71717a] mt-1">
+                    <div className="text-xs text-[var(--c-text-3)] mt-1">
                       {formatDate(d.discount_date)}
                       {d.memo && <span className="ml-2">· {d.memo}</span>}
                     </div>
@@ -362,7 +362,7 @@ export default function CustomerDetailPage() {
                       await fetch(`/api/discounts?id=${d.id}`, { method: 'DELETE' });
                       fetchData();
                     }}
-                    className="text-xs text-[#71717a] hover:text-[#EF4444] transition-colors"
+                    className="text-xs text-[var(--c-text-3)] hover:text-[#EF4444] transition-colors"
                   >삭제</button>
                 </div>
               ))}
@@ -375,37 +375,37 @@ export default function CustomerDetailPage() {
       {/* Service Edit Modal */}
       {editService && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center" onClick={() => setEditService(null)}>
-          <div className="bg-[#111113] border border-[#1e1e22] rounded-xl w-full max-w-lg p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-[#fafaf9] font-semibold text-base mb-4">시공 이력 수정</h3>
+          <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl w-full max-w-lg p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-[var(--c-text-1)] font-semibold text-base mb-4">시공 이력 수정</h3>
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-[#71717a] mb-1 block">시공 종류</label>
-                <select value={serviceForm.service_type} onChange={(e) => setServiceForm({ ...serviceForm, service_type: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50">
+                <label className="text-xs text-[var(--c-text-3)] mb-1 block">시공 종류</label>
+                <select value={serviceForm.service_type} onChange={(e) => setServiceForm({ ...serviceForm, service_type: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50">
                   <option value="">선택...</option>
                   {SERVICE_TYPE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-[#71717a] mb-1 block">시공일</label>
-                  <input type="date" value={serviceForm.service_date} onChange={(e) => setServiceForm({ ...serviceForm, service_date: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" />
+                  <label className="text-xs text-[var(--c-text-3)] mb-1 block">시공일</label>
+                  <input type="date" value={serviceForm.service_date} onChange={(e) => setServiceForm({ ...serviceForm, service_date: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" />
                 </div>
                 <div>
-                  <label className="text-xs text-[#71717a] mb-1 block">완료일</label>
-                  <input type="date" value={serviceForm.completion_date} onChange={(e) => setServiceForm({ ...serviceForm, completion_date: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" />
+                  <label className="text-xs text-[var(--c-text-3)] mb-1 block">완료일</label>
+                  <input type="date" value={serviceForm.completion_date} onChange={(e) => setServiceForm({ ...serviceForm, completion_date: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" />
                 </div>
               </div>
               <div>
-                <label className="text-xs text-[#71717a] mb-1 block">금액</label>
-                <input type="number" value={serviceForm.amount} onChange={(e) => setServiceForm({ ...serviceForm, amount: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50" placeholder="0" />
+                <label className="text-xs text-[var(--c-text-3)] mb-1 block">금액</label>
+                <input type="number" value={serviceForm.amount} onChange={(e) => setServiceForm({ ...serviceForm, amount: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="0" />
               </div>
               <div>
-                <label className="text-xs text-[#71717a] mb-1 block">메모</label>
-                <textarea value={serviceForm.memo} onChange={(e) => setServiceForm({ ...serviceForm, memo: e.target.value })} className="w-full bg-[#0d0d0f] border border-[#1e1e22] rounded-lg px-3 py-2 text-sm text-[#fafaf9] outline-none focus:border-[#C8A951]/50 resize-none h-20" placeholder="특이사항" />
+                <label className="text-xs text-[var(--c-text-3)] mb-1 block">메모</label>
+                <textarea value={serviceForm.memo} onChange={(e) => setServiceForm({ ...serviceForm, memo: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50 resize-none h-20" placeholder="특이사항" />
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setEditService(null)} className="px-4 py-2 text-sm text-[#71717a] hover:text-[#a1a1aa] transition-colors">취소</button>
+              <button onClick={() => setEditService(null)} className="px-4 py-2 text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-2)] transition-colors">취소</button>
               <button onClick={handleUpdateService} className="bg-[#E4002B] hover:bg-[#c60026] text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors">저장</button>
             </div>
           </div>
@@ -418,12 +418,12 @@ export default function CustomerDetailPage() {
 function InfoItem({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-xs text-[#71717a] mb-0.5">{label}</div>
-      <div className="text-sm text-[#fafaf9]">{value}</div>
+      <div className="text-xs text-[var(--c-text-3)] mb-0.5">{label}</div>
+      <div className="text-sm text-[var(--c-text-1)]">{value}</div>
     </div>
   );
 }
 
 function Empty({ text }: { text: string }) {
-  return <div className="text-center py-12 text-sm text-[#71717a]">{text}</div>;
+  return <div className="text-center py-12 text-sm text-[var(--c-text-3)]">{text}</div>;
 }

@@ -18,7 +18,7 @@ function CopyButton({ label, getText }: { label: string; getText: () => string }
   return (
     <button
       onClick={handleClick}
-      className="bg-[#1e1e22] hover:bg-[#2a2a2e] text-[#fafaf9] text-xs py-2.5 rounded-lg transition-colors font-medium"
+      className="bg-[var(--c-subtle)] hover:bg-[var(--c-hover)] text-[var(--c-text-1)] text-xs py-2.5 rounded-lg transition-colors font-medium"
     >
       {copied ? '✅ 복사됨!' : label}
     </button>
@@ -98,15 +98,15 @@ export default function PreviewPanel({
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#111113] border-l border-[#1e1e22]">
+    <div className="flex flex-col h-full bg-[var(--c-card)] border-l border-[var(--c-border)]">
       {/* 탭 */}
-      <div className="flex border-b border-[#1e1e22] shrink-0">
+      <div className="flex border-b border-[var(--c-border)] shrink-0">
         <button
           onClick={() => setActiveTab('preview')}
           className={`flex-1 py-2.5 text-xs font-medium transition-colors ${
             activeTab === 'preview'
-              ? 'text-[#fafaf9] border-b-2 border-[#C8A951]'
-              : 'text-[#71717a] hover:text-[#a1a1aa]'
+              ? 'text-[var(--c-text-1)] border-b-2 border-[#C8A951]'
+              : 'text-[var(--c-text-3)] hover:text-[var(--c-text-2)]'
           }`}
         >
           📄 미리보기
@@ -115,8 +115,8 @@ export default function PreviewPanel({
           onClick={() => setActiveTab('insight')}
           className={`flex-1 py-2.5 text-xs font-medium transition-colors ${
             activeTab === 'insight'
-              ? 'text-[#fafaf9] border-b-2 border-[#C8A951]'
-              : 'text-[#71717a] hover:text-[#a1a1aa]'
+              ? 'text-[var(--c-text-1)] border-b-2 border-[#C8A951]'
+              : 'text-[var(--c-text-3)] hover:text-[var(--c-text-2)]'
           }`}
         >
           📊 인사이트
@@ -147,7 +147,7 @@ export default function PreviewPanel({
               </div>
             </div>
           ) : (
-            <div className="flex items-center justify-center h-full text-[#71717a] text-xs p-8 text-center">
+            <div className="flex items-center justify-center h-full text-[var(--c-text-3)] text-xs p-8 text-center">
               대화를 통해 블로그 글을 작성하면<br />
               여기에 미리보기가 표시됩니다
             </div>
@@ -169,7 +169,7 @@ export default function PreviewPanel({
               <div className="grid grid-cols-3 gap-2">
                 <button
                   onClick={onCopyHtml}
-                  className="bg-[#1e1e22] hover:bg-[#2a2a2e] text-[#fafaf9] text-xs py-2.5 rounded-lg transition-colors font-medium"
+                  className="bg-[var(--c-subtle)] hover:bg-[var(--c-hover)] text-[var(--c-text-1)] text-xs py-2.5 rounded-lg transition-colors font-medium"
                 >
                   📋 HTML 복사
                 </button>
@@ -199,9 +199,9 @@ export default function PreviewPanel({
           {qaScore && (
             <div className="space-y-3">
               {/* 총점 */}
-              <div className="bg-[#1a1a1f] border border-[#1e1e22] rounded-xl p-4">
+              <div className="bg-[#1a1a1f] border border-[var(--c-border)] rounded-xl p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-medium text-[#fafaf9]">QA 채점 결과</span>
+                  <span className="text-xs font-medium text-[var(--c-text-1)]">QA 채점 결과</span>
                   <span
                     className={`text-2xl font-bold ${
                       qaScore.total >= 90
@@ -211,10 +211,10 @@ export default function PreviewPanel({
                         : 'text-[#EF4444]'
                     }`}
                   >
-                    {qaScore.total}<span className="text-sm text-[#71717a]">/100</span>
+                    {qaScore.total}<span className="text-sm text-[var(--c-text-3)]">/100</span>
                   </span>
                 </div>
-                <div className="w-full bg-[#1e1e22] rounded-full h-2.5">
+                <div className="w-full bg-[var(--c-subtle)] rounded-full h-2.5">
                   <div
                     className="h-2.5 rounded-full transition-all duration-500"
                     style={{
@@ -241,7 +241,7 @@ export default function PreviewPanel({
                           <span className="text-xs font-mono text-[#EF4444]/80 bg-[#EF4444]/10 px-1.5 py-0.5 rounded">
                             {v.rule}
                           </span>
-                          <p className="text-xs text-[#a1a1aa] mt-1">{v.detail}</p>
+                          <p className="text-xs text-[var(--c-text-2)] mt-1">{v.detail}</p>
                         </div>
                       </div>
                     ))}
@@ -251,20 +251,20 @@ export default function PreviewPanel({
 
               {/* 품질 점수 항목별 */}
               {qaScore.scores && qaScore.scores.length > 0 && (
-                <div className="bg-[#1a1a1f] border border-[#1e1e22] rounded-xl p-3">
-                  <div className="text-xs font-medium text-[#fafaf9] mb-3">품질 점수</div>
+                <div className="bg-[#1a1a1f] border border-[var(--c-border)] rounded-xl p-3">
+                  <div className="text-xs font-medium text-[var(--c-text-1)] mb-3">품질 점수</div>
                   <div className="space-y-2.5">
                     {qaScore.scores.map((s, i) => (
                       <div key={i}>
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-[10px] font-mono text-[#a1a1aa]">{s.item}</span>
+                          <span className="text-[10px] font-mono text-[var(--c-text-2)]">{s.item}</span>
                           <span className={`text-xs font-bold ${
                             s.score >= 8 ? 'text-[#10B981]' : s.score >= 5 ? 'text-[#F59E0B]' : 'text-[#EF4444]'
                           }`}>
                             {s.score}/{s.max}
                           </span>
                         </div>
-                        <div className="w-full bg-[#1e1e22] rounded-full h-1.5 mb-1">
+                        <div className="w-full bg-[var(--c-subtle)] rounded-full h-1.5 mb-1">
                           <div
                             className="h-1.5 rounded-full transition-all duration-500"
                             style={{
@@ -274,7 +274,7 @@ export default function PreviewPanel({
                             }}
                           />
                         </div>
-                        <div className="text-[10px] text-[#71717a]">{s.comment}</div>
+                        <div className="text-[10px] text-[var(--c-text-3)]">{s.comment}</div>
                       </div>
                     ))}
                   </div>
@@ -287,7 +287,7 @@ export default function PreviewPanel({
                   <div className="text-xs font-medium text-[#C8A951] mb-2">개선점</div>
                   <div className="space-y-1.5">
                     {qaScore.improvements.map((imp, i) => (
-                      <div key={i} className="text-xs text-[#a1a1aa] flex gap-1.5">
+                      <div key={i} className="text-xs text-[var(--c-text-2)] flex gap-1.5">
                         <span className="text-[#C8A951] shrink-0">{i + 1}.</span>
                         {imp}
                       </div>
@@ -302,12 +302,12 @@ export default function PreviewPanel({
           {seoInsight ? (
             <>
               {seoInsight.seoScore !== undefined && (
-                <div className="bg-[#1a1a1f] border border-[#1e1e22] rounded-xl p-3">
+                <div className="bg-[#1a1a1f] border border-[var(--c-border)] rounded-xl p-3">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-medium text-[#fafaf9]">🔍 SEO 점수</span>
+                    <span className="text-xs font-medium text-[var(--c-text-1)]">🔍 SEO 점수</span>
                     <span className="text-lg font-bold text-[#03C75A]">{seoInsight.seoScore}/100</span>
                   </div>
-                  <div className="w-full bg-[#1e1e22] rounded-full h-2">
+                  <div className="w-full bg-[var(--c-subtle)] rounded-full h-2">
                     <div
                       className="h-2 rounded-full bg-[#03C75A] transition-all duration-500"
                       style={{ width: `${seoInsight.seoScore}%` }}
@@ -317,8 +317,8 @@ export default function PreviewPanel({
               )}
 
               {seoInsight.keywords && seoInsight.keywords.length > 0 && (
-                <div className="bg-[#1a1a1f] border border-[#1e1e22] rounded-xl p-3">
-                  <div className="text-xs font-medium text-[#fafaf9] mb-2">🏷️ 추천 키워드</div>
+                <div className="bg-[#1a1a1f] border border-[var(--c-border)] rounded-xl p-3">
+                  <div className="text-xs font-medium text-[var(--c-text-1)] mb-2">🏷️ 추천 키워드</div>
                   <div className="flex flex-wrap gap-1.5">
                     {seoInsight.keywords.map((kw, i) => (
                       <span key={i} className="text-xs bg-[#03C75A]/10 text-[#03C75A] px-2 py-0.5 rounded-full">
@@ -330,18 +330,18 @@ export default function PreviewPanel({
               )}
 
               {seoInsight.bestTime && (
-                <div className="bg-[#1a1a1f] border border-[#1e1e22] rounded-xl p-3">
-                  <div className="text-xs font-medium text-[#fafaf9] mb-1">⏰ 최적 발행 시간</div>
+                <div className="bg-[#1a1a1f] border border-[var(--c-border)] rounded-xl p-3">
+                  <div className="text-xs font-medium text-[var(--c-text-1)] mb-1">⏰ 최적 발행 시간</div>
                   <div className="text-sm text-[#C8A951]">{seoInsight.bestTime}</div>
                 </div>
               )}
 
               {seoInsight.tips && seoInsight.tips.length > 0 && (
-                <div className="bg-[#1a1a1f] border border-[#1e1e22] rounded-xl p-3">
-                  <div className="text-xs font-medium text-[#fafaf9] mb-2">💡 마케팅 팁</div>
+                <div className="bg-[#1a1a1f] border border-[var(--c-border)] rounded-xl p-3">
+                  <div className="text-xs font-medium text-[var(--c-text-1)] mb-2">💡 마케팅 팁</div>
                   <div className="space-y-1">
                     {seoInsight.tips.map((tip, i) => (
-                      <div key={i} className="text-xs text-[#a1a1aa] flex gap-1.5">
+                      <div key={i} className="text-xs text-[var(--c-text-2)] flex gap-1.5">
                         <span className="text-[#C8A951] shrink-0">•</span>
                         {tip}
                       </div>
@@ -351,7 +351,7 @@ export default function PreviewPanel({
               )}
             </>
           ) : (
-            <div className="flex items-center justify-center h-32 text-[#71717a] text-xs text-center">
+            <div className="flex items-center justify-center h-32 text-[var(--c-text-3)] text-xs text-center">
               글을 작성하면 SEO/마케팅<br />인사이트가 표시됩니다
             </div>
           )}
