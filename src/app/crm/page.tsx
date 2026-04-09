@@ -233,21 +233,22 @@ export default function CRMPage() {
   const { theme, toggle: toggleTheme } = useTheme();
   const [activeTab, setActiveTab] = useState<Tab>('customers');
 
-  // 카카오 SDK 초기화
+  // 카카오 SDK 동적 로드 + 초기화
   useEffect(() => {
+    const KAKAO_KEY = process.env.NEXT_PUBLIC_KAKAO_KEY || '';
     const initKakao = () => {
-      if (window.Kakao && !window.Kakao.isInitialized()) {
-        window.Kakao.init(process.env.NEXT_PUBLIC_KAKAO_KEY || '');
+      if (window.Kakao && !window.Kakao.isInitialized() && KAKAO_KEY) {
+        window.Kakao.init(KAKAO_KEY);
       }
     };
-    if (window.Kakao) {
-      initKakao();
-    } else {
-      const timer = setInterval(() => {
-        if (window.Kakao) { initKakao(); clearInterval(timer); }
-      }, 500);
-      return () => clearInterval(timer);
-    }
+    if (window.Kakao) { initKakao(); return; }
+    if (document.getElementById('kakao-sdk')) return;
+    const script = document.createElement('script');
+    script.id = 'kakao-sdk';
+    script.src = 'https://t1.kakaocdn.net/kakao_js_sdk/2.7.4/kakao.min.js';
+    script.crossOrigin = 'anonymous';
+    script.onload = initKakao;
+    document.head.appendChild(script);
   }, []);
 
   // Customer state
