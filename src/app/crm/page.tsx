@@ -211,10 +211,44 @@ function statusColor(status: string) {
 }
 
 // ─── Main Page ───────────────────────────────────────────
+declare global {
+  interface Window {
+    Kakao?: {
+      isInitialized: () => boolean;
+      init: (key: string) => void;
+      Share: {
+        sendDefault: (options: {
+          objectType: string;
+          text: string;
+          link: { mobileWebUrl: string; webUrl: string };
+          buttonTitle?: string;
+        }) => void;
+      };
+    };
+  }
+}
+
 export default function CRMPage() {
   const router = useRouter();
   const { theme, toggle: toggleTheme } = useTheme();
   const [activeTab, setActiveTab] = useState<Tab>('customers');
+
+  // 카카오 SDK 초기화
+  useEffect(() => {
+    const initKakao = () => {
+      if (window.Kakao && !window.Kakao.isInitialized()) {
+        window.Kakao.init(process.env.NEXT_PUBLIC_KAKAO_KEY || '');
+      }
+    };
+    if (window.Kakao) {
+      initKakao();
+    } else {
+      const timer = setInterval(() => {
+        if (window.Kakao) { initKakao(); clearInterval(timer); }
+      }, 500);
+      return () => clearInterval(timer);
+    }
+  }, []);
 
   // Customer state
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -1789,8 +1823,17 @@ export default function CRMPage() {
                 };
                 const sendKakao = (msg: string, key: string) => {
                   if (!phone) return;
-                  const kakaoUrl = `https://sharer.kakao.com/talk/friends/picker/link?url=${encodeURIComponent('https://blog.naver.com/roice_')}&text=${encodeURIComponent(msg)}`;
-                  window.open(kakaoUrl, '_blank', 'width=500,height=600');
+                  if (window.Kakao?.isInitialized()) {
+                    window.Kakao.Share.sendDefault({
+                      objectType: 'text',
+                      text: msg,
+                      link: { mobileWebUrl: 'https://blog.naver.com/roice_', webUrl: 'https://blog.naver.com/roice_' },
+                      buttonTitle: '블로그 방문',
+                    });
+                  } else {
+                    navigator.clipboard.writeText(msg);
+                    alert('카카오 SDK 로딩 중입니다. 문구가 복사되었으니 카톡에 직접 붙여넣기 해주세요.');
+                  }
                   if (confirm('카톡을 전송하셨나요?')) markSent(key);
                 };
                 const copyMsg = (msg: string) => {
@@ -1968,8 +2011,17 @@ export default function CRMPage() {
                                     const cust = getPromoCustomer();
                                     if (!cust) return;
                                     const msg = promo.tpl(cust.name);
-                                    const kakaoUrl = `https://sharer.kakao.com/talk/friends/picker/link?url=${encodeURIComponent('https://blog.naver.com/roice_')}&text=${encodeURIComponent(msg)}`;
-                                    window.open(kakaoUrl, '_blank', 'width=500,height=600');
+                                    if (window.Kakao?.isInitialized()) {
+                                      window.Kakao.Share.sendDefault({
+                                        objectType: 'text',
+                                        text: msg,
+                                        link: { mobileWebUrl: 'https://blog.naver.com/roice_', webUrl: 'https://blog.naver.com/roice_' },
+                                        buttonTitle: '블로그 방문',
+                                      });
+                                    } else {
+                                      navigator.clipboard.writeText(msg);
+                                      alert('카카오 SDK 로딩 중입니다. 문구가 복사되었으니 카톡에 직접 붙여넣기 해주세요.');
+                                    }
                                     trackPromo(cust, msg);
                                   }}
                                   className="text-xs bg-[#FEE500] hover:bg-[#FDD835] text-[#3C1E1E] font-semibold rounded-lg px-3 py-1.5 transition-colors whitespace-nowrap"
