@@ -126,6 +126,81 @@ function tryBuildDraft(
   };
 }
 
+/**
+ * 블로그 글 작성 요청인지 판별
+ */
+function isBlogWriteRequest(message: string): boolean {
+  const keywords = ['블로그', '글 써', '글 작성', '써줘', '써 줘', '시공기', '포스팅', '작업기', '초안', '원고'];
+  return keywords.some(k => message.includes(k));
+}
+
+/**
+ * 사용자 메시지에서 차종을 추출
+ */
+function extractCarModel(message: string): string | null {
+  // 브랜드 + 모델명 패턴 매칭
+  const patterns = [
+    /(?:BMW|벤츠|아우디|포르쉐|테슬라|제네시스|렉서스|볼보|현대|기아|랜드로버|링컨|캐딜락|마세라티|재규어|롤스로이스|벤틀리|람보르기니|페라리|맥라렌|미니|토요타|혼다)\s*[A-Za-z0-9가-힣\- ]+/,
+    /(?:카이엔|파나메라|타이칸|마칸|카이맨|박스터|911)/,
+    /(?:모델[YX3SyxsS]|사이버트럭)/,
+    /(?:GV[0-9]+|G[0-9]+[ei]?|GLE|GLC|GLS|GLB|CLE|CLA|AMG|EQS|EQE|S클래스|E클래스|C클래스|A클래스)/,
+    /(?:그랜저|쏘나타|아반떼|투싼|싼타페|팰리세이드|아이오닉[0-9]*|쏘렌토|카니발|스포티지|EV[0-9]+|레이|니로)/,
+    /(?:카마로|콜벳|머스탱|디펜더|레인지로버|디스커버리)/,
+  ];
+  for (const p of patterns) {
+    const match = message.match(p);
+    if (match) return match[0].trim();
+  }
+  return null;
+}
+
+/**
+ * 차량 외관 구조를 웹 검색으로 파악
+ */
+async function researchVehicleStructure(carModel: string): Promise<string> {
+  const query = `${carModel} 외관 구조 범퍼 사이드미러 번호판 위치 도어 프레임`;
+  const searchUrl = `https://www.googleapis.com/customsearch/v1?key=${process.env.GOOGLE_SEARCH_API_KEY}&cx=${process.env.GOOGLE_SEARCH_CX}&q=${encodeURIComponent(query)}&num=5`;
+
+  let searchResults = '';
+  try {
+    if (process.env.GOOGLE_SEARCH_API_KEY && process.env.GOOGLE_SEARCH_CX) {
+      const res = await fetch(searchUrl);
+      if (res.ok) {
+        const data = await res.json();
+        const items = (data.items || []).slice(0, 5);
+        searchResults = items.map((item: { title: string; snippet: string }) =>
+          `- ${item.title}: ${item.snippet}`
+        ).join('\n');
+      }
+    }
+  } catch {
+    // 검색 실패 시 무시
+  }
+
+  // 검색 실패 시 Claude에게 기존 지식으로 파악 요청
+  const fallbackNote = searchResults
+    ? `웹 검색 결과:\n${searchResults}`
+    : '(웹 검색 불가 — 기존 지식으로 파악)';
+
+  return `[차량 구조 사전 조사 — ${carModel}]
+${fallbackNote}
+
+위 정보를 바탕으로 아래 10가지를 파악하고 글 작성에 반영하세요:
+1. 번호판 위치 (트렁크/범퍼)
+2. 앞범퍼 구조 (에어인테이크, 그릴, 안개등)
+3. 뒷범퍼 구조 (디퓨저, 배기구, 하단 형태)
+4. 사이드미러 형태
+5. 하이그로시/크롬 트림 위치
+6. 필러 구조 (B/C필러)
+7. 휀더 연결 구조
+8. 루프라인 특성
+9. 도어 타입 (프레임/프레임리스)
+10. 해당 차종만의 특이 구조
+
+확인 안 되는 부위는 일반적 표현 사용. 추측하여 구체적으로 쓰지 말 것.
+사장님이 알려준 정보가 있으면 최우선 반영.`;
+}
+
 const DRAFTS_DIR = path.join(process.cwd(), 'public', 'drafts');
 
 /**
@@ -237,6 +312,15 @@ export async function POST(request: NextRequest) {
     }
     const combinedMessage = textParts.join('\n\n');
 
+    // 블로그 글 작성 요청이면 차량 구조 사전 조사
+    let vehicleContext = '';
+    if (isBlogWriteRequest(message || '')) {
+      const carModel = extractCarModel(message || '');
+      if (carModel) {
+        vehicleContext = '\n\n' + await researchVehicleStructure(carModel);
+      }
+    }
+
     // 이전 글 제목+도입부를 시스템 프롬프트에 포함
     const previousDrafts = await getPreviousDrafts();
     let previousContext = '';
@@ -248,7 +332,7 @@ export async function POST(request: NextRequest) {
       previousContext = `\n\n[이전에 작성한 글 목록]\n아래는 이전에 작성한 글의 제목과 도입부입니다. 이 글들과 유사한 도입부, 표현, 구조를 절대 반복하지 마세요.\n${list}`;
     }
 
-    const systemPrompt = `${BLOG_SYSTEM_PROMPT}${previousContext}\n\n현재 담당: ${activeEmployee.emoji} ${activeEmployee.name}\n역할: ${activeEmployee.role}\n\n${activeEmployee.systemPrompt}`;
+    const systemPrompt = `${BLOG_SYSTEM_PROMPT}${vehicleContext}${previousContext}\n\n현재 담당: ${activeEmployee.emoji} ${activeEmployee.name}\n역할: ${activeEmployee.role}\n\n${activeEmployee.systemPrompt}`;
 
     // 히스토리 + 현재 메시지
     const messages = [
