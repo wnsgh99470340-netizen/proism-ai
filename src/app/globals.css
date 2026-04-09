@@ -1,34 +1,34 @@
 @import "tailwindcss";
 
 :root {
-  --background: #09090b;
+  --background: #1a1a1f;
   --foreground: #fafaf9;
-  /* Theme tokens — dark (default) */
-  --c-page: #09090b;
-  --c-card: #111113;
-  --c-subtle: #1e1e22;
-  --c-hover: #2a2a2e;
-  --c-input: #0d0d0f;
-  --c-border: #1e1e22;
-  --c-text-1: #fafaf9;
+  /* Theme tokens — dark (default, 눈 편한 톤) */
+  --c-page: #1a1a1f;
+  --c-card: #222228;
+  --c-subtle: #2c2c34;
+  --c-hover: #38383f;
+  --c-input: #1e1e24;
+  --c-border: #2c2c34;
+  --c-text-1: #ededef;
   --c-text-2: #a1a1aa;
   --c-text-3: #71717a;
-  --c-text-4: #52525b;
+  --c-text-4: #5a5a63;
 }
 
 [data-theme="light"] {
-  --background: #f8fafc;
-  --foreground: #0f172a;
-  --c-page: #f1f5f9;
-  --c-card: #ffffff;
-  --c-subtle: #e2e8f0;
-  --c-hover: #cbd5e1;
-  --c-input: #f8fafc;
-  --c-border: #cbd5e1;
-  --c-text-1: #0f172a;
-  --c-text-2: #475569;
-  --c-text-3: #64748b;
-  --c-text-4: #94a3b8;
+  --background: #f0f0f3;
+  --foreground: #2a2a2e;
+  --c-page: #f0f0f3;
+  --c-card: #e8e8ec;
+  --c-subtle: #dcdce0;
+  --c-hover: #d0d0d6;
+  --c-input: #f0f0f3;
+  --c-border: #d0d0d6;
+  --c-text-1: #2a2a2e;
+  --c-text-2: #505058;
+  --c-text-3: #6e6e78;
+  --c-text-4: #9898a0;
 }
 
 @theme inline {
