@@ -237,7 +237,7 @@ export default function CRMPage() {
 
   // Follow-up state
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
-  const [followUpFilter, setFollowUpFilter] = useState<'upcoming' | 'overdue' | 'completed'>('upcoming');
+  const [followUpFilter, setFollowUpFilter] = useState<'all' | 'QC점검' | '메인터넌스' | '후기요청'>('all');
 
   // Consultation state
   const [consultations, setConsultations] = useState<Consultation[]>([]);
@@ -1216,11 +1216,16 @@ export default function CRMPage() {
   };
 
   const today = new Date().toISOString().split('T')[0];
-  const filteredFollowUps = followUps.filter((f) => {
-    if (followUpFilter === 'completed') return f.is_completed;
-    if (followUpFilter === 'overdue') return !f.is_completed && f.scheduled_date < today;
-    return !f.is_completed && f.scheduled_date >= today;
-  });
+  const filteredFollowUps = followUps
+    .filter((f) => {
+      if (followUpFilter === 'all') return true;
+      return f.follow_up_type === followUpFilter;
+    })
+    .sort((a, b) => {
+      // 미처리 우선, 그 안에서 날짜 임박순
+      if (a.is_completed !== b.is_completed) return a.is_completed ? 1 : -1;
+      return a.scheduled_date.localeCompare(b.scheduled_date);
+    });
 
   // ─── Consultation Actions ───────────────────────────────
   const handleAddConsultation = async () => {
@@ -1710,36 +1715,51 @@ export default function CRMPage() {
         {/* ─── TAB: 사후관리 ──────────────────────────────── */}
         {activeTab === 'followups' && (
           <div>
+            {/* 상단 요약 카드 */}
+            <div className="grid grid-cols-3 gap-3 mb-5">
+              {([
+                { label: '미처리', count: followUps.filter((f) => !f.is_completed).length, color: '#EF4444', bg: '#EF4444' },
+                { label: '임박 (3일 이내)', count: followUps.filter((f) => { if (f.is_completed) return false; const d = Math.ceil((new Date(f.scheduled_date).getTime() - new Date(today).getTime()) / 86400000); return d >= 0 && d <= 3; }).length, color: '#F59E0B', bg: '#F59E0B' },
+                { label: '처리완료', count: followUps.filter((f) => f.is_completed).length, color: '#10B981', bg: '#10B981' },
+              ]).map((s) => (
+                <div key={s.label} className="bg-[#111113] border border-[#1e1e22] rounded-xl p-3 text-center">
+                  <div className="text-xs text-[#71717a] mb-1">{s.label}</div>
+                  <div className="text-xl font-bold" style={{ color: s.color }}>{s.count}<span className="text-xs font-normal text-[#71717a] ml-0.5">건</span></div>
+                </div>
+              ))}
+            </div>
+
+            {/* 필터 버튼 (유형별) */}
             <div className="flex items-center gap-2 mb-4">
               {([
-                { key: 'upcoming', label: '예정', count: followUps.filter((f) => !f.is_completed && f.scheduled_date >= today).length },
-                { key: 'overdue', label: '지난 알림', count: followUps.filter((f) => !f.is_completed && f.scheduled_date < today).length },
-                { key: 'completed', label: '완료', count: followUps.filter((f) => f.is_completed).length },
-              ] as const).map((f) => (
+                { key: 'all' as const, label: '전체', count: followUps.length, style: 'bg-[#C8A951]/20 text-[#C8A951]' },
+                { key: 'QC점검' as const, label: 'QC', count: followUps.filter((f) => f.follow_up_type === 'QC점검').length, style: 'bg-[#3B82F6]/20 text-[#60A5FA]' },
+                { key: '메인터넌스' as const, label: '메인터넌스', count: followUps.filter((f) => f.follow_up_type === '메인터넌스').length, style: 'bg-[#8B5CF6]/20 text-[#A78BFA]' },
+                { key: '후기요청' as const, label: '후기요청', count: followUps.filter((f) => f.follow_up_type === '후기요청').length, style: 'bg-[#F59E0B]/20 text-[#FBBF24]' },
+              ]).map((f) => (
                 <button
                   key={f.key}
                   onClick={() => setFollowUpFilter(f.key)}
-                  className={`text-sm px-3 py-1.5 rounded-lg transition-colors ${
+                  className={`text-sm px-3 py-1.5 rounded-lg transition-colors font-medium ${
                     followUpFilter === f.key
-                      ? 'bg-[#C8A951]/20 text-[#C8A951]'
+                      ? f.style
                       : 'bg-[#1e1e22] text-[#71717a] hover:text-[#a1a1aa]'
                   }`}
                 >
                   {f.label}
-                  {f.count > 0 && (
-                    <span className={`ml-1.5 text-xs ${
-                      followUpFilter === f.key ? 'text-[#C8A951]' : 'text-[#71717a]'
-                    }`}>
-                      {f.count}
-                    </span>
-                  )}
+                  <span className={`ml-1.5 text-xs ${followUpFilter === f.key ? 'opacity-80' : 'text-[#52525b]'}`}>{f.count}</span>
                 </button>
               ))}
             </div>
 
-            <div className="space-y-2">
+            {/* 카드 리스트 */}
+            <div className="space-y-3">
               {filteredFollowUps.map((f) => {
                 const phone = f.customer?.phone;
+                const daysUntil = Math.ceil((new Date(f.scheduled_date).getTime() - new Date(today).getTime()) / 86400000);
+                const isUrgent = !f.is_completed && daysUntil >= 0 && daysUntil <= 3;
+                const isOverdue = !f.is_completed && f.scheduled_date < today;
+
                 const smsQC = `안녕하세요, 3M프로이즘입니다 ^^\n시공해드린 차량, 잘 타고 계신가요?\n\n시공 후 2주가 지나 QC 점검 시기가 되어 연락드렸습니다.\n필름이 완전히 안착되는 시기이기도 하고, 혹시 생활하시면서 불편하셨던 부분이 있으시다면 이번에 같이 확인해드리려고 합니다.\n\n편하신 날짜 말씀해주시면 점검 일정 잡아드리겠습니다.\n늘 감사합니다!`;
                 const smsMaint = `안녕하세요, 3M프로이즘입니다 ^^\n시공 후 6개월이 되어 메인터넌스 안내드립니다.\n\n필름 상태 점검과 함께 가벼운 외부 세척, 마감 재점검까지 진행해드리고 있습니다.\n오래오래 깔끔하게 유지하실 수 있도록 저희가 꾸준히 관리해드릴게요.\n\n편하신 날짜 말씀해주시면 일정 잡아드리겠습니다.\n항상 감사합니다!`;
                 const smsReviewProism = `안녕하세요, 3M프로이즘입니다.\n멋지게 작업이 완료된 차량 사진을 보내드리오니, 소중한 후기 작성 잘 부탁드리겠습니다.\n➊ 아래의 링크 클릭\n➋ 첨부드린 사진으로 후기 작성\n[ 🚩 후기 게시판 링크 ]\nhttps://m.site.naver.com/1S6dj\n고객님의 솔직한 리뷰는 저희에게 아주 큰 힘이 됩니다. 정말 감사드리며, 이후에 이어질 메인터넌스 시기(약 6개월 후)에도 차별화 된 서비스로 다시 또 찾아뵐게요!`;
@@ -1755,88 +1775,117 @@ export default function CRMPage() {
                     fetchFollowUps();
                   }
                 };
-                const badgeClass = f.follow_up_type === 'QC점검'
+
+                const typeBadgeClass = f.follow_up_type === 'QC점검'
                   ? 'bg-[#3B82F6]/20 text-[#60A5FA]'
                   : f.follow_up_type === '후기요청'
-                    ? 'bg-[#C8A951]/20 text-[#C8A951]'
+                    ? 'bg-[#F59E0B]/20 text-[#FBBF24]'
                     : 'bg-[#8B5CF6]/20 text-[#A78BFA]';
+
+                const statusBadge = f.is_completed
+                  ? { text: '처리완료', class: 'bg-[#10B981]/20 text-[#34D399]' }
+                  : isOverdue
+                    ? { text: `${Math.abs(daysUntil)}일 지남`, class: 'bg-[#EF4444]/20 text-[#F87171]' }
+                    : isUrgent
+                      ? { text: daysUntil === 0 ? '오늘' : `D-${daysUntil}`, class: 'bg-[#F59E0B]/20 text-[#FBBF24]' }
+                      : { text: '미처리', class: 'bg-[#EF4444]/15 text-[#F87171]' };
+
+                const cardBorder = isOverdue
+                  ? 'border-[#EF4444]/40'
+                  : isUrgent
+                    ? 'border-[#F59E0B]/40'
+                    : f.is_completed
+                      ? 'border-[#10B981]/20'
+                      : 'border-[#1e1e22]';
+
                 const sentBtn = 'bg-[#10B981]/15 text-[#34D399]';
                 const qcBtn = phone ? (sent.qc ? sentBtn : 'bg-[#3B82F6]/15 text-[#60A5FA] hover:bg-[#3B82F6]/25') : 'bg-[#1e1e22] text-[#71717a]/40 cursor-not-allowed';
                 const maintBtn = phone ? (sent.maintenance ? sentBtn : 'bg-[#8B5CF6]/15 text-[#A78BFA] hover:bg-[#8B5CF6]/25') : 'bg-[#1e1e22] text-[#71717a]/40 cursor-not-allowed';
-                const reviewBtn = (key: string) => phone ? (sent[key] ? sentBtn : 'bg-[#C8A951]/15 text-[#C8A951] hover:bg-[#C8A951]/25') : 'bg-[#1e1e22] text-[#71717a]/40 cursor-not-allowed';
+                const reviewBtn = (key: string) => phone ? (sent[key] ? sentBtn : 'bg-[#F59E0B]/15 text-[#FBBF24] hover:bg-[#F59E0B]/25') : 'bg-[#1e1e22] text-[#71717a]/40 cursor-not-allowed';
 
                 return (
                   <div
                     key={f.id}
-                    className={`bg-[#111113] border rounded-xl p-4 flex items-center justify-between ${
-                      !f.is_completed && f.scheduled_date < today
-                        ? 'border-[#EF4444]/30'
-                        : f.scheduled_date === today
-                          ? 'border-[#C8A951]/30'
-                          : 'border-[#1e1e22]'
-                    }`}
+                    className={`bg-[#111113] border rounded-xl p-4 ${cardBorder} ${isUrgent ? 'ring-1 ring-[#F59E0B]/20' : ''}`}
                   >
-                    <div className="flex items-center gap-4">
+                    {/* 카드 상단: 유형 + 상태 뱃지 */}
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${typeBadgeClass}`}>
+                          {f.follow_up_type}
+                        </span>
+                        <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${statusBadge.class}`}>
+                          {statusBadge.text}
+                        </span>
+                      </div>
                       <button
                         onClick={() => handleToggleFollowUp(f)}
-                        className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors shrink-0 ${
+                        className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors shrink-0 ${
                           f.is_completed
                             ? 'bg-[#10B981] border-[#10B981] text-white'
-                            : 'border-[#71717a] hover:border-[#C8A951]'
+                            : 'border-[#52525b] hover:border-[#C8A951]'
                         }`}
                       >
-                        {f.is_completed && <span className="text-xs">✓</span>}
+                        {f.is_completed && <span className="text-xs font-bold">✓</span>}
                       </button>
-                      <div>
+                    </div>
+
+                    {/* 카드 본문: 고객 정보 */}
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="space-y-1">
                         <div className="flex items-center gap-2">
-                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${badgeClass}`}>
-                            {f.follow_up_type}
-                          </span>
-                          <span className="text-sm font-medium text-[#fafaf9]">{f.customer?.name || '-'}</span>
-                          <span className="text-xs text-[#71717a]">{f.service?.service_type || ''}</span>
+                          <span className="text-sm font-semibold text-[#fafaf9]">{f.customer?.name || '-'}</span>
+                          {phone && <span className="text-xs text-[#52525b]">{phone}</span>}
                         </div>
-                        <div className="text-xs text-[#71717a] mt-1">
-                          {formatDate(f.scheduled_date)}
-                          {f.scheduled_date === today && <span className="ml-1 text-[#C8A951]">(오늘)</span>}
-                          {!f.is_completed && f.scheduled_date < today && (
-                            <span className="ml-1 text-[#EF4444]">(지남)</span>
-                          )}
-                          {f.memo && <span className="ml-2">· {f.memo}</span>}
+                        <div className="flex items-center gap-2 text-xs text-[#71717a]">
+                          <span className="bg-[#1e1e22] px-2 py-0.5 rounded">{f.service?.service_type || '-'}</span>
+                          <span>{formatDate(f.scheduled_date)}</span>
+                          {f.scheduled_date === today && <span className="text-[#F59E0B] font-medium">(오늘)</span>}
                         </div>
+                        {f.memo && <div className="text-xs text-[#52525b] mt-1">{f.memo}</div>}
                       </div>
                     </div>
-                    <div className="flex items-center gap-1.5 flex-wrap justify-end">
+
+                    {/* 카드 하단: 액션 버튼 */}
+                    <div className="flex items-center gap-1.5 flex-wrap pt-2 border-t border-[#1e1e22]">
                       {f.follow_up_type === 'QC점검' && (
-                        <button onClick={() => sendSmsWithTrack(smsQC, 'qc')} disabled={!phone} className={`text-[10px] font-medium px-2 py-1 rounded-lg transition-colors ${qcBtn}`}>{sent.qc ? '✓ QC 전송완료' : 'QC 문자'}</button>
+                        <button onClick={() => sendSmsWithTrack(smsQC, 'qc')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${qcBtn}`}>{sent.qc ? '✓ QC 전송완료' : '문자 발송'}</button>
                       )}
                       {f.follow_up_type === '메인터넌스' && (
                         <>
-                        <button onClick={() => sendSmsWithTrack(smsMaint, 'maintenance')} disabled={!phone} className={`text-[10px] font-medium px-2 py-1 rounded-lg transition-colors ${maintBtn}`}>{sent.maintenance ? '✓ 메인터넌스 전송완료' : '메인터넌스 문자'}</button>
+                        <button onClick={() => sendSmsWithTrack(smsMaint, 'maintenance')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${maintBtn}`}>{sent.maintenance ? '✓ 전송완료' : '문자 발송'}</button>
                         <button onClick={() => {
                           const msg = `${f.customer?.name || ''}님 안녕하세요, 3M 프로이즘 강남서초점입니다. ${f.service?.service_type || '시공'} 시공 후 6개월 메인터넌스 시기가 되어 안내드립니다. 무료 점검 및 관리 받으실 수 있으니 편하신 시간에 연락 부탁드립니다. 010-7287-7140`;
                           navigator.clipboard.writeText(msg);
                           alert('안내 문구가 복사되었습니다.');
-                        }} className="text-[10px] font-medium px-2 py-1 rounded-lg transition-colors bg-[#1e1e22] text-[#a1a1aa] hover:bg-[#2a2a2e]">문구 복사</button>
+                        }} className="text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors bg-[#1e1e22] text-[#a1a1aa] hover:bg-[#2a2a2e]">문구 복사</button>
                         </>
                       )}
                       {f.follow_up_type === '후기요청' && (
-                        <button onClick={() => sendSmsWithTrack(smsReviewProism, 'proism')} disabled={!phone} className={`text-[10px] font-medium px-2 py-1 rounded-lg transition-colors ${reviewBtn('proism')}`}>{sent.proism ? '✓ 프로이즘 전송완료' : '프로이즘 후기'}</button>
+                        <>
+                        <button onClick={() => sendSmsWithTrack(smsReviewProism, 'proism')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${reviewBtn('proism')}`}>{sent.proism ? '✓ 프로이즘' : '프로이즘 후기'}</button>
+                        <button onClick={() => sendSmsWithTrack(smsReviewBMW, 'bmw')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${reviewBtn('bmw')}`}>{sent.bmw ? '✓ BMW매니아' : 'BMW매니아'}</button>
+                        <button onClick={() => sendSmsWithTrack(smsReviewAudi, 'audi')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${reviewBtn('audi')}`}>{sent.audi ? '✓ 아우디매니아' : '아우디매니아'}</button>
+                        </>
                       )}
-                      {f.follow_up_type === '후기요청' && (
-                        <button onClick={() => sendSmsWithTrack(smsReviewBMW, 'bmw')} disabled={!phone} className={`text-[10px] font-medium px-2 py-1 rounded-lg transition-colors ${reviewBtn('bmw')}`}>{sent.bmw ? '✓ BMW 전송완료' : 'BMW매니아 후기'}</button>
-                      )}
-                      {f.follow_up_type === '후기요청' && (
-                        <button onClick={() => sendSmsWithTrack(smsReviewAudi, 'audi')} disabled={!phone} className={`text-[10px] font-medium px-2 py-1 rounded-lg transition-colors ${reviewBtn('audi')}`}>{sent.audi ? '✓ 아우디 전송완료' : '아우디매니아 후기'}</button>
-                      )}
-                      <button onClick={() => handleOpenWarrantyFromFollowUp(f)} className={`text-[10px] font-medium px-2 py-1 rounded-lg transition-colors ${customerHasWarranty(f.customer_id) ? 'bg-[#22c55e] text-white' : 'bg-[#22c55e]/10 hover:bg-[#22c55e]/20 text-[#22c55e]'}`}>{customerHasWarranty(f.customer_id) ? '✓ 보증서 발급완료' : '보증서'}</button>
+                      <button
+                        onClick={() => handleToggleFollowUp(f)}
+                        className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ml-auto ${
+                          f.is_completed
+                            ? 'bg-[#10B981]/15 text-[#34D399]'
+                            : 'bg-[#1e1e22] text-[#a1a1aa] hover:bg-[#2a2a2e]'
+                        }`}
+                      >
+                        {f.is_completed ? '✓ 완료됨' : '완료 처리'}
+                      </button>
+                      <button onClick={() => handleOpenWarrantyFromFollowUp(f)} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${customerHasWarranty(f.customer_id) ? 'bg-[#22c55e] text-white' : 'bg-[#22c55e]/10 hover:bg-[#22c55e]/20 text-[#22c55e]'}`}>{customerHasWarranty(f.customer_id) ? '✓ 보증서' : '보증서'}</button>
                     </div>
                   </div>
                 );
               })}
               {filteredFollowUps.length === 0 && (
                 <div className="text-center py-12 text-sm text-[#71717a]">
-                  {followUpFilter === 'upcoming' ? '예정된 사후관리가 없습니다' :
-                   followUpFilter === 'overdue' ? '지난 알림이 없습니다' : '완료된 항목이 없습니다'}
+                  {followUpFilter === 'all' ? '사후관리 항목이 없습니다' : `${followUpFilter} 항목이 없습니다`}
                 </div>
               )}
             </div>
