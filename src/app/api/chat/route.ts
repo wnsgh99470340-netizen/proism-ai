@@ -4,7 +4,7 @@ import path from 'path';
 import sharp from 'sharp';
 import { callClaude, analyzeImageWithClaude } from '@/lib/claude-client';
 import { getActiveEmployee } from '@/config/team';
-import { BLOG_SYSTEM_PROMPT } from '@/config/prompts';
+import { BLOG_SYSTEM_PROMPT } from '@/config/prompts.server';
 
 interface ImageRef {
   url: string;
