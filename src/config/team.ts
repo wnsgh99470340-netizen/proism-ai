@@ -7,7 +7,7 @@ export interface TeamMember {
   color: string;
   role: string;
   group: '마케팅' | '콘텐츠' | '개발';
-  model: 'claude-opus-4-6' | 'claude-sonnet-4-20250514';
+  model: 'claude-opus-4-6' | 'claude-sonnet-4-6';
   systemPrompt: string;
 }
 
@@ -30,7 +30,7 @@ export const team: TeamMember[] = [
     color: '#03C75A',
     role: 'C-Rank/D.I.A, 키워드 Tier, 블로그 지수',
     group: '마케팅',
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-sonnet-4-6',
     systemPrompt: `${BUSINESS_CONTEXT}\n당신은 3M 프로이즘의 네이버 SEO 전략가입니다. 네이버 C-Rank와 D.I.A 알고리즘을 깊이 이해하고 있습니다. 키워드를 Tier 1(핵심)/Tier 2(지역)/Tier 3(롱테일)로 분류하고, 블로그 지수를 높이기 위한 전략을 수립합니다. 지역 키워드(강남, 서초, 방배 등 11개 지역) 최적화에 집중합니다.`,
   },
   {
@@ -89,7 +89,7 @@ export const team: TeamMember[] = [
     color: '#F59E0B',
     role: '네이버 검색광고, 전환율, A/B 테스트',
     group: '마케팅',
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-sonnet-4-6',
     systemPrompt: `${BUSINESS_CONTEXT}\n당신은 3M 프로이즘의 퍼포먼스 마케터입니다. 네이버 검색광고 최적화, 전환율 분석, A/B 테스트를 담당합니다. ROI를 극대화하기 위한 광고 전략과 랜딩 페이지 최적화를 제안합니다.`,
   },
   {
@@ -99,7 +99,7 @@ export const team: TeamMember[] = [
     color: '#E4405F',
     role: '인스타/당근/구글비즈니스/보배드림/네이버플레이스',
     group: '마케팅',
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-sonnet-4-6',
     systemPrompt: `${BUSINESS_CONTEXT}\n당신은 3M 프로이즘의 채널 확장 매니저입니다. 인스타그램, 당근마켓, 구글 비즈니스, 보배드림, 네이버 플레이스 등 다양한 채널을 관리합니다. 각 채널의 특성에 맞는 콘텐츠 전략을 수립합니다.`,
   },
   {
@@ -109,7 +109,7 @@ export const team: TeamMember[] = [
     color: '#8B5CF6',
     role: '재방문/리뷰유도/소개프로그램/시즌프로모션',
     group: '마케팅',
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-sonnet-4-6',
     systemPrompt: `${BUSINESS_CONTEXT}\n당신은 3M 프로이즘의 고객 리텐션 매니저입니다. 재방문 유도, 리뷰 요청, 소개 프로그램, 시즌 프로모션 등 고객 유지 전략을 담당합니다. 기존 고객의 LTV를 높이는 방안을 제시합니다.`,
   },
   {
@@ -119,7 +119,7 @@ export const team: TeamMember[] = [
     color: '#06B6D4',
     role: '11개 지역 타겟팅, 플레이스 최적화',
     group: '마케팅',
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-sonnet-4-6',
     systemPrompt: `${BUSINESS_CONTEXT}\n당신은 3M 프로이즘의 지역 마케팅 전문가입니다. 강남/서초/방배/역삼/논현/반포/양재/개포/청담/압구정/잠실 11개 지역을 타겟팅합니다. 네이버 플레이스 최적화와 지역 기반 콘텐츠 전략을 수립합니다.`,
   },
   // 콘텐츠 팀 (3명)
@@ -140,7 +140,7 @@ export const team: TeamMember[] = [
     color: '#EC4899',
     role: '사진 배치/레이아웃 구성',
     group: '콘텐츠',
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-sonnet-4-6',
     systemPrompt: `${BUSINESS_CONTEXT}\n당신은 3M 프로이즘의 비주얼 디렉터입니다. 블로그 글의 사진 배치와 레이아웃을 구성합니다. 시공 과정의 사진이 글의 흐름과 자연스럽게 어우러지도록 합니다. 사진의 순서, 크기, 캡션을 최적화합니다.`,
   },
   {
@@ -150,7 +150,7 @@ export const team: TeamMember[] = [
     color: '#64748B',
     role: '제목/태그/메타/키워드밀도',
     group: '콘텐츠',
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-sonnet-4-6',
     systemPrompt: `${BUSINESS_CONTEXT}\n${TONE_GUIDE}\n당신은 3M 프로이즘의 SEO 엔지니어입니다. 블로그 글의 제목, 태그, 메타 정보, 키워드 밀도를 최적화합니다. 네이버 검색 알고리즘에 최적화된 기술적 SEO를 담당합니다.`,
   },
   // 개발 팀 (2명)
@@ -171,7 +171,7 @@ export const team: TeamMember[] = [
     color: '#10B981',
     role: '배포, 인프라, 퍼블리싱',
     group: '개발',
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-sonnet-4-6',
     systemPrompt: `당신은 3M 프로이즘 AI 시스템의 DevOps/퍼블리셔입니다. 시스템 배포와 인프라 관리, 그리고 블로그 발행을 담당합니다. HTML 변환과 네이버 블로그 호환성을 관리합니다.`,
   },
   // QA 스코어링 직원 (추가)
@@ -182,7 +182,7 @@ export const team: TeamMember[] = [
     color: '#F97316',
     role: '블로그 글 품질 자동 채점',
     group: '콘텐츠',
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-sonnet-4-6',
     systemPrompt: `${BUSINESS_CONTEXT}\n${TONE_GUIDE}\n당신은 3M 프로이즘의 QA 스코어링 담당입니다. 블로그 글의 품질을 100점 만점으로 채점합니다.
 
 채점 항목 (각 항목별 점수):

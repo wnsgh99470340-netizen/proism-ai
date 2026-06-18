@@ -401,7 +401,7 @@ ${body}
 
   let claudeQA: QAResult = { total: 0, violations: [], improvements: [] };
   try {
-    const reply = await callClaude(INLINE_QA_PROMPT, [{ role: 'user', content: userMsg }], 2048, 'claude-sonnet-4-20250514');
+    const reply = await callClaude(INLINE_QA_PROMPT, [{ role: 'user', content: userMsg }], 2048, 'claude-sonnet-4-6');
     const jsonMatch = reply.match(/\{[\s\S]*\}/);
     if (jsonMatch) claudeQA = JSON.parse(jsonMatch[0]);
   } catch { /* fallback */ }

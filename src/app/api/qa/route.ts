@@ -94,7 +94,7 @@ ${content}
       QA_SYSTEM_PROMPT,
       [{ role: 'user', content: userMessage }],
       4096,
-      'claude-sonnet-4-20250514'
+      'claude-sonnet-4-6'
     );
 
     // JSON 추출 (코드블록 감싸기 대응)

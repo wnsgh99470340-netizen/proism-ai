@@ -17,7 +17,7 @@ export async function callClaude(
   systemPrompt: string,
   messages: Message[],
   maxTokens = 4096,
-  model = 'claude-sonnet-4-20250514'
+  model = 'claude-sonnet-4-6'
 ): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -66,7 +66,7 @@ export async function analyzeImageWithClaude(
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 1024,
       messages: [
         {
