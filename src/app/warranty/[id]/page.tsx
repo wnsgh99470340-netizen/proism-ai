@@ -22,40 +22,78 @@ const SHOP = {
   phone: '010-7287-7140',
 };
 
-// 화면은 그대로 유지하고, 인쇄(Ctrl+P) 시에만 A4 한 장에 꽉 차도록 재배치한다.
+// 화면은 그대로 유지하고, 인쇄(Ctrl+P) 시에만 A4 한 장에 꽉 차도록 확대·재배치한다.
 const PRINT_CSS = `
 @media print {
-  @page { size: A4 portrait; margin: 14mm; }
+  /* 여백 최소화 — A4 세로, 상하좌우 8mm */
+  @page { size: A4 portrait; margin: 8mm; }
+
   html, body {
     background: #fff !important;
+    margin: 0 !important;
+    padding: 0 !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
+
   .no-print { display: none !important; }
+
   .warranty-root {
     min-height: auto !important;
     background: #fff !important;
     padding: 0 !important;
+    margin: 0 !important;
   }
+
+  /* 카드가 A4 인쇄영역(가로 194mm × 세로 281mm)에 꽉 차도록 flex 컬럼으로 확장 */
   .warranty-card {
     max-width: 100% !important;
     width: 100% !important;
     margin: 0 !important;
-    border: 1px solid #ddd;
-    border-radius: 12px;
-    overflow: hidden;
     box-shadow: none !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 281mm !important;
+    border: 1px solid #ccc;
   }
+
   /* 페이지 중간에서 섹션이 잘리지 않도록 */
-  .warranty-header, .warranty-body > div, .warranty-footer {
+  .warranty-header, .warranty-footer, .sec {
     break-inside: avoid;
     page-break-inside: avoid;
   }
-  /* 헤더 여백/제목 살짝 조정해 상단 밀도 확보 */
-  .warranty-header { padding: 28px 32px !important; border-radius: 12px 12px 0 0 !important; }
-  .warranty-title { font-size: 30px !important; }
-  .warranty-body > div { padding: 22px 32px !important; }
-  .warranty-footer { border-radius: 0 0 12px 12px !important; }
+
+  /* 헤더 확대 */
+  .warranty-header {
+    padding: 40px 44px !important;
+    border-radius: 0 !important;
+  }
+  .warranty-title { font-size: 44px !important; }
+
+  /* 본문이 남는 세로 공간을 모두 채우고, 섹션을 균등 분배 */
+  .warranty-body {
+    flex: 1 1 auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+  }
+  .sec { padding: 30px 44px !important; }
+  .sec-notice { padding: 30px 44px !important; }
+
+  /* 텍스트 전반 확대 — A4에서 읽기 좋은 크기로 */
+  .sec-label { font-size: 16px !important; margin-bottom: 16px !important; }
+  .r-label { font-size: 15px !important; margin-bottom: 4px !important; }
+  .r-value { font-size: 22px !important; }
+  .sec > div:nth-child(2) { gap: 18px 24px !important; }
+  .notice-text { font-size: 18px !important; line-height: 1.9 !important; }
+  .shop-info { font-size: 18px !important; line-height: 1.9 !important; }
+
+  /* 푸터 확대 */
+  .warranty-footer {
+    padding: 20px 44px !important;
+    border-radius: 0 !important;
+  }
+  .warranty-footer > div { font-size: 14px !important; }
 }
 `;
 
@@ -112,8 +150,8 @@ export default function WarrantyPage() {
 
         {/* 본문 */}
         <div className="warranty-body" style={{ background: '#fff', padding: '0' }}>
-          <div style={{ padding: '24px 28px', borderBottom: '1px solid #f0f0f0' }}>
-            <div style={{ fontSize: '11px', fontWeight: 600, color: '#999', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>고객 정보</div>
+          <div className="sec" style={{ padding: '24px 28px', borderBottom: '1px solid #f0f0f0' }}>
+            <div className="sec-label" style={{ fontSize: '11px', fontWeight: 600, color: '#999', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>고객 정보</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
               <R label="고객명" value={data.customer_name} />
               <R label="연락처" value={data.phone || '-'} />
@@ -122,8 +160,8 @@ export default function WarrantyPage() {
             </div>
           </div>
 
-          <div style={{ padding: '24px 28px', borderBottom: '1px solid #f0f0f0' }}>
-            <div style={{ fontSize: '11px', fontWeight: 600, color: '#999', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>시공 내역</div>
+          <div className="sec" style={{ padding: '24px 28px', borderBottom: '1px solid #f0f0f0' }}>
+            <div className="sec-label" style={{ fontSize: '11px', fontWeight: 600, color: '#999', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>시공 내역</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
               <R label="시공 내용" value={data.work_details || '-'} />
               <R label="시공일" value={data.service_date || '-'} />
@@ -132,17 +170,17 @@ export default function WarrantyPage() {
             </div>
           </div>
 
-          <div style={{ padding: '24px 28px', background: '#f0fdf4', borderBottom: '1px solid #f0f0f0' }}>
-            <div style={{ fontSize: '13px', color: '#166534', lineHeight: 1.8 }}>
+          <div className="sec sec-notice" style={{ padding: '24px 28px', background: '#f0fdf4', borderBottom: '1px solid #f0f0f0' }}>
+            <div className="notice-text" style={{ fontSize: '13px', color: '#166534', lineHeight: 1.8 }}>
               <strong>보증 안내</strong><br />
               본 보증서는 위 시공에 대해 보증 기간 내 시공 하자 발생 시 무상 재시공을 보장합니다.
               외부 충격, 사고, 고객 부주의로 인한 손상은 보증 대상에서 제외됩니다.
             </div>
           </div>
 
-          <div style={{ padding: '24px 28px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 600, color: '#999', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>매장 안내</div>
-            <div style={{ fontSize: '13px', color: '#555', lineHeight: 1.8 }}>
+          <div className="sec" style={{ padding: '24px 28px' }}>
+            <div className="sec-label" style={{ fontSize: '11px', fontWeight: 600, color: '#999', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>매장 안내</div>
+            <div className="shop-info" style={{ fontSize: '13px', color: '#555', lineHeight: 1.8 }}>
               <div style={{ fontWeight: 600, color: '#333' }}>{SHOP.name}</div>
               <div>{SHOP.address}</div>
               <div><a href={`tel:${SHOP.phone}`} style={{ color: '#22C55E', textDecoration: 'none', fontWeight: 500 }}>{SHOP.phone}</a></div>
@@ -173,8 +211,8 @@ export default function WarrantyPage() {
 function R({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div style={{ fontSize: '11px', color: '#999', marginBottom: '2px' }}>{label}</div>
-      <div style={{ fontSize: '14px', fontWeight: 500, color: '#333' }}>{value}</div>
+      <div className="r-label" style={{ fontSize: '11px', color: '#999', marginBottom: '2px' }}>{label}</div>
+      <div className="r-value" style={{ fontSize: '14px', fontWeight: 500, color: '#333' }}>{value}</div>
     </div>
   );
 }
