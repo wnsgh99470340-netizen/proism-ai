@@ -4,6 +4,8 @@ import { useState, useRef, useEffect } from 'react';
 import ChatMessage from './ChatMessage';
 import ImageUpload from './ImageUpload';
 import type { UploadedImage } from './ImageUpload';
+import BlogRequestForm from './BlogRequestForm';
+import type { BlogRequest } from '@/config/blog-options';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -23,7 +25,7 @@ interface Message {
 
 interface ChatPanelProps {
   messages: Message[];
-  onSendMessage: (message: string, images: UploadedImage[]) => void;
+  onSendMessage: (message: string, images: UploadedImage[], request?: BlogRequest) => void;
   loading: boolean;
   images: UploadedImage[];
   onImagesChange: (images: UploadedImage[]) => void;
@@ -37,6 +39,7 @@ export default function ChatPanel({
   onImagesChange,
 }: ChatPanelProps) {
   const [input, setInput] = useState('');
+  const [formOpen, setFormOpen] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -60,6 +63,28 @@ export default function ChatPanel({
 
   return (
     <div className="flex flex-col h-full">
+      {/* 시공기 빠른 생성 폼 */}
+      <div className="shrink-0 border-b border-[var(--c-border)]">
+        <button
+          onClick={() => setFormOpen((v) => !v)}
+          className="w-full flex items-center justify-between px-4 py-2 text-[11px] text-[var(--c-text-3)] hover:text-[var(--c-text-1)]"
+        >
+          <span>{formOpen ? '▾' : '▸'} 시공기 빠른 생성 폼</span>
+          <span>{formOpen ? '접기' : '펼치기'}</span>
+        </button>
+        {formOpen && (
+          <div className="pb-3">
+            <BlogRequestForm
+              disabled={loading}
+              onSubmit={(message, request) => {
+                onSendMessage(message, images, request);
+                setFormOpen(false);
+              }}
+            />
+          </div>
+        )}
+      </div>
+
       {/* 메시지 영역 */}
       <div className="flex-1 overflow-y-auto px-4 py-4">
         {messages.length === 0 && (

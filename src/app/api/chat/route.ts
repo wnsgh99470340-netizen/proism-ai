@@ -3,12 +3,18 @@ import { readFile, writeFile, readdir, mkdir } from 'fs/promises';
 import path from 'path';
 import sharp from 'sharp';
 import { callClaude, analyzeImageWithClaude } from '@/lib/claude-client';
-import { isBlogWriteRequest, extractCarModel, extractServiceType, researchForBlogPost } from '@/lib/blog-research';
+import { isBlogWriteRequest, resolveTarget, researchForBlogPost } from '@/lib/blog-research';
+import type { BlogRequest } from '@/config/blog-options';
+import { factCheck, type FactIssue } from '@/lib/fact-check';
+import { buildToneReference, savePost, listPosts } from '@/lib/posts';
 import { getActiveEmployee } from '@/config/team';
-import { BLOG_SYSTEM_PROMPT } from '@/config/prompts.server';
+import { BLOG_SYSTEM_PROMPT } from '@/config/prompts';
 
 // 글 작성 전 웹 검색 리서치 + 작성 + QA + 수정까지 여러 번 Claude를 호출하므로 넉넉히 잡음
 export const maxDuration = 300;
+
+// 블로그 작성 모델 (담당 직원 설정과 무관하게 고정)
+const BLOG_WRITER_MODEL = 'claude-opus-4-6';
 
 interface ImageRef {
   url: string;
@@ -131,265 +137,92 @@ function tryBuildDraft(
 }
 
 /**
- * 블로그 글 인라인 QA 채점 (97점 품질 루프용)
- * QA API와 동일한 채점 기준을 사용하되, 경량 JSON만 반환
+ * 결정론적 위반 검사 — 5종만. Claude 채점 없음.
+ * 점수를 매기지 않고 "반드시 빼야 하는 표현"만 잡는다.
  */
-const INLINE_QA_PROMPT = `당신은 3M 프로이즘 블로그 글의 QA 채점관입니다. 아래 글을 채점하고 JSON으로만 응답하세요.
+type Violation = { rule: string; detail: string };
 
-**최우선 원칙**: 이 블로그의 톤은 "매장에서 고객한테 편하게 설명하는 톤"입니다. 광고 전단지·회사 소개서 톤이면 감점하세요. 자신감/차별점은 "자연스럽게 녹였을 때" 가산점이지, "명시적으로 나열했을 때"가 아닙니다.
-
-채점 시 사용자 입력(USER_INPUT)이 주어진다면, "사용자가 알려준 정보"의 기준입니다. 사용자가 까다로운 부위를 알려주지 않았는데 본문에 "까다로웠다/신경 썼다" 어휘가 등장하면 careful_part_fabrication 위반입니다.
-
-## 점수 계산 공식 (엄격히 준수)
-1. **기본 점수 = 100점에서 시작.**
-2. 아래 "위반 감점"에서 적발된 모든 항목을 합산해서 차감.
-3. 위반이 **하나도 없고** 기본 조건(글자수 2500자+, [사진 N] 태그 10개+, 제목에 지역+차종+서비스 3요소 포함, 해시태그 5~7개, 마무리에 010-7287-7140 + 서초중앙로 주소 포함)을 **모두 충족**하면 **최소 90점 보장**. 품질이 인상적이면 95~100점까지 가산.
-4. 품질 요소(톤/개인 목소리/깊이/자연스러움/문단 포맷)에서 "눈에 띄는 약점"이 있으면 -3점씩, 최대 -10점까지만 감점. 뚜렷한 약점이 아니면 감점하지 말 것. **사소한 흠을 찾아 감점하지 말 것.**
-5. 기본 조건 미달 시에만 아래 비율로 추가 감점:
-   - 글자수 2000~2499자: -5점 / 1700~1999자: -10점 / 1700자 미만: -20점
-   - 사진 태그 7~9개: -3점 / 4~6개: -7점 / 미만: -15점
-   - 제목 3요소 중 2개 포함: -5점 / 1개: -10점 / 없음: -15점
-   - 해시태그 개수 벗어남: -3점
-   - 연락처/주소 누락: 각 -5점
-
-**즉, 위반 없고 기본 조건 충족 = 90점부터. 85점 미만은 반드시 위반이나 기본 조건 미달이 있어야 함.**
-
-## 위반 감점 (각 항목)
-- heat_violation (-10): PPF/컬러PPF/PWF 시공기에서 "열 성형" "히팅건" "열을 가해" "포스트 히팅" "오버랩" 표현 (랩핑/크롬죽이기/썬팅은 허용)
-- customer_quote (-15): 고객 말을 따옴표로 직접 인용 (큰따옴표·작은따옴표 모두). "완전히 다른 차 같다" "이게 진짜 PWF구나" 같은 고객 발화풍 따옴표 인용 모두 위반
-- panel_listing (-15): 패널 4개 이상을 연속 나열 ("후드는~ 펜더는~ 도어는~ 범퍼는~" 식). "범퍼 작업 → 루프 작업 → 도어 작업" 같이 화살표·구분자로 부위를 3개 이상 체인처럼 연결한 구조도 모두 위반. 그날 까다로운 부위 2~3곳만 깊이 서술해야 함
-- time_sequence_listing (-15): "다음은~" "그 다음~" "이어서~" "마지막으로~" 같은 시간순 연결어가 부위명과 결합돼 시공 순서대로 부위를 옮겨다니는 구조. 부위는 시공 시간 순이 아니라 "인상 깊었던 곳" 단위로 골라 깊이 풀어야 함
-- careful_part_fabrication (-15): 사용자 입력에 까다로운 부위 정보가 없는데 본문에 "까다로웠다" "까다로운 부위" "신경 썼다" "신경 쓴 부분" "공들였다" "애를 먹었다" 같은 어휘가 등장. 또는 "가장 까다로웠던 부분은~" "두 번째로 신경 쓴 부분은~" 같은 번호 매기기 패턴
-- mirror_difficulty (-15): 사이드미러를 까다로운 부위·신경 쓴 부위로 묘사. 어떤 경우에도 사이드미러는 까다로운 부위가 아님
-- numbered_listing (-15): "첫째," "둘째," "셋째," 또는 "1)" "2)" "3)" 또는 "차별점1:" 같은 번호 매기기로 강점·차별점·부위·과정을 나열
-- modifier_line (-15): "~를 정말 잘하는 남자" "~하나만큼은 자신 있는 남자" "~만큼은 끝까지 책임지는 남자" "~에 진심인 남자" 같은 "OO하는 남자/사람/장인" 구조의 수식어 줄. 광고 카피 톤이라 전부 위반
-- forbidden_closing (-10): 금지 마무리 표현. "긴 글 읽어주셔서 감사합니다" "오늘도 한 대의 작품" "이런 순간이 이 일을 하는 이유" "~ 자부합니다"로 끝맺기
-- differentiation_listing (-15): **차별점/강점을 번호나 리스트로 나열** ("첫째~ 둘째~ 셋째~", "차별점1:~ 차별점2:~" 식). 자신감은 시공 이야기 흐름에 녹여야 함
-- ad_tone (-10): 광고 전단지·회사 소개서 톤. "저희 프로이즘은 ~합니다. 또한 ~합니다. 그리고 ~합니다" 식 자랑 나열, 본문 중간에 회사 소개 섹션 삽입
-- fabrication (-15): AI가 추측해 꾸며낸 기술적 디테일 (프로이즘 원본에 없는 묘사)
-- representative_career (-10): 진준호 대표에게 경력 연수 언급 ("N년 경력" "오랜 경력"). 30년 경력은 썬팅 담당 이팀장님의 것이지 대표의 것이 아님
-- team_leader_scope (-10): PPF/랩핑/PWF/크롬죽이기 시공기에서 "팀장님"을 작업자로 묘사 (이팀장님은 썬팅만)
-- excessive_pride (-10): "압도적" "독보적" "전국 최고" "업계 1위" 같은 선언을 글당 2회 이상 사용, 또는 한 문단에 자신감 표현 3개 이상 몰아 쓰기
-
-## 응답 형식 (JSON만, 다른 텍스트 금지)
-{"total":92,"violations":[],"improvements":["개선점이 있다면 한두 개만"]}
-
-**절대 원칙**: 위반이 빈 배열이고 기본 조건 모두 충족이면 total은 반드시 90 이상이어야 합니다.`;
-
-type Violation = { rule: string; detail: string; penalty: number };
-type QAResult = { total: number; violations: Violation[]; improvements: string[] };
-
-/**
- * 결정론적 정규식 사전검사. Claude QA가 놓치는 위반을 강제로 잡아냄.
- * 사용자 메시지에 "까다로/신경/공들임" 어휘가 없는데 본문에 등장하면 fabrication으로 처리.
- */
-function deterministicViolationCheck(body: string, userInput: string): Violation[] {
+function checkHardViolations(body: string, userInput: string, serviceType: string): Violation[] {
   const v: Violation[] = [];
-  const userHasCarefulMention = /까다|신경|공들|애먹|애를\s*먹|고생/.test(userInput);
 
-  // 차단 1: 따옴표로 고객 발화 인용
-  // 큰따옴표·작은따옴표·중괄 따옴표 안에 종결어미가 들어가면 발화 인용으로 간주
-  const quotePatterns = [
-    /["“]([^"”\n]{2,80}?)(다|요|네요|어요|구나|군요|세요|잖아요)["”]/,
-    /[''`]([^''`\n]{2,80}?)(다|요|네요|어요|구나|군요|세요|잖아요)['']/,
-  ];
-  for (const re of quotePatterns) {
-    const m = body.match(re);
-    if (m) {
-      v.push({ rule: 'customer_quote', detail: `따옴표 인용 감지: ${m[0].slice(0, 40)}`, penalty: -15 });
-      break;
-    }
+  // 1. PPF·컬러PPF·PWF 글의 열·오버랩 표현
+  if (/PPF|PWF/.test(serviceType)) {
+    const m = body.match(/열\s*성형|히팅\s*건|열을\s*가[해하]|열로\s*(?:늘|당|잡|펴)|포스트\s*히팅|오버랩/);
+    if (m) v.push({ rule: 'heat', detail: `PPF·PWF 글에 열·오버랩 표현 "${m[0]}"` });
   }
 
-  // 차단 2: 사용자가 안 알려줬는데 까다로/신경썼다 어휘 등장
-  if (!userHasCarefulMention) {
-    const carefulMatch = body.match(/(까다로[웠운울][^\n]{0,30}|신경\s*[쓰써썼][^\n]{0,30}|공들[였인]|애[를]?\s*먹[었은]|고생[했한])/);
-    if (carefulMatch) {
-      v.push({
-        rule: 'careful_part_fabrication',
-        detail: `사용자가 까다로운 부위를 알려주지 않았는데 "${carefulMatch[0].slice(0, 30)}" 사용`,
-        penalty: -15,
-      });
-    }
+  // 2. 따옴표로 고객 발화 인용
+  const quote = body.match(/["“]([^"”\n]{2,80}?)(다|요|네요|어요|구나|군요|세요|잖아요)["”]/)
+    || body.match(/[''`]([^''`\n]{2,80}?)(다|요|네요|어요|구나|군요|세요|잖아요)['']/);
+  if (quote) v.push({ rule: 'quote', detail: `따옴표 인용 "${quote[0].slice(0, 40)}"` });
+
+  // 3. 사용자가 안 알려준 까다로운 부위 + 사이드미러
+  const userMentions = /까다|신경|공들|애먹|애를\s*먹|고생/.test(userInput);
+  if (!userMentions) {
+    const m = body.match(/까다로[웠운울]|신경\s*[쓰써썼]|공들[였인]|애[를]?\s*먹[었은]|고생[했한]/);
+    if (m) v.push({ rule: 'careful', detail: `사용자가 알려주지 않은 "${m[0]}" 표현` });
+  }
+  if (/사이드미러[^\n]{0,40}(까다|신경\s*[쓰써썼]|공들|애먹|고생)|(까다로[웠운]|신경\s*[쓴쓰써썼]|공들[였인])[^\n]{0,40}사이드미러/.test(body)) {
+    v.push({ rule: 'careful', detail: '사이드미러를 까다로운 부위로 묘사' });
   }
 
-  // 차단 2 보조: 번호 매기기 패턴 (사용자 입력 여부와 무관하게 항상 금지)
-  const numberedCarefulPatterns = [
-    /가장\s*까다로[웠운울]/,
-    /두\s*번째[로]?\s*(까다|신경|공들)/,
-    /세\s*번째[로]?\s*(까다|신경|공들)/,
-    /첫\s*번째[로]?\s*(까다|신경|공들)/,
-  ];
-  for (const re of numberedCarefulPatterns) {
-    const m = body.match(re);
-    if (m) {
-      v.push({ rule: 'numbered_listing', detail: `번호 매겨 까다로운 부위 나열: ${m[0]}`, penalty: -15 });
-      break;
-    }
+  // 4. 대표 경력 연수 (팀장님 문맥은 허용)
+  const careerRe = /(\d+|수십|오랜)\s*년\s*(?:간|동안|의)?\s*(경력|노하우|경험)/g;
+  let cm: RegExpExecArray | null;
+  while ((cm = careerRe.exec(body)) !== null) {
+    const around = body.slice(Math.max(0, cm.index - 40), cm.index + cm[0].length + 20);
+    if (!/팀장/.test(around)) { v.push({ rule: 'career', detail: `경력 연수 표현 "${cm[0]}" (대표에게 금지)` }); break; }
   }
 
-  // 차단 3: 시간순 부위 진행 — "다음은/그 다음/이어서/마지막으로" 가 부위명과 가까이 등장
-  const partWords = '(보닛|후드|펜더|도어|루프|범퍼|트렁크|리어|프론트|A필러|B필러|C필러|사이드미러|휀더)';
-  const sequenceWords = '(다음[은으로]?|그\\s*다음|이어서|이후[에는]?|마지막으로|마무리[로는]?)';
-  const seqRe1 = new RegExp(`${sequenceWords}[\\s,]{0,10}${partWords}`, 'g');
-  const seqRe2 = new RegExp(`${partWords}[^\\n]{0,15}(?:작업|시공|마감|붙[였인]|진행)[^\\n]{0,20}${sequenceWords}`, 'g');
-  const seqHits: string[] = [...(body.match(seqRe1) || []), ...(body.match(seqRe2) || [])];
-  if (seqHits.length >= 1) {
-    v.push({
-      rule: 'time_sequence_listing',
-      detail: `시간순 부위 진행: ${seqHits.slice(0, 2).join(' / ').slice(0, 60)}`,
-      penalty: -15,
-    });
-  }
-
-  // 차단 3 보조 1: 화살표/구분자 체인 — "범퍼 작업 → 루프 작업 → 도어 작업" 같은 구조
-  // 부위명+동작어+구분자 가 연속 3회 이상 등장하면 순차 나열로 간주
-  const chainPartAction = new RegExp(
-    `${partWords}[^\\n]{0,10}(?:작업|시공|마감|부착|붙이[기]?|진행|완료)?\\s*[→▶»>\\-—~]+\\s*${partWords}[^\\n]{0,10}(?:작업|시공|마감|부착|붙이[기]?|진행|완료)?\\s*[→▶»>\\-—~]+\\s*${partWords}`,
-    'g'
-  );
-  const chainMatch = body.match(chainPartAction);
-  if (chainMatch) {
-    v.push({
-      rule: 'panel_listing',
-      detail: `화살표/구분자로 부위 체인: ${chainMatch[0].slice(0, 80)}`,
-      penalty: -15,
-    });
-  }
-
-  // 차단 3 보조 2: 부위 4개 이상 등장 (각 1회 이상)
-  const partList = ['보닛', '후드', '펜더', '도어', '루프', '범퍼', '트렁크', 'A필러', 'B필러', 'C필러', '사이드미러', '휀더', '리어범퍼', '프론트범퍼'];
-  const distinctPartsHit = partList.filter(p => body.includes(p));
-  if (distinctPartsHit.length >= 4) {
-    v.push({
-      rule: 'panel_listing',
-      detail: `부위 ${distinctPartsHit.length}개 등장 (${distinctPartsHit.slice(0, 5).join(', ')}). 2~3곳만 깊이 풀어야 함`,
-      penalty: -15,
-    });
-  }
-
-  // 차단 6: "~하는 남자" 수식어 줄 (광고 카피 톤)
-  const modifierLinePatterns = [
-    /[가-힣A-Za-z0-9 ]{2,20}(?:은|는|을|를|만큼은?|하나만큼은?|에|에는)?\s*(?:정말\s*)?(?:잘\s*하는|제대로\s*[아하][는닌]|자신\s*있는|책임지는|진심인|끝까지\s*[책가][임지지]는)\s*(?:남자|사람|장인|전문가)/,
-    /(?:남자|사람|장인)다운\s*시공/,
-  ];
-  for (const re of modifierLinePatterns) {
-    const m = body.match(re);
-    if (m) {
-      v.push({ rule: 'modifier_line', detail: `"~하는 남자" 수식어 줄: ${m[0].slice(0, 50)}`, penalty: -15 });
-      break;
-    }
-  }
-
-  // 차단 4: 금지 마무리 표현
-  const forbiddenClosings = [
-    '긴 글 읽어주셔서 감사합니다',
-    '긴글 읽어주셔서 감사합니다',
-    '오늘도 한 대의 작품',
-    '이런 순간이 이 일을 하는 이유',
-  ];
-  for (const phrase of forbiddenClosings) {
-    if (body.includes(phrase)) {
-      v.push({ rule: 'forbidden_closing', detail: `금지 마무리 표현: ${phrase}`, penalty: -10 });
-      break;
-    }
-  }
-  // "~ 자부합니다"로 끝나는 마무리 (마지막 200자 안에 등장)
-  const tail = body.slice(-300);
-  if (/자부합니다[.\s]*$/.test(tail.trim()) || /자부합니다[.\s]*\n[^가-힣]*$/.test(tail)) {
-    v.push({ rule: 'forbidden_closing', detail: '"~ 자부합니다"로 마무리', penalty: -10 });
-  }
-
-  // 차단: 사이드미러를 까다롭다·신경썼다 묘사
-  const mirrorRe = /사이드미러[^\n]{0,40}(까다|신경\s*[쓰써썼]|공들|애먹|고생)/;
-  const mirrorRe2 = /(까다로[웠운]|신경\s*[쓴쓰써썼]|공들[였인])[^\n]{0,40}사이드미러/;
-  if (mirrorRe.test(body) || mirrorRe2.test(body)) {
-    v.push({ rule: 'mirror_difficulty', detail: '사이드미러를 까다로운 부위로 묘사', penalty: -15 });
-  }
+  // 5. 클리셰 마무리 + "~하는 남자" 수식어 줄
+  const cliche = body.match(/긴\s*글\s*읽어주셔서\s*감사|오늘도\s*한\s*대의\s*작품|이런\s*순간이\s*이\s*일을\s*하는\s*이유|자부합니다[.\s]*$/m);
+  if (cliche) v.push({ rule: 'cliche', detail: `클리셰 마무리 "${cliche[0].slice(0, 30)}"` });
+  const modifier = body.match(/(?:잘\s*하는|자신\s*있는|책임지는|진심인|제대로\s*아는)\s*(?:남자|사람|장인|전문가)/);
+  if (modifier) v.push({ rule: 'cliche', detail: `수식어 줄 "${modifier[0]}"` });
 
   return v;
 }
 
-async function inlineQAScore(title: string, body: string, userInput: string = ''): Promise<QAResult> {
-  const pureText = body.replace(/\[사진\s*\d+\]/g, '').replace(/\s/g, '');
-  const photoCount = (body.match(/\[사진\s*\d+\]/g) || []).length;
+function splitTitleBody(text: string): { title: string; body: string } | null {
+  const lines = text.split('\n');
+  const idx = lines.findIndex(l => l.trim().length > 0);
+  if (idx === -1) return null;
+  return { title: lines[idx].trim(), body: lines.slice(idx + 1).join('\n').trim() };
+}
 
-  // 1. 결정론적 regex 사전검사 (Claude가 놓치는 위반을 강제 검출)
-  const regexViolations = deterministicViolationCheck(body, userInput);
+/** 숫자 기준 검사 — 분량·제목 길이. 점수가 아니라 미달 여부만 본다 */
+const MIN_BODY_CHARS = 2300;   // 목표 2500자, 약간의 여유
+const MIN_TITLE_CHARS = 18;    // 목표 20~25자
 
-  // 2. Claude QA 호출
-  const userMsg = `USER_INPUT (사용자가 알려준 정보):
-${userInput || '(없음)'}
-
----
-제목: ${title}
-본문:
-${body}
-
-서버측정: 글자수=${pureText.length}자, 사진태그=${photoCount}개`;
-
-  let claudeQA: QAResult = { total: 0, violations: [], improvements: [] };
-  try {
-    const reply = await callClaude(INLINE_QA_PROMPT, [{ role: 'user', content: userMsg }], 2048, 'claude-sonnet-4-6');
-    const jsonMatch = reply.match(/\{[\s\S]*\}/);
-    if (jsonMatch) claudeQA = JSON.parse(jsonMatch[0]);
-  } catch { /* fallback */ }
-
-  // 3. regex 위반과 Claude 위반 병합 (rule 기준 중복 제거, 더 엄한 penalty 채택)
-  const merged = new Map<string, Violation>();
-  for (const v of [...regexViolations, ...(claudeQA.violations || [])]) {
-    const existing = merged.get(v.rule);
-    if (!existing || v.penalty < existing.penalty) merged.set(v.rule, v);
+function checkFormatIssues(title: string, body: string): string[] {
+  const issues: string[] = [];
+  const pureLen = body.replace(/\[사진\s*\d+\]/g, '').replace(/\s/g, '').length;
+  if (pureLen < MIN_BODY_CHARS) {
+    issues.push(`분량 부족: 공백 제외 ${pureLen}자 → 2,500자 이상으로 보강. 시공 과정·마감·관리 안내를 더 구체적으로 풀고, 차량 소개는 늘리지 말 것`);
   }
-  const mergedViolations = Array.from(merged.values());
-
-  // 4. regex 위반이 있으면 Claude 점수에서 추가 감점 (Claude가 놓친 분량)
-  const claudeRules = new Set((claudeQA.violations || []).map(v => v.rule));
-  const extraPenalty = regexViolations
-    .filter(v => !claudeRules.has(v.rule))
-    .reduce((sum, v) => sum + v.penalty, 0);
-  const total = Math.max(0, (claudeQA.total || 0) + extraPenalty);
-
-  return {
-    total,
-    violations: mergedViolations,
-    improvements: claudeQA.improvements || [],
-  };
+  const photos = (body.match(/\[사진\s*\d+\]/g) || []).length;
+  if (photos < 10) issues.push(`[사진 N] 태그 ${photos}개 → 10개 이상으로`);
+  if (title.length < MIN_TITLE_CHARS) {
+    issues.push(`제목 ${title.length}자로 짧음 → 20~25자로 ("[지역] [차종] [서비스]"에 핵심 포인트 한 가지 덧붙이기)`);
+  }
+  return issues;
 }
 
 /**
- * QA 피드백을 바탕으로 글 수정 요청
+ * 위반 표현·형식 미달만 고치는 1회 수정. 점수·끼워넣기 없이 지시한다.
  */
-async function refineBlogPost(
-  systemPrompt: string,
-  originalReply: string,
-  qaResult: { total: number; violations: { rule: string; detail: string; penalty: number }[]; improvements: string[] },
-): Promise<string> {
-  const violationText = qaResult.violations.length > 0
-    ? qaResult.violations.map(v => `- [${v.rule}] ${v.detail} (${v.penalty}점)`).join('\n')
-    : '(위반 없음)';
-  const improvementText = qaResult.improvements.join('\n- ');
+async function fixIssues(systemPrompt: string, original: string, issues: string[], model: string): Promise<string> {
+  const list = issues.map(s => `- ${s}`).join('\n');
+  const msg = `아래 글에서 다음 항목만 고치세요. 위반 표현은 삭제하거나 규칙에 맞게 바꾸고, 분량 보강이 있으면 시공 디테일로만 채우세요. 나머지 문장·구조는 그대로 유지하고, 새 자랑·자격·차별점을 추가하지 마세요.
 
-  const refineMsg = `아래 블로그 글이 QA에서 ${qaResult.total}점을 받았습니다. 아래 피드백을 참고해 자연스럽게 다시 써주세요.
+[고칠 것]
+${list}
 
-[감점 사유]
-${violationText}
+[원본]
+${original}
 
-[참고 개선점]
-- ${improvementText}
-
-[원본 글]
-${originalReply}
-
-**수정 원칙 (최우선)**:
-- 시스템 프롬프트의 톤·구조 원칙이 절대 기준입니다. 매장에서 고객한테 편하게 설명하는 톤이 전부입니다.
-- 감점 사유를 "끼워넣기"로 해결하지 마세요. 차별점을 억지로 나열하거나, 자부심 문구를 박아넣거나, 자격증을 여러 번 반복하면 더 나빠집니다.
-- 감점 사유는 "무엇을 빼야 하는지"의 신호로 먼저 읽으세요. 예: 패널 나열 감점이면 → 2~3곳만 깊이 남기고 나머지 삭제. 차별점 나열 감점이면 → 리스트를 풀어 시공 이야기에 녹이기.
-- 광고 전단지 톤이 되느니 차라리 담백하게 쓰세요. 점수를 올리려고 선언·자랑을 추가하는 건 금지입니다.
-
-수정된 글만 출력하세요. 설명이나 코멘트 없이 제목부터 시작.`;
-
-  return await callClaude(systemPrompt, [{ role: 'user', content: refineMsg }], 8192);
+설명 없이 제목부터 글 전체를 다시 출력하세요.`;
+  return await callClaude(systemPrompt, [{ role: 'user', content: msg }], 8192, model);
 }
 
 const DRAFTS_DIR = path.join(process.cwd(), 'public', 'drafts');
@@ -398,6 +231,17 @@ const DRAFTS_DIR = path.join(process.cwd(), 'public', 'drafts');
  * 이전에 저장된 글의 제목 + 도입부 첫 2줄을 반환 (최근 20개)
  */
 async function getPreviousDrafts(): Promise<{ title: string; intro: string }[]> {
+  // 1) DB 에 저장된 글 (초안·최종본·사장님 글) 최근 20개
+  try {
+    const rows = await listPosts(undefined, 20);
+    if (rows.length > 0) {
+      return rows.map(r => {
+        const lines = r.body.split('\n').map(l => l.trim()).filter(Boolean);
+        return { title: r.title, intro: lines.slice(0, 2).join(' / ') };
+      });
+    }
+  } catch { /* 파일 폴백 */ }
+  // 2) 로컬 파일 폴백 (개발 환경)
   try {
     await mkdir(DRAFTS_DIR, { recursive: true });
     const files = await readdir(DRAFTS_DIR);
@@ -445,12 +289,14 @@ async function saveDraft(title: string, body: string): Promise<void> {
 
 export async function POST(request: NextRequest) {
   try {
-    const { message, history = [], images = [], research = null } = await request.json() as {
+    const { message, history = [], images = [], research = null, request: blogRequest = null } = await request.json() as {
       message: string;
       history: { role: string; content: string }[];
       images: ImageRef[];
       research?: { context: string; summary: string } | null;
+      request?: BlogRequest | null;
     };
+    const target = resolveTarget(message || '', blogRequest);
 
     if (!message && images.length === 0) {
       return Response.json({ error: '메시지를 입력해주세요.' }, { status: 400 });
@@ -511,10 +357,10 @@ export async function POST(request: NextRequest) {
       // 클라이언트가 /api/research 로 미리 조사한 결과 (함수 실행시간 분산)
       vehicleContext = '\n\n' + research.context;
       researchSummary = research.summary || '';
-    } else if (isBlogWriteRequest(message || '')) {
-      const carModel = extractCarModel(message || '');
+    } else if (blogRequest || isBlogWriteRequest(message || '')) {
+      const carModel = target.carModel;
       if (carModel) {
-        const serviceType = extractServiceType(message || '');
+        const serviceType = target.serviceType;
         const done = await researchForBlogPost(message || '', carModel, serviceType);
         vehicleContext = '\n\n' + done.context;
         researchSummary = done.summary;
@@ -532,7 +378,12 @@ export async function POST(request: NextRequest) {
       previousContext = `\n\n[이전에 작성한 글 목록]\n아래는 이전에 작성한 글의 제목과 도입부입니다. 이 글들과 유사한 도입부, 표현, 구조를 절대 반복하지 마세요.\n${list}`;
     }
 
-    const systemPrompt = `${BLOG_SYSTEM_PROMPT}${vehicleContext}${previousContext}\n\n현재 담당: ${activeEmployee.emoji} ${activeEmployee.name}\n역할: ${activeEmployee.role}\n\n${activeEmployee.systemPrompt}`;
+    const isBlog = Boolean(blogRequest) || isBlogWriteRequest(message || '');
+    const toneReference = isBlog ? await buildToneReference() : '';
+    const systemPrompt = isBlog
+      ? `${BLOG_SYSTEM_PROMPT}${toneReference}${vehicleContext}${previousContext}`
+      : `${activeEmployee.systemPrompt}\n\n현재 담당: ${activeEmployee.emoji} ${activeEmployee.name}\n역할: ${activeEmployee.role}`;
+    const writerModel = isBlog ? BLOG_WRITER_MODEL : activeEmployee.model;
 
     // 히스토리 + 현재 메시지
     const messages = [
@@ -546,91 +397,80 @@ export async function POST(request: NextRequest) {
       },
     ];
 
-    let reply = await callClaude(systemPrompt, messages, 8192, activeEmployee.model);
+    let reply = await callClaude(systemPrompt, messages, 8192, writerModel);
 
     // 서버에서 직접 draft 구성 (JSON 파싱 불필요)
     let draftResult = tryBuildDraft(reply, combinedMessage);
 
-    // ─── 97점 품질 자동 루프 (블로그 글일 때만) ───
+    // ─── 위반 검사 (regex 5종) + 필요 시 1회 수정. Claude 채점 없음 ───
+    let remaining: Violation[] = [];
+    let checks: { violations: Violation[]; facts: FactIssue[]; format: string[] } | null = null;
+    let draftId: string | null = null;
     if (draftResult) {
-      const lines = reply.split('\n');
-      const firstNonEmptyIdx = lines.findIndex(l => l.trim().length > 0);
-      let bestReply = reply;
-      let bestScore = 0;
-      let lastQA: { total: number; violations: { rule: string; detail: string; penalty: number }[]; improvements: string[] } = { total: 0, violations: [], improvements: [] };
+      const serviceType = target.serviceType;
+      const first = splitTitleBody(reply);
+      let violations = first ? checkHardViolations(first.body, combinedMessage, serviceType) : [];
+      let factIssues: FactIssue[] = first ? factCheck({ body: first.body, serviceType, product: target.product }) : [];
+      let formatIssues = first ? checkFormatIssues(first.title, first.body) : [];
+      const pureLen = (b: string) => b.replace(/\[사진\s*\d+\]/g, '').replace(/\s/g, '').length;
 
-      const title = lines[firstNonEmptyIdx].trim();
-      const body = lines.slice(firstNonEmptyIdx + 1).join('\n').trim();
-
-      // 1차 QA 채점
-      lastQA = await inlineQAScore(title, body, combinedMessage);
-      bestScore = lastQA.total;
-      bestReply = reply;
-
-      // 하드 위반(열 표현/고객 인용/패널 나열/차별점 나열/광고톤/대표 경력/팀장 스코프 등)이 있으면
-      // 최대 1회만 수정. 반복 루프가 오히려 "규칙 기계적 박아넣기"로 글을 망치기 때문에
-      // 점수가 아니라 "치명적 위반 해소"에 초점을 맞춤.
-      const HARD_VIOLATION_RULES = new Set([
-        'heat_violation',
-        'customer_quote',
-        'panel_listing',
-        'time_sequence_listing',
-        'careful_part_fabrication',
-        'mirror_difficulty',
-        'numbered_listing',
-        'modifier_line',
-        'forbidden_closing',
-        'differentiation_listing',
-        'ad_tone',
-        'fabrication',
-        'representative_career',
-        'team_leader_scope',
-        'excessive_pride',
-      ]);
-      const hasHardViolation = (qa: typeof lastQA) =>
-        qa.violations.some(v => HARD_VIOLATION_RULES.has(v.rule));
-
-      if (hasHardViolation(lastQA) || lastQA.total < 85) {
-        const refined = await refineBlogPost(systemPrompt, bestReply, lastQA);
-        const refinedLines = refined.split('\n');
-        const rIdx = refinedLines.findIndex(l => l.trim().length > 0);
-        if (rIdx !== -1) {
-          const rTitle = refinedLines[rIdx].trim();
-          const rBody = refinedLines.slice(rIdx + 1).join('\n').trim();
-          const rQA = await inlineQAScore(rTitle, rBody, combinedMessage);
-
-          // refine 결과가 하드 위반 없고 점수도 떨어지지 않았을 때만 채택
-          if (!hasHardViolation(rQA) && rQA.total >= bestScore - 3) {
-            bestScore = rQA.total;
-            bestReply = refined;
-            lastQA = rQA;
+      if (first && (violations.length > 0 || factIssues.length > 0 || formatIssues.length > 0)) {
+        try {
+          const issues = [...violations.map(v => v.detail), ...factIssues.map(f => `팩트 오류 — ${f.detail}`), ...formatIssues];
+          const fixed = await fixIssues(systemPrompt, reply, issues, writerModel);
+          const f = splitTitleBody(fixed);
+          if (f && pureLen(f.body) >= Math.min(1500, pureLen(first.body))) {
+            const fixedViolations = checkHardViolations(f.body, combinedMessage, serviceType);
+            const fixedFacts = factCheck({ body: f.body, serviceType, product: target.product });
+            const fixedFormat = checkFormatIssues(f.title, f.body);
+            // 위반·팩트 오류가 늘지 않고 형식 미달이 줄었거나 같으면 채택
+            if (fixedViolations.length <= violations.length && fixedFacts.length <= factIssues.length && fixedFormat.length <= formatIssues.length) {
+              reply = fixed;
+              violations = fixedViolations;
+              factIssues = fixedFacts;
+              formatIssues = fixedFormat;
+            }
           }
-        }
+        } catch { /* 수정 실패 시 원본 유지 */ }
       }
 
-      reply = bestReply;
+      remaining = violations;
+      const remainingFacts = factIssues;
+      const remainingFormat = formatIssues;
       draftResult = tryBuildDraft(reply, combinedMessage);
 
-      // 최종 점수 정보를 cleanReply에 포함
-      const scoreInfo = !hasHardViolation(lastQA)
-        ? `블로그 글이 완성되었습니다. (QA ${bestScore}점)`
-        : `블로그 글이 완성되었습니다. (QA ${bestScore}점)\n남은 이슈: ${lastQA.improvements.slice(0, 3).join(', ')}`;
-
       if (draftResult) {
-        draftResult.cleanReply = researchSummary ? `${scoreInfo}\n${researchSummary}` : scoreInfo;
+        const notes: string[] = ['블로그 글이 완성되었습니다.'];
+        if (remaining.length > 0) notes.push(`확인 필요: ${remaining.map(v => v.detail).join(' / ')}`);
+        notes.push(remainingFacts.length > 0 ? `팩트체크 ${remainingFacts.length}건 확인 필요: ${remainingFacts.map(f => f.detail).join(' / ')}` : '팩트체크 통과 (제품·시공 규칙 위반 없음)');
+        if (remainingFormat.length > 0) notes.push(`형식: ${remainingFormat.join(' / ')}`);
+        if (researchSummary) notes.push(researchSummary);
+        draftResult.cleanReply = notes.join('\n');
       }
+      checks = { violations: remaining, facts: remainingFacts, format: remainingFormat };
 
-      // 저장
+      // 저장: DB(blog_posts, kind=draft) + 로컬 파일 폴백
       const finalLines = reply.split('\n');
       const fIdx = finalLines.findIndex(l => l.trim().length > 0);
       if (fIdx >= 0) {
-        await saveDraft(finalLines[fIdx].trim(), finalLines.slice(fIdx + 1).join('\n').trim());
+        const t = finalLines[fIdx].trim();
+        const b = finalLines.slice(fIdx + 1).join('\n').trim();
+        const saved = await savePost({
+          kind: 'draft', title: t, body: b,
+          car_model: target.carModel, service_type: target.serviceType, product: target.product || null,
+          region: blogRequest?.region || null,
+        });
+        draftId = saved?.id ?? null;
+        if (!saved) await saveDraft(t, b);
       }
     }
 
     return Response.json({
       reply: draftResult ? draftResult.cleanReply : reply,
       draft: draftResult ? draftResult.draft : null,
+      checks,
+      draftId,
+      target: draftResult ? { carModel: target.carModel, serviceType: target.serviceType, product: target.product, region: blogRequest?.region || null } : null,
       activeEmployee: {
         id: activeEmployee.id,
         name: activeEmployee.name,

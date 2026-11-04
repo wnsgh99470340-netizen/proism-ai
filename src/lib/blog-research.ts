@@ -1,4 +1,17 @@
 import { researchWithWebSearch } from '@/lib/claude-client';
+import type { BlogRequest } from '@/config/blog-options';
+
+/** 폼에서 온 구조화 요청이 있으면 그것을, 없으면 메시지에서 정규식으로 추출 */
+export function resolveTarget(message: string, request?: BlogRequest | null): { carModel: string | null; serviceType: string; product: string } {
+  if (request && request.model) {
+    return {
+      carModel: `${request.brand} ${request.model}`.trim(),
+      serviceType: request.serviceKey === '컬러PPF' ? '컬러PPF(PWF)' : request.serviceKey,
+      product: [request.product, request.extra].filter(Boolean).join(' '),
+    };
+  }
+  return { carModel: extractCarModel(message), serviceType: extractServiceType(message), product: '' };
+}
 
 /* ───────────────────────────────────────────────────────────────
  * 블로그 시공기 사전 조사 모듈
@@ -55,8 +68,8 @@ export function extractServiceType(message: string): string {
 }
 
 const RESEARCH_MAX_SEARCHES = 10;
-const RESEARCH_MAX_FETCHES = 6;
-const NAVER_FETCH_DOMAINS = ['m.blog.naver.com', 'blog.naver.com', 'm.cafe.naver.com', 'cafe.naver.com', 'bobaedream.co.kr', 'clien.net'];
+const NAVER_POST_FETCH_LIMIT = 4;     // 본문까지 읽을 네이버 블로그 글 수
+const NAVER_POST_MAX_CHARS = 2500;    // 글당 발췌 글자 수
 
 /* ───────── 네이버 검색 API (블로그·카페) ─────────
  * 2026-07-31부로 개발자센터(developers.naver.com) 신규 신청이 끝나고
@@ -125,6 +138,41 @@ async function naverSearch(query: string, type: 'blog' | 'cafearticle', display 
 }
 
 /**
+ * 네이버 블로그는 Anthropic 웹 읽기 크롤러를 차단하므로(web_fetch 400),
+ * 우리 서버가 모바일 페이지를 직접 받아 본문 텍스트만 뽑는다. 실패하면 빈 문자열.
+ */
+export async function fetchNaverPostText(url: string, maxChars = NAVER_POST_MAX_CHARS): Promise<string> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+        'Accept-Language': 'ko-KR,ko;q=0.9',
+      },
+    });
+    clearTimeout(timer);
+    if (!res.ok) return '';
+    const html = await res.text();
+    const start = html.indexOf('se-main-container');
+    const section = start >= 0 ? html.slice(start) : html;
+    const text = section
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<br\s*\/?>|<\/p>|<\/div>/gi, '\n')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+      .replace(/[ \t]+/g, ' ')
+      .replace(/\n\s*\n+/g, '\n')
+      .trim();
+    return text.slice(0, maxChars);
+  } catch {
+    return '';
+  }
+}
+
+/**
  * 같은 차종·같은 시공의 한국어 시공기 후보를 네이버에서 모은다 (최대 15건, 프로이즘 자체 글 제외)
  */
 export async function searchNaverCases(carModel: string, serviceType: string): Promise<NaverItem[]> {
@@ -167,14 +215,26 @@ export async function researchForBlogPost(
   // 네이버 블로그·카페에서 한국어 시공기 후보를 먼저 모은다 (키 없으면 빈 배열)
   let naverItems: NaverItem[] = [];
   try { naverItems = await searchNaverCases(carModel, serviceType); } catch (e) { console.warn('[naver]', e); }
+
+  // 상위 블로그 글 본문을 우리 서버가 직접 읽어 발췌 (네이버는 Anthropic 크롤러 차단)
+  const blogTargets = naverItems.filter(it => it.source === '블로그').slice(0, NAVER_POST_FETCH_LIMIT);
+  const bodies = await Promise.all(blogTargets.map(it => fetchNaverPostText(it.link)));
+  const excerpts = blogTargets
+    .map((it, i) => ({ it, text: bodies[i] }))
+    .filter(x => x.text.length > 200);
+  const naverFetched = excerpts.length;
+
   const naverSection = naverItems.length > 0
     ? `
 
 ## 네이버 검색 결과 — 한국어 시공기 후보 ${naverItems.length}건 (B 항목에 우선 활용)
-아래 URL 중 제목·요약이 "${carModel} ${serviceType}"과 맞는 글 3~5건을 web_fetch 로 본문까지 읽고 B 항목에 반영하세요. 광고성·무관한 글은 건너뜁니다.
+제목·요약이 "${carModel} ${serviceType}"과 맞는 글만 참고하고, 광고성·무관한 글은 건너뜁니다. 아래 URL은 web_fetch 로 열 수 없으니(차단됨) 요약과 발췌만 사용하세요.
 ${naverItems.map((it, i) => `${i + 1}. [${it.source}] ${it.title}${it.date ? ` (${it.date})` : ''}
    요약: ${it.description}
-   URL: ${it.link}`).join('\n')}`
+   URL: ${it.link}`).join('\n')}${excerpts.length > 0 ? `
+
+## 네이버 블로그 본문 발췌 (${excerpts.length}건, 글당 최대 ${NAVER_POST_MAX_CHARS}자)
+${excerpts.map((x, i) => `[발췌 ${i + 1}] ${x.it.title}\n${x.text}`).join('\n\n')}` : ''}`
     : '';
 
   const researchPrompt = `아래 블로그 작성 요청을 위해 웹 검색으로 사전 조사를 해주세요.${naverSection}
@@ -244,7 +304,6 @@ ${userMessage}
   try {
     const result = await researchWithWebSearch(RESEARCH_SYSTEM_PROMPT, researchPrompt, {
       maxSearches: RESEARCH_MAX_SEARCHES,
-      fetch: naverItems.length > 0 ? { maxUses: RESEARCH_MAX_FETCHES, allowedDomains: NAVER_FETCH_DOMAINS } : undefined,
     });
 
     if (!result.text) throw new Error('empty research');
@@ -266,7 +325,7 @@ ${result.text}
 - 사장님이 알려준 정보와 조사 결과가 다르면 사장님 정보가 우선`;
 
     const naverNote = naverItems.length > 0
-      ? ` 네이버 블로그·카페 후보 ${naverItems.length}건 중 ${result.fetchCount}건은 본문까지 읽었습니다.`
+      ? ` 네이버 블로그·카페 후보 ${naverItems.length}건 중 ${naverFetched}건은 본문까지 읽었습니다.`
       : (isNaverSearchEnabled() ? ' 네이버에서는 맞는 시공기를 찾지 못했습니다.' : ' (네이버 검색 API 키가 없어 네이버 블로그 검색은 건너뛰었습니다)');
     const summary = `사전 조사: 웹 검색 ${result.searchCount}회로 ${carModel} 구조와 ${serviceType} 시공 사례를 확인한 뒤 작성했습니다.${naverNote}`;
     return { context, summary };

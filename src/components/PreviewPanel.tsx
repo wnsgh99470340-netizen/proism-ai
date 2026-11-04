@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import PostLibrary from './PostLibrary';
 
 function CopyButton({ label, getText }: { label: string; getText: () => string }) {
   const [copied, setCopied] = useState(false);
@@ -54,8 +55,24 @@ interface QAScore {
   summary?: string;
 }
 
+export interface Checks {
+  violations: { rule: string; detail: string }[];
+  facts: { rule: string; detail: string }[];
+  format: string[];
+}
+
+export interface Channels {
+  instagram: { caption: string; hashtags: string[]; coverPhoto: string };
+  cafe: { title: string; body: string };
+}
+
 interface PreviewPanelProps {
   draft: Draft | null;
+  checks: Checks | null;
+  channels: Channels | null;
+  channelsLoading: boolean;
+  onSaveFinal: (title: string, body: string, feedback: string) => Promise<string | null>;
+  onSaveOwner: (title: string, body: string) => Promise<string | null>;
   images: string[];
   qaScore: QAScore | null;
   seoInsight: {
@@ -72,6 +89,11 @@ interface PreviewPanelProps {
 
 export default function PreviewPanel({
   draft,
+  checks,
+  channels,
+  channelsLoading,
+  onSaveFinal,
+  onSaveOwner,
   images,
   qaScore,
   seoInsight,
@@ -79,7 +101,10 @@ export default function PreviewPanel({
   onRunQA,
   qaLoading,
 }: PreviewPanelProps) {
-  const [activeTab, setActiveTab] = useState<'preview' | 'insight'>('preview');
+  const [activeTab, setActiveTab] = useState<'preview' | 'instagram' | 'cafe' | 'insight'>('preview');
+  const draftPlain = draft ? draft.content.replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n\n').replace(/<[^>]+>/g, '').trim() : '';
+  const tabCls = (key: typeof activeTab) =>
+    `flex-1 py-2.5 text-xs font-medium transition-colors ${activeTab === key ? 'text-[var(--c-text-1)] border-b-2 border-[#C8A951]' : 'text-[var(--c-text-3)] hover:text-[var(--c-text-2)]'}`;
 
   const renderContent = (content: string) => {
     // [IMAGE:N] → 실제 이미지
@@ -101,31 +126,30 @@ export default function PreviewPanel({
     <div className="flex flex-col h-full bg-[var(--c-card)] border-l border-[var(--c-border)]">
       {/* 탭 */}
       <div className="flex border-b border-[var(--c-border)] shrink-0">
-        <button
-          onClick={() => setActiveTab('preview')}
-          className={`flex-1 py-2.5 text-xs font-medium transition-colors ${
-            activeTab === 'preview'
-              ? 'text-[var(--c-text-1)] border-b-2 border-[#C8A951]'
-              : 'text-[var(--c-text-3)] hover:text-[var(--c-text-2)]'
-          }`}
-        >
-          📄 미리보기
-        </button>
-        <button
-          onClick={() => setActiveTab('insight')}
-          className={`flex-1 py-2.5 text-xs font-medium transition-colors ${
-            activeTab === 'insight'
-              ? 'text-[var(--c-text-1)] border-b-2 border-[#C8A951]'
-              : 'text-[var(--c-text-3)] hover:text-[var(--c-text-2)]'
-          }`}
-        >
-          📊 인사이트
-        </button>
+        <button onClick={() => setActiveTab('preview')} className={tabCls('preview')}>📄 블로그</button>
+        <button onClick={() => setActiveTab('instagram')} className={tabCls('instagram')}>📸 인스타{channelsLoading ? ' …' : ''}</button>
+        <button onClick={() => setActiveTab('cafe')} className={tabCls('cafe')}>☕ 카페{channelsLoading ? ' …' : ''}</button>
+        <button onClick={() => setActiveTab('insight')} className={tabCls('insight')}>📊 인사이트</button>
       </div>
 
       {/* 미리보기 탭 */}
       {activeTab === 'preview' && (
         <div className="flex-1 overflow-y-auto">
+          {draft && checks && (
+            <div className={`mx-3 mt-3 rounded-xl border p-3 ${checks.facts.length + checks.violations.length === 0 ? 'bg-[#10B981]/10 border-[#10B981]/30' : 'bg-[#EF4444]/10 border-[#EF4444]/30'}`}>
+              <div className={`text-xs font-medium mb-1 ${checks.facts.length + checks.violations.length === 0 ? 'text-[#10B981]' : 'text-[#EF4444]'}`}>
+                {checks.facts.length + checks.violations.length === 0
+                  ? '✅ 자동 팩트체크 통과 — 제품·시공 규칙 위반 없음'
+                  : `⚠️ 자동 팩트체크 ${checks.facts.length + checks.violations.length}건 확인 필요`}
+              </div>
+              {[...checks.facts, ...checks.violations].map((c, i) => (
+                <div key={i} className="text-[11px] text-[var(--c-text-2)] leading-relaxed">• {c.detail}</div>
+              ))}
+              {checks.format.map((f, i) => (
+                <div key={`f${i}`} className="text-[11px] text-[var(--c-text-3)] leading-relaxed">• 형식: {f}</div>
+              ))}
+            </div>
+          )}
           {draft ? (
             <div className="m-3 bg-white rounded-xl overflow-hidden shadow-lg">
               <div className="p-5">
@@ -188,6 +212,64 @@ export default function PreviewPanel({
                 </button>
               </div>
             </div>
+          )}
+
+          <PostLibrary
+            draftTitle={draft?.title || ''}
+            draftBody={draftPlain}
+            onSaveFinal={onSaveFinal}
+            onSaveOwner={onSaveOwner}
+          />
+        </div>
+      )}
+
+      {/* 인스타 탭 */}
+      {activeTab === 'instagram' && (
+        <div className="flex-1 overflow-y-auto p-3 space-y-3">
+          {channelsLoading && <div className="text-xs text-[var(--c-text-3)] text-center py-8">인스타·카페 버전을 만드는 중입니다…</div>}
+          {!channelsLoading && !channels && <div className="text-xs text-[var(--c-text-3)] text-center py-8">블로그 글이 완성되면 인스타 버전이 자동으로 생성됩니다</div>}
+          {channels && (
+            <>
+              <div className="bg-white rounded-xl p-4 shadow-lg">
+                <div className="text-[10px] text-gray-400 mb-2">인스타그램 캡션 미리보기</div>
+                <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{channels.instagram.caption}</div>
+                <div className="mt-3 text-xs text-blue-500 leading-relaxed">{channels.instagram.hashtags.join(' ')}</div>
+              </div>
+              {channels.instagram.coverPhoto && (
+                <div className="bg-[#1a1a1f] border border-[var(--c-border)] rounded-xl p-3 text-[11px] text-[var(--c-text-2)]">📷 첫 장 추천: {channels.instagram.coverPhoto}</div>
+              )}
+              <div className="grid grid-cols-2 gap-2">
+                <CopyButton label="📋 캡션 복사" getText={() => channels.instagram.caption} />
+                <CopyButton label="📋 캡션+해시태그 복사" getText={() => `${channels.instagram.caption}\n\n${channels.instagram.hashtags.join(' ')}`} />
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* 카페 탭 */}
+      {activeTab === 'cafe' && (
+        <div className="flex-1 overflow-y-auto p-3 space-y-3">
+          {channelsLoading && <div className="text-xs text-[var(--c-text-3)] text-center py-8">인스타·카페 버전을 만드는 중입니다…</div>}
+          {!channelsLoading && !channels && <div className="text-xs text-[var(--c-text-3)] text-center py-8">블로그 글이 완성되면 카페 대표이야기 버전이 자동으로 생성됩니다</div>}
+          {channels && (
+            <>
+              <div className="bg-white rounded-xl p-4 shadow-lg">
+                <div className="text-[10px] text-gray-400 mb-2">네이버 카페 대표이야기 미리보기</div>
+                <h3 className="text-base font-bold text-gray-900 mb-3">{channels.cafe.title}</h3>
+                <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{channels.cafe.body}</div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <CopyButton label="📋 제목 복사" getText={() => channels.cafe.title} />
+                <CopyButton label="📋 본문 복사" getText={() => channels.cafe.body} />
+              </div>
+              <button
+                onClick={() => window.open('https://cafe.naver.com/3mproism', '_blank')}
+                className="w-full bg-[#03C75A]/10 hover:bg-[#03C75A]/20 text-[#03C75A] text-xs py-2.5 rounded-lg font-medium"
+              >
+                ☕ 카페 열기
+              </button>
+            </>
           )}
         </div>
       )}

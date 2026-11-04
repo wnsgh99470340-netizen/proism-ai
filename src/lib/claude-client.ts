@@ -24,18 +24,22 @@ export async function callClaude(
     throw new Error('ANTHROPIC_API_KEY가 설정되지 않았습니다. .env.local 파일을 확인해주세요.');
   }
 
+  // Opus 5 계열은 안전 분류기 거부 시 서버가 대체 모델로 이어 쓰도록 fallbacks 를 붙인다
+  const useFallback = /^claude-(opus-5|fable)/.test(model);
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'x-api-key': apiKey,
       'anthropic-version': '2023-06-01',
+      ...(useFallback ? { 'anthropic-beta': 'server-side-fallback-2026-07-01' } : {}),
     },
     body: JSON.stringify({
       model,
       max_tokens: maxTokens,
       system: systemPrompt,
       messages,
+      ...(useFallback ? { fallbacks: 'default' } : {}),
     }),
   });
 
@@ -45,7 +49,14 @@ export async function callClaude(
   }
 
   const data = await response.json();
-  return data.content[0]?.text || '';
+  if (data.stop_reason === 'refusal') {
+    throw new Error('Claude가 요청을 거부했습니다. ' + (data.stop_details?.explanation || ''));
+  }
+  // thinking 블록이 앞에 올 수 있으므로 text 블록만 이어붙인다
+  return (data.content as { type: string; text?: string }[])
+    .filter(b => b.type === 'text' && typeof b.text === 'string')
+    .map(b => b.text as string)
+    .join('');
 }
 
 export async function analyzeImageWithClaude(
@@ -115,18 +126,25 @@ interface MessagesResponse {
   content: ContentBlock[];
   stop_reason: string;
   stop_details?: { category?: string | null; explanation?: string } | null;
-  usage?: { server_tool_use?: { web_search_requests?: number } };
+  usage?: { server_tool_use?: { web_search_requests?: number; web_fetch_requests?: number } };
 }
 
 export interface ResearchResult {
   text: string;
   searchCount: number;
+  fetchCount: number;
 }
 
 export async function researchWithWebSearch(
   systemPrompt: string,
   userPrompt: string,
-  options: { maxSearches?: number; maxContinuations?: number; model?: string } = {}
+  options: {
+    maxSearches?: number;
+    maxContinuations?: number;
+    model?: string;
+    /** 대화에 포함된 URL 본문을 읽는 web_fetch 도구 허용 (도메인 제한) */
+    fetch?: { maxUses: number; allowedDomains: string[] };
+  } = {}
 ): Promise<ResearchResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -137,9 +155,10 @@ export async function researchWithWebSearch(
     maxSearches = 10,
     maxContinuations = 3,
     model = 'claude-opus-5-5',
+    fetch: fetchOpt,
   } = options;
 
-  const tools = [
+  const tools: Record<string, unknown>[] = [
     {
       type: 'web_search_20260209',
       name: 'web_search',
@@ -147,12 +166,22 @@ export async function researchWithWebSearch(
       user_location: { type: 'approximate', country: 'KR', timezone: 'Asia/Seoul' },
     },
   ];
+  if (fetchOpt) {
+    tools.push({
+      type: 'web_fetch_20260209',
+      name: 'web_fetch',
+      max_uses: fetchOpt.maxUses,
+      allowed_domains: fetchOpt.allowedDomains,
+      max_content_tokens: 20000,
+    });
+  }
 
   const messages: { role: 'user' | 'assistant'; content: string | ContentBlock[] }[] = [
     { role: 'user', content: userPrompt },
   ];
 
   let searchCount = 0;
+  let fetchCount = 0;
   let finalText = '';
 
   for (let attempt = 0; attempt <= maxContinuations; attempt++) {
@@ -188,7 +217,8 @@ export async function researchWithWebSearch(
     }
 
     searchCount += data.usage?.server_tool_use?.web_search_requests
-      ?? data.content.filter(b => b.type === 'server_tool_use').length;
+      ?? data.content.filter(b => b.type === 'server_tool_use' && b.name === 'web_search').length;
+    fetchCount += data.usage?.server_tool_use?.web_fetch_requests ?? 0;
 
     // 웹 검색 인용이 붙은 text 블록은 문장 중간에서 나뉘므로 줄바꿈 없이 이어붙인다
     finalText += data.content
@@ -202,5 +232,5 @@ export async function researchWithWebSearch(
     messages.push({ role: 'assistant', content: data.content });
   }
 
-  return { text: finalText.trim(), searchCount };
+  return { text: finalText.trim(), searchCount, fetchCount };
 }

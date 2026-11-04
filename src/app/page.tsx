@@ -3,9 +3,10 @@
 import { useState, useCallback } from 'react';
 import TopBar from '@/components/TopBar';
 import ChatPanel from '@/components/ChatPanel';
-import PreviewPanel from '@/components/PreviewPanel';
+import PreviewPanel, { type Checks, type Channels } from '@/components/PreviewPanel';
 import HelpModal from '@/components/HelpModal';
 import type { UploadedImage } from '@/components/ImageUpload';
+import type { BlogRequest } from '@/config/blog-options';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -39,6 +40,10 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [images, setImages] = useState<UploadedImage[]>([]);
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [checks, setChecks] = useState<Checks | null>(null);
+  const [channels, setChannels] = useState<Channels | null>(null);
+  const [channelsLoading, setChannelsLoading] = useState(false);
+  const [draftMeta, setDraftMeta] = useState<{ draftId: string | null; carModel: string | null; serviceType: string | null; product: string | null; region: string | null } | null>(null);
   const [activeEmployeeId, setActiveEmployeeId] = useState<string | undefined>();
   const [qaScore, setQaScore] = useState<{
     total: number;
@@ -73,7 +78,7 @@ export default function Home() {
   }, []);
 
   const handleSendMessage = useCallback(
-    async (message: string, uploadedImages: UploadedImage[]) => {
+    async (message: string, uploadedImages: UploadedImage[], request?: BlogRequest) => {
       // 사용자 메시지 추가
       const userMsg: Message = {
         role: 'user',
@@ -115,14 +120,14 @@ export default function Home() {
         // 시공기 작성 요청이면 먼저 /api/research 로 차량 구조 + 시공 사례를 웹 검색
         // (검색이 수 분 걸릴 수 있어 글 작성 요청과 함수 실행시간을 분리)
         let research: { context: string; summary: string } | null = null;
-        const isBlogRequest = BLOG_REQUEST_KEYWORDS.some((k) => message.includes(k));
+        const isBlogRequest = Boolean(request) || BLOG_REQUEST_KEYWORDS.some((k) => message.includes(k));
         if (isBlogRequest) {
           setMessages((prev) => [...prev, RESEARCH_PENDING_MESSAGE]);
           try {
             const rRes = await fetch('/api/research', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ message }),
+              body: JSON.stringify({ message, request: request ?? null }),
             });
             const rData = await rRes.json();
             if (rData.research) {
@@ -144,6 +149,7 @@ export default function Home() {
             history,
             images: imageRefs,
             research,
+            request: request ?? null,
           }),
         });
 
@@ -181,8 +187,18 @@ export default function Home() {
 
           if (parsedDraft) {
             setDraft(parsedDraft);
+            setChecks(data.checks ?? null);
+            setDraftMeta({
+              draftId: data.draftId ?? null,
+              carModel: data.target?.carModel ?? null,
+              serviceType: data.target?.serviceType ?? null,
+              product: data.target?.product ?? null,
+              region: data.target?.region ?? null,
+            });
             // 자동 SEO 분석
             fetchSeoInsight(parsedDraft.title, parsedDraft.content, parsedDraft.tags);
+            // 인스타·카페 버전 동시 생성
+            fetchChannels(parsedDraft.title, parsedDraft.content, data.target?.serviceType, data.target?.carModel);
           }
         }
       } catch (error) {
@@ -203,6 +219,50 @@ export default function Home() {
     },
     [messages, updateResearchMessage]
   );
+
+  const fetchChannels = async (title: string, content: string, serviceType?: string | null, carModel?: string | null) => {
+    setChannels(null);
+    setChannelsLoading(true);
+    try {
+      const res = await fetch('/api/channels', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, content, serviceType: serviceType || '', carModel: carModel || '' }),
+      });
+      const data = await res.json();
+      if (data.channels) setChannels(data.channels);
+    } catch {
+      // 채널 변환 실패는 블로그 글에 영향 없음
+    } finally {
+      setChannelsLoading(false);
+    }
+  };
+
+  const savePost = async (payload: Record<string, unknown>): Promise<string | null> => {
+    try {
+      const res = await fetch('/api/posts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      return data.error ? String(data.error) : null;
+    } catch (e) {
+      return e instanceof Error ? e.message : '네트워크 오류';
+    }
+  };
+
+  const handleSaveFinal = (title: string, body: string, feedback: string) =>
+    savePost({
+      kind: 'final', title, body, feedback,
+      draft_id: draftMeta?.draftId ?? null,
+      car_model: draftMeta?.carModel ?? null,
+      service_type: draftMeta?.serviceType ?? null,
+      product: draftMeta?.product ?? null,
+      region: draftMeta?.region ?? null,
+    });
+
+  const handleSaveOwner = (title: string, body: string) => savePost({ kind: 'owner', title, body });
 
   const fetchSeoInsight = async (title: string, content: string, tags: string[]) => {
     try {
@@ -311,6 +371,11 @@ export default function Home() {
         <div className="w-[40%] min-h-0">
           <PreviewPanel
             draft={draft}
+            checks={checks}
+            channels={channels}
+            channelsLoading={channelsLoading}
+            onSaveFinal={handleSaveFinal}
+            onSaveOwner={handleSaveOwner}
             images={images.map((img) => img.url)}
             qaScore={qaScore}
             seoInsight={seoInsight}
