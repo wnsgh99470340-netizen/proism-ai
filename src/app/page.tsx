@@ -23,6 +23,17 @@ interface Draft {
   category: string;
 }
 
+// 서버(/api/chat)의 isBlogWriteRequest 와 동일한 키워드
+const BLOG_REQUEST_KEYWORDS = ['블로그', '글 써', '글 작성', '써줘', '써 줘', '시공기', '포스팅', '작업기', '초안', '원고'];
+
+const RESEARCH_PENDING_MESSAGE: Message = {
+  role: 'assistant',
+  content: '🔎 차량 구조와 같은 차종 시공 사례를 웹에서 검색하고 있습니다. 1~3분 정도 걸립니다.',
+  employeeName: '사전 조사',
+  employeeEmoji: '🔎',
+  employeeColor: '#06B6D4',
+};
+
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
@@ -46,6 +57,20 @@ export default function Home() {
     summary?: string;
   } | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
+
+  const updateResearchMessage = useCallback((content: string | null) => {
+    setMessages((prev) => {
+      let idx = -1;
+      for (let i = prev.length - 1; i >= 0; i--) {
+        if (prev[i].employeeName === RESEARCH_PENDING_MESSAGE.employeeName) { idx = i; break; }
+      }
+      if (idx === -1) return prev;
+      if (content === null) return [...prev.slice(0, idx), ...prev.slice(idx + 1)];
+      const copy = [...prev];
+      copy[idx] = { ...copy[idx], content };
+      return copy;
+    });
+  }, []);
 
   const handleSendMessage = useCallback(
     async (message: string, uploadedImages: UploadedImage[]) => {
@@ -87,6 +112,30 @@ export default function Home() {
           content: m.content,
         }));
 
+        // 시공기 작성 요청이면 먼저 /api/research 로 차량 구조 + 시공 사례를 웹 검색
+        // (검색이 수 분 걸릴 수 있어 글 작성 요청과 함수 실행시간을 분리)
+        let research: { context: string; summary: string } | null = null;
+        const isBlogRequest = BLOG_REQUEST_KEYWORDS.some((k) => message.includes(k));
+        if (isBlogRequest) {
+          setMessages((prev) => [...prev, RESEARCH_PENDING_MESSAGE]);
+          try {
+            const rRes = await fetch('/api/research', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ message }),
+            });
+            const rData = await rRes.json();
+            if (rData.research) {
+              research = rData.research;
+              updateResearchMessage(`🔎 ${rData.research.summary}`);
+            } else {
+              updateResearchMessage(null);
+            }
+          } catch {
+            updateResearchMessage('🔎 사전 조사에 실패해 기존 지식으로 작성합니다.');
+          }
+        }
+
         const res = await fetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -94,6 +143,7 @@ export default function Home() {
             message,
             history,
             images: imageRefs,
+            research,
           }),
         });
 
@@ -151,7 +201,7 @@ export default function Home() {
       setLoading(false);
       setImages([]); // 전송 후 이미지 목록 초기화
     },
-    [messages]
+    [messages, updateResearchMessage]
   );
 
   const fetchSeoInsight = async (title: string, content: string, tags: string[]) => {

@@ -3,8 +3,12 @@ import { readFile, writeFile, readdir, mkdir } from 'fs/promises';
 import path from 'path';
 import sharp from 'sharp';
 import { callClaude, analyzeImageWithClaude } from '@/lib/claude-client';
+import { isBlogWriteRequest, extractCarModel, extractServiceType, researchForBlogPost } from '@/lib/blog-research';
 import { getActiveEmployee } from '@/config/team';
 import { BLOG_SYSTEM_PROMPT } from '@/config/prompts.server';
+
+// 글 작성 전 웹 검색 리서치 + 작성 + QA + 수정까지 여러 번 Claude를 호출하므로 넉넉히 잡음
+export const maxDuration = 300;
 
 interface ImageRef {
   url: string;
@@ -124,81 +128,6 @@ function tryBuildDraft(
     },
     cleanReply: '블로그 글이 완성되었습니다. 미리보기를 확인해주세요.',
   };
-}
-
-/**
- * 블로그 글 작성 요청인지 판별
- */
-function isBlogWriteRequest(message: string): boolean {
-  const keywords = ['블로그', '글 써', '글 작성', '써줘', '써 줘', '시공기', '포스팅', '작업기', '초안', '원고'];
-  return keywords.some(k => message.includes(k));
-}
-
-/**
- * 사용자 메시지에서 차종을 추출
- */
-function extractCarModel(message: string): string | null {
-  // 브랜드 + 모델명 패턴 매칭
-  const patterns = [
-    /(?:BMW|벤츠|아우디|포르쉐|테슬라|제네시스|렉서스|볼보|현대|기아|랜드로버|링컨|캐딜락|마세라티|재규어|롤스로이스|벤틀리|람보르기니|페라리|맥라렌|미니|토요타|혼다)\s*[A-Za-z0-9가-힣\- ]+/,
-    /(?:카이엔|파나메라|타이칸|마칸|카이맨|박스터|911)/,
-    /(?:모델[YX3SyxsS]|사이버트럭)/,
-    /(?:GV[0-9]+|G[0-9]+[ei]?|GLE|GLC|GLS|GLB|CLE|CLA|AMG|EQS|EQE|S클래스|E클래스|C클래스|A클래스)/,
-    /(?:그랜저|쏘나타|아반떼|투싼|싼타페|팰리세이드|아이오닉[0-9]*|쏘렌토|카니발|스포티지|EV[0-9]+|레이|니로)/,
-    /(?:카마로|콜벳|머스탱|디펜더|레인지로버|디스커버리)/,
-  ];
-  for (const p of patterns) {
-    const match = message.match(p);
-    if (match) return match[0].trim();
-  }
-  return null;
-}
-
-/**
- * 차량 외관 구조를 웹 검색으로 파악
- */
-async function researchVehicleStructure(carModel: string): Promise<string> {
-  const query = `${carModel} 외관 구조 범퍼 사이드미러 번호판 위치 도어 프레임`;
-  const searchUrl = `https://www.googleapis.com/customsearch/v1?key=${process.env.GOOGLE_SEARCH_API_KEY}&cx=${process.env.GOOGLE_SEARCH_CX}&q=${encodeURIComponent(query)}&num=5`;
-
-  let searchResults = '';
-  try {
-    if (process.env.GOOGLE_SEARCH_API_KEY && process.env.GOOGLE_SEARCH_CX) {
-      const res = await fetch(searchUrl);
-      if (res.ok) {
-        const data = await res.json();
-        const items = (data.items || []).slice(0, 5);
-        searchResults = items.map((item: { title: string; snippet: string }) =>
-          `- ${item.title}: ${item.snippet}`
-        ).join('\n');
-      }
-    }
-  } catch {
-    // 검색 실패 시 무시
-  }
-
-  // 검색 실패 시 Claude에게 기존 지식으로 파악 요청
-  const fallbackNote = searchResults
-    ? `웹 검색 결과:\n${searchResults}`
-    : '(웹 검색 불가 — 기존 지식으로 파악)';
-
-  return `[차량 구조 사전 조사 — ${carModel}]
-${fallbackNote}
-
-위 정보를 바탕으로 아래 10가지를 파악하고 글 작성에 반영하세요:
-1. 번호판 위치 (트렁크/범퍼)
-2. 앞범퍼 구조 (에어인테이크, 그릴, 안개등)
-3. 뒷범퍼 구조 (디퓨저, 배기구, 하단 형태)
-4. 사이드미러 형태
-5. 하이그로시/크롬 트림 위치
-6. 필러 구조 (B/C필러)
-7. 휀더 연결 구조
-8. 루프라인 특성
-9. 도어 타입 (프레임/프레임리스)
-10. 해당 차종만의 특이 구조
-
-확인 안 되는 부위는 일반적 표현 사용. 추측하여 구체적으로 쓰지 말 것.
-사장님이 알려준 정보가 있으면 최우선 반영.`;
 }
 
 /**
@@ -516,10 +445,11 @@ async function saveDraft(title: string, body: string): Promise<void> {
 
 export async function POST(request: NextRequest) {
   try {
-    const { message, history = [], images = [] } = await request.json() as {
+    const { message, history = [], images = [], research = null } = await request.json() as {
       message: string;
       history: { role: string; content: string }[];
       images: ImageRef[];
+      research?: { context: string; summary: string } | null;
     };
 
     if (!message && images.length === 0) {
@@ -574,12 +504,20 @@ export async function POST(request: NextRequest) {
     }
     const combinedMessage = textParts.join('\n\n');
 
-    // 블로그 글 작성 요청이면 차량 구조 사전 조사
+    // 블로그 글 작성 요청이면 웹 검색으로 차량 구조 + 같은 차종 시공 사례 사전 조사
     let vehicleContext = '';
-    if (isBlogWriteRequest(message || '')) {
+    let researchSummary = '';
+    if (research && research.context) {
+      // 클라이언트가 /api/research 로 미리 조사한 결과 (함수 실행시간 분산)
+      vehicleContext = '\n\n' + research.context;
+      researchSummary = research.summary || '';
+    } else if (isBlogWriteRequest(message || '')) {
       const carModel = extractCarModel(message || '');
       if (carModel) {
-        vehicleContext = '\n\n' + await researchVehicleStructure(carModel);
+        const serviceType = extractServiceType(message || '');
+        const done = await researchForBlogPost(message || '', carModel, serviceType);
+        vehicleContext = '\n\n' + done.context;
+        researchSummary = done.summary;
       }
     }
 
@@ -679,7 +617,7 @@ export async function POST(request: NextRequest) {
         : `블로그 글이 완성되었습니다. (QA ${bestScore}점)\n남은 이슈: ${lastQA.improvements.slice(0, 3).join(', ')}`;
 
       if (draftResult) {
-        draftResult.cleanReply = scoreInfo;
+        draftResult.cleanReply = researchSummary ? `${scoreInfo}\n${researchSummary}` : scoreInfo;
       }
 
       // 저장

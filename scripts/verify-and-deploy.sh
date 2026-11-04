@@ -2,7 +2,7 @@
 # CRM 페이지 검증 후 배포 스크립트
 set -e
 
-PROJECT_DIR="/Users/junho/Desktop/proism-ai"
+PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PORT=3000
 CRM_URL="http://localhost:${PORT}/crm"
 MAX_WAIT=30
