@@ -22,6 +22,10 @@
 - .claude/blog-analysis.md (124개 글 분석) 그대로 따를 것
 - .claude/competitor-analysis.md 자신감 표현을 프로이즘식으로 활용
 - 나머지는 자유. 규칙이 글을 지배하면 안 됨
+### 4. 생성 시스템 구조 (2026-11-04 재설정)
+- 시스템 프롬프트는 src/config/prompts.ts 하나. 5KB 이내 유지. 분석 문서(.claude/*.md)는 주입하지 않음(Claude Code 참고용)
+- 자동 QA는 정규식 5종(열·오버랩 / 따옴표 인용 / 까다로운 부위·사이드미러 / 대표 경력 연수 / 클리셰·수식어 줄)만. Claude 채점·점수 루프 없음. 위반 시 1회 "빼기" 수정만
+- 흐름: /api/research(웹 검색+네이버 검색) → /api/chat(작성 → 정규식 검사 → 필요 시 1회 수정 → 저장)
 
 ## 프로젝트 개요
 - 3M 프로이즘 강남서초점 AI 블로그 자동화 + CRM 시스템
@@ -67,6 +71,7 @@
 - 코드 수정 후 반드시: 타입 체크(npx tsc --noEmit) → 빌드(npm run build) → 커밋+푸시 → npx vercel --prod
 - .next 캐시 에러 시: rm -rf .next 후 재시도
 - 견적서 URL: NEXT_PUBLIC_BASE_URL 환경변수 사용
+- 네이버 검색 API: NCP_APIGW_KEY_ID / NCP_APIGW_KEY (네이버 클라우드 플랫폼 NAVER API HUB. 개발자센터 검색 API는 2026-07-31 신규 신청 종료). 없으면 리서치에서 네이버 블로그·카페 검색만 건너뜀. Vercel에도 같은 이름으로 등록 필요
 
 ## Compact Instructions
 컴팩트 시 반드시 보존할 정보:

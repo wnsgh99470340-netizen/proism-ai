@@ -55,6 +55,99 @@ export function extractServiceType(message: string): string {
 }
 
 const RESEARCH_MAX_SEARCHES = 10;
+const RESEARCH_MAX_FETCHES = 6;
+const NAVER_FETCH_DOMAINS = ['m.blog.naver.com', 'blog.naver.com', 'm.cafe.naver.com', 'cafe.naver.com', 'bobaedream.co.kr', 'clien.net'];
+
+/* ───────── 네이버 검색 API (블로그·카페) ─────────
+ * 2026-07-31부로 개발자센터(developers.naver.com) 신규 신청이 끝나고
+ * 네이버 클라우드 플랫폼 NAVER API HUB 로 이관됨 (기존 키는 2027-06-30까지만 동작).
+ *  - 신규(우선): NCP_APIGW_KEY_ID / NCP_APIGW_KEY  → https://naverapihub.apigw.ntruss.com/search/v1/{blog|cafearticle}
+ *  - 구형(호환): NAVER_CLIENT_ID / NAVER_CLIENT_SECRET → https://openapi.naver.com/v1/search/{blog|cafearticle}.json
+ * 둘 다 없으면 조용히 건너뛰고 Claude 웹 검색만 사용한다.
+ */
+export interface NaverItem {
+  title: string;
+  link: string;
+  description: string;
+  source: '블로그' | '카페';
+  date?: string;
+}
+
+function stripHtml(s: string): string {
+  return s.replace(/<[^>]+>/g, '').replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#39;/g, "'").trim();
+}
+
+// PC 블로그 주소는 iframe 구조라 본문을 못 읽으므로 모바일 주소로 바꾼다
+function toMobileUrl(link: string): string {
+  return link
+    .replace(/^https?:\/\/blog\.naver\.com\//, 'https://m.blog.naver.com/')
+    .replace(/^https?:\/\/cafe\.naver\.com\//, 'https://m.cafe.naver.com/');
+}
+
+function naverAuth(): { url: (type: 'blog' | 'cafearticle', qs: string) => string; headers: Record<string, string> } | null {
+  const ncpId = process.env.NCP_APIGW_KEY_ID;
+  const ncpKey = process.env.NCP_APIGW_KEY;
+  if (ncpId && ncpKey) {
+    return {
+      url: (type, qs) => `https://naverapihub.apigw.ntruss.com/search/v1/${type}?${qs}&format=json`,
+      headers: { 'X-NCP-APIGW-API-KEY-ID': ncpId, 'X-NCP-APIGW-API-KEY': ncpKey },
+    };
+  }
+  const id = process.env.NAVER_CLIENT_ID;
+  const secret = process.env.NAVER_CLIENT_SECRET;
+  if (id && secret) {
+    return {
+      url: (type, qs) => `https://openapi.naver.com/v1/search/${type}.json?${qs}`,
+      headers: { 'X-Naver-Client-Id': id, 'X-Naver-Client-Secret': secret },
+    };
+  }
+  return null;
+}
+
+export function isNaverSearchEnabled(): boolean {
+  return naverAuth() !== null;
+}
+
+async function naverSearch(query: string, type: 'blog' | 'cafearticle', display = 8): Promise<NaverItem[]> {
+  const auth = naverAuth();
+  if (!auth) return [];
+  const url = auth.url(type, `query=${encodeURIComponent(query)}&display=${display}&start=1&sort=sim`);
+  const res = await fetch(url, { headers: auth.headers });
+  if (!res.ok) throw new Error(`네이버 검색 API 오류: ${res.status} ${await res.text()}`);
+  const data = await res.json() as { items?: { title: string; link: string; description: string; postdate?: string; bloggername?: string; cafename?: string }[] };
+  return (data.items || []).map(it => ({
+    title: stripHtml(it.title),
+    link: toMobileUrl(it.link),
+    description: stripHtml(it.description),
+    source: type === 'blog' ? '블로그' : '카페',
+    date: it.postdate,
+  }));
+}
+
+/**
+ * 같은 차종·같은 시공의 한국어 시공기 후보를 네이버에서 모은다 (최대 15건, 프로이즘 자체 글 제외)
+ */
+export async function searchNaverCases(carModel: string, serviceType: string): Promise<NaverItem[]> {
+  if (!isNaverSearchEnabled()) return [];
+  const svc = serviceType.replace(/\(.*\)/, ''); // "컬러PPF(PWF)" → "컬러PPF"
+  const queries: [string, 'blog' | 'cafearticle'][] = [
+    [`${carModel} ${svc} 시공`, 'blog'],
+    [`${carModel} ${svc} 후기`, 'blog'],
+    [`${carModel} ${svc}`, 'cafearticle'],
+  ];
+  const results = await Promise.allSettled(queries.map(([q, t]) => naverSearch(q, t)));
+  const seen = new Set<string>();
+  const items: NaverItem[] = [];
+  for (const r of results) {
+    if (r.status !== 'fulfilled') { console.warn('[naver]', r.reason); continue; }
+    for (const it of r.value) {
+      if (seen.has(it.link) || /roice_/.test(it.link)) continue;
+      seen.add(it.link);
+      items.push(it);
+    }
+  }
+  return items.slice(0, 15);
+}
 
 const RESEARCH_SYSTEM_PROMPT = `당신은 자동차 외장 시공(PPF·컬러PPF·랩핑·크롬죽이기·썬팅) 전문 블로그 작가를 돕는 리서처입니다.
 웹 검색으로 사실만 수집하고, 추측은 절대 하지 않습니다. 확인되지 않은 항목은 "확인 안 됨"이라고 적습니다.
@@ -71,7 +164,20 @@ export async function researchForBlogPost(
   carModel: string,
   serviceType: string,
 ): Promise<{ context: string; summary: string }> {
-  const researchPrompt = `아래 블로그 작성 요청을 위해 웹 검색으로 사전 조사를 해주세요.
+  // 네이버 블로그·카페에서 한국어 시공기 후보를 먼저 모은다 (키 없으면 빈 배열)
+  let naverItems: NaverItem[] = [];
+  try { naverItems = await searchNaverCases(carModel, serviceType); } catch (e) { console.warn('[naver]', e); }
+  const naverSection = naverItems.length > 0
+    ? `
+
+## 네이버 검색 결과 — 한국어 시공기 후보 ${naverItems.length}건 (B 항목에 우선 활용)
+아래 URL 중 제목·요약이 "${carModel} ${serviceType}"과 맞는 글 3~5건을 web_fetch 로 본문까지 읽고 B 항목에 반영하세요. 광고성·무관한 글은 건너뜁니다.
+${naverItems.map((it, i) => `${i + 1}. [${it.source}] ${it.title}${it.date ? ` (${it.date})` : ''}
+   요약: ${it.description}
+   URL: ${it.link}`).join('\n')}`
+    : '';
+
+  const researchPrompt = `아래 블로그 작성 요청을 위해 웹 검색으로 사전 조사를 해주세요.${naverSection}
 
 [작성 요청 원문]
 ${userMessage}
@@ -138,6 +244,7 @@ ${userMessage}
   try {
     const result = await researchWithWebSearch(RESEARCH_SYSTEM_PROMPT, researchPrompt, {
       maxSearches: RESEARCH_MAX_SEARCHES,
+      fetch: naverItems.length > 0 ? { maxUses: RESEARCH_MAX_FETCHES, allowedDomains: NAVER_FETCH_DOMAINS } : undefined,
     });
 
     if (!result.text) throw new Error('empty research');
@@ -158,7 +265,10 @@ ${result.text}
 - "확인 안 됨" 항목은 본문에서 구체적으로 묘사하지 말 것
 - 사장님이 알려준 정보와 조사 결과가 다르면 사장님 정보가 우선`;
 
-    const summary = `사전 조사: 웹 검색 ${result.searchCount}회로 ${carModel} 구조와 ${serviceType} 시공 사례를 확인한 뒤 작성했습니다.`;
+    const naverNote = naverItems.length > 0
+      ? ` 네이버 블로그·카페 후보 ${naverItems.length}건 중 ${result.fetchCount}건은 본문까지 읽었습니다.`
+      : (isNaverSearchEnabled() ? ' 네이버에서는 맞는 시공기를 찾지 못했습니다.' : ' (네이버 검색 API 키가 없어 네이버 블로그 검색은 건너뛰었습니다)');
+    const summary = `사전 조사: 웹 검색 ${result.searchCount}회로 ${carModel} 구조와 ${serviceType} 시공 사례를 확인한 뒤 작성했습니다.${naverNote}`;
     return { context, summary };
   } catch (err) {
     console.warn('[chat] 웹 검색 리서치 실패, 기존 지식으로 대체:', err);
