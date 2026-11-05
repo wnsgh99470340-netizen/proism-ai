@@ -110,7 +110,8 @@ export async function POST(request: NextRequest) {
       combinedMessage,
       target,
       researchSummary,
-      save: true,
+      // 일반 대화 답변이 초안으로 저장되는 것을 막는다 (블로그 요청일 때만 저장)
+      save: isBlog,
     });
 
     return Response.json({

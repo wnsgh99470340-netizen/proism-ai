@@ -306,3 +306,76 @@ export async function generateBlogPost(input: {
     save: true,
   });
 }
+
+/**
+ * 열린 글 수정: 사장님 지시에 해당하는 부분만 고쳐 전체를 다시 출력 → 검사 → 새 초안 버전으로 저장
+ * (원래 초안은 그대로 두고 draft_id 로 연결)
+ */
+export async function reviseBlogPost(input: {
+  title: string;
+  /** 본문 (HTML 또는 일반 텍스트) */
+  content: string;
+  instruction: string;
+  target: Target;
+  parentDraftId?: string | null;
+}): Promise<WriterResult & { changeNote: string }> {
+  const plain = input.content.replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n\n').replace(/<[^>]+>/g, '').trim();
+  const systemPrompt = `${BLOG_SYSTEM_PROMPT}
+
+[지금 할 일: 기존 글 수정]
+아래 [원본 글]을 사장님의 [수정 지시]대로만 고칩니다. 지시와 무관한 문장·구조·사진 태그·제목은 그대로 둡니다. 새 사실·제품·자격·차별점을 추가하지 않습니다. 분량을 줄이라는 지시가 아니면 분량을 줄이지 않습니다.
+출력 형식: 첫 줄에 "변경: " 뒤에 무엇을 어떻게 고쳤는지 한 줄 요약 → 빈 줄 → 제목 → 본문 전체. 다른 설명 금지.`;
+  const userMsg = `[수정 지시]
+${input.instruction}
+
+[원본 글]
+${input.title}
+
+${plain}`;
+
+  const raw = await callClaude(systemPrompt, [{ role: 'user', content: userMsg }], 8192, BLOG_WRITER_MODEL);
+
+  // 첫 줄 "변경: ..." 분리
+  const lines = raw.split('\n');
+  let changeNote = '';
+  let bodyStart = 0;
+  const firstIdx = lines.findIndex(l => l.trim().length > 0);
+  if (firstIdx >= 0 && /^변경\s*:/.test(lines[firstIdx].trim())) {
+    changeNote = lines[firstIdx].trim().replace(/^변경\s*:\s*/, '');
+    bodyStart = firstIdx + 1;
+  }
+  const text = lines.slice(bodyStart).join('\n').trim();
+  const tb = splitTitleBody(text);
+  if (!tb || tb.body.replace(/\s/g, '').length < 500) {
+    throw new Error('수정 결과가 글 형식이 아닙니다. 지시를 조금 더 구체적으로 적어주세요.');
+  }
+
+  const serviceType = input.target.serviceType;
+  const violations = checkHardViolations(tb.body, input.instruction, serviceType);
+  const factIssues = factCheck({ body: tb.body, serviceType, product: input.target.product ?? undefined });
+  const formatIssues = checkFormatIssues(tb.title, tb.body);
+
+  let draftId: string | null = null;
+  const saved = await savePost({
+    kind: 'draft', title: tb.title, body: tb.body,
+    car_model: input.target.carModel, service_type: serviceType, product: input.target.product || null,
+    region: input.target.region || null,
+    draft_id: input.parentDraftId || null,
+    feedback: `수정: ${input.instruction.slice(0, 200)}`,
+  });
+  draftId = saved?.id ?? null;
+
+  const notes: string[] = [changeNote ? `✏️ ${changeNote}` : '✏️ 요청하신 대로 고쳤습니다.'];
+  if (violations.length > 0) notes.push(`확인 필요: ${violations.map(v => v.detail).join(' / ')}`);
+  notes.push(factIssues.length > 0 ? `팩트체크 ${factIssues.length}건 확인 필요: ${factIssues.map(f => f.detail).join(' / ')}` : '팩트체크 통과');
+  if (formatIssues.length > 0) notes.push(`형식: ${formatIssues.join(' / ')}`);
+
+  return {
+    reply: notes.join('\n'),
+    draft: { title: tb.title, content: textToHtml(tb.body), tags: extractTagsFromTitle(tb.title), category: '프로이즘 작업기' },
+    checks: { violations, facts: factIssues, format: formatIssues },
+    draftId,
+    target: input.target,
+    changeNote,
+  };
+}

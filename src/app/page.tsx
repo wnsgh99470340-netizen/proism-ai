@@ -93,6 +93,8 @@ export default function Home() {
       }
     } catch { /* 무시 */ }
   }, []);
+  // 열린 글 수정 모드: 글이 열려 있으면 채팅 메시지를 "이 글 수정 요청"으로 처리 (새 시공기 요청은 제외)
+  const [reviseMode, setReviseMode] = useState(true);
   // 백그라운드 생성 작업 (서버 blog_jobs)
   const [jobs, setJobs] = useState<BlogJob[]>([]);
   const jobsRef = useRef<BlogJob[]>([]);
@@ -216,8 +218,54 @@ export default function Home() {
         return;
       }
 
-      // 시공기 작성 요청(사진 없음)은 서버 백그라운드 작업으로 접수 → 폰을 꺼도 끝까지 진행
       const isBlogRequestForJob = Boolean(request) || BLOG_REQUEST_KEYWORDS.some((k) => message.includes(k));
+
+      // 열린 글 수정 요청: 글이 열려 있고 수정 모드이며 새 시공기 요청이 아닐 때
+      if (draft && reviseMode && !request && !isBlogRequestForJob && uploadedImages.length === 0) {
+        setMessages((prev) => [
+          ...prev,
+          { role: 'assistant', content: `✏️ 열린 글을 고치는 중입니다: "${draft.title}"\n1분 정도 걸립니다.`, employeeName: '수정', employeeEmoji: '✏️', employeeColor: '#C8A951' },
+        ]);
+        try {
+          const rRes = await fetch('/api/revise', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: draft.title,
+              content: draft.content,
+              instruction: message,
+              target: draftMeta ? { carModel: draftMeta.carModel, serviceType: draftMeta.serviceType, product: draftMeta.product, region: draftMeta.region } : null,
+              parentDraftId: draftMeta?.draftId ?? null,
+            }),
+          });
+          const rData = await rRes.json();
+          if (!rRes.ok || rData.error) {
+            setMessages((prev) => [...prev, { role: 'assistant', content: `⚠️ 수정 실패: ${rData.error || rRes.status}`, employeeName: '시스템', employeeEmoji: '⚠️', employeeColor: '#EF4444' }]);
+          } else {
+            setDraft(rData.draft);
+            setChecks(rData.checks ?? null);
+            setDraftMeta((m) => ({
+              draftId: rData.draftId ?? null,
+              carModel: rData.target?.carModel ?? m?.carModel ?? null,
+              serviceType: rData.target?.serviceType ?? m?.serviceType ?? null,
+              product: rData.target?.product ?? m?.product ?? null,
+              region: rData.target?.region ?? m?.region ?? null,
+            }));
+            // 인스타·카페 버전은 고친 글 기준으로 다시 만들어야 하므로 비움 (탭에서 "다시 만들기")
+            setChannels(null);
+            setMessages((prev) => [...prev, { role: 'assistant', content: `${rData.reply}\n고친 글은 새 버전으로 저장했습니다. 인스타·카페 버전이 필요하면 해당 탭에서 다시 만들 수 있습니다.`, employeeName: '수정', employeeEmoji: '✏️', employeeColor: '#C8A951' }]);
+            setPostsRefreshKey((k) => k + 1);
+            setMobileView('preview');
+          }
+        } catch {
+          setMessages((prev) => [...prev, { role: 'assistant', content: '⚠️ 네트워크 오류로 수정에 실패했습니다.', employeeName: '시스템', employeeEmoji: '⚠️', employeeColor: '#EF4444' }]);
+        }
+        setLoading(false);
+        setImages([]);
+        return;
+      }
+
+      // 시공기 작성 요청(사진 없음)은 서버 백그라운드 작업으로 접수 → 폰을 꺼도 끝까지 진행
       if (isBlogRequestForJob && uploadedImages.length === 0) {
         try {
           const jRes = await fetch('/api/jobs', {
@@ -371,7 +419,7 @@ export default function Home() {
       setLoading(false);
       setImages([]); // 전송 후 이미지 목록 초기화
     },
-    [messages, updateResearchMessage]
+    [messages, updateResearchMessage, draft, draftMeta, reviseMode]
   );
 
   const fetchChannels = async (title: string, content: string, serviceType?: string | null, carModel?: string | null) => {
@@ -557,6 +605,9 @@ export default function Home() {
             images={images}
             onImagesChange={setImages}
             prefill={prefill}
+            openDraftTitle={draft?.title ?? null}
+            reviseMode={reviseMode}
+            onToggleReviseMode={() => setReviseMode((v) => !v)}
           />
         </div>
 

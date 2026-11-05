@@ -31,6 +31,10 @@ interface ChatPanelProps {
   onImagesChange: (images: UploadedImage[]) => void;
   /** CRM에서 넘어온 폼 미리 채우기 값 */
   prefill?: BlogPrefill | null;
+  /** 미리보기에 열린 글 제목 (있으면 수정 모드 안내 표시) */
+  openDraftTitle?: string | null;
+  reviseMode?: boolean;
+  onToggleReviseMode?: () => void;
 }
 
 export default function ChatPanel({
@@ -40,6 +44,9 @@ export default function ChatPanel({
   images,
   onImagesChange,
   prefill = null,
+  openDraftTitle = null,
+  reviseMode = true,
+  onToggleReviseMode,
 }: ChatPanelProps) {
   const [input, setInput] = useState('');
   const [formOpen, setFormOpen] = useState(true);
@@ -152,13 +159,24 @@ export default function ChatPanel({
 
       {/* 입력 */}
       <div className="p-3 border-t border-[var(--c-border)]">
+        {openDraftTitle && (
+          <div className={`mb-2 flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-[11px] ${reviseMode ? 'bg-[#C8A951]/10 text-[#C8A951]' : 'bg-[var(--c-subtle)] text-[var(--c-text-3)]'}`}>
+            <span className="truncate">
+              {reviseMode ? '✏️ 지금 보내는 말은 열린 글 수정 요청으로 처리: ' : '💬 일반 대화 모드 (열린 글은 안 건드림): '}
+              <span className="text-[var(--c-text-2)]">{openDraftTitle}</span>
+            </span>
+            <button onClick={onToggleReviseMode} className="shrink-0 underline-offset-2 hover:underline">
+              {reviseMode ? '일반 대화로' : '수정 모드로'}
+            </button>
+          </div>
+        )}
         <div className="flex gap-2 items-end bg-[#1a1a1f] border border-[var(--c-border)] rounded-xl px-3 py-2 focus-within:border-[#C8A951]/50 transition-colors">
           <textarea
             ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="메시지를 입력하세요..."
+            placeholder={openDraftTitle && reviseMode ? '예: 마무리 더 짧게 / 서초를 반포로 / 범퍼 부분 더 구체적으로' : '메시지를 입력하세요...'}
             rows={1}
             className="flex-1 bg-transparent text-[var(--c-text-1)] text-sm placeholder-[#71717a] resize-none outline-none min-h-[20px] max-h-[120px]"
             style={{ fieldSizing: 'content' } as React.CSSProperties}
