@@ -48,3 +48,19 @@ export function buildDraftFromText(title: string, body: string) {
     category: '프로이즘 작업기',
   };
 }
+
+/** HTML 본문 → 일반 텍스트 (문단은 빈 줄, <br>은 줄바꿈, 엔티티 복원) */
+export function htmlToPlainText(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}

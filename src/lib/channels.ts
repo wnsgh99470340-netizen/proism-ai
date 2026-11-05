@@ -3,6 +3,7 @@
  * 원칙: 블로그 본문에 있는 사실만 쓴다. 새 사실·수치·제품·부위를 추가하면 안 된다.
  */
 import { callClaude } from './claude-client';
+import { htmlToPlainText } from './draft-format';
 import { BUSINESS_CONTEXT } from '@/config/prompts';
 
 export interface Channels {
@@ -37,7 +38,7 @@ const CHANNELS_PROMPT = `${BUSINESS_CONTEXT}
 }`;
 
 export function htmlToPlain(content: string): string {
-  return content.replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n\n').replace(/<[^>]+>/g, '').trim();
+  return htmlToPlainText(content);
 }
 
 export async function generateChannels(title: string, content: string, serviceType = '', carModel = ''): Promise<Channels> {

@@ -5,19 +5,38 @@ import PostLibrary from './PostLibrary';
 import SavedPosts from './SavedPosts';
 import type { BlogPost } from '@/lib/posts';
 import type { BlogJob } from '@/lib/jobs';
+import { htmlToPlainText } from '@/lib/draft-format';
 
-function CopyButton({ label, getText }: { label: string; getText: () => string }) {
+/** 텍스트(+선택적으로 HTML)를 클립보드에 복사. HTML을 함께 넣으면 네이버 에디터 등 서식 지원 곳에서는 문단이 유지되고, 메모장 등에서는 일반 텍스트로 붙음 */
+async function copyToClipboard(text: string, html?: string) {
+  if (html && typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          'text/plain': new Blob([text], { type: 'text/plain' }),
+          'text/html': new Blob([html], { type: 'text/html' }),
+        }),
+      ]);
+      return;
+    } catch {
+      // 아래 텍스트 복사로 폴백
+    }
+  }
+  await navigator.clipboard.writeText(text);
+}
+
+function CopyButton({ label, getText, getHtml }: { label: string; getText: () => string; getHtml?: () => string }) {
   const [copied, setCopied] = useState(false);
 
   const handleClick = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(getText());
+      await copyToClipboard(getText(), getHtml?.());
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
       // clipboard API 실패 시 무시
     }
-  }, [getText]);
+  }, [getText, getHtml]);
 
   return (
     <button
@@ -211,7 +230,8 @@ export default function PreviewPanel({
                 />
                 <CopyButton
                   label="📋 본문 복사"
-                  getText={() => draft.content}
+                  getText={() => htmlToPlainText(draft.content)}
+                  getHtml={() => draft.content}
                 />
               </div>
               <div className="grid grid-cols-3 gap-2">
