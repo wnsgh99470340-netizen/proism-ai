@@ -71,18 +71,20 @@ function excerpt(text: string, maxChars: number): string {
  * - final 에 남긴 피드백 최근 15개 (중복 제거)
  * 글이 없으면 빈 문자열.
  */
-export async function buildToneReference(): Promise<string> {
-  const [owners, finals] = await Promise.all([listPosts('owner', 10), listPosts('final', 20)]);
+export async function buildToneReference(serviceType?: string): Promise<string> {
+  const [owners, finals] = await Promise.all([listPosts('owner', 40), listPosts('final', 20)]);
   if (owners.length === 0 && finals.length === 0) return '';
 
-  // 참고 글: owner 우선, 부족하면 final 로 채워 최대 3편
-  const samples = [...owners, ...finals].slice(0, 3);
+  // 참고 글: 같은 시공 종류의 사장님 글 → 나머지 사장님 글 → 최종본 순으로 최대 3편
+  const same = serviceType ? owners.filter((o) => o.service_type === serviceType) : [];
+  const rest = owners.filter((o) => !same.includes(o));
+  const samples = [...same, ...rest, ...finals].slice(0, 3);
   const sampleText = samples
     .map((p, i) => `[참고 글 ${i + 1}] ${p.title}\n${excerpt(p.body.replace(/\[사진\s*\d+\]/g, '').trim(), 700)}`)
     .join('\n\n');
 
   const feedbacks = Array.from(new Set(
-    finals.map(f => (f.feedback || '').trim()).filter(Boolean)
+    finals.map(f => (f.feedback || '').trim()).filter((f) => f && !f.startsWith('source:'))
   )).slice(0, 15);
   const feedbackText = feedbacks.length > 0
     ? `\n\n[사장님이 이전 초안에 남긴 교정 피드백 — 반드시 반영]\n${feedbacks.map(f => `- ${f}`).join('\n')}`

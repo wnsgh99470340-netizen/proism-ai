@@ -187,8 +187,8 @@ async function saveDraftFile(title: string, body: string): Promise<void> {
 }
 
 /** 블로그 작성용 시스템 프롬프트: 규칙 + 사장님 문체 + 사전 조사 + 이전 글 목록 */
-export async function buildBlogSystemPrompt(researchContext: string): Promise<string> {
-  const toneReference = await buildToneReference();
+export async function buildBlogSystemPrompt(researchContext: string, serviceType?: string): Promise<string> {
+  const toneReference = await buildToneReference(serviceType);
   const vehicleContext = researchContext ? '\n\n' + researchContext : '';
   const previousDrafts = await getPreviousDrafts();
   let previousContext = '';
@@ -295,7 +295,7 @@ export async function generateBlogPost(input: {
 }): Promise<WriterResult> {
   const t = resolveTarget(input.message, input.request);
   const target: Target = { carModel: t.carModel, serviceType: t.serviceType, product: t.product, region: input.request?.region || null };
-  const systemPrompt = await buildBlogSystemPrompt(input.research?.context || '');
+  const systemPrompt = await buildBlogSystemPrompt(input.research?.context || '', target.serviceType);
   return runWriter({
     systemPrompt,
     model: BLOG_WRITER_MODEL,

@@ -582,6 +582,7 @@ export default function Home() {
             jobs={jobs}
             onRetryJob={handleRetryJob}
             onDeleteJob={handleDeleteJob}
+            onPostsChanged={() => setPostsRefreshKey((k) => k + 1)}
           />
         </div>
       </div>

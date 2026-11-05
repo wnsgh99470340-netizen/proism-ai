@@ -98,6 +98,8 @@ interface PreviewPanelProps {
   jobs: BlogJob[];
   onRetryJob: (id: string) => void;
   onDeleteJob: (id: string) => void;
+  /** 저장된 글 목록을 다시 불러와야 할 때 */
+  onPostsChanged: () => void;
 }
 
 export default function PreviewPanel({
@@ -120,6 +122,7 @@ export default function PreviewPanel({
   jobs,
   onRetryJob,
   onDeleteJob,
+  onPostsChanged,
 }: PreviewPanelProps) {
   const [activeTab, setActiveTab] = useState<'preview' | 'instagram' | 'cafe' | 'insight'>('preview');
   const draftPlain = draft ? draft.content.replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n\n').replace(/<[^>]+>/g, '').trim() : '';
@@ -240,6 +243,7 @@ export default function PreviewPanel({
             draftBody={draftPlain}
             onSaveFinal={onSaveFinal}
             onSaveOwner={onSaveOwner}
+            onImported={onPostsChanged}
           />
         </div>
       )}

@@ -8,6 +8,8 @@ interface Props {
   draftBody: string;
   onSaveFinal: (title: string, body: string, feedback: string) => Promise<string | null>;
   onSaveOwner: (title: string, body: string) => Promise<string | null>;
+  /** 블로그 불러오기 후 목록 갱신 */
+  onImported?: () => void;
 }
 
 const inputCls =
@@ -18,13 +20,36 @@ const inputCls =
  * - 최종본 저장: 초안을 고친 뒤 "무엇을 왜 고쳤는지" 피드백과 함께 저장 → 다음 글부터 반영
  * - 내 글 추가: 사장님이 직접 쓴 글을 톤 기준으로 저장
  */
-export default function PostLibrary({ draftTitle, draftBody, onSaveFinal, onSaveOwner }: Props) {
+export default function PostLibrary({ draftTitle, draftBody, onSaveFinal, onSaveOwner, onImported }: Props) {
   const [mode, setMode] = useState<'none' | 'final' | 'owner'>('none');
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [feedback, setFeedback] = useState('');
   const [status, setStatus] = useState<string>('');
   const [busy, setBusy] = useState(false);
+  const [importing, setImporting] = useState(false);
+
+  const importBlog = async () => {
+    setImporting(true);
+    setStatus('블로그에서 새 글을 찾는 중… (글당 몇 초, 최대 1~2분)');
+    try {
+      const res = await fetch('/api/posts/import-blog', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ limit: 20 }) });
+      const d = await res.json();
+      if (!res.ok) { setStatus(`불러오기 실패: ${d.error}`); return; }
+      const n = d.imported?.length ?? 0;
+      const f = d.failed?.length ?? 0;
+      setStatus(
+        n === 0 && f === 0
+          ? `새 글이 없습니다. 블로그 최근 ${d.total}편은 이미 모두 들어와 있습니다.`
+          : `${n}편 가져왔습니다 (이미 있던 ${d.skippedExisting}편 건너뜀${f ? `, ${f}편 본문 읽기 실패` : ''}${d.remaining ? `, 남은 ${d.remaining}편은 한 번 더 누르면 이어서 가져옵니다` : ''}). 다음 글부터 말투 참고에 들어갑니다.`
+      );
+      if (n > 0) onImported?.();
+    } catch (e) {
+      setStatus(`불러오기 실패: ${e instanceof Error ? e.message : '네트워크 오류'}`);
+    } finally {
+      setImporting(false);
+    }
+  };
 
   const open = (m: 'final' | 'owner') => {
     setMode(m);
@@ -54,6 +79,13 @@ export default function PostLibrary({ draftTitle, draftBody, onSaveFinal, onSave
 
       {mode === 'none' && (
         <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={importBlog}
+            disabled={importing}
+            className="col-span-2 bg-[#03C75A]/10 hover:bg-[#03C75A]/20 text-[#03C75A] text-xs py-2.5 rounded-lg font-medium disabled:opacity-50"
+          >
+            {importing ? '⬇️ 가져오는 중…' : '⬇️ 내 블로그(roice_) 최근 글 불러오기'}
+          </button>
           <button
             onClick={() => open('final')}
             disabled={!draftBody}

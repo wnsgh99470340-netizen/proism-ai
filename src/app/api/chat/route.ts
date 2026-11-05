@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
 
     const isBlog = Boolean(blogRequest) || isBlogWriteRequest(message || '');
     const systemPrompt = isBlog
-      ? await buildBlogSystemPrompt(researchContext)
+      ? await buildBlogSystemPrompt(researchContext, target.serviceType)
       : `${activeEmployee.systemPrompt}\n\n현재 담당: ${activeEmployee.emoji} ${activeEmployee.name}\n역할: ${activeEmployee.role}`;
 
     const result = await runWriter({
