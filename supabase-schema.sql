@@ -130,3 +130,15 @@ CREATE TABLE IF NOT EXISTS blog_jobs (
   updated_at timestamptz DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS blog_jobs_status_created_idx ON blog_jobs (status, created_at DESC);
+
+-- ============================================
+-- 8. push_subscriptions (웹 푸시 알림 구독 — 2026-11-05 추가)
+-- 홈 화면 앱/브라우저에서 "완성 알림 켜기"를 누르면 기기별 구독이 저장되고, 글 완성·실패 시 알림을 보낸다
+-- Supabase SQL Editor에서 이 블록만 실행
+-- ============================================
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  endpoint text PRIMARY KEY,
+  subscription jsonb NOT NULL,
+  user_agent text,
+  created_at timestamptz DEFAULT now()
+);

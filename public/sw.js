@@ -3,7 +3,7 @@
  * - 페이지 이동: 네트워크 우선, 오프라인일 때만 캐시 사용
  * - /api 요청: 캐시하지 않음 (글 생성·CRM 데이터는 항상 최신)
  */
-const VERSION = 'proism-v1';
+const VERSION = 'proism-v2';
 const STATIC_CACHE = `${VERSION}-static`;
 const PAGE_CACHE = `${VERSION}-pages`;
 
@@ -56,4 +56,33 @@ self.addEventListener('fetch', (event) => {
         })
     );
   }
+});
+
+// ─── 웹 푸시: 글 완성 알림 ───
+self.addEventListener('push', (event) => {
+  let data = { title: '3M 프로이즘', body: '', url: '/' };
+  try { data = { ...data, ...event.data.json() }; } catch { if (event.data) data.body = event.data.text(); }
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      tag: data.tag || 'proism',
+      data: { url: data.url || '/' },
+      vibrate: [100, 50, 100],
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = new URL((event.notification.data && event.notification.data.url) || '/', self.location.origin).href;
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      for (const c of list) {
+        if (c.url.startsWith(self.location.origin) && 'focus' in c) { c.navigate(url); return c.focus(); }
+      }
+      return self.clients.openWindow(url);
+    })
+  );
 });

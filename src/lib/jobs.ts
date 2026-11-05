@@ -8,6 +8,7 @@ import { researchForBlogPost, resolveTarget } from './blog-research';
 import { generateBlogPost, type WriterResult } from './blog-generate';
 import { generateChannels, type Channels } from './channels';
 import type { BlogRequest } from '@/config/blog-options';
+import { sendPushToAll } from './push';
 
 export type JobStatus = 'queued' | 'researching' | 'writing' | 'channels' | 'done' | 'failed';
 
@@ -137,6 +138,8 @@ export async function runNextStep(id: string): Promise<JobStatus> {
         }
       }
       await updateJob(id, { status: 'done', channels });
+      const title = r?.draft?.title || '블로그 글';
+      await sendPushToAll({ title: '✅ 시공기 완성', body: `${title}\n앱에서 미리보기를 확인하세요.`, url: '/', tag: `job-${id}` }).catch(() => {});
       return 'done';
     }
 
@@ -144,6 +147,7 @@ export async function runNextStep(id: string): Promise<JobStatus> {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     try { await updateJob(id, { status: 'failed', error: msg }); } catch { /* ignore */ }
+    await sendPushToAll({ title: '⚠️ 시공기 생성 실패', body: `${msg.slice(0, 100)}\n앱에서 다시 시도할 수 있습니다.`, url: '/', tag: `job-${id}` }).catch(() => {});
     return 'failed';
   }
 }

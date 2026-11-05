@@ -4,6 +4,7 @@ import { team } from '@/config/team';
 import { useState } from 'react';
 import Link from 'next/link';
 import { useTheme } from '@/components/ThemeProvider';
+import PushToggle from '@/components/PushToggle';
 
 interface TopBarProps {
   activeEmployeeId?: string;
@@ -86,6 +87,7 @@ export default function TopBar({ activeEmployeeId, onHelpClick }: TopBarProps) {
         </div>
 
         <div className="flex items-center gap-2">
+          <PushToggle />
           <button
             onClick={toggleTheme}
             className="w-7 h-7 rounded-full bg-[var(--c-subtle)] flex items-center justify-center hover:bg-[var(--c-hover)] transition-colors text-sm"
