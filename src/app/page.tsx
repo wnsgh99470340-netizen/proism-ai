@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import TopBar from '@/components/TopBar';
 import ChatPanel from '@/components/ChatPanel';
 import PreviewPanel, { type Checks, type Channels } from '@/components/PreviewPanel';
@@ -8,6 +8,7 @@ import HelpModal from '@/components/HelpModal';
 import type { UploadedImage } from '@/components/ImageUpload';
 import type { BlogRequest } from '@/config/blog-options';
 import type { BlogPost } from '@/lib/posts';
+import type { BlogJob } from '@/lib/jobs';
 import { buildDraftFromText } from '@/lib/draft-format';
 
 interface Message {
@@ -68,6 +69,9 @@ export default function Home() {
   const [postsRefreshKey, setPostsRefreshKey] = useState(0);
   // 모바일(md 미만)에서는 대화/미리보기를 탭으로 전환
   const [mobileView, setMobileView] = useState<'chat' | 'preview'>('chat');
+  // 백그라운드 생성 작업 (서버 blog_jobs)
+  const [jobs, setJobs] = useState<BlogJob[]>([]);
+  const jobsRef = useRef<BlogJob[]>([]);
 
   const updateResearchMessage = useCallback((content: string | null) => {
     setMessages((prev) => {
@@ -82,6 +86,83 @@ export default function Home() {
       return copy;
     });
   }, []);
+
+  /** 완성된 작업 결과를 미리보기에 띄우기 */
+  const applyJobResult = useCallback((job: BlogJob) => {
+    const r = job.result;
+    if (!r?.draft) return;
+    setDraft(r.draft);
+    setChecks(r.checks ?? null);
+    setChannels(job.channels ?? null);
+    setChannelsLoading(false);
+    setQaScore(null);
+    setSeoInsight(null);
+    setDraftMeta({
+      draftId: r.draftId ?? null,
+      carModel: r.target?.carModel ?? null,
+      serviceType: r.target?.serviceType ?? null,
+      product: r.target?.product ?? null,
+      region: r.target?.region ?? null,
+    });
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: 'assistant',
+        content: `✅ 글이 완성되었습니다: ${r.draft!.title}\n${r.reply}`,
+        employeeName: '블로그 작가',
+        employeeEmoji: '✍️',
+        employeeColor: '#C8A951',
+      },
+    ]);
+    setPostsRefreshKey((k) => k + 1);
+    setMobileView('preview');
+  }, []);
+
+  /** 작업 목록 갱신. 방금 완성된 작업이 있으면 미리보기에 반영 */
+  const loadJobs = useCallback(async () => {
+    try {
+      const res = await fetch('/api/jobs?limit=20');
+      if (!res.ok) return;
+      const data = await res.json();
+      const next: BlogJob[] = Array.isArray(data.jobs) ? data.jobs : [];
+      const prev = jobsRef.current;
+      const justDone = next.filter((j) => j.status === 'done' && prev.some((p) => p.id === j.id && p.status !== 'done'));
+      const newlyFailed = next.filter((j) => j.status === 'failed' && prev.some((p) => p.id === j.id && p.status !== 'failed'));
+      jobsRef.current = next;
+      setJobs(next);
+      if (justDone.length > 0) applyJobResult(justDone[0]);
+      if (newlyFailed.length > 0) {
+        setMessages((m) => [
+          ...m,
+          {
+            role: 'assistant',
+            content: `⚠️ 글 생성에 실패했습니다. 오른쪽 "생성 중인 글"에서 다시 시도할 수 있습니다.\n${newlyFailed[0].error || ''}`,
+            employeeName: '시스템',
+            employeeEmoji: '⚠️',
+            employeeColor: '#EF4444',
+          },
+        ]);
+      }
+    } catch { /* 네트워크 오류는 다음 폴링에서 복구 */ }
+  }, [applyJobResult]);
+
+  // 처음 열 때 + 진행 중 작업이 있는 동안 10초마다 상태 확인
+  useEffect(() => { loadJobs(); }, [loadJobs]);
+  useEffect(() => {
+    const active = jobs.some((j) => ['queued', 'researching', 'writing', 'channels'].includes(j.status));
+    if (!active) return;
+    const t = setInterval(loadJobs, 10000);
+    return () => clearInterval(t);
+  }, [jobs, loadJobs]);
+
+  const handleRetryJob = async (id: string) => {
+    await fetch(`/api/jobs?id=${encodeURIComponent(id)}&action=retry`, { method: 'PATCH' });
+    loadJobs();
+  };
+  const handleDeleteJob = async (id: string) => {
+    await fetch(`/api/jobs?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+    loadJobs();
+  };
 
   const handleSendMessage = useCallback(
     async (message: string, uploadedImages: UploadedImage[], request?: BlogRequest) => {
@@ -109,6 +190,38 @@ export default function Home() {
         setLoading(false);
         setImages([]); // 전송 후 이미지 목록 초기화
         return;
+      }
+
+      // 시공기 작성 요청(사진 없음)은 서버 백그라운드 작업으로 접수 → 폰을 꺼도 끝까지 진행
+      const isBlogRequestForJob = Boolean(request) || BLOG_REQUEST_KEYWORDS.some((k) => message.includes(k));
+      if (isBlogRequestForJob && uploadedImages.length === 0) {
+        try {
+          const jRes = await fetch('/api/jobs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message, request: request ?? null }),
+          });
+          const jData = await jRes.json();
+          if (jRes.ok && jData.job) {
+            const job: BlogJob = jData.job;
+            jobsRef.current = [job, ...jobsRef.current];
+            setJobs(jobsRef.current);
+            setMessages((prev) => [
+              ...prev,
+              {
+                role: 'assistant',
+                content: '📥 접수했습니다. 서버에서 차량 조사 → 글 작성 → 인스타·카페 버전까지 자동으로 진행합니다.\n보통 4~6분 걸리고, 앱을 닫거나 화면을 꺼도 계속됩니다. 완성되면 오른쪽 "저장된 글"에 올라옵니다.',
+                employeeName: '접수',
+                employeeEmoji: '📥',
+                employeeColor: '#06B6D4',
+              },
+            ]);
+            setLoading(false);
+            setImages([]);
+            return;
+          }
+          // 작업 테이블이 없는 등 접수 실패 → 아래 즉시 실행 경로로 폴백
+        } catch { /* 폴백 */ }
       }
 
       try {
@@ -264,9 +377,10 @@ export default function Home() {
   /** 저장된 글을 눌러 미리보기에 다시 띄우기 */
   const handleOpenPost = (post: BlogPost) => {
     const d = buildDraftFromText(post.title, post.body);
+    const job = jobsRef.current.find((j) => j.status === 'done' && j.result?.draftId === post.id);
     setDraft(d);
-    setChecks(null);
-    setChannels(null);
+    setChecks(job?.result?.checks ?? null);
+    setChannels(job?.channels ?? null);
     setChannelsLoading(false);
     setQaScore(null);
     setSeoInsight(null);
@@ -431,6 +545,9 @@ export default function Home() {
             activePostId={draftMeta?.draftId ?? null}
             onOpenPost={handleOpenPost}
             onMakeChannels={handleMakeChannels}
+            jobs={jobs}
+            onRetryJob={handleRetryJob}
+            onDeleteJob={handleDeleteJob}
           />
         </div>
       </div>

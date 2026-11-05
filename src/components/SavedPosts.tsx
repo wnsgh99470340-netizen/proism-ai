@@ -2,12 +2,36 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import type { BlogPost } from '@/lib/posts';
+import type { BlogJob } from '@/lib/jobs';
 
 interface Props {
   /** 값이 바뀌면 목록을 다시 불러온다 (저장 직후 등) */
   refreshKey: number;
   activeId: string | null;
   onOpen: (post: BlogPost) => void;
+  /** 백그라운드 생성 작업 (진행 중·실패만 표시) */
+  jobs: BlogJob[];
+  onRetryJob: (id: string) => void;
+  onDeleteJob: (id: string) => void;
+}
+
+const JOB_STATUS_LABEL: Record<string, string> = {
+  queued: '⏳ 접수됨 · 곧 시작',
+  researching: '🔎 차량 구조·시공 사례 조사 중',
+  writing: '✍️ 글 작성 중',
+  channels: '📸 인스타·카페 버전 만드는 중',
+  failed: '⚠️ 실패',
+};
+
+export function jobLabel(job: BlogJob): string {
+  const r = job.request;
+  if (r) return [r.region, r.brand, r.model, r.serviceLabel, r.range].filter(Boolean).join(' ');
+  return job.message.length > 40 ? `${job.message.slice(0, 40)}…` : job.message;
+}
+
+function elapsed(iso: string) {
+  const m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  return m < 1 ? '방금' : `${m}분`;
 }
 
 const KIND_LABEL: Record<string, { text: string; cls: string }> = {
@@ -26,7 +50,7 @@ function fmtDate(iso?: string) {
  * 저장된 글 목록 (Supabase blog_posts)
  * - 사이트에 들어오면 자동으로 불러오고, 누르면 미리보기에 다시 띄운다
  */
-export default function SavedPosts({ refreshKey, activeId, onOpen }: Props) {
+export default function SavedPosts({ refreshKey, activeId, onOpen, jobs, onRetryJob, onDeleteJob }: Props) {
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(true);
@@ -58,7 +82,40 @@ export default function SavedPosts({ refreshKey, activeId, onOpen }: Props) {
     }
   };
 
+  const visibleJobs = jobs.filter((j) => j.status !== 'done');
+
   return (
+    <>
+    {visibleJobs.length > 0 && (
+      <div className="mx-3 mt-3 bg-[#1a1a1f] border border-[#C8A951]/40 rounded-xl overflow-hidden">
+        <div className="px-3 py-2 text-xs font-medium text-[var(--c-text-1)]">⚙️ 생성 중인 글</div>
+        <div className="border-t border-[var(--c-border)]">
+          {visibleJobs.map((j) => (
+            <div key={j.id} className="px-3 py-2 border-b border-[var(--c-border)]/60 last:border-b-0">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-[var(--c-text-1)] truncate flex-1">{jobLabel(j)}</span>
+                <span className="text-[10px] text-[var(--c-text-3)] shrink-0">{elapsed(j.created_at)} 경과</span>
+                {j.status === 'failed' ? (
+                  <>
+                    <button onClick={() => onRetryJob(j.id)} className="text-[10px] text-[#C8A951] hover:underline shrink-0">다시 시도</button>
+                    <button onClick={() => onDeleteJob(j.id)} className="text-[var(--c-text-4)] hover:text-[#EF4444] text-xs px-1 shrink-0" title="삭제">✕</button>
+                  </>
+                ) : (
+                  <span className="w-2 h-2 rounded-full bg-[#C8A951] animate-pulse shrink-0" />
+                )}
+              </div>
+              <div className={`text-[11px] mt-0.5 ${j.status === 'failed' ? 'text-[#EF4444]' : 'text-[var(--c-text-2)]'}`}>
+                {JOB_STATUS_LABEL[j.status] || j.status}
+                {j.status === 'failed' && j.error ? ` — ${j.error.slice(0, 120)}` : ''}
+              </div>
+              {j.status !== 'failed' && (
+                <div className="text-[10px] text-[var(--c-text-3)] mt-0.5">앱을 닫아도 서버에서 계속 진행됩니다. 보통 4~6분 걸립니다.</div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
     <div className="mx-3 mt-3 bg-[#1a1a1f] border border-[var(--c-border)] rounded-xl overflow-hidden">
       <div className="flex items-center justify-between px-3 py-2">
         <button
@@ -113,5 +170,6 @@ export default function SavedPosts({ refreshKey, activeId, onOpen }: Props) {
         </div>
       )}
     </div>
+    </>
   );
 }

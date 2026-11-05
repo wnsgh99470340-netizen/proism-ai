@@ -9,7 +9,8 @@ export function middleware(request: NextRequest) {
     pathname === '/api/auth/login' ||
     pathname.startsWith('/api/cron/') ||
     pathname === '/sw.js' ||
-    pathname === '/manifest.webmanifest'
+    pathname === '/manifest.webmanifest' ||
+    pathname === '/api/jobs/run' // 서버 내부 단계 호출 (라우트에서 시크릿/쿠키 직접 검증)
   ) {
     return NextResponse.next();
   }

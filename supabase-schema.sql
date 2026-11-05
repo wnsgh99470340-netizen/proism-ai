@@ -109,3 +109,24 @@ CREATE TABLE IF NOT EXISTS blog_posts (
   created_at timestamptz DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS blog_posts_kind_created_idx ON blog_posts (kind, created_at DESC);
+
+-- ============================================
+-- 7. blog_jobs (블로그 글 백그라운드 생성 작업 — 2026-11-05 추가)
+-- 폰 화면을 꺼도 서버가 접수 → 조사 → 작성 → 인스타·카페 변환까지 이어가기 위한 작업 큐
+-- status: queued → researching → writing → channels → done (실패 시 failed)
+-- Supabase SQL Editor에서 이 블록만 실행
+-- ============================================
+CREATE TABLE IF NOT EXISTS blog_jobs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  status text NOT NULL DEFAULT 'queued' CHECK (status IN ('queued', 'researching', 'writing', 'channels', 'done', 'failed')),
+  message text NOT NULL,
+  request jsonb,            -- 시공기 빠른 생성 폼 값
+  research jsonb,           -- { context, summary }
+  result jsonb,             -- { reply, draft, checks, draftId, target }
+  channels jsonb,           -- { instagram, cafe }
+  error text,
+  attempts int NOT NULL DEFAULT 0,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS blog_jobs_status_created_idx ON blog_jobs (status, created_at DESC);

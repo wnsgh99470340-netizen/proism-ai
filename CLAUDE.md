@@ -25,7 +25,7 @@
 ### 4. 생성 시스템 구조 (2026-11-04 재설정)
 - 시스템 프롬프트는 src/config/prompts.ts 하나. 5KB 이내 유지. 분석 문서(.claude/*.md)는 주입하지 않음(Claude Code 참고용)
 - 자동 QA는 정규식 5종(열·오버랩 / 따옴표 인용 / 까다로운 부위·사이드미러 / 대표 경력 연수 / 클리셰·수식어 줄)만. Claude 채점·점수 루프 없음. 위반 시 1회 "빼기" 수정만
-- 흐름: /api/research(웹 검색+네이버 검색) → /api/chat(작성 → 정규식 검사 → 필요 시 1회 수정 → 저장)
+- 흐름(기본, 2026-11-05~): /api/jobs 접수 → 서버가 /api/jobs/run 을 단계별로 자기 호출(조사 → 작성 → 인스타·카페) → Supabase blog_jobs 에 상태·결과 저장. 앱을 닫아도 진행. 화면은 10초마다 /api/jobs 폴링. 핵심 로직은 src/lib/blog-generate.ts·channels.ts·jobs.ts. blog_jobs 테이블이 없거나 사진 첨부 시에는 예전 즉시 경로(/api/research → /api/chat)로 폴백
 - 입력: 메인 화면 "시공기 빠른 생성" 폼(src/components/BlogRequestForm.tsx, 선택지는 src/config/blog-options.ts). 폼 값은 request 객체로 /api/research·/api/chat에 함께 전달되어 정규식 추출보다 우선
 - 자동 팩트체크: src/lib/fact-check.ts (시리즈50/100 발수코팅, 랩핑·PWF·크롬 습식, 외부 컴퓨터 재단, 썬팅 외 QC, 크리스탈라인 겹수·농도, 썬팅 열성형 늘림·히팅건 제거, 랩핑 고체왁스·유리막, 팀장님 범위, 정비소 운영, 타사 필름, 투명도 클리셰, PPF 두께, PWF/랩핑 혼동). 위반은 1회 수정 패스에서 함께 고치고 미리보기 상단에 결과 표시
 - 사장님 글 DB: Supabase blog_posts (kind=owner/draft/final, supabase-schema.sql 6번). 글 생성 시 owner·final 최근 3편 앞부분과 final의 feedback을 "문체 참고"로 주입. 미리보기 하단 "사장님 글 DB"에서 최종본+피드백 저장, 직접 쓴 글 추가

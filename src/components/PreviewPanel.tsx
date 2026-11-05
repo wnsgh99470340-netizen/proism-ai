@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react';
 import PostLibrary from './PostLibrary';
 import SavedPosts from './SavedPosts';
 import type { BlogPost } from '@/lib/posts';
+import type { BlogJob } from '@/lib/jobs';
 
 function CopyButton({ label, getText }: { label: string; getText: () => string }) {
   const [copied, setCopied] = useState(false);
@@ -93,6 +94,10 @@ interface PreviewPanelProps {
   onOpenPost: (post: BlogPost) => void;
   /** 불러온 글에 대해 인스타·카페 버전을 다시 만들 때 */
   onMakeChannels: () => void;
+  /** 백그라운드 생성 작업 */
+  jobs: BlogJob[];
+  onRetryJob: (id: string) => void;
+  onDeleteJob: (id: string) => void;
 }
 
 export default function PreviewPanel({
@@ -112,6 +117,9 @@ export default function PreviewPanel({
   activePostId,
   onOpenPost,
   onMakeChannels,
+  jobs,
+  onRetryJob,
+  onDeleteJob,
 }: PreviewPanelProps) {
   const [activeTab, setActiveTab] = useState<'preview' | 'instagram' | 'cafe' | 'insight'>('preview');
   const draftPlain = draft ? draft.content.replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n\n').replace(/<[^>]+>/g, '').trim() : '';
@@ -147,7 +155,7 @@ export default function PreviewPanel({
       {/* 미리보기 탭 */}
       {activeTab === 'preview' && (
         <div className="flex-1 overflow-y-auto">
-          <SavedPosts refreshKey={postsRefreshKey} activeId={activePostId} onOpen={onOpenPost} />
+          <SavedPosts refreshKey={postsRefreshKey} activeId={activePostId} onOpen={onOpenPost} jobs={jobs} onRetryJob={onRetryJob} onDeleteJob={onDeleteJob} />
           {draft && checks && (
             <div className={`mx-3 mt-3 rounded-xl border p-3 ${checks.facts.length + checks.violations.length === 0 ? 'bg-[#10B981]/10 border-[#10B981]/30' : 'bg-[#EF4444]/10 border-[#EF4444]/30'}`}>
               <div className={`text-xs font-medium mb-1 ${checks.facts.length + checks.violations.length === 0 ? 'text-[#10B981]' : 'text-[#EF4444]'}`}>
