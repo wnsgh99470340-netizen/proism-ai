@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     if (!isAutoBlogService(target.serviceType)) {
       return Response.json({
         excluded: true,
-        error: `${target.serviceType === '시공' ? '시공 종류를 알 수 없는 요청' : `${target.serviceType} 시공기`}은 자동 생성 대상이 아닙니다. 자동 생성은 PPF·컬러PPF·랩핑·크롬죽이기만 됩니다.`,
+        error: `${target.serviceType === '시공' ? '시공 종류를 알 수 없는 요청은' : `${target.serviceType} 시공기는`} 자동 생성 대상이 아닙니다. 자동 생성은 PPF·컬러PPF·랩핑·크롬죽이기만 됩니다.`,
       }, { status: 400 });
     }
 
