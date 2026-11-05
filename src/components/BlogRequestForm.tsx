@@ -9,7 +9,7 @@ interface Props {
 }
 
 const inputCls =
-  'w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-2.5 py-2 text-xs text-[var(--c-text-1)] placeholder-[var(--c-text-4)] outline-none focus:border-[#C8A951]/60';
+  'w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-2.5 py-2 text-xs text-[var(--c-text-1)] placeholder-[var(--c-text-4)] outline-none focus:border-[#C8A951]/60 min-h-[36px]';
 const labelCls = 'block text-[10px] text-[var(--c-text-3)] mb-1';
 
 /**
@@ -59,13 +59,13 @@ export default function BlogRequestForm({ disabled, onSubmit }: Props) {
   };
 
   return (
-    <div className="mx-4 mt-3 mb-1 bg-[var(--c-card)] border border-[#C8A951]/30 rounded-xl p-3">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-semibold text-[var(--c-text-1)]">⚡ 시공기 빠른 생성</span>
-        <span className="text-[10px] text-[var(--c-text-3)]">차량·시공·제품만 고르면 조사부터 초안까지 자동</span>
+    <div className="@container mx-3 md:mx-4 mt-3 mb-1 bg-[var(--c-card)] border border-[#C8A951]/30 rounded-xl p-3">
+      <div className="flex items-center justify-between mb-2 gap-2">
+        <span className="text-xs font-semibold text-[var(--c-text-1)] shrink-0">⚡ 시공기 빠른 생성</span>
+        <span className="text-[10px] text-[var(--c-text-3)] hidden @sm:inline truncate">차량·시공·제품만 고르면 조사부터 초안까지 자동</span>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 mb-2">
+      <div className="grid grid-cols-2 @lg:grid-cols-3 gap-2 mb-2">
         <div>
           <label className={labelCls}>브랜드</label>
           <select value={brand} onChange={(e) => setBrand(e.target.value)} className={inputCls}>
@@ -86,7 +86,7 @@ export default function BlogRequestForm({ disabled, onSubmit }: Props) {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 mb-2">
+      <div className="grid grid-cols-2 @lg:grid-cols-3 gap-2 mb-2">
         <div>
           <label className={labelCls}>시공 종류</label>
           <select value={serviceKey} onChange={(e) => changeService(e.target.value as ServiceKey)} className={inputCls}>
@@ -138,7 +138,7 @@ export default function BlogRequestForm({ disabled, onSubmit }: Props) {
       <button
         onClick={submit}
         disabled={!canSubmit}
-        className="w-full bg-[#E4002B] hover:bg-[#c60026] disabled:bg-[var(--c-subtle)] disabled:text-[var(--c-text-3)] text-white text-xs font-semibold py-2.5 rounded-lg transition-colors"
+        className="w-full bg-[#E4002B] hover:bg-[#c60026] disabled:bg-[var(--c-subtle)] disabled:text-[var(--c-text-3)] text-white text-xs font-semibold py-3 rounded-lg transition-colors"
       >
         {disabled ? '작성 중...' : '🔎 조사 → ✍️ 시공기 생성'}
       </button>

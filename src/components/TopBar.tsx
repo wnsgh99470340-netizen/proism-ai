@@ -15,25 +15,25 @@ export default function TopBar({ activeEmployeeId, onHelpClick }: TopBarProps) {
   const { theme, toggle: toggleTheme } = useTheme();
 
   return (
-    <div className="h-14 border-b border-[var(--c-border)] bg-[var(--c-card)] flex items-center px-4 justify-between shrink-0">
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2">
+    <div className="h-12 md:h-14 border-b border-[var(--c-border)] bg-[var(--c-card)] flex items-center px-3 md:px-4 justify-between shrink-0 gap-2">
+      <div className="flex items-center gap-2 md:gap-3 min-w-0">
+        <div className="flex items-center gap-2 shrink-0">
           <span className="text-[#E4002B] text-lg font-bold">◆</span>
-          <span className="text-[var(--c-text-1)] font-semibold text-sm">3M 프로이즘 AI</span>
+          <span className="text-[var(--c-text-1)] font-semibold text-sm whitespace-nowrap">3M 프로이즘 AI</span>
         </div>
-        <span className="text-[var(--c-text-3)] text-xs">마케팅 에이전트</span>
-        <span className="text-[var(--c-border)]">|</span>
+        <span className="text-[var(--c-text-3)] text-xs hidden lg:inline">마케팅 에이전트</span>
+        <span className="text-[var(--c-border)] hidden lg:inline">|</span>
         <Link
           href="/crm"
-          className="text-xs text-[var(--c-text-3)] hover:text-[#C8A951] transition-colors bg-[var(--c-subtle)] hover:bg-[var(--c-subtle)]/80 rounded-lg px-2.5 py-1"
+          className="text-xs text-[var(--c-text-3)] hover:text-[#C8A951] transition-colors bg-[var(--c-subtle)] hover:bg-[var(--c-subtle)]/80 rounded-lg px-2.5 py-1 whitespace-nowrap"
         >
-          고객 관리 CRM
+          <span className="hidden sm:inline">고객 관리 </span>CRM
         </Link>
       </div>
 
-      <div className="flex items-center gap-3">
-        {/* 팀원 아바타 */}
-        <div className="relative">
+      <div className="flex items-center gap-2 md:gap-3 shrink-0">
+        {/* 팀원 아바타 (모바일 숨김) */}
+        <div className="relative hidden md:block">
           <button
             onClick={() => setShowTeam(!showTeam)}
             className="flex items-center gap-1 hover:bg-[var(--c-subtle)] rounded-lg px-2 py-1 transition-colors"
@@ -100,7 +100,7 @@ export default function TopBar({ activeEmployeeId, onHelpClick }: TopBarProps) {
           >
             ?
           </button>
-          <div className="flex items-center gap-1.5 bg-[var(--c-subtle)] rounded-lg px-2.5 py-1">
+          <div className="hidden sm:flex items-center gap-1.5 bg-[var(--c-subtle)] rounded-lg px-2.5 py-1">
             <div className="w-2 h-2 rounded-full bg-[#10B981]" />
             <span className="text-[var(--c-text-1)] text-xs">roice_</span>
           </div>

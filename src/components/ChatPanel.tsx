@@ -63,7 +63,7 @@ export default function ChatPanel({
 
   return (
     <div className="flex flex-col h-full">
-      {/* 시공기 빠른 생성 폼 */}
+      {/* 시공기 빠른 생성 폼 토글 (고정) */}
       <div className="shrink-0 border-b border-[var(--c-border)]">
         <button
           onClick={() => setFormOpen((v) => !v)}
@@ -72,8 +72,12 @@ export default function ChatPanel({
           <span>{formOpen ? '▾' : '▸'} 시공기 빠른 생성 폼</span>
           <span>{formOpen ? '접기' : '펼치기'}</span>
         </button>
+      </div>
+
+      {/* 폼 + 메시지 (한 영역에서 함께 스크롤 — 모바일에서 폼이 화면을 다 차지하지 않게) */}
+      <div className="flex-1 overflow-y-auto px-3 md:px-4 pb-4">
         {formOpen && (
-          <div className="pb-3">
+          <div className="-mx-3 md:-mx-4 pb-3 border-b border-[var(--c-border)] mb-4">
             <BlogRequestForm
               disabled={loading}
               onSubmit={(message, request) => {
@@ -83,12 +87,8 @@ export default function ChatPanel({
             />
           </div>
         )}
-      </div>
-
-      {/* 메시지 영역 */}
-      <div className="flex-1 overflow-y-auto px-4 py-4">
         {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-center">
+          <div className={`flex flex-col items-center justify-center text-center ${formOpen ? 'py-6' : 'h-full'}`}>
             <div className="text-4xl mb-3">◆</div>
             <h2 className="text-[var(--c-text-1)] font-semibold text-base mb-1">3M 프로이즘 AI</h2>
             <p className="text-[var(--c-text-3)] text-xs mb-6 max-w-xs">
@@ -152,7 +152,7 @@ export default function ChatPanel({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="메시지를 입력하세요... (Shift+Enter: 줄바꿈)"
+            placeholder="메시지를 입력하세요..."
             rows={1}
             className="flex-1 bg-transparent text-[var(--c-text-1)] text-sm placeholder-[#71717a] resize-none outline-none min-h-[20px] max-h-[120px]"
             style={{ fieldSizing: 'content' } as React.CSSProperties}
@@ -160,7 +160,7 @@ export default function ChatPanel({
           <button
             onClick={handleSend}
             disabled={loading || (!input.trim() && images.length === 0)}
-            className="shrink-0 w-8 h-8 rounded-lg bg-[#E4002B] hover:bg-[#c60026] disabled:bg-[var(--c-subtle)] disabled:text-[var(--c-text-3)] text-white flex items-center justify-center transition-colors text-sm"
+            className="shrink-0 w-9 h-9 md:w-8 md:h-8 rounded-lg bg-[#E4002B] hover:bg-[#c60026] disabled:bg-[var(--c-subtle)] disabled:text-[var(--c-text-3)] text-white flex items-center justify-center transition-colors text-sm"
           >
             ↑
           </button>

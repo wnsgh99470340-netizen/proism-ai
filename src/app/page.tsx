@@ -66,6 +66,8 @@ export default function Home() {
   const [helpOpen, setHelpOpen] = useState(false);
   // 저장된 글 목록 갱신 트리거 (저장될 때마다 +1)
   const [postsRefreshKey, setPostsRefreshKey] = useState(0);
+  // 모바일(md 미만)에서는 대화/미리보기를 탭으로 전환
+  const [mobileView, setMobileView] = useState<'chat' | 'preview'>('chat');
 
   const updateResearchMessage = useCallback((content: string | null) => {
     setMessages((prev) => {
@@ -200,6 +202,7 @@ export default function Home() {
               region: data.target?.region ?? null,
             });
             if (data.draftId) setPostsRefreshKey((k) => k + 1);
+            setMobileView('preview');
             // 자동 SEO 분석
             fetchSeoInsight(parsedDraft.title, parsedDraft.content, parsedDraft.tags);
             // 인스타·카페 버전 동시 생성
@@ -274,6 +277,7 @@ export default function Home() {
       product: post.product ?? null,
       region: post.region ?? null,
     });
+    setMobileView('preview');
     const kindLabel = post.kind === 'final' ? '최종본' : post.kind === 'owner' ? '내 글' : '초안';
     setMessages((prev) => [
       ...prev,
@@ -393,12 +397,12 @@ export default function Home() {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-[var(--c-page)]">
+    <div className="h-dvh flex flex-col bg-[var(--c-page)]">
       <TopBar activeEmployeeId={activeEmployeeId} onHelpClick={() => setHelpOpen(true)} />
 
       <div className="flex-1 flex min-h-0">
-        {/* 대화 패널 (60%) */}
-        <div className="w-[60%] flex flex-col min-h-0">
+        {/* 대화 패널: 데스크톱 60%, 태블릿 50%, 모바일은 탭으로 전환 */}
+        <div className={`w-full md:w-1/2 lg:w-[60%] flex-col min-h-0 ${mobileView === 'chat' ? 'flex' : 'hidden md:flex'}`}>
           <ChatPanel
             messages={messages}
             onSendMessage={handleSendMessage}
@@ -408,8 +412,8 @@ export default function Home() {
           />
         </div>
 
-        {/* 미리보기 + 인사이트 (40%) */}
-        <div className="w-[40%] min-h-0">
+        {/* 미리보기 + 인사이트 */}
+        <div className={`w-full md:w-1/2 lg:w-[40%] min-h-0 ${mobileView === 'preview' ? 'block' : 'hidden md:block'}`}>
           <PreviewPanel
             draft={draft}
             checks={checks}
@@ -429,6 +433,25 @@ export default function Home() {
             onMakeChannels={handleMakeChannels}
           />
         </div>
+      </div>
+
+      {/* 모바일 하단 탭 (md 이상에서는 숨김) */}
+      <div className="md:hidden shrink-0 border-t border-[var(--c-border)] bg-[var(--c-card)] grid grid-cols-2 pb-[env(safe-area-inset-bottom)]">
+        <button
+          onClick={() => setMobileView('chat')}
+          className={`py-3 text-sm font-medium transition-colors ${mobileView === 'chat' ? 'text-[#C8A951] border-t-2 border-[#C8A951] -mt-px' : 'text-[var(--c-text-3)]'}`}
+        >
+          💬 대화{loading ? ' …' : ''}
+        </button>
+        <button
+          onClick={() => setMobileView('preview')}
+          className={`py-3 text-sm font-medium transition-colors relative ${mobileView === 'preview' ? 'text-[#C8A951] border-t-2 border-[#C8A951] -mt-px' : 'text-[var(--c-text-3)]'}`}
+        >
+          📄 미리보기
+          {draft && mobileView !== 'preview' && (
+            <span className="absolute top-2.5 ml-1 w-2 h-2 rounded-full bg-[#E4002B]" />
+          )}
+        </button>
       </div>
 
       <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />

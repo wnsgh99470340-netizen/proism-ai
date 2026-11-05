@@ -135,7 +135,7 @@ export default function PreviewPanel({
   };
 
   return (
-    <div className="flex flex-col h-full bg-[var(--c-card)] border-l border-[var(--c-border)]">
+    <div className="flex flex-col h-full bg-[var(--c-card)] md:border-l border-[var(--c-border)]">
       {/* 탭 */}
       <div className="flex border-b border-[var(--c-border)] shrink-0">
         <button onClick={() => setActiveTab('preview')} className={tabCls('preview')}>📄 블로그</button>

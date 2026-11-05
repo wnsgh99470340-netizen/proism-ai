@@ -1362,16 +1362,16 @@ export default function CRMPage() {
   ];
 
   return (
-    <div className="h-screen flex flex-col bg-[var(--c-page)]">
+    <div className="h-dvh flex flex-col bg-[var(--c-page)]">
       {/* Header */}
-      <div className="h-14 border-b border-[var(--c-border)] bg-[var(--c-card)] flex items-center px-4 justify-between shrink-0">
-        <div className="flex items-center gap-3">
-          <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+      <div className="h-12 md:h-14 border-b border-[var(--c-border)] bg-[var(--c-card)] flex items-center px-3 md:px-4 justify-between shrink-0 gap-2">
+        <div className="flex items-center gap-2 md:gap-3 min-w-0">
+          <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity shrink-0">
             <span className="text-[#E4002B] text-lg font-bold">◆</span>
-            <span className="text-[var(--c-text-1)] font-semibold text-sm">3M 프로이즘 AI</span>
+            <span className="text-[var(--c-text-1)] font-semibold text-sm whitespace-nowrap hidden sm:inline">3M 프로이즘 AI</span>
           </Link>
-          <span className="text-[var(--c-border)]">|</span>
-          <span className="text-[#C8A951] text-sm font-medium">고객 관리 CRM</span>
+          <span className="text-[var(--c-border)] hidden sm:inline">|</span>
+          <span className="text-[#C8A951] text-sm font-medium whitespace-nowrap">고객 관리 CRM</span>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -1383,20 +1383,20 @@ export default function CRMPage() {
           </button>
           <Link
             href="/"
-            className="text-xs text-[var(--c-text-3)] hover:text-[var(--c-text-1)] transition-colors bg-[var(--c-subtle)] hover:bg-[var(--c-hover)] rounded-lg px-3 py-1.5"
+            className="text-xs text-[var(--c-text-3)] hover:text-[var(--c-text-1)] transition-colors bg-[var(--c-subtle)] hover:bg-[var(--c-hover)] rounded-lg px-3 py-1.5 whitespace-nowrap"
           >
-            블로그 에이전트로 돌아가기
+            <span className="hidden sm:inline">블로그 에이전트로 돌아가기</span><span className="sm:hidden">← 블로그</span>
           </Link>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-[var(--c-border)] bg-[var(--c-card)] px-4 flex gap-0">
+      <div className="border-b border-[var(--c-border)] bg-[var(--c-card)] px-2 md:px-4 flex gap-0 overflow-x-auto shrink-0">
         {tabs.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`px-4 py-3 text-sm font-medium transition-colors relative ${
+            className={`px-3 md:px-4 py-3 text-sm font-medium transition-colors relative whitespace-nowrap shrink-0 ${
               activeTab === tab.key
                 ? 'text-[#C8A951]'
                 : 'text-[var(--c-text-3)] hover:text-[var(--c-text-2)]'
@@ -1411,7 +1411,7 @@ export default function CRMPage() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-3 md:p-6">
         {/* ─── TAB: 고객 목록 ──────────────────────────────── */}
         {activeTab === 'customers' && (
           <div>
@@ -1434,8 +1434,8 @@ export default function CRMPage() {
               </button>
             </div>
 
-            <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl overflow-hidden">
-              <table className="w-full">
+            <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl overflow-x-auto">
+              <table className="w-full whitespace-nowrap md:whitespace-normal">
                 <thead>
                   <tr className="border-b border-[var(--c-border)]">
                     <th className="text-left px-4 py-3 text-xs font-medium text-[var(--c-text-3)]">이름</th>

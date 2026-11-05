@@ -3,8 +3,14 @@ import { NextRequest, NextResponse } from 'next/server';
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // 로그인 페이지·로그인 API·Vercel Cron(자체 시크릿으로 검증)은 통과
-  if (pathname === '/login' || pathname === '/api/auth/login' || pathname.startsWith('/api/cron/')) {
+  // 로그인 페이지·로그인 API·Vercel Cron(자체 시크릿으로 검증)·PWA 파일은 통과
+  if (
+    pathname === '/login' ||
+    pathname === '/api/auth/login' ||
+    pathname.startsWith('/api/cron/') ||
+    pathname === '/sw.js' ||
+    pathname === '/manifest.webmanifest'
+  ) {
     return NextResponse.next();
   }
 

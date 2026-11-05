@@ -1,4 +1,5 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
+import PwaRegister from '@/components/PwaRegister';
 import ThemeProvider from '@/components/ThemeProvider';
 import './globals.css';
 
@@ -10,6 +11,22 @@ export const metadata: Metadata = {
     description: '3M 프로이즘 강남서초점 - PPF, 틴팅, 세라믹코팅, 래핑 전문 시공점',
     siteName: '3M 프로이즘',
   },
+  manifest: '/manifest.webmanifest',
+  appleWebApp: {
+    capable: true,
+    title: '3M 프로이즘',
+    statusBarStyle: 'black-translucent',
+  },
+  icons: {
+    apple: '/icons/apple-touch-icon.png',
+  },
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: '#E4002B',
 };
 
 const themeScript = `(function(){try{var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}})()`;
@@ -30,6 +47,7 @@ export default function RootLayout({
       </head>
       <body className="h-full">
         <ThemeProvider>{children}</ThemeProvider>
+        <PwaRegister />
       </body>
     </html>
   );
