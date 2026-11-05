@@ -6,7 +6,7 @@ import ChatPanel from '@/components/ChatPanel';
 import PreviewPanel, { type Checks, type Channels } from '@/components/PreviewPanel';
 import HelpModal from '@/components/HelpModal';
 import type { UploadedImage } from '@/components/ImageUpload';
-import type { BlogRequest } from '@/config/blog-options';
+import { BLOG_PREFILL_KEY, type BlogRequest, type BlogPrefill } from '@/config/blog-options';
 import type { BlogPost } from '@/lib/posts';
 import type { BlogJob } from '@/lib/jobs';
 import { buildDraftFromText } from '@/lib/draft-format';
@@ -69,6 +69,30 @@ export default function Home() {
   const [postsRefreshKey, setPostsRefreshKey] = useState(0);
   // 모바일(md 미만)에서는 대화/미리보기를 탭으로 전환
   const [mobileView, setMobileView] = useState<'chat' | 'preview'>('chat');
+  // CRM 시공 기록에서 넘어온 폼 미리 채우기
+  const [prefill, setPrefill] = useState<BlogPrefill | null>(null);
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(BLOG_PREFILL_KEY);
+      if (!raw) return;
+      sessionStorage.removeItem(BLOG_PREFILL_KEY);
+      const p = JSON.parse(raw) as BlogPrefill;
+      if (p?.serviceKey) {
+        setPrefill(p);
+        setMobileView('chat');
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: `📋 ${p.source || 'CRM'} 시공 기록을 폼에 채웠습니다. 제품 등급을 확인하고 참고 메모에 그 차의 이야기를 두세 줄 적은 뒤 생성 버튼을 누르세요.`,
+            employeeName: 'CRM 연결',
+            employeeEmoji: '📋',
+            employeeColor: '#C8A951',
+          },
+        ]);
+      }
+    } catch { /* 무시 */ }
+  }, []);
   // 백그라운드 생성 작업 (서버 blog_jobs)
   const [jobs, setJobs] = useState<BlogJob[]>([]);
   const jobsRef = useRef<BlogJob[]>([]);
@@ -215,6 +239,15 @@ export default function Home() {
                 employeeEmoji: '📥',
                 employeeColor: '#06B6D4',
               },
+            ]);
+            setLoading(false);
+            setImages([]);
+            return;
+          }
+          if (jData.excluded) {
+            setMessages((prev) => [
+              ...prev,
+              { role: 'assistant', content: `⛔ ${jData.error}`, employeeName: '시스템', employeeEmoji: '⛔', employeeColor: '#EF4444' },
             ]);
             setLoading(false);
             setImages([]);
@@ -523,6 +556,7 @@ export default function Home() {
             loading={loading}
             images={images}
             onImagesChange={setImages}
+            prefill={prefill}
           />
         </div>
 

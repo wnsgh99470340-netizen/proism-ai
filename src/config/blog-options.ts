@@ -13,7 +13,11 @@ export const REGIONS = [
   '서초', '강남', '반포', '잠원', '방배', '역삼', '논현', '양재', '대치', '청담', '압구정', '신사', '개포', '일원', '세곡',
 ] as const;
 
-export type ServiceKey = 'PPF' | '컬러PPF' | '랩핑' | '크롬죽이기' | '썬팅' | '신차패키지' | '실내PPF' | '유리막코팅';
+/**
+ * 자동 생성 대상 서비스 (2026-11-05 사장님 결정): PPF·컬러PPF·랩핑·크롬죽이기만.
+ * 썬팅·유리막코팅·신차패키지·실내PPF는 자동 생성에서 제외 (필요 시 여기와 SERVICES에 다시 추가)
+ */
+export type ServiceKey = 'PPF' | '컬러PPF' | '랩핑' | '크롬죽이기';
 
 export interface ServiceOption {
   key: ServiceKey;
@@ -56,37 +60,31 @@ export const SERVICES: ServiceOption[] = [
     products: ['3M 2080 글로스블랙'],
     ranges: ['윈도우몰딩', '전체 크롬', '그릴·엠블럼', '부분'],
   },
-  {
-    key: '썬팅',
-    label: '썬팅',
-    products: ['3M 크리스탈라인', '루마 버텍스 900'],
-    extraLabel: '농도',
-    extraPlaceholder: '예: 전면 70 측후면 40 (크리스탈라인은 20/40/50/60/70만)',
-    ranges: ['전면+측후면', '측후면', '전면', '선루프 포함'],
-  },
-  {
-    key: '신차패키지',
-    label: '신차패키지 (검수→썬팅→PPF→코팅)',
-    products: ['3M 크리스탈라인 + 생활보호 PPF', '루마 버텍스 900 + 생활보호 PPF'],
-    extraLabel: '썬팅 농도·PPF 등급·코팅',
-    extraPlaceholder: '예: 전면 70 측후면 40, PPF 시리즈100, 유리막코팅 포함',
-    ranges: ['기본(검수+썬팅+PPF+코팅)', '썬팅+PPF', '직접 입력'],
-  },
-  {
-    key: '실내PPF',
-    label: '실내PPF (컴퓨터 재단)',
-    products: ['3M 시리즈50', '3M 시리즈100', '3M 시리즈150', '3M PRO200 유광', '3M PRO200 무광'],
-    ranges: ['피아노블랙 트림 전체', '센터 콘솔', '도어 트림', '부분'],
-  },
-  {
-    key: '유리막코팅',
-    label: '유리막코팅',
-    products: [],
-    extraLabel: '코팅 제품',
-    extraPlaceholder: '사용한 제품명을 그대로 입력',
-    ranges: ['전체'],
-  },
 ];
+
+/** CRM 시공 기록의 service_type → 폼 서비스 키. 여기 없는 종류(썬팅·코팅 등)는 자동 생성 대상이 아님 */
+export const CRM_SERVICE_TO_KEY: Record<string, ServiceKey> = {
+  PPF: 'PPF',
+  컬러PPF: '컬러PPF',
+  PWF: '컬러PPF',
+  랩핑: '랩핑',
+  크롬죽이기: '크롬죽이기',
+};
+
+/** CRM → 블로그 폼 미리 채우기 (sessionStorage 로 전달) */
+export const BLOG_PREFILL_KEY = 'proism_blog_prefill';
+export interface BlogPrefill {
+  brand?: string;
+  model?: string;
+  color?: string;
+  serviceKey: ServiceKey;
+  range?: string;
+  product?: string;
+  extra?: string;
+  notes?: string;
+  /** 어디서 왔는지 (예: "CRM 예약 11/03 홍길동") */
+  source?: string;
+}
 
 /** 서버로 보내는 구조화된 요청. 정규식 추출보다 우선한다 */
 export interface BlogRequest {

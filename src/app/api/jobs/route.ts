@@ -1,6 +1,7 @@
 import { NextRequest, after } from 'next/server';
 import { createJob, listJobs, deleteJob, getJob, updateJob, kickJob, reviveStalledJobs } from '@/lib/jobs';
 import type { BlogRequest } from '@/config/blog-options';
+import { resolveTarget, isAutoBlogService } from '@/lib/blog-research';
 
 export const maxDuration = 60;
 
@@ -17,6 +18,13 @@ export async function POST(request: NextRequest) {
   try {
     const { message = '', request: blogRequest = null } = await request.json() as { message?: string; request?: BlogRequest | null };
     if (!message.trim()) return Response.json({ error: '메시지가 필요합니다.' }, { status: 400 });
+    const target = resolveTarget(message, blogRequest);
+    if (!isAutoBlogService(target.serviceType)) {
+      return Response.json({
+        excluded: true,
+        error: `${target.serviceType === '시공' ? '시공 종류를 알 수 없는 요청' : `${target.serviceType} 시공기`}은 자동 생성 대상이 아닙니다. 자동 생성은 PPF·컬러PPF·랩핑·크롬죽이기만 됩니다.`,
+      }, { status: 400 });
+    }
 
     const { job, error } = await createJob(message.trim(), blogRequest);
     if (!job) {

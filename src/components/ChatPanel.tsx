@@ -5,7 +5,7 @@ import ChatMessage from './ChatMessage';
 import ImageUpload from './ImageUpload';
 import type { UploadedImage } from './ImageUpload';
 import BlogRequestForm from './BlogRequestForm';
-import type { BlogRequest } from '@/config/blog-options';
+import type { BlogRequest, BlogPrefill } from '@/config/blog-options';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -29,6 +29,8 @@ interface ChatPanelProps {
   loading: boolean;
   images: UploadedImage[];
   onImagesChange: (images: UploadedImage[]) => void;
+  /** CRM에서 넘어온 폼 미리 채우기 값 */
+  prefill?: BlogPrefill | null;
 }
 
 export default function ChatPanel({
@@ -37,9 +39,11 @@ export default function ChatPanel({
   loading,
   images,
   onImagesChange,
+  prefill = null,
 }: ChatPanelProps) {
   const [input, setInput] = useState('');
   const [formOpen, setFormOpen] = useState(true);
+  useEffect(() => { if (prefill) setFormOpen(true); }, [prefill]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -79,6 +83,8 @@ export default function ChatPanel({
         {formOpen && (
           <div className="-mx-3 md:-mx-4 pb-3 border-b border-[var(--c-border)] mb-4">
             <BlogRequestForm
+              key={prefill ? `prefill-${prefill.source || ''}-${prefill.model || ''}` : 'blank'}
+              initial={prefill}
               disabled={loading}
               onSubmit={(message, request) => {
                 onSendMessage(message, images, request);
@@ -97,7 +103,7 @@ export default function ChatPanel({
             <div className="grid grid-cols-2 gap-2 max-w-sm w-full">
               {[
                 'BMW M4 전체 PPF 시공기 써줘',
-                '벤츠 E클래스 썬팅 후기 작성해줘',
+                '벤츠 GLC 윈도우몰딩 크롬죽이기 시공기 써줘',
                 '이번 달 콘텐츠 캘린더 짜줘',
                 '강남 PPF 키워드 분석해줘',
               ].map((prompt) => (

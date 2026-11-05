@@ -1,11 +1,13 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { CAR_BRANDS, REGIONS, SERVICES, buildBlogMessage, type BlogRequest, type ServiceKey } from '@/config/blog-options';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { CAR_BRANDS, REGIONS, SERVICES, buildBlogMessage, type BlogRequest, type BlogPrefill, type ServiceKey } from '@/config/blog-options';
 
 interface Props {
   disabled: boolean;
   onSubmit: (message: string, request: BlogRequest) => void;
+  /** CRM 시공 기록에서 넘어온 값. 있으면 차량·시공은 채우고 메모 칸에 포커스 */
+  initial?: BlogPrefill | null;
 }
 
 const inputCls =
@@ -16,17 +18,25 @@ const labelCls = 'block text-[10px] text-[var(--c-text-3)] mb-1';
  * 시공기 빠른 생성 폼.
  * 차량·시공·제품·지역만 고르면 리서치 → 작성까지 한 번에 돌아가는 메시지를 만든다.
  */
-export default function BlogRequestForm({ disabled, onSubmit }: Props) {
-  const [brand, setBrand] = useState<string>('BMW');
-  const [customBrand, setCustomBrand] = useState('');
-  const [model, setModel] = useState('');
-  const [color, setColor] = useState('');
-  const [serviceKey, setServiceKey] = useState<ServiceKey>('PPF');
-  const [range, setRange] = useState<string>(SERVICES[0].ranges[0]);
-  const [product, setProduct] = useState<string>(SERVICES[0].products[0]);
-  const [extra, setExtra] = useState('');
+export default function BlogRequestForm({ disabled, onSubmit, initial = null }: Props) {
+  const initService = SERVICES.find((x) => x.key === initial?.serviceKey) ?? SERVICES[0];
+  const knownBrand = initial?.brand && (CAR_BRANDS as readonly string[]).includes(initial.brand);
+  const [brand, setBrand] = useState<string>(initial?.brand ? (knownBrand ? initial.brand : '기타') : 'BMW');
+  const [customBrand, setCustomBrand] = useState(initial?.brand && !knownBrand ? initial.brand : '');
+  const [model, setModel] = useState(initial?.model ?? '');
+  const [color, setColor] = useState(initial?.color ?? '');
+  const [serviceKey, setServiceKey] = useState<ServiceKey>(initService.key);
+  const [range, setRange] = useState<string>(initial?.range && initService.ranges.includes(initial.range) ? initial.range : initService.ranges[0]);
+  // CRM에서 넘어온 경우 제품 등급은 기록에 없으므로 비워두고 직접 고르게 한다 (임의 제품명 방지)
+  const [product, setProduct] = useState<string>(initial ? (initial.product ?? '') : SERVICES[0].products[0]);
+  const [extra, setExtra] = useState(initial?.extra ?? '');
   const [region, setRegion] = useState<string>(REGIONS[0]);
-  const [notes, setNotes] = useState('');
+  const [notes, setNotes] = useState(initial?.notes ?? '');
+  const notesRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (initial) notesRef.current?.focus();
+  }, [initial]);
 
   const service = useMemo(() => SERVICES.find((s) => s.key === serviceKey)!, [serviceKey]);
 
@@ -65,6 +75,11 @@ export default function BlogRequestForm({ disabled, onSubmit }: Props) {
         <span className="text-[10px] text-[var(--c-text-3)] hidden @sm:inline truncate">차량·시공·제품만 고르면 조사부터 초안까지 자동</span>
       </div>
 
+      {initial && (
+        <div className="mb-2 rounded-lg border border-[#C8A951]/40 bg-[#C8A951]/10 px-2.5 py-2 text-[11px] text-[var(--c-text-1)] leading-relaxed">
+          📋 {initial.source || 'CRM'}에서 가져왔습니다. <b>제품 등급을 확인</b>하고, 아래 <b>참고 메모에 그 차의 이야기 두세 줄</b>(입고 상황·고객 요청·특이 부위)을 적은 뒤 생성하세요. 메모에 적은 것만 글에 들어갑니다.
+        </div>
+      )}
       <div className="grid grid-cols-2 @lg:grid-cols-3 gap-2 mb-2">
         <div>
           <label className={labelCls}>브랜드</label>
@@ -111,7 +126,8 @@ export default function BlogRequestForm({ disabled, onSubmit }: Props) {
         {service.products.length > 0 && (
           <div>
             <label className={labelCls}>제품</label>
-            <select value={product} onChange={(e) => setProduct(e.target.value)} className={inputCls}>
+            <select value={product} onChange={(e) => setProduct(e.target.value)} className={`${inputCls} ${!product ? 'border-[#E4002B]/60' : ''}`}>
+              {!product && <option value="">제품을 선택하세요</option>}
               {service.products.map((p) => <option key={p} value={p}>{p}</option>)}
             </select>
           </div>
@@ -127,9 +143,10 @@ export default function BlogRequestForm({ disabled, onSubmit }: Props) {
       <div className="mb-2">
         <label className={labelCls}>참고 메모 (선택) — 고객 요청, 까다로웠던 부위, 입고 상황 등. 여기 적은 것만 글에 반영됩니다</label>
         <textarea
+          ref={notesRef}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          rows={2}
+          rows={initial ? 4 : 2}
           placeholder="예: 신차 출고 직후 입고. 프론트 립 하단이 까다로웠음"
           className={`${inputCls} resize-none`}
         />

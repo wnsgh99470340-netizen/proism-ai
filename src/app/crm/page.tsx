@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { BLOG_PREFILL_KEY, CRM_SERVICE_TO_KEY, type BlogPrefill } from '@/config/blog-options';
 import { useTheme } from '@/components/ThemeProvider';
 
 // ─── Types ───────────────────────────────────────────────
@@ -436,7 +437,7 @@ export default function CRMPage() {
   };
 
   // Customer picker state (shared)
-  const [allCustomers, setAllCustomers] = useState<{ id: string; name: string; phone: string | null; car_brand?: string | null; car_model?: string | null }[]>([]);
+  const [allCustomers, setAllCustomers] = useState<{ id: string; name: string; phone: string | null; car_brand?: string | null; car_model?: string | null; car_color?: string | null }[]>([]);
   const [customerPickerSearch, setCustomerPickerSearch] = useState('');
 
   // ─── Data Fetching ──────────────────────────────────────
@@ -469,7 +470,7 @@ export default function CRMPage() {
   }, []);
 
   const fetchAllCustomers = useCallback(async () => {
-    const { data } = await supabase.from('customers').select('id, name, phone, car_brand, car_model').order('name');
+    const { data } = await supabase.from('customers').select('id, name, phone, car_brand, car_model, car_color').order('name');
     if (data) setAllCustomers(data);
   }, []);
 
@@ -1301,6 +1302,49 @@ export default function CRMPage() {
     );
   };
 
+  /**
+   * 예약/시공 기록 → 블로그 폼 미리 채우기 (PPF·컬러PPF·랩핑·크롬죽이기만)
+   * 차량·시공 종류·범위는 채우고, 제품 등급과 참고 메모는 사장님이 직접 넣는다
+   */
+  const handleWriteBlogFromAppointment = (a: Appointment) => {
+    const key = a.service_type ? CRM_SERVICE_TO_KEY[a.service_type] : undefined;
+    if (!key) return;
+    const c = allCustomers.find((x) => x.id === a.customer_id);
+    let wo: { ppf?: string[]; ppf_etc?: string; wrapping?: string[]; wrapping_etc?: string; notes?: string } = {};
+    try { wo = JSON.parse(a.memo || '{}'); } catch { /* 일반 메모 */ }
+    const plainMemo = a.memo && !a.memo.trim().startsWith('{') ? a.memo.trim() : '';
+
+    let range: string | undefined;
+    const noteParts: string[] = [];
+    if (key === 'PPF') {
+      const parts = [...(wo.ppf || []), wo.ppf_etc || ''].filter(Boolean);
+      if (parts.some((x) => x.includes('전체'))) range = '전체';
+      else if (parts.some((x) => x.includes('프론트'))) range = '프론트(보닛·범퍼·펜더)';
+      else if (parts.length > 0) range = '부분';
+      if (parts.length > 0) noteParts.push(`시공 범위: ${parts.join(', ')}`);
+    } else if (key === '랩핑' || key === '컬러PPF') {
+      const parts = [...(wo.wrapping || []), wo.wrapping_etc || ''].filter(Boolean);
+      if (parts.some((x) => x.includes('전체'))) range = '전체';
+      else if (parts.length > 0) range = '부분';
+      if (parts.length > 0) noteParts.push(`시공 범위: ${parts.join(', ')}`);
+    }
+    if (wo.notes) noteParts.push(wo.notes);
+    if (plainMemo) noteParts.push(plainMemo);
+
+    const dateLabel = new Date(a.appointment_date).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' });
+    const prefill: BlogPrefill = {
+      brand: c?.car_brand || undefined,
+      model: c?.car_model || undefined,
+      color: c?.car_color || undefined,
+      serviceKey: key,
+      range,
+      notes: noteParts.join('\n'),
+      source: `CRM ${dateLabel} ${a.customer?.name || ''} ${a.service_type}`.trim(),
+    };
+    try { sessionStorage.setItem(BLOG_PREFILL_KEY, JSON.stringify(prefill)); } catch { /* ignore */ }
+    router.push('/');
+  };
+
   // ─── Render ─────────────────────────────────────────────
   const tabs: { key: Tab; label: string }[] = [
     { key: 'customers', label: '고객 목록' },
@@ -1681,6 +1725,9 @@ export default function CRMPage() {
                         </div>
                         <div className="flex items-center gap-2">
                           <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusColor(a.status)}`}>{a.status}</span>
+                          {a.service_type && CRM_SERVICE_TO_KEY[a.service_type] && (
+                            <button onClick={() => handleWriteBlogFromAppointment(a)} className="bg-[#E4002B]/10 hover:bg-[#E4002B]/20 text-[#E4002B] text-xs font-medium rounded-lg px-2.5 py-1 transition-colors" title="이 시공으로 블로그 시공기 폼 채우기">✍️ 시공기</button>
+                          )}
                           <button onClick={() => handleOpenWorkOrder(a)} className="bg-[#C8A951]/10 hover:bg-[#C8A951]/20 text-[#C8A951] text-xs font-medium rounded-lg px-2.5 py-1 transition-colors">작업 내역서</button>
                           <button onClick={() => handleOpenWarranty(a)} className={`text-xs font-medium rounded-lg px-2.5 py-1 transition-colors ${hasWarrantyIssued(a.memo) ? 'bg-[#22c55e] text-white' : 'bg-[#22c55e]/10 hover:bg-[#22c55e]/20 text-[#22c55e]'}`}>{hasWarrantyIssued(a.memo) ? '✓ 보증서 발급완료' : '보증서'}</button>
                           {(() => { try { const m = JSON.parse(a.memo || '{}'); if (m.warranty_url) return <button onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(m.warranty_url); alert('보증서 URL이 복사되었습니다.'); }} className="text-[10px] font-medium px-2 py-1 rounded-lg bg-[#22c55e]/10 text-[#22c55e] hover:bg-[#22c55e]/20 transition-colors">URL 복사</button>; } catch {} return null; })()}

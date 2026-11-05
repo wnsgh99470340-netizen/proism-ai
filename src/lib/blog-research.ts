@@ -2,6 +2,12 @@ import { researchWithWebSearch } from '@/lib/claude-client';
 import type { BlogRequest } from '@/config/blog-options';
 
 /** 폼에서 온 구조화 요청이 있으면 그것을, 없으면 메시지에서 정규식으로 추출 */
+/** 자동 생성(시공기) 대상 서비스. 썬팅·유리막코팅·신차패키지·실내PPF는 제외 (2026-11-05 사장님 결정) */
+export const AUTO_BLOG_SERVICES = ['PPF', '컬러PPF(PWF)', '랩핑', '크롬죽이기'];
+export function isAutoBlogService(serviceType: string): boolean {
+  return AUTO_BLOG_SERVICES.includes(serviceType);
+}
+
 export function resolveTarget(message: string, request?: BlogRequest | null): { carModel: string | null; serviceType: string; product: string } {
   if (request && request.model) {
     return {
