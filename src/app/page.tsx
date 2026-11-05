@@ -7,6 +7,8 @@ import PreviewPanel, { type Checks, type Channels } from '@/components/PreviewPa
 import HelpModal from '@/components/HelpModal';
 import type { UploadedImage } from '@/components/ImageUpload';
 import type { BlogRequest } from '@/config/blog-options';
+import type { BlogPost } from '@/lib/posts';
+import { buildDraftFromText } from '@/lib/draft-format';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -62,6 +64,8 @@ export default function Home() {
     summary?: string;
   } | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
+  // 저장된 글 목록 갱신 트리거 (저장될 때마다 +1)
+  const [postsRefreshKey, setPostsRefreshKey] = useState(0);
 
   const updateResearchMessage = useCallback((content: string | null) => {
     setMessages((prev) => {
@@ -195,6 +199,7 @@ export default function Home() {
               product: data.target?.product ?? null,
               region: data.target?.region ?? null,
             });
+            if (data.draftId) setPostsRefreshKey((k) => k + 1);
             // 자동 SEO 분석
             fetchSeoInsight(parsedDraft.title, parsedDraft.content, parsedDraft.tags);
             // 인스타·카페 버전 동시 생성
@@ -246,10 +251,46 @@ export default function Home() {
         body: JSON.stringify(payload),
       });
       const data = await res.json();
+      if (!data.error) setPostsRefreshKey((k) => k + 1);
       return data.error ? String(data.error) : null;
     } catch (e) {
       return e instanceof Error ? e.message : '네트워크 오류';
     }
+  };
+
+  /** 저장된 글을 눌러 미리보기에 다시 띄우기 */
+  const handleOpenPost = (post: BlogPost) => {
+    const d = buildDraftFromText(post.title, post.body);
+    setDraft(d);
+    setChecks(null);
+    setChannels(null);
+    setChannelsLoading(false);
+    setQaScore(null);
+    setSeoInsight(null);
+    setDraftMeta({
+      draftId: post.kind === 'draft' ? post.id : (post.draft_id ?? null),
+      carModel: post.car_model ?? null,
+      serviceType: post.service_type ?? null,
+      product: post.product ?? null,
+      region: post.region ?? null,
+    });
+    const kindLabel = post.kind === 'final' ? '최종본' : post.kind === 'owner' ? '내 글' : '초안';
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: 'assistant',
+        content: `📂 저장된 ${kindLabel}을 불러왔습니다: ${post.title}\n오른쪽 미리보기에서 확인하세요. 인스타·카페 버전이 필요하면 해당 탭에서 만들 수 있습니다.`,
+        employeeName: '저장된 글',
+        employeeEmoji: '📂',
+        employeeColor: '#C8A951',
+      },
+    ]);
+  };
+
+  const handleMakeChannels = () => {
+    if (!draft) return;
+    const plain = draft.content.replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n\n').replace(/<[^>]+>/g, '').trim();
+    fetchChannels(draft.title, plain, draftMeta?.serviceType, draftMeta?.carModel);
   };
 
   const handleSaveFinal = (title: string, body: string, feedback: string) =>
@@ -382,6 +423,10 @@ export default function Home() {
             onCopyHtml={handleCopyHtml}
             onRunQA={handleRunQA}
             qaLoading={qaLoading}
+            postsRefreshKey={postsRefreshKey}
+            activePostId={draftMeta?.draftId ?? null}
+            onOpenPost={handleOpenPost}
+            onMakeChannels={handleMakeChannels}
           />
         </div>
       </div>

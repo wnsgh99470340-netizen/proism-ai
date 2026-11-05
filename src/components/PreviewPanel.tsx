@@ -2,6 +2,8 @@
 
 import { useState, useCallback } from 'react';
 import PostLibrary from './PostLibrary';
+import SavedPosts from './SavedPosts';
+import type { BlogPost } from '@/lib/posts';
 
 function CopyButton({ label, getText }: { label: string; getText: () => string }) {
   const [copied, setCopied] = useState(false);
@@ -85,6 +87,12 @@ interface PreviewPanelProps {
   onCopyHtml: () => void;
   onRunQA: () => void;
   qaLoading: boolean;
+  /** 저장된 글 목록 */
+  postsRefreshKey: number;
+  activePostId: string | null;
+  onOpenPost: (post: BlogPost) => void;
+  /** 불러온 글에 대해 인스타·카페 버전을 다시 만들 때 */
+  onMakeChannels: () => void;
 }
 
 export default function PreviewPanel({
@@ -100,6 +108,10 @@ export default function PreviewPanel({
   onCopyHtml,
   onRunQA,
   qaLoading,
+  postsRefreshKey,
+  activePostId,
+  onOpenPost,
+  onMakeChannels,
 }: PreviewPanelProps) {
   const [activeTab, setActiveTab] = useState<'preview' | 'instagram' | 'cafe' | 'insight'>('preview');
   const draftPlain = draft ? draft.content.replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n\n').replace(/<[^>]+>/g, '').trim() : '';
@@ -135,6 +147,7 @@ export default function PreviewPanel({
       {/* 미리보기 탭 */}
       {activeTab === 'preview' && (
         <div className="flex-1 overflow-y-auto">
+          <SavedPosts refreshKey={postsRefreshKey} activeId={activePostId} onOpen={onOpenPost} />
           {draft && checks && (
             <div className={`mx-3 mt-3 rounded-xl border p-3 ${checks.facts.length + checks.violations.length === 0 ? 'bg-[#10B981]/10 border-[#10B981]/30' : 'bg-[#EF4444]/10 border-[#EF4444]/30'}`}>
               <div className={`text-xs font-medium mb-1 ${checks.facts.length + checks.violations.length === 0 ? 'text-[#10B981]' : 'text-[#EF4444]'}`}>
@@ -171,9 +184,9 @@ export default function PreviewPanel({
               </div>
             </div>
           ) : (
-            <div className="flex items-center justify-center h-full text-[var(--c-text-3)] text-xs p-8 text-center">
-              대화를 통해 블로그 글을 작성하면<br />
-              여기에 미리보기가 표시됩니다
+            <div className="flex items-center justify-center text-[var(--c-text-3)] text-xs p-8 text-center">
+              대화나 위 폼으로 블로그 글을 만들거나<br />
+              저장된 글을 누르면 여기에 미리보기가 표시됩니다
             </div>
           )}
 
@@ -227,7 +240,16 @@ export default function PreviewPanel({
       {activeTab === 'instagram' && (
         <div className="flex-1 overflow-y-auto p-3 space-y-3">
           {channelsLoading && <div className="text-xs text-[var(--c-text-3)] text-center py-8">인스타·카페 버전을 만드는 중입니다…</div>}
-          {!channelsLoading && !channels && <div className="text-xs text-[var(--c-text-3)] text-center py-8">블로그 글이 완성되면 인스타 버전이 자동으로 생성됩니다</div>}
+          {!channelsLoading && !channels && (
+            <div className="text-xs text-[var(--c-text-3)] text-center py-8 space-y-3">
+              <div>블로그 글이 완성되면 인스타 버전이 자동으로 생성됩니다</div>
+              {draft && (
+                <button onClick={onMakeChannels} className="bg-[#C8A951]/10 hover:bg-[#C8A951]/20 text-[#C8A951] text-xs px-4 py-2 rounded-lg font-medium">
+                  📸 이 글로 인스타·카페 버전 만들기
+                </button>
+              )}
+            </div>
+          )}
           {channels && (
             <>
               <div className="bg-white rounded-xl p-4 shadow-lg">
@@ -251,7 +273,16 @@ export default function PreviewPanel({
       {activeTab === 'cafe' && (
         <div className="flex-1 overflow-y-auto p-3 space-y-3">
           {channelsLoading && <div className="text-xs text-[var(--c-text-3)] text-center py-8">인스타·카페 버전을 만드는 중입니다…</div>}
-          {!channelsLoading && !channels && <div className="text-xs text-[var(--c-text-3)] text-center py-8">블로그 글이 완성되면 카페 대표이야기 버전이 자동으로 생성됩니다</div>}
+          {!channelsLoading && !channels && (
+            <div className="text-xs text-[var(--c-text-3)] text-center py-8 space-y-3">
+              <div>블로그 글이 완성되면 카페 대표이야기 버전이 자동으로 생성됩니다</div>
+              {draft && (
+                <button onClick={onMakeChannels} className="bg-[#C8A951]/10 hover:bg-[#C8A951]/20 text-[#C8A951] text-xs px-4 py-2 rounded-lg font-medium">
+                  ☕ 이 글로 인스타·카페 버전 만들기
+                </button>
+              )}
+            </div>
+          )}
           {channels && (
             <>
               <div className="bg-white rounded-xl p-4 shadow-lg">

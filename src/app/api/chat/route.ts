@@ -9,6 +9,7 @@ import { factCheck, type FactIssue } from '@/lib/fact-check';
 import { buildToneReference, savePost, listPosts } from '@/lib/posts';
 import { getActiveEmployee } from '@/config/team';
 import { BLOG_SYSTEM_PROMPT } from '@/config/prompts';
+import { extractTagsFromTitle, textToHtml } from '@/lib/draft-format';
 
 // 글 작성 전 웹 검색 리서치 + 작성 + QA + 수정까지 여러 번 Claude를 호출하므로 넉넉히 잡음
 export const maxDuration = 300;
@@ -41,55 +42,6 @@ async function readImageForVision(filename: string): Promise<string> {
     .jpeg({ quality: 40 })
     .toBuffer();
   return visionBuffer.toString('base64');
-}
-
-/**
- * 제목에서 태그를 자동 추출
- */
-function extractTagsFromTitle(title: string): string[] {
-  const tags: string[] = [];
-
-  // 차종 추출
-  const carBrands = ['BMW', '벤츠', '메르세데스', '포르쉐', '아우디', '테슬라', '제네시스', '렉서스', '볼보', '람보르기니', '페라리', '맥라렌', '롤스로이스', '벤틀리', '마세라티', '재규어', '랜드로버', '링컨', '캐딜락', '현대', '기아', '쉐보레'];
-  for (const brand of carBrands) {
-    if (title.includes(brand)) {
-      tags.push(brand);
-      break;
-    }
-  }
-
-  // 시공 종류 추출
-  const services = [
-    { keywords: ['PPF', 'ppf', '보호필름', '페인트보호'], tag: 'PPF' },
-    { keywords: ['썬팅', '선팅', '틴팅'], tag: '썬팅' },
-    { keywords: ['랩핑', '래핑', 'wrap', 'PWF'], tag: '랩핑' },
-    { keywords: ['디테일링', '세차', '광택'], tag: '디테일링' },
-  ];
-  for (const service of services) {
-    if (service.keywords.some(k => title.toLowerCase().includes(k.toLowerCase()))) {
-      tags.push(service.tag);
-    }
-  }
-
-  // 기본 태그
-  tags.push('3M', '프로이즘', '강남');
-
-  return [...new Set(tags)];
-}
-
-/**
- * 일반 텍스트 본문을 HTML로 변환
- * - 빈 줄로 구분된 문단을 <p> 태그로 감싸기
- * - [사진 N] 태그를 이미지 placeholder로 변환
- */
-function textToHtml(text: string): string {
-  const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
-  return paragraphs
-    .map(p => {
-      const trimmed = p.trim().replace(/\n/g, '<br>');
-      return `<p>${trimmed}</p>`;
-    })
-    .join('\n');
 }
 
 /**
