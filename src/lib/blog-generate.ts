@@ -122,6 +122,15 @@ export function checkFormatIssues(title: string, body: string): string[] {
   if (title.length < MIN_TITLE_CHARS) {
     issues.push(`제목 ${title.length}자로 짧음 → 20~25자로 ("[지역] [차종] [서비스]"에 핵심 포인트 한 가지 덧붙이기)`);
   }
+  // 모바일 줄바꿈: 줄이 길면(평균 24자 초과 또는 30자 넘는 줄이 20% 이상) 줄만 다시 끊게 한다
+  const lines = textLines(body).filter(l => !CONTACT_RE.test(l));
+  if (lines.length > 0) {
+    const avg = lines.reduce((a, l) => a + l.length, 0) / lines.length;
+    const longShare = lines.filter(l => l.length > 30).length / lines.length;
+    if (avg > 24 || longShare > 0.2) {
+      issues.push(`줄이 깁니다(한 줄 평균 ${Math.round(avg)}자) → 모바일 기준으로 한 줄 10~18자 안팎에서 끊어 줄바꿈하고 한 문장을 2~3줄로 나눌 것. 문장 내용·순서는 그대로 두고 줄만 다시 끊기. 마침표 생략`);
+    }
+  }
   return issues;
 }
 
