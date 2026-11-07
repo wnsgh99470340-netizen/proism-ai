@@ -143,14 +143,57 @@ ${original}
 const DRAFTS_DIR = path.join(process.cwd(), 'public', 'drafts');
 
 /** 이전에 저장된 글의 제목 + 도입부 첫 2줄 (최근 20개). DB 우선, 로컬 파일 폴백 */
-export async function getPreviousDrafts(): Promise<{ title: string; intro: string }[]> {
+export type PreviousPost = { title: string; intro: string; closing: string };
+
+/** 본문을 실제 문장 줄만으로 (HTML 태그·[사진 N]·해시태그·빈 줄 제거) */
+function textLines(body: string): string[] {
+  return body
+    .replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n').replace(/<[^>]+>/g, '')
+    .split('\n').map(l => l.trim())
+    .filter(l => l && !/^\[사진\s*\d+\]$/.test(l) && !l.startsWith('#'));
+}
+
+const CONTACT_RE = /010-7287|서초중앙로|blog\.naver|^감사합니다/;
+
+/** 겹침 비교용: 도입 6줄 + 마무리 4줄(연락처 제외) */
+function summarizeForRepeat(body: string): { intro: string; closing: string } {
+  const lines = textLines(body);
+  const intro = lines.slice(0, 6).join(' / ');
+  const closing = lines.filter(l => !CONTACT_RE.test(l)).slice(-4).join(' / ');
+  return { intro, closing };
+}
+
+const normLine = (s: string) => s.replace(/[\s.,!?~…·'"“”‘’()\-]/g, '');
+
+/** 이전 AI 글(초안·최종본)과 도입·마무리 문장이 그대로 겹치는지 검사 */
+export function checkIntroRepeat(body: string, previous: PreviousPost[]): Violation[] {
+  if (previous.length === 0) return [];
+  const v: Violation[] = [];
+  const lines = textLines(body);
+  const prevIntro = new Set(previous.flatMap(p => p.intro.split(' / ')).map(normLine).filter(x => x.length >= 10));
+  const prevClosing = new Set(previous.flatMap(p => p.closing.split(' / ')).map(normLine).filter(x => x.length >= 12));
+
+  const opening = lines.slice(0, 4);
+  const stock = opening.find(l => /완성된?\s*모습|완성\s*사진부터|완성\s*컷부터/.test(l));
+  const hit = stock || opening.find(l => normLine(l).length >= 10 && prevIntro.has(normLine(l)));
+  if (hit) {
+    v.push({ rule: 'intro', detail: `도입 "${hit}"이(가) 이전 글과 같음 → 도입 첫 3~4줄을 다른 방식(고객이 처음 고민하던 것·이 차의 구조 한 가지·흔한 오해·이 제품을 고른 이유·상담 때 자주 받는 질문 중 하나)으로 새로 쓰고, 자기소개는 도입 뒤로 옮기기` });
+  }
+  const tail = lines.filter(l => !CONTACT_RE.test(l)).slice(-4);
+  const hitC = tail.find(l => normLine(l).length >= 12 && prevClosing.has(normLine(l)));
+  if (hitC) {
+    v.push({ rule: 'intro', detail: `마무리 "${hitC}"이(가) 이전 글과 같음 → 마무리 문장을 다르게 다시 쓰기(연락처·주소는 유지)` });
+  }
+  return v;
+}
+
+/** 이전 AI 글(초안·최종본) 목록 — 겹침 방지용. 사장님 글은 문체 참고이므로 제외 */
+export async function getPreviousDrafts(): Promise<PreviousPost[]> {
   try {
-    const rows = await listPosts(undefined, 20);
+    const [drafts, finals] = await Promise.all([listPosts('draft', 14), listPosts('final', 6)]);
+    const rows = [...drafts, ...finals].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
     if (rows.length > 0) {
-      return rows.map(r => {
-        const lines = r.body.split('\n').map(l => l.trim()).filter(Boolean);
-        return { title: r.title, intro: lines.slice(0, 2).join(' / ') };
-      });
+      return rows.map(r => ({ title: r.title, ...summarizeForRepeat(r.body) }));
     }
   } catch { /* 파일 폴백 */ }
   try {
@@ -161,12 +204,12 @@ export async function getPreviousDrafts(): Promise<{ title: string; intro: strin
       txtFiles.map(async (f) => {
         try {
           const content = await readFile(path.join(DRAFTS_DIR, f), 'utf-8');
-          const lines = content.split('\n').filter(l => l.trim());
-          return { title: lines[0] || '', intro: lines.slice(1, 3).map(l => l.trim()).join(' / ') };
+          const [title, ...rest] = content.split('\n').filter(l => l.trim());
+          return { title: title || '', ...summarizeForRepeat(rest.join('\n').split('\n---')[0]) };
         } catch {
           const nameWithoutExt = f.replace(/\.txt$/, '');
           const idx = nameWithoutExt.indexOf('_');
-          return { title: idx >= 0 ? nameWithoutExt.slice(idx + 1) : nameWithoutExt, intro: '' };
+          return { title: idx >= 0 ? nameWithoutExt.slice(idx + 1) : nameWithoutExt, intro: '', closing: '' };
         }
       })
     );
@@ -193,8 +236,8 @@ export async function buildBlogSystemPrompt(researchContext: string, serviceType
   const previousDrafts = await getPreviousDrafts();
   let previousContext = '';
   if (previousDrafts.length > 0) {
-    const list = previousDrafts.map((d, i) => `${i + 1}. ${d.title}${d.intro ? ` — 도입부: ${d.intro}` : ''}`).join('\n');
-    previousContext = `\n\n[이전에 작성한 글 목록]\n아래는 이전에 작성한 글의 제목과 도입부입니다. 이 글들과 유사한 도입부, 표현, 구조를 절대 반복하지 마세요.\n${list}`;
+    const list = previousDrafts.map((d, i) => `${i + 1}. ${d.title}${d.intro ? `\n   도입: ${d.intro}` : ''}${d.closing ? `\n   마무리: ${d.closing}` : ''}`).join('\n');
+    previousContext = `\n\n[이전에 작성한 글 — 겹침 금지]\n아래 글들의 도입 순서·첫 문장·마무리 문장을 그대로 쓰지 마세요. 특히 "완성된 모습부터 보여드립니다 → 자기소개 → 자격 → 신차 출고 직후" 순서가 이미 여러 번 쓰였으니 이번 글은 다른 방식으로 엽니다. 마무리도 아래와 다른 문장으로 끝냅니다.\n${list}`;
   }
   return `${BLOG_SYSTEM_PROMPT}${toneReference}${vehicleContext}${previousContext}`;
 }
@@ -227,7 +270,8 @@ export async function runWriter(opts: RunWriterOptions): Promise<WriterResult> {
 
   const serviceType = target.serviceType;
   const first = splitTitleBody(reply);
-  let violations = first ? checkHardViolations(first.body, combinedMessage, serviceType) : [];
+  const previous = save ? await getPreviousDrafts() : [];
+  let violations = first ? [...checkHardViolations(first.body, combinedMessage, serviceType), ...checkIntroRepeat(first.body, previous)] : [];
   let factIssues: FactIssue[] = first ? factCheck({ body: first.body, serviceType, product: target.product ?? undefined }) : [];
   let formatIssues = first ? checkFormatIssues(first.title, first.body) : [];
   const pureLen = (b: string) => b.replace(/\[사진\s*\d+\]/g, '').replace(/\s/g, '').length;
@@ -238,7 +282,7 @@ export async function runWriter(opts: RunWriterOptions): Promise<WriterResult> {
       const fixed = await fixIssues(systemPrompt, reply, issues, model);
       const f = splitTitleBody(fixed);
       if (f && pureLen(f.body) >= Math.min(1500, pureLen(first.body))) {
-        const fixedViolations = checkHardViolations(f.body, combinedMessage, serviceType);
+        const fixedViolations = [...checkHardViolations(f.body, combinedMessage, serviceType), ...checkIntroRepeat(f.body, previous)];
         const fixedFacts = factCheck({ body: f.body, serviceType, product: target.product ?? undefined });
         const fixedFormat = checkFormatIssues(f.title, f.body);
         // 위반·팩트 오류가 늘지 않고 형식 미달이 줄었거나 같으면 채택
