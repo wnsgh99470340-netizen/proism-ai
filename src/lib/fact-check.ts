@@ -38,8 +38,8 @@ export function factCheck({ body, serviceType, product = '' }: FactInput): FactI
 
   // F1. 시리즈50·시리즈100 에서 발수코팅 언급 금지
   if (/시리즈\s*(50|100)\b/.test(body) || /시리즈\s*(50|100)/.test(product)) {
-    const m = firstMatch(body, /발수\s*코팅[^\n]{0,20}|[^\n]{0,20}발수\s*(?:코팅|기능|성능)/);
-    if (m) issues.push({ rule: 'hydrophobic_50_100', detail: `시리즈50·100은 발수코팅 언급 금지: "${m}"` });
+    const hits = sents.filter(s => /발수\s*(?:코팅|기능|성능)/.test(s)).map(s => s.trim().slice(0, 40));
+    if (hits.length > 0) issues.push({ rule: 'hydrophobic_50_100', detail: `시리즈50·100 글에서는 발수코팅을 한 번도 언급하지 않는다(다른 등급과 비교하는 문장도 포함). 다음 ${hits.length}개 문장을 모두 삭제: ${hits.map(h => `"${h}"`).join(', ')}` });
   }
 
   // F2. 랩핑·PWF·크롬죽이기는 건식 — "습식"으로 서술 금지 (PPF·썬팅 비교 문장은 허용)
