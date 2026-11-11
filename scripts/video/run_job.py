@@ -255,7 +255,8 @@ def main():
     ap.add_argument('--workdir', default=str(ROOT / '.video-work'))
     args = ap.parse_args()
     if not (SUPABASE_URL and SUPABASE_KEY and BLOB_TOKEN):
-        log('SUPABASE_URL / SUPABASE_ANON_KEY / BLOB_READ_WRITE_TOKEN 이 필요합니다'); sys.exit(2)
+        # 깃허브 시크릿이 아직 없으면 조용히 끝낸다 (10분 스케줄이 실패 알림을 쏟아내지 않도록)
+        log('⚠️ 시크릿 미설정: NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY / BLOB_READ_WRITE_TOKEN / ANTHROPIC_API_KEY 를 저장소 Settings → Secrets 에 넣어 주세요'); return
 
     jobs = fetch_jobs(args.job_id or None, args.max)
     jobs = [j for j in jobs if ((j.get('result') or {}).get('video') or {}).get('status') in ('queued', 'rendering') or args.job_id]
