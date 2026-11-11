@@ -31,7 +31,7 @@ export default function HelpModal({ open, onClose }: HelpModalProps) {
               <p>화면 아래쪽 <span className="text-[var(--c-text-1)]">"📷 사진을 드래그하거나 클릭"</span> 부분을 누르세요.</p>
               <p className="mt-1">파일 선택 창이 뜨면 시공 사진을 선택합니다. 여러 장 한번에 가능!</p>
               <p className="mt-1">또는 바탕화면의 사진을 끌어다가 놓아도 됩니다.</p>
-              <p className="mt-1 text-[var(--c-text-3)]">→ AI가 자동으로 사진을 분석해서 차종, 시공 단계를 알려줍니다.</p>
+              <p className="mt-1 text-[var(--c-text-3)]">→ 사진을 자동으로 분석해서 차종, 시공 단계를 알려줍니다.</p>
             </div>
 
             <div>
@@ -42,7 +42,7 @@ export default function HelpModal({ open, onClose }: HelpModalProps) {
                 <p>"벤츠 E클래스 썬팅 후기 작성해줘"</p>
                 <p>"포르쉐 카이엔 PPF 블로그 글 만들어줘"</p>
               </div>
-              <p className="mt-1 text-[var(--c-text-3)]">→ AI가 3M 프로이즘 스타일로 블로그 글을 작성합니다.</p>
+              <p className="mt-1 text-[var(--c-text-3)]">→ 3M 프로이즘 스타일로 블로그 글이 작성됩니다.</p>
             </div>
 
             <div>

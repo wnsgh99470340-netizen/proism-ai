@@ -20,7 +20,7 @@ export default function TopBar({ activeEmployeeId, onHelpClick }: TopBarProps) {
       <div className="flex items-center gap-2 md:gap-3 min-w-0">
         <div className="flex items-center gap-2.5 shrink-0">
           <span className="w-9 h-9 rounded-lg bg-brand text-white font-extrabold text-[13px] tracking-tight flex items-center justify-center">3M</span>
-          <span className="text-[var(--c-text-1)] font-bold text-[15px] md:text-base whitespace-nowrap">프로이즘 강남 서초점 <span className="text-[var(--c-text-3)] font-medium ml-1 hidden sm:inline">블로그 AI</span></span>
+          <span className="text-[var(--c-text-1)] font-bold text-[15px] md:text-base whitespace-nowrap">프로이즘 강남 서초점 <span className="text-[var(--c-text-3)] font-medium ml-1 hidden sm:inline">블로그</span></span>
         </div>
         <Link
           href="/crm"
@@ -58,7 +58,7 @@ export default function TopBar({ activeEmployeeId, onHelpClick }: TopBarProps) {
 
           {showTeam && (
             <div className="absolute right-0 top-10 w-72 bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl shadow-2xl z-50 p-3 max-h-96 overflow-y-auto">
-              <div className="text-[var(--c-text-3)] text-xs font-medium mb-2 px-1">AI 팀원 ({team.length}명)</div>
+              <div className="text-[var(--c-text-3)] text-xs font-medium mb-2 px-1">팀원 ({team.length}명)</div>
               {['마케팅', '콘텐츠', '개발'].map((group) => (
                 <div key={group} className="mb-2">
                   <div className="text-[var(--c-text-3)] text-[10px] uppercase tracking-wider px-1 mb-1">{group}</div>

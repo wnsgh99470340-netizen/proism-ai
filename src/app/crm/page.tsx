@@ -1316,7 +1316,7 @@ export default function CRMPage() {
   // ─── Render ─────────────────────────────────────────────
   const tabs: { key: Tab; label: string }[] = [
     { key: 'home', label: '홈' },
-    { key: 'blog', label: '✍️ 블로그 AI' },
+    { key: 'blog', label: '✍️ 블로그' },
     { key: 'customers', label: '고객 목록' },
     { key: 'appointments', label: '예약/일정' },
     { key: 'followups', label: '사후관리' },
@@ -1331,7 +1331,7 @@ export default function CRMPage() {
           <div className="h-14 md:h-16 flex items-center justify-between gap-3">
             <button type="button" onClick={() => setActiveTab('home')} className="flex items-center gap-2.5 min-w-0 hover:opacity-80 transition-opacity text-left">
               <span className="w-9 h-9 rounded-lg bg-brand text-white font-extrabold text-[13px] tracking-tight flex items-center justify-center shrink-0">3M</span>
-              <span className="font-bold text-[15px] md:text-base text-[var(--c-text-1)] whitespace-nowrap truncate">프로이즘 강남 서초점{activeTab === 'blog' && <span className="text-[var(--c-text-3)] font-medium ml-1 hidden sm:inline">블로그 AI</span>}</span>
+              <span className="font-bold text-[15px] md:text-base text-[var(--c-text-1)] whitespace-nowrap truncate">프로이즘 강남 서초점{activeTab === 'blog' && <span className="text-[var(--c-text-3)] font-medium ml-1 hidden sm:inline">블로그</span>}</span>
             </button>
             <div className="flex items-center gap-2 shrink-0">
               <button
@@ -1345,7 +1345,7 @@ export default function CRMPage() {
                 <button
                   onClick={() => setHelpOpen(true)}
                   className="w-8 h-8 rounded-full border border-[var(--c-border)] bg-[var(--c-card)] flex items-center justify-center text-[var(--c-text-3)] hover:text-[var(--c-text-1)] hover:bg-[var(--c-subtle)] transition-colors text-sm"
-                  title="블로그 AI 사용 가이드"
+                  title="블로그 사용 가이드"
                 >
                   ?
                 </button>
@@ -1391,7 +1391,7 @@ export default function CRMPage() {
             { icon: '👤', label: '고객 등록', desc: '새 고객 추가', onClick: () => setShowAddCustomer(true) },
             { icon: '📅', label: '예약 등록', desc: '입고 일정 잡기', onClick: () => setShowAddAppointment(true) },
             { icon: '📩', label: '견적 문자', desc: '통화 직후 견적 보내기', onClick: () => setQuoteSms({}) },
-            { icon: '✍️', label: '시공기 쓰기', desc: '블로그 AI 탭에서 작성', onClick: () => setActiveTab('blog') },
+            { icon: '✍️', label: '시공기 쓰기', desc: '블로그 탭에서 작성', onClick: () => setActiveTab('blog') },
           ];
           const card = 'bg-[var(--c-card)] border border-[var(--c-border)] rounded-2xl';
           const quote = quoteForDate(today);
@@ -2342,7 +2342,7 @@ export default function CRMPage() {
         )}
       </div>
 
-      {/* ─── TAB: 블로그 AI (2026-11-12 블로그 페이지를 CRM 탭으로 합침) ─── */}
+      {/* ─── TAB: 블로그 (2026-11-12 블로그 페이지를 CRM 탭으로 합침) ─── */}
       {blogVisited && (
         <div className={activeTab === 'blog' ? 'flex-1 flex flex-col min-h-0' : 'hidden'}>
           <BlogWorkspace embedded prefillNonce={prefillNonce} />

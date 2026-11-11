@@ -103,7 +103,7 @@ export default function ChatPanel({
         {messages.length === 0 && (
           <div className={`flex flex-col items-center justify-center text-center ${formOpen ? 'py-6' : 'h-full'}`}>
             <div className="text-4xl mb-3">◆</div>
-            <h2 className="text-[var(--c-text-1)] font-semibold text-base mb-1">3M 프로이즘 AI</h2>
+            <h2 className="text-[var(--c-text-1)] font-semibold text-base mb-1">3M 프로이즘 블로그</h2>
             <p className="text-[var(--c-text-3)] text-xs mb-6 max-w-xs">
               사진을 올리고 대화하면 네이버 블로그 글이 자동으로 완성됩니다
             </p>
