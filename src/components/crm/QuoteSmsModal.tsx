@@ -214,6 +214,9 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
   const [withFollowUps, setWithFollowUps] = useState(true);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const [sentOnce, setSentOnce] = useState(false);
+  const [linkedCustomerId, setLinkedCustomerId] = useState<string | null>(initial.customerId || null);
+  const [logged, setLogged] = useState<{ consultationId: string | null; followUpIds: string[] }>({ consultationId: null, followUpIds: [] });
 
   // 시공 바꾸면 범위·혜택 기본값 갱신
   useEffect(() => {
@@ -314,19 +317,29 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
     const formatted = digits.length === 11 ? `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}` : phone.trim();
     const { data: found } = await supabase.from('customers').select('id').or(`phone.eq.${formatted},phone.eq.${digits}`).limit(1);
     if (found && found.length > 0) return found[0].id as string;
-    // 실제 예약으로 이어질지 모르는 문의라, 고객 목록에 넣을지는 사장님이 고른다
-    if (!confirm(`${name.trim() || '이 번호'}(${formatted})는 고객 목록에 없습니다.\n고객 목록에 추가할까요?\n\n[취소]를 누르면 고객 등록 없이 상담 기록과 재연락만 남깁니다.`)) return null;
+    return null; // 미등록 번호: 보낸 뒤 "고객 목록에 추가" 버튼으로만 등록한다
+  };
+  /** 보낸 뒤 버튼으로 고객 등록 + 방금 남긴 상담 기록·재연락을 그 고객에 연결 */
+  const addCustomerAfter = async () => {
+    const digits = phone.replace(/[^\d]/g, '');
+    const formatted = digits.length === 11 ? `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}` : phone.trim();
     const [brand, ...rest] = car.trim().split(/\s+/);
+    setBusy(true);
     const { data: created, error } = await supabase.from('customers').insert({
       name: name.trim() || `전화문의 ${digits.slice(-4)}`,
       phone: formatted,
       car_brand: brand || null,
       car_model: rest.join(' ') || null,
       source: '경로X',
-      memo: '견적 문자 발송으로 자동 등록',
+      memo: '견적 문자 발송 뒤 등록',
     }).select('id').single();
-    if (error) throw new Error(`고객 등록 실패: ${error.message}`);
-    return created?.id ?? null;
+    if (error || !created) { setNote(`⚠️ 고객 등록 실패: ${error?.message || ''}`); setBusy(false); return; }
+    if (logged.consultationId) await supabase.from('consultations').update({ customer_id: created.id }).eq('id', logged.consultationId);
+    if (logged.followUpIds.length) await supabase.from('follow_ups').update({ customer_id: created.id }).in('id', logged.followUpIds);
+    setLinkedCustomerId(created.id);
+    setNote('고객 목록에 추가했고, 방금 남긴 상담 기록·재연락을 이 고객에 연결했습니다.');
+    setBusy(false);
+    onDone();
   };
   const registerFollowUps = async (customerId: string | null) => {
     const who = `${name || '고객'} ${phone}`.trim();
@@ -334,20 +347,22 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
       { customer_id: customerId, follow_up_type: '견적재연락', scheduled_date: addDays(today, 1), memo: `${who} · ${car} ${service}\n${followUp1}` },
       { customer_id: customerId, follow_up_type: '견적마무리', scheduled_date: addDays(today, 3), memo: `${who} · ${car} ${service}\n${followUp2}` },
     ];
-    const { error } = await supabase.from('follow_ups').insert(rows);
+    const { data, error } = await supabase.from('follow_ups').insert(rows).select('id');
     if (error) throw new Error(`재연락 등록 실패: ${error.message}`);
+    return (data || []).map((r) => r.id as string);
   };
   const logConsultation = async (customerId: string | null) => {
     const who = `${name.trim() || '미등록'} ${phone.trim()}`.trim();
-    const { error } = await supabase.from('consultations').insert({
+    const { data, error } = await supabase.from('consultations').insert({
       customer_id: customerId,
       consultation_date: today,
       content: `[견적 문자 발송]${customerId ? '' : ` ${who}`}\n${text}`,
       estimate: recPrice || recSale ? `${recGrade} ${recSale ? won(recSale) : won(recPrice)}` : null,
       interested_services: `${service} ${range}`,
       memo: [customerId ? '' : who, car, summary].filter(Boolean).join(' · ') || null,
-    });
+    }).select('id').single();
     if (error) throw new Error(`상담 기록 실패: ${error.message}`);
+    return (data?.id as string) || null;
   };
 
   const send = async (how: 'sms' | 'copy') => {
@@ -356,9 +371,12 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
       remember();
       if (how === 'copy') { await navigator.clipboard.writeText(text); } else { openSms(); }
       const customerId = await ensureCustomer();
-      await logConsultation(customerId);
-      if (withFollowUps) await registerFollowUps(customerId);
-      setNote(`${how === 'copy' ? '복사했습니다.' : '문자 앱을 열었습니다.'} 상담 기록에 보낸 문자를 남겼고${withFollowUps ? ', 사후관리에 재연락 2건을 넣었습니다' : ''}${customerId && !initial.customerId ? ' (고객 목록에도 등록)' : customerId ? '' : ' (고객 등록은 안 함)'}.`);
+      setLinkedCustomerId(customerId);
+      const cid = await logConsultation(customerId);
+      const fids = withFollowUps ? await registerFollowUps(customerId) : [];
+      setLogged({ consultationId: cid, followUpIds: fids });
+      setSentOnce(true);
+      setNote(`${how === 'copy' ? '복사했습니다.' : '문자 앱을 열었습니다.'} 상담 기록에 보낸 문자를 남겼고${withFollowUps ? ', 사후관리에 재연락 2건을 넣었습니다' : ''}.${customerId ? '' : ' 고객 목록에는 아직 없습니다. 필요하면 아래 버튼으로 추가하세요.'}`);
       onDone();
     } catch (e) {
       setNote(`⚠️ ${e instanceof Error ? e.message : '실패'}`);
@@ -456,6 +474,9 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
         </div>
         <div className="px-6 py-4 border-t border-[var(--c-border)] flex justify-end gap-2">
           <button onClick={onClose} className="px-4 py-2 text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-2)]">닫기</button>
+          {sentOnce && !linkedCustomerId && (
+            <button onClick={addCustomerAfter} disabled={busy} className="bg-[#22c55e]/15 hover:bg-[#22c55e]/25 text-[#22c55e] text-sm font-medium rounded-lg px-4 py-2 disabled:opacity-50">＋ 고객 목록에 추가</button>
+          )}
           <button onClick={shareCard} disabled={busy} className="bg-[var(--c-subtle)] hover:bg-[var(--c-hover)] text-[var(--c-text-1)] text-sm font-medium rounded-lg px-4 py-2 disabled:opacity-50" title="문자를 보낸 뒤 명함 사진을 같은 번호로 보낼 때">📇 명함 이미지</button>
           <button onClick={() => send('copy')} disabled={busy || !car} className="bg-[var(--c-subtle)] hover:bg-[var(--c-hover)] text-[var(--c-text-1)] text-sm font-medium rounded-lg px-4 py-2 disabled:opacity-50">📋 복사</button>
           <button onClick={() => send('sms')} disabled={busy || !car || !phone} className="bg-[#E4002B] hover:bg-[#c60026] text-white text-sm font-medium rounded-lg px-4 py-2 disabled:opacity-50">💬 문자 보내기</button>
