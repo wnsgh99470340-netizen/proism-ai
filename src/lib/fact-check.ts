@@ -84,10 +84,10 @@ export function factCheck({ body, serviceType, product = '' }: FactInput): FactI
     if (hit) issues.push({ rule: 'wrap_care', detail: `랩핑 위에는 고체왁스·유리막코팅 금지(물왁스만): "${hit.slice(0, 40)}"` });
   }
 
-  // F8. 썬팅 외 글에 팀장님 등장 / 대표 정비소 운영 서술
-  if (!isTint) {
-    const m = firstMatch(body, /(?:이\s*)?팀장님?[^\n]{0,20}(?:시공|작업|담당)/);
-    if (m) issues.push({ rule: 'team_leader_scope', detail: `팀장님은 썬팅만: "${m}"` });
+  // F8. 팀장님·작업자 소개 금지 (2026-11-11 이팀장님 퇴사. 썬팅도 시공 내용으로만) / 대표 정비소 운영 서술
+  {
+    const m = firstMatch(body, /(?:이\s*)?팀장님?|하루\s*한\s*대|1인\s*시공|출장\s*(?:작업|시공|기사)/);
+    if (m) issues.push({ rule: 'team_leader', detail: `작업자 소개 금지(팀장님·1인 시공·하루 한 대·출장 작업자). 해당 문장을 빼고 시공 내용으로 채울 것: "${m}"` });
   }
   const garage = firstMatch(body, /정비소[를을]?\s*(?:운영|차렸|했었)/);
   if (garage) issues.push({ rule: 'owner_history', detail: `대표는 BMW 서비스센터 근무 이력(정비소 운영 아님): "${garage}"` });

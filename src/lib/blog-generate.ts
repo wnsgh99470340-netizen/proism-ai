@@ -101,12 +101,12 @@ export function checkHardViolations(body: string, userInput: string, serviceType
     v.push({ rule: 'careful', detail: '사이드미러를 까다로운 부위로 묘사' });
   }
 
-  // 4. 대표 경력 연수 (팀장님 문맥은 허용)
+  // 4. 경력 연수 (2026-11-11부터 누구에게도 금지)
   const careerRe = /(\d+|수십|오랜)\s*년\s*(?:간|동안|의)?\s*(경력|노하우|경험)/g;
   let cm: RegExpExecArray | null;
   while ((cm = careerRe.exec(body)) !== null) {
     const around = body.slice(Math.max(0, cm.index - 40), cm.index + cm[0].length + 20);
-    if (!/팀장/.test(around)) { v.push({ rule: 'career', detail: `경력 연수 표현 "${cm[0]}" (대표에게 금지)` }); break; }
+    if (around) { v.push({ rule: 'career', detail: `경력 연수 표현 "${cm[0]}" (누구에게도 쓰지 않음)` }); break; }
   }
 
   // 5. 클리셰 마무리 + "~하는 남자" 수식어 줄
