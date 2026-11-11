@@ -306,25 +306,46 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
     }
   };
 
-  const registerFollowUps = async () => {
+  /** 고객 id 확보: 넘겨받은 id → 전화번호로 기존 고객 찾기 → 없으면 새로 등록(이름 없으면 "전화문의 뒷자리") */
+  const ensureCustomer = async (): Promise<string | null> => {
+    if (initial.customerId) return initial.customerId;
+    const digits = phone.replace(/[^\d]/g, '');
+    if (!digits) return null;
+    const formatted = digits.length === 11 ? `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}` : phone.trim();
+    const { data: found } = await supabase.from('customers').select('id').or(`phone.eq.${formatted},phone.eq.${digits}`).limit(1);
+    if (found && found.length > 0) return found[0].id as string;
+    const [brand, ...rest] = car.trim().split(/\s+/);
+    const { data: created, error } = await supabase.from('customers').insert({
+      name: name.trim() || `전화문의 ${digits.slice(-4)}`,
+      phone: formatted,
+      car_brand: brand || null,
+      car_model: rest.join(' ') || null,
+      source: '경로X',
+      memo: '견적 문자 발송으로 자동 등록',
+    }).select('id').single();
+    if (error) throw new Error(`고객 등록 실패: ${error.message}`);
+    return created?.id ?? null;
+  };
+  const registerFollowUps = async (customerId: string | null) => {
     const who = `${name || '고객'} ${phone}`.trim();
     const rows = [
-      { customer_id: initial.customerId || null, follow_up_type: '견적재연락', scheduled_date: addDays(today, 1), memo: `${who} · ${car} ${service}\n${followUp1}` },
-      { customer_id: initial.customerId || null, follow_up_type: '견적마무리', scheduled_date: addDays(today, 3), memo: `${who} · ${car} ${service}\n${followUp2}` },
+      { customer_id: customerId, follow_up_type: '견적재연락', scheduled_date: addDays(today, 1), memo: `${who} · ${car} ${service}\n${followUp1}` },
+      { customer_id: customerId, follow_up_type: '견적마무리', scheduled_date: addDays(today, 3), memo: `${who} · ${car} ${service}\n${followUp2}` },
     ];
     const { error } = await supabase.from('follow_ups').insert(rows);
-    if (error) throw new Error(error.message);
+    if (error) throw new Error(`재연락 등록 실패: ${error.message}`);
   };
-  const logConsultation = async () => {
-    if (!initial.customerId) return;
-    await supabase.from('consultations').insert({
-      customer_id: initial.customerId,
+  const logConsultation = async (customerId: string | null) => {
+    if (!customerId) return;
+    const { error } = await supabase.from('consultations').insert({
+      customer_id: customerId,
       consultation_date: today,
-      content: `[견적 문자] ${summary || ''}`.trim(),
+      content: `[견적 문자 발송]\n${text}`,
       estimate: recPrice || recSale ? `${recGrade} ${recSale ? won(recSale) : won(recPrice)}` : null,
       interested_services: `${service} ${range}`,
-      memo: car || null,
+      memo: summary ? `${car} · ${summary}` : car || null,
     });
+    if (error) throw new Error(`상담 기록 실패: ${error.message}`);
   };
 
   const send = async (how: 'sms' | 'copy') => {
@@ -332,9 +353,10 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
     try {
       remember();
       if (how === 'copy') { await navigator.clipboard.writeText(text); } else { openSms(); }
-      if (withFollowUps) await registerFollowUps();
-      await logConsultation().catch(() => {});
-      setNote(how === 'copy' ? '복사했습니다. 사후관리에 재연락 2건을 넣었습니다.' : '문자 앱을 열었습니다. 사후관리에 재연락 2건을 넣었습니다.');
+      const customerId = await ensureCustomer();
+      await logConsultation(customerId);
+      if (withFollowUps) await registerFollowUps(customerId);
+      setNote(`${how === 'copy' ? '복사했습니다.' : '문자 앱을 열었습니다.'} 상담 기록에 보낸 문자를 남겼고${withFollowUps ? ', 사후관리에 재연락 2건을 넣었습니다' : ''}${customerId && !initial.customerId ? ' (고객 목록에도 등록)' : ''}.`);
       onDone();
     } catch (e) {
       setNote(`⚠️ ${e instanceof Error ? e.message : '실패'}`);
