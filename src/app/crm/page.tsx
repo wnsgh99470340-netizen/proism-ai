@@ -72,6 +72,8 @@ type Tab = 'home' | 'customers' | 'appointments' | 'followups' | 'consultations'
 const SERVICE_TYPES = ['PPF', '컬러PPF', 'PWF', '랩핑', '크롬죽이기', '썬팅', '유리막코팅', '가죽코팅', '실내PPF', '신차패키지'];
 const APPOINTMENT_STATUSES = ['상담중', '예약확정', '시공중', '완료'];
 const FOLLOW_UP_TYPES = ['QC점검', '메인터넌스', '후기요청'];
+/** 홈 상단 배너 사진 경로(public 기준, 예: '/img/home-banner.jpg'). 비우면 글자만 표시. 사장님이 배너용 사진 주면 넣는다 */
+const HOME_BANNER_IMAGE = '';
 /** QC(2주)·메인터넌스(6개월) 안내 문자 */
 const QC_SMS = `안녕하세요, 3M프로이즘입니다 ^^\n시공해드린 차량, 잘 타고 계신가요?\n\n시공 후 2주가 지나 QC 점검 시기가 되어 연락드렸습니다.\n필름이 완전히 안착되는 시기이기도 하고, 혹시 생활하시면서 불편하셨던 부분이 있으시다면 이번에 같이 확인해드리려고 합니다.\n\n편하신 날짜 말씀해주시면 점검 일정 잡아드리겠습니다.\n늘 감사합니다!`;
 const MAINT_SMS = `안녕하세요, 3M프로이즘입니다 ^^\n시공 후 6개월이 되어 메인터넌스 안내드립니다.\n\n필름 상태 점검과 함께 가벼운 외부 세척, 마감 재점검까지 진행해드리고 있습니다.\n오래오래 깔끔하게 유지하실 수 있도록 저희가 꾸준히 관리해드릴게요.\n\n편하신 날짜 말씀해주시면 일정 잡아드리겠습니다.\n항상 감사합니다!`;
@@ -1328,12 +1330,28 @@ export default function CRMPage() {
           const card = 'bg-[var(--c-card)] border border-[var(--c-border)] rounded-2xl';
           return (
             <div className="space-y-6 md:space-y-8">
-              <div>
-                <h1 className="text-2xl md:text-[28px] font-bold text-[var(--c-text-1)] tracking-tight">안녕하세요, 강남 서초점 👋</h1>
-                <p className="text-sm md:text-[15px] text-[var(--c-text-3)] mt-1.5">
-                  오늘은 {fmtDot(today)} · 등록 고객 {allCustomers.length}명 · 미처리 사후관리 <span className={pendingCount > 0 ? 'text-brand font-semibold' : ''}>{pendingCount}건</span>
-                </p>
-              </div>
+              {/* 홈 상단: 배너 사진이 있으면 사진 위에 인사말, 없으면 글자만 (2026-11-11 사장님: 배너용 사진 나중에 보내줌 → HOME_BANNER_IMAGE 에 경로만 넣으면 됨) */}
+              {HOME_BANNER_IMAGE ? (
+                <div className="relative rounded-2xl overflow-hidden border border-[var(--c-border)] min-h-[200px] md:min-h-[240px] flex items-end">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={HOME_BANNER_IMAGE} alt="3M 프로이즘 강남서초점" className="absolute inset-0 w-full h-full object-cover object-[center_35%]" />
+                  <div className="absolute inset-0 bg-gradient-to-r from-black/65 via-black/35 to-black/5" />
+                  <div className="relative p-6 md:p-8 text-white">
+                    <div className="text-xs md:text-sm font-semibold tracking-wide text-white/80 mb-1">3M PROIZM · 강남 서초점</div>
+                    <h1 className="text-2xl md:text-[30px] font-bold tracking-tight drop-shadow">안녕하세요, 강남 서초점 👋</h1>
+                    <p className="text-sm md:text-[15px] text-white/85 mt-2">
+                      오늘은 {fmtDot(today)} · 등록 고객 {allCustomers.length}명 · 미처리 사후관리 <span className={pendingCount > 0 ? 'text-white font-bold underline decoration-brand decoration-2 underline-offset-4' : ''}>{pendingCount}건</span>
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <h1 className="text-2xl md:text-[28px] font-bold text-[var(--c-text-1)] tracking-tight">안녕하세요, 강남 서초점 👋</h1>
+                  <p className="text-sm md:text-[15px] text-[var(--c-text-3)] mt-1.5">
+                    오늘은 {fmtDot(today)} · 등록 고객 {allCustomers.length}명 · 미처리 사후관리 <span className={pendingCount > 0 ? 'text-brand font-semibold' : ''}>{pendingCount}건</span>
+                  </p>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
                 {quick.map((q) => (
