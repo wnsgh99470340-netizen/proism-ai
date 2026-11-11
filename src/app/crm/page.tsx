@@ -279,6 +279,11 @@ export default function CRMPage() {
   const [followUpFilter, setFollowUpFilter] = useState<'all' | 'QC점검' | '메인터넌스' | '후기요청' | '견적재연락' | '견적마무리'>('all');
   // 견적 문자 생성 창 (2026-11-11): 전화 상담 뒤 보내는 문자 + 재연락 2회 자동 등록
   const [quoteSms, setQuoteSms] = useState<QuoteSmsInitial | null>(null);
+  // 사후관리 달력·검색 (2026-11-11): 기본은 오늘 보낼 사람만, 검색하면 날짜 무관, 밀린 건은 접어 둠
+  const [followSearch, setFollowSearch] = useState('');
+  const [followDate, setFollowDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [followMonth, setFollowMonth] = useState<{ y: number; m: number }>(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
+  const [showOverdue, setShowOverdue] = useState(false);
 
   // Consultation state
   const [consultations, setConsultations] = useState<Consultation[]>([]);
@@ -1831,9 +1836,9 @@ export default function CRMPage() {
               ))}
             </div>
 
-            {/* 카드 리스트 */}
-            <div className="space-y-3">
-              {filteredFollowUps.map((f) => {
+            {/* 달력 + 검색 + 그날 목록 */}
+            {(() => {
+              const renderFollowUp = (f: FollowUp) => {
                 const isQuote = f.follow_up_type === '견적재연락' || f.follow_up_type === '견적마무리';
                 // 견적 재연락은 고객 등록이 없을 수 있어 메모 첫 줄("이름 전화 · 차종 시공")에서 전화를 읽는다
                 const memoPhone = isQuote ? (f.memo || '').split('\n')[0].match(/01[016789]-?\d{3,4}-?\d{4}/)?.[0] : undefined;
@@ -2021,13 +2026,101 @@ export default function CRMPage() {
                     </div>
                   </div>
                 );
-              })}
-              {filteredFollowUps.length === 0 && (
-                <div className="text-center py-12 text-sm text-[var(--c-text-3)]">
-                  {followUpFilter === 'all' ? '사후관리 항목이 없습니다' : `${followUpFilter} 항목이 없습니다`}
-                </div>
-              )}
-            </div>
+              };
+
+              const q = followSearch.trim().replace(/-/g, '');
+              const matchQ = (f: FollowUp) => {
+                if (!q) return true;
+                const hay = `${f.customer?.name || ''} ${(f.customer?.phone || '').replace(/-/g, '')} ${(f.memo || '').replace(/-/g, '')}`;
+                return hay.includes(q);
+              };
+              const base = filteredFollowUps;
+              const searched = q ? base.filter(matchQ) : [];
+              const dayList = base.filter((f) => f.scheduled_date === followDate);
+              const overdue = base.filter((f) => !f.is_completed && f.scheduled_date < today);
+              const countByDate: Record<string, number> = {};
+              base.forEach((f) => { if (!f.is_completed) countByDate[f.scheduled_date] = (countByDate[f.scheduled_date] || 0) + 1; });
+              // 달력 셀
+              const first = new Date(followMonth.y, followMonth.m, 1);
+              const startPad = first.getDay();
+              const daysInMonth = new Date(followMonth.y, followMonth.m + 1, 0).getDate();
+              const cells: (string | null)[] = [...Array(startPad).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => `${followMonth.y}-${String(followMonth.m + 1).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`)];
+              while (cells.length % 7) cells.push(null);
+              const goMonth = (d: number) => setFollowMonth(({ y, m }) => { const nd = new Date(y, m + d, 1); return { y: nd.getFullYear(), m: nd.getMonth() }; });
+              const pickDate = (iso: string) => { setFollowDate(iso); setFollowSearch(''); };
+              const dateLabel = (iso: string) => { const d = new Date(iso + 'T00:00:00'); return `${d.getMonth() + 1}월 ${d.getDate()}일 ${['일', '월', '화', '수', '목', '금', '토'][d.getDay()]}요일`; };
+
+              return (
+                <>
+                  <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-4">
+                    {/* 왼쪽: 검색 + 달력 */}
+                    <div className="space-y-3">
+                      <input
+                        value={followSearch}
+                        onChange={(e) => setFollowSearch(e.target.value)}
+                        placeholder="고객 이름·전화번호로 찾기"
+                        className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2.5 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50"
+                      />
+                      <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <button onClick={() => goMonth(-1)} className="px-2 py-1 text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-1)]">◀</button>
+                          <div className="text-sm font-semibold text-[var(--c-text-1)]">{followMonth.y}년 {followMonth.m + 1}월</div>
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => { const d = new Date(); setFollowMonth({ y: d.getFullYear(), m: d.getMonth() }); pickDate(today); }} className="text-[10px] px-2 py-1 rounded bg-[var(--c-subtle)] text-[var(--c-text-2)]">오늘</button>
+                            <button onClick={() => goMonth(1)} className="px-2 py-1 text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-1)]">▶</button>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-7 text-center text-[10px] text-[var(--c-text-4)] mb-1">{['일', '월', '화', '수', '목', '금', '토'].map((w) => <div key={w}>{w}</div>)}</div>
+                        <div className="grid grid-cols-7 gap-1">
+                          {cells.map((iso, i) => {
+                            if (!iso) return <div key={`e${i}`} />;
+                            const n = countByDate[iso] || 0;
+                            const sel = iso === followDate && !q;
+                            const isToday = iso === today;
+                            const past = iso < today;
+                            return (
+                              <button key={iso} onClick={() => pickDate(iso)}
+                                className={`relative aspect-square rounded-lg text-xs flex flex-col items-center justify-center transition-colors ${sel ? 'bg-[#C8A951] text-black font-bold' : isToday ? 'bg-[#C8A951]/20 text-[#C8A951] font-semibold' : 'hover:bg-[var(--c-hover)] text-[var(--c-text-2)]'}`}>
+                                <span>{Number(iso.slice(-2))}</span>
+                                {n > 0 && <span className={`mt-0.5 text-[9px] leading-none px-1 rounded-full ${sel ? 'bg-black/20 text-black' : past ? 'bg-[#EF4444]/25 text-[#F87171]' : 'bg-[#3B82F6]/25 text-[#60A5FA]'}`}>{n}</span>}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div className="mt-2 text-[10px] text-[var(--c-text-4)]">숫자 = 그날 보낼 미처리 건수 · 빨간 숫자 = 지난 건</div>
+                      </div>
+                    </div>
+
+                    {/* 오른쪽: 그날 목록 / 검색 결과 */}
+                    <div className="space-y-3 min-w-0">
+                      {q ? (
+                        <>
+                          <div className="text-sm text-[var(--c-text-2)]">"{followSearch.trim()}" 검색 결과 <span className="text-[#C8A951] font-semibold">{searched.length}</span>건</div>
+                          {searched.map(renderFollowUp)}
+                          {searched.length === 0 && <div className="text-center py-12 text-sm text-[var(--c-text-3)]">일치하는 고객이 없습니다</div>}
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex items-center justify-between">
+                            <div className="text-sm font-semibold text-[var(--c-text-1)]">{dateLabel(followDate)}{followDate === today ? ' (오늘)' : ''} <span className="text-[#C8A951]">{dayList.length}</span>건</div>
+                          </div>
+                          {dayList.map(renderFollowUp)}
+                          {dayList.length === 0 && <div className="text-center py-10 text-sm text-[var(--c-text-3)]">이 날 보낼 사후관리 문자가 없습니다</div>}
+                          {overdue.length > 0 && (
+                            <div className="pt-2">
+                              <button onClick={() => setShowOverdue((v) => !v)} className="w-full text-left text-xs px-3 py-2 rounded-lg bg-[#EF4444]/10 text-[#F87171] hover:bg-[#EF4444]/15">
+                                {showOverdue ? '▾' : '▸'} 지난 미처리 {overdue.length}건 {showOverdue ? '접기' : '보기'}
+                              </button>
+                              {showOverdue && <div className="space-y-3 mt-3">{overdue.map(renderFollowUp)}</div>}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
 
             {/* 프로모션 발송 섹션 */}
             <div className="mt-6 bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-5">
