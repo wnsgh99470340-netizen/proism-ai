@@ -269,7 +269,7 @@ export default function CRMPage() {
     customer_id: '', appointment_date: '', end_date: '', service_type: '', amount: '', memo: '',
   });
   const [calendarView, setCalendarView] = useState<'calendar' | 'list'>('calendar');
-  const [managerFilter, setManagerFilter] = useState<'전체' | '대표' | '이팀장님' | '김막내'>('전체');
+  const [managerFilter] = useState<'전체' | '대표' | '이팀장님' | '김막내'>('전체');
   const [calendarMonth, setCalendarMonth] = useState(() => { const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() }; });
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
@@ -1578,11 +1578,7 @@ export default function CRMPage() {
                     <button onClick={() => setCalendarView('calendar')} className={`text-xs px-3 py-1 rounded-md transition-colors ${calendarView === 'calendar' ? 'bg-[#C8A951]/20 text-[#C8A951]' : 'text-[var(--c-text-3)]'}`}>달력</button>
                     <button onClick={() => setCalendarView('list')} className={`text-xs px-3 py-1 rounded-md transition-colors ${calendarView === 'list' ? 'bg-[#C8A951]/20 text-[#C8A951]' : 'text-[var(--c-text-3)]'}`}>리스트</button>
                   </div>
-                  <div className="flex bg-[var(--c-subtle)] rounded-lg p-0.5 ml-2">
-                    {(['전체', '대표', '이팀장님', '김막내'] as const).map((m) => (
-                      <button key={m} onClick={() => setManagerFilter(m)} className={`text-xs px-3 py-1 rounded-md transition-colors ${managerFilter === m ? 'bg-[#3B82F6]/20 text-[#3B82F6]' : 'text-[var(--c-text-3)]'}`}>{m}</button>
-                    ))}
-                  </div>
+                  {/* 담당자 필터(전체·대표·이팀장님·김막내)는 2026-11-11 사장님 요청으로 제거. managerFilter 는 '전체' 고정 */}
                   <div className="flex gap-2 ml-3">
                     <span className="text-[10px] bg-[#C8A951]/10 text-[#C8A951] px-2 py-1 rounded">오늘 {todayCount}건</span>
                     <span className="text-[10px] bg-[#3B82F6]/10 text-[#3B82F6] px-2 py-1 rounded">이번주 {weekCount}건</span>
@@ -2884,8 +2880,47 @@ interface WarrantyModalProps {
   onClose: () => void;
 }
 
+/** 시공 내역 한 줄 "항목 ₩400,000" ↔ {name, amount} (저장 형식은 기존 문자열 그대로 유지) */
+type WarrantyItem = { name: string; amount: string };
+const AMOUNT_RE = /(₩\s*[\d,]+|[\d,]+\s*원)\s*$/;
+function parseWarrantyItems(text: string): WarrantyItem[] {
+  const rows = (text || '').split('\n').map((l) => l.trim()).filter(Boolean).map((line) => {
+    const m = line.match(AMOUNT_RE);
+    const amount = m ? m[1].replace(/[^\d]/g, '') : '';
+    const name = m ? line.slice(0, m.index).trim() : line;
+    return { name, amount };
+  });
+  return rows.length > 0 ? rows : [{ name: '', amount: '' }];
+}
+function serializeWarrantyItems(items: WarrantyItem[]): string {
+  return items
+    .filter((it) => it.name.trim() || it.amount)
+    .map((it) => (it.amount ? `${it.name.trim()} ₩${Number(it.amount).toLocaleString()}` : it.name.trim()))
+    .join('\n');
+}
+const fmtWon = (digits: string) => (digits ? Number(digits).toLocaleString() : '');
+
 function WarrantyModal({ warrantyForm, setWarrantyForm, onSave, onDownloaded, onClose }: WarrantyModalProps) {
   const printRef = useRef<HTMLDivElement>(null);
+  const [items, setItems] = useState<WarrantyItem[]>(() => parseWarrantyItems(warrantyForm.work_details));
+  const itemsTotal = items.reduce((a, it) => a + (Number(it.amount) || 0), 0);
+
+  /** 항목 변경 → work_details 문자열 갱신. 정상가가 비어 있거나 이전 합계와 같으면 새 합계로 따라간다 */
+  const updateItems = (next: WarrantyItem[]) => {
+    const prevTotal = items.reduce((a, it) => a + (Number(it.amount) || 0), 0);
+    const nextTotal = next.reduce((a, it) => a + (Number(it.amount) || 0), 0);
+    const priceDigits = (warrantyForm.price || '').replace(/[^\d]/g, '');
+    const followTotal = !priceDigits || Number(priceDigits) === prevTotal;
+    setItems(next);
+    setWarrantyForm({
+      ...warrantyForm,
+      work_details: serializeWarrantyItems(next),
+      price: followTotal && nextTotal > 0 ? `₩${nextTotal.toLocaleString()}` : warrantyForm.price,
+    });
+  };
+  const setItem = (i: number, patch: Partial<WarrantyItem>) => updateItems(items.map((it, k) => (k === i ? { ...it, ...patch } : it)));
+  const addItem = () => updateItems([...items, { name: '', amount: '' }]);
+  const removeItem = (i: number) => updateItems(items.length > 1 ? items.filter((_, k) => k !== i) : [{ name: '', amount: '' }]);
 
   const handleDownloadPng = async () => {
     await onSave();
@@ -2948,8 +2983,37 @@ function WarrantyModal({ warrantyForm, setWarrantyForm, onSave, onDownloaded, on
             </div>
           </div>
           <div>
-            <label className="text-xs text-[var(--c-text-3)] mb-1 block">시공 내역</label>
-            <textarea value={warrantyForm.work_details} onChange={(e) => setWarrantyForm({ ...warrantyForm, work_details: e.target.value })} className={`${inputClass} resize-none h-28`} placeholder={'그릴 랩핑 (3M 2080 글로스 블랙) ₩400,000\n루프 랩핑 (3M 2080 새틴 블랙) ₩600,000'} />
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs text-[var(--c-text-3)] block">시공 내역 — 항목마다 금액을 따로 적습니다</label>
+              {itemsTotal > 0 && <span className="text-[11px] text-[var(--c-text-2)]">합계 ₩{itemsTotal.toLocaleString()}</span>}
+            </div>
+            <div className="space-y-2">
+              {items.map((it, i) => (
+                <div key={i} className="flex gap-2 items-center">
+                  <input
+                    type="text"
+                    value={it.name}
+                    onChange={(e) => setItem(i, { name: e.target.value })}
+                    className={`${inputClass} flex-1`}
+                    placeholder={i === 0 ? '예: 그릴 랩핑 (3M 2080 글로스 블랙)' : '시공 항목'}
+                  />
+                  <div className="relative w-40 shrink-0">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--c-text-3)]">₩</span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={fmtWon(it.amount)}
+                      onChange={(e) => setItem(i, { amount: e.target.value.replace(/[^\d]/g, '') })}
+                      className={`${inputClass} pl-7 text-right`}
+                      placeholder="400,000"
+                    />
+                  </div>
+                  <button type="button" onClick={() => removeItem(i)} className="shrink-0 w-8 h-8 rounded-lg text-[var(--c-text-3)] hover:text-[#EF4444] hover:bg-[#EF4444]/10 text-sm" title="항목 삭제">✕</button>
+                </div>
+              ))}
+              <button type="button" onClick={addItem} className="text-xs text-[#22c55e] hover:bg-[#22c55e]/10 px-3 py-1.5 rounded-lg">＋ 항목 추가</button>
+            </div>
+            <p className="text-[10px] text-[var(--c-text-3)] mt-1">정상가는 항목 합계로 자동 채워지고, 직접 고치면 그 값이 유지됩니다.</p>
           </div>
           <div className="mt-3 px-1 py-2 border border-[#22c55e]/20 bg-[#22c55e]/5 rounded-lg text-center text-xs text-[#22c55e]">
             📎 보증 카드 + 시공 후 안내사항이 함께 첨부됩니다
@@ -3006,10 +3070,9 @@ function WarrantyModal({ warrantyForm, setWarrantyForm, onSave, onDownloaded, on
                   </tr>
                 </thead>
                 <tbody>
-                  {warrantyForm.work_details.split('\n').filter(Boolean).map((line, i) => {
-                    const priceMatch = line.match(/(₩[\d,]+|[\d,]+원)/);
-                    const detail = priceMatch ? line.replace(priceMatch[0], '').trim() : line.trim();
-                    const amount = priceMatch ? priceMatch[0] : '';
+                  {parseWarrantyItems(warrantyForm.work_details).filter((it) => it.name || it.amount).map((it, i) => {
+                    const detail = it.name;
+                    const amount = it.amount ? `₩${Number(it.amount).toLocaleString()}` : '';
                     return (
                       <tr key={i}>
                         <td style={{ border: '1px solid #ddd', padding: '8px 12px', fontSize: '13px' }}>{detail}</td>
@@ -3028,7 +3091,7 @@ function WarrantyModal({ warrantyForm, setWarrantyForm, onSave, onDownloaded, on
 
               {/* 건적서 참고 */}
               <div style={{ backgroundColor: '#f9f9f9', border: '1px solid #ddd', borderRadius: '6px', padding: '16px', marginBottom: '20px', fontSize: '11.5px', lineHeight: '1.8', color: '#444' }}>
-                <div style={{ fontWeight: 700, marginBottom: '6px', color: '#E4002B' }}>[건적서 발행 참고 내용]</div>
+                <div style={{ fontWeight: 700, marginBottom: '6px', color: '#E4002B' }}>[견적서 발행 참고 내용]</div>
                 <div>- 시공내역서와 동일, 작업보증서는 전자보증서로 발급됩니다.</div>
                 <div>- 제품의 보증은 각 브랜드 및 제품회사의 보증 규격을 준수합니다.</div>
                 <div>- 정가 기준으로 시공내역서가 작성되었습니다.</div>
