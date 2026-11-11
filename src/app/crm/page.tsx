@@ -2096,11 +2096,11 @@ export default function CRMPage() {
                       />
                       <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-3">
                         <div className="flex items-center justify-between mb-2">
-                          <button onClick={() => goMonth(-1)} className="px-2 py-1 text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-1)]">◀</button>
+                          <button onClick={() => goMonth(-1)} className="w-8 h-8 rounded-full border border-[var(--c-border)] hover:bg-[var(--c-subtle)] flex items-center justify-center text-[var(--c-text-2)] text-base leading-none transition-colors" aria-label="이전 달">‹</button>
                           <div className="text-sm font-semibold text-[var(--c-text-1)]">{followMonth.y}년 {followMonth.m + 1}월</div>
                           <div className="flex items-center gap-1">
-                            <button onClick={() => { const d = new Date(); setFollowMonth({ y: d.getFullYear(), m: d.getMonth() }); pickDate(today); }} className="text-[10px] px-2 py-1 rounded bg-[var(--c-subtle)] text-[var(--c-text-2)]">오늘</button>
-                            <button onClick={() => goMonth(1)} className="px-2 py-1 text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-1)]">▶</button>
+                            <button onClick={() => { const d = new Date(); setFollowMonth({ y: d.getFullYear(), m: d.getMonth() }); pickDate(today); }} className="text-[11px] font-semibold px-2.5 py-1 rounded-full border border-[var(--c-border)] text-[var(--c-text-2)] hover:bg-[var(--c-subtle)] transition-colors">오늘</button>
+                            <button onClick={() => goMonth(1)} className="w-8 h-8 rounded-full border border-[var(--c-border)] hover:bg-[var(--c-subtle)] flex items-center justify-center text-[var(--c-text-2)] text-base leading-none transition-colors" aria-label="다음 달">›</button>
                           </div>
                         </div>
                         <div className="grid grid-cols-7 text-center text-[10px] text-[var(--c-text-4)] mb-1">{['일', '월', '화', '수', '목', '금', '토'].map((w) => <div key={w}>{w}</div>)}</div>
@@ -2113,9 +2113,9 @@ export default function CRMPage() {
                             const past = iso < today;
                             return (
                               <button key={iso} onClick={() => pickDate(iso)}
-                                className={`relative aspect-square rounded-lg text-xs flex flex-col items-center justify-center transition-colors ${sel ? 'bg-gold text-black font-bold' : isToday ? 'bg-gold/20 text-gold font-semibold' : 'hover:bg-[var(--c-hover)] text-[var(--c-text-2)]'}`}>
-                                <span>{Number(iso.slice(-2))}</span>
-                                {n > 0 && <span className={`mt-0.5 text-[9px] leading-none px-1 rounded-full ${sel ? 'bg-black/20 text-black' : past ? 'bg-danger/25 text-danger' : 'bg-info/25 text-info'}`}>{n}</span>}
+                                className={`relative aspect-square rounded-lg text-xs flex flex-col items-center justify-center gap-0.5 transition-colors ${sel ? 'bg-[var(--c-subtle)] ring-1 ring-[var(--c-border)] text-[var(--c-text-1)] font-semibold' : 'hover:bg-[var(--c-hover)] text-[var(--c-text-2)]'}`}>
+                                <span className={`w-6 h-6 rounded-full flex items-center justify-center ${isToday ? 'bg-[var(--c-text-1)] text-[var(--c-card)] font-bold' : ''}`}>{Number(iso.slice(-2))}</span>
+                                {n > 0 && <span className={`text-[9px] leading-none px-1.5 py-0.5 rounded-full ${past ? 'bg-danger/15 text-danger' : 'bg-info/15 text-info'}`}>{n}</span>}
                               </button>
                             );
                           })}
