@@ -67,11 +67,14 @@ interface Consultation {
   customer?: { name: string; phone: string | null };
 }
 
-type Tab = 'customers' | 'appointments' | 'followups' | 'consultations';
+type Tab = 'home' | 'customers' | 'appointments' | 'followups' | 'consultations';
 
 const SERVICE_TYPES = ['PPF', '컬러PPF', 'PWF', '랩핑', '크롬죽이기', '썬팅', '유리막코팅', '가죽코팅', '실내PPF', '신차패키지'];
 const APPOINTMENT_STATUSES = ['상담중', '예약확정', '시공중', '완료'];
 const FOLLOW_UP_TYPES = ['QC점검', '메인터넌스', '후기요청'];
+/** QC(2주)·메인터넌스(6개월) 안내 문자 */
+const QC_SMS = `안녕하세요, 3M프로이즘입니다 ^^\n시공해드린 차량, 잘 타고 계신가요?\n\n시공 후 2주가 지나 QC 점검 시기가 되어 연락드렸습니다.\n필름이 완전히 안착되는 시기이기도 하고, 혹시 생활하시면서 불편하셨던 부분이 있으시다면 이번에 같이 확인해드리려고 합니다.\n\n편하신 날짜 말씀해주시면 점검 일정 잡아드리겠습니다.\n늘 감사합니다!`;
+const MAINT_SMS = `안녕하세요, 3M프로이즘입니다 ^^\n시공 후 6개월이 되어 메인터넌스 안내드립니다.\n\n필름 상태 점검과 함께 가벼운 외부 세척, 마감 재점검까지 진행해드리고 있습니다.\n오래오래 깔끔하게 유지하실 수 있도록 저희가 꾸준히 관리해드릴게요.\n\n편하신 날짜 말씀해주시면 일정 잡아드리겠습니다.\n항상 감사합니다!`;
 /** 후기 요청 문자 3종(후기 게시판 링크만 다름). 사후관리 탭과 예약/일정 상세 줄에서 같이 쓴다 */
 const REVIEW_SMS = {
   proism: `안녕하세요, 3M프로이즘입니다.\n멋지게 작업이 완료된 차량 사진을 보내드리오니, 소중한 후기 작성 잘 부탁드리겠습니다.\n➊ 아래의 링크 클릭\n➋ 첨부드린 사진으로 후기 작성\n[ 🚩 후기 게시판 링크 ]\nhttps://m.site.naver.com/1S6dj\n고객님의 솔직한 리뷰는 저희에게 아주 큰 힘이 됩니다. 정말 감사드리며, 이후에 이어질 메인터넌스 시기(약 6개월 후)에도 차별화 된 서비스로 다시 또 찾아뵐게요!`,
@@ -177,7 +180,7 @@ declare global {
 export default function CRMPage() {
   const router = useRouter();
   const { theme, toggle: toggleTheme } = useTheme();
-  const [activeTab, setActiveTab] = useState<Tab>('customers');
+  const [activeTab, setActiveTab] = useState<Tab>('home');
 
   // 카카오 SDK 동적 로드 + 초기화
   useEffect(() => {
@@ -347,7 +350,8 @@ export default function CRMPage() {
   }, [fetchAllCustomers]);
 
   useEffect(() => {
-    if (activeTab === 'customers') fetchCustomers();
+    if (activeTab === 'home') { fetchAppointments(); fetchFollowUps(); }
+    else if (activeTab === 'customers') fetchCustomers();
     else if (activeTab === 'appointments') fetchAppointments();
     else if (activeTab === 'followups') fetchFollowUps();
     else if (activeTab === 'consultations') fetchConsultations();
@@ -536,6 +540,19 @@ export default function CRMPage() {
     ].join('\r\n');
   };
 
+  // 홈 탭 '연락할 사후관리'에서 문자 보내기: 유형별 문구, 보냈다고 하면 보낸 표시
+  const handleHomeFollowSms = async (f: FollowUp) => {
+    const memoPhone = (f.memo || '').split('\n')[0].match(/01[016789][-\s]?\d{3,4}[-\s]?\d{4}/)?.[0] || '';
+    const phone = f.customer?.phone || memoPhone;
+    if (!phone) { alert('전화번호가 없는 고객입니다.'); return; }
+    const t = f.follow_up_type;
+    const msg = t === 'QC점검' ? QC_SMS : t === '메인터넌스' ? MAINT_SMS : t === '후기요청' ? REVIEW_SMS.proism : (f.memo || '').split('\n').slice(1).join('\n') || `안녕하세요 3M 프로이즘 대표 진준호입니다.\n${f.memo || ''}`;
+    const key = t === 'QC점검' ? 'qc' : t === '메인터넌스' ? 'maintenance' : t === '후기요청' ? 'proism' : 'quote';
+    openSmsApp(phone, msg);
+    if (!confirm('문자를 전송하셨나요?')) return;
+    await supabase.from('follow_ups').update({ sms_sent: { ...(f.sms_sent || {}), [key]: true } }).eq('id', f.id);
+    fetchFollowUps();
+  };
   // 예약/일정 상세 줄에서 후기 요청 문자 (프로이즘·아우디·BMW). 보냈다고 하면 그 고객의 후기요청 사후관리에도 보낸 표시
   const handleReviewSmsFromAppointment = async (a: Appointment, key: 'proism' | 'bmw' | 'audi') => {
     const phone = a.customer?.phone;
@@ -1234,6 +1251,7 @@ export default function CRMPage() {
 
   // ─── Render ─────────────────────────────────────────────
   const tabs: { key: Tab; label: string }[] = [
+    { key: 'home', label: '홈' },
     { key: 'customers', label: '고객 목록' },
     { key: 'appointments', label: '예약/일정' },
     { key: 'followups', label: '사후관리' },
@@ -1287,6 +1305,117 @@ export default function CRMPage() {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto px-4 md:px-6 py-5 md:py-6 [&>*]:mx-auto [&>*]:max-w-[1360px]">
+        {/* ─── TAB: 홈 (2026-11-11 하남점 페이지 구조: 인사 → 빠른 실행 → 오늘 예약 / 연락할 사후관리) ─── */}
+        {activeTab === 'home' && (() => {
+          const fmtDot = (d: string) => d.replace(/-/g, '.');
+          const plus = (n: number) => { const d = new Date(today); d.setDate(d.getDate() + n); return d.toISOString().split('T')[0]; };
+          const todayAppts = appointments.filter((a) => a.appointment_date <= today && (a.end_date || a.appointment_date) >= today && a.status !== '취소');
+          const weekAppts = appointments.filter((a) => a.appointment_date > today && a.appointment_date <= plus(7) && a.status !== '취소').slice(0, 5);
+          // 오늘에 가까운 것부터 (몇 달 지난 미처리는 아래로 밀려 '모두 보기'에서)
+          const dueFollow = followUps.filter((f) => !f.is_completed && f.scheduled_date <= plus(3)).sort((a, b) => b.scheduled_date.localeCompare(a.scheduled_date)).slice(0, 8);
+          const pendingCount = followUps.filter((f) => !f.is_completed).length;
+          const followName = (f: FollowUp) => f.customer?.name || (f.memo || '').split('\n')[0].split(' ')[0] || '-';
+          const followLabel = (f: FollowUp) => f.follow_up_type === 'QC점검' ? 'QC 점검' : f.follow_up_type === '견적재연락' ? '견적 재연락' : f.follow_up_type === '견적마무리' ? '견적 마무리' : f.follow_up_type;
+          const sentAny = (f: FollowUp) => Object.values(f.sms_sent || {}).some(Boolean);
+          const quick: { icon: string; label: string; desc: string; onClick: () => void }[] = [
+            { icon: '👤', label: '고객 등록', desc: '새 고객 추가', onClick: () => setShowAddCustomer(true) },
+            { icon: '📅', label: '예약 등록', desc: '입고 일정 잡기', onClick: () => setShowAddAppointment(true) },
+            { icon: '📩', label: '견적 문자', desc: '통화 직후 견적 보내기', onClick: () => setQuoteSms({}) },
+            { icon: '✍️', label: '시공기 쓰기', desc: '블로그 AI로 이동', onClick: () => router.push('/') },
+          ];
+          const card = 'bg-[var(--c-card)] border border-[var(--c-border)] rounded-2xl';
+          return (
+            <div className="space-y-6 md:space-y-8">
+              <div>
+                <h1 className="text-2xl md:text-[28px] font-bold text-[var(--c-text-1)] tracking-tight">안녕하세요, 강남 서초점 👋</h1>
+                <p className="text-sm md:text-[15px] text-[var(--c-text-3)] mt-1.5">
+                  오늘은 {fmtDot(today)} · 등록 고객 {allCustomers.length}명 · 미처리 사후관리 <span className={pendingCount > 0 ? 'text-brand font-semibold' : ''}>{pendingCount}건</span>
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+                {quick.map((q) => (
+                  <button key={q.label} onClick={q.onClick} className={`${card} py-6 md:py-8 px-4 flex flex-col items-center gap-2 hover:border-[var(--c-text-1)] hover:shadow-sm transition-all group`}>
+                    <span className="text-3xl md:text-[34px] leading-none">{q.icon}</span>
+                    <span className="font-bold text-[15px] text-[var(--c-text-1)] mt-1">{q.label}</span>
+                    <span className="text-xs text-[var(--c-text-3)]">{q.desc}</span>
+                  </button>
+                ))}
+              </div>
+
+              <div className="grid lg:grid-cols-2 gap-4 md:gap-5 items-start">
+                {/* 오늘 예약 */}
+                <section className={`${card} p-5 md:p-6`}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-bold text-[var(--c-text-1)]">오늘 예약 <span className="text-[var(--c-text-3)] text-sm font-medium ml-1">{todayAppts.length}건</span></h2>
+                    <button onClick={() => setActiveTab('appointments')} className="text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-1)] transition-colors">전체 보기 →</button>
+                  </div>
+                  {todayAppts.length === 0 ? (
+                    <div className="py-12 text-center text-sm text-[var(--c-text-3)]">오늘 예약이 없습니다.</div>
+                  ) : (
+                    <ul className="divide-y divide-[var(--c-border)]">
+                      {todayAppts.map((a) => (
+                        <li key={a.id} className="py-3.5 flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="font-semibold text-[15px] text-[var(--c-text-1)] truncate">{a.customer?.name || '(삭제된 고객)'} <span className="text-[var(--c-text-3)] text-sm font-normal ml-1">{a.customer?.phone || ''}</span></div>
+                            <div className="text-sm text-[var(--c-text-3)] mt-0.5">{a.service_type || '시공 미정'}{a.end_date && a.end_date !== a.appointment_date ? ` · ~${fmtDot(a.end_date).slice(5)}` : ''}{a.amount ? ` · ${a.amount.toLocaleString()}원` : ''}</div>
+                          </div>
+                          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ${statusColor(a.status)}`}>{a.status}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {weekAppts.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-[var(--c-border)]">
+                      <div className="text-xs font-semibold text-[var(--c-text-3)] mb-2">다가오는 7일</div>
+                      <ul className="space-y-1.5">
+                        {weekAppts.map((a) => (
+                          <li key={a.id} className="flex items-center gap-3 text-sm">
+                            <span className="text-brand font-bold tabular-nums w-14 shrink-0">{fmtDot(a.appointment_date).slice(5)}</span>
+                            <span className="font-medium text-[var(--c-text-1)] truncate">{a.customer?.name || '-'}</span>
+                            <span className="text-[var(--c-text-3)] truncate">{a.service_type || ''}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </section>
+
+                {/* 연락할 사후관리 */}
+                <section className={`${card} p-5 md:p-6`}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-bold text-[var(--c-text-1)]">연락할 사후관리 <span className="text-[var(--c-text-3)] text-sm font-medium ml-1">(3일 이내·지난 것)</span></h2>
+                    <button onClick={() => setActiveTab('followups')} className="text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-1)] transition-colors">전체 보기 →</button>
+                  </div>
+                  {dueFollow.length === 0 ? (
+                    <div className="py-12 text-center text-sm text-[var(--c-text-3)]">연락할 사후관리가 없습니다.</div>
+                  ) : (
+                    <ul className="divide-y divide-[var(--c-border)]">
+                      {dueFollow.map((f) => (
+                        <li key={f.id} className="py-3 flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span className={`font-bold tabular-nums shrink-0 ${f.scheduled_date < today ? 'text-brand' : 'text-[var(--c-text-1)]'}`}>{fmtDot(f.scheduled_date)}</span>
+                            <span className="font-semibold text-[15px] text-[var(--c-text-1)] truncate">{followName(f)}</span>
+                            <span className="text-sm text-[var(--c-text-3)] truncate">{followLabel(f)}</span>
+                          </div>
+                          <button onClick={() => handleHomeFollowSms(f)} className={`shrink-0 text-xs font-semibold px-3.5 py-1.5 rounded-full transition-colors ${sentAny(f) ? 'bg-[var(--c-subtle)] text-[var(--c-text-3)] hover:bg-[var(--c-hover)]' : 'bg-brand hover:bg-brand-dark text-white'}`}>
+                            {sentAny(f) ? '✓ 보냄 · 다시' : '💬 문자 보내기'}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {pendingCount > dueFollow.length && (
+                    <button onClick={() => setActiveTab('followups')} className="mt-4 w-full text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-1)] py-2 rounded-lg border border-dashed border-[var(--c-border)] transition-colors">
+                      미처리 {pendingCount}건 모두 보기
+                    </button>
+                  )}
+                </section>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* ─── TAB: 고객 목록 ──────────────────────────────── */}
         {activeTab === 'customers' && (
           <div>
@@ -1694,8 +1823,8 @@ export default function CRMPage() {
                 const isUrgent = !f.is_completed && daysUntil >= 0 && daysUntil <= 3;
                 const isOverdue = !f.is_completed && f.scheduled_date < today;
 
-                const smsQC = `안녕하세요, 3M프로이즘입니다 ^^\n시공해드린 차량, 잘 타고 계신가요?\n\n시공 후 2주가 지나 QC 점검 시기가 되어 연락드렸습니다.\n필름이 완전히 안착되는 시기이기도 하고, 혹시 생활하시면서 불편하셨던 부분이 있으시다면 이번에 같이 확인해드리려고 합니다.\n\n편하신 날짜 말씀해주시면 점검 일정 잡아드리겠습니다.\n늘 감사합니다!`;
-                const smsMaint = `안녕하세요, 3M프로이즘입니다 ^^\n시공 후 6개월이 되어 메인터넌스 안내드립니다.\n\n필름 상태 점검과 함께 가벼운 외부 세척, 마감 재점검까지 진행해드리고 있습니다.\n오래오래 깔끔하게 유지하실 수 있도록 저희가 꾸준히 관리해드릴게요.\n\n편하신 날짜 말씀해주시면 일정 잡아드리겠습니다.\n항상 감사합니다!`;
+                const smsQC = QC_SMS;
+                const smsMaint = MAINT_SMS;
                 const smsReviewProism = REVIEW_SMS.proism;
                 const smsReviewBMW = REVIEW_SMS.bmw;
                 const smsReviewAudi = REVIEW_SMS.audi;
