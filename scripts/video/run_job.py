@@ -260,7 +260,7 @@ def main():
         log('⚠️ 시크릿 미설정: NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY / BLOB_READ_WRITE_TOKEN / ANTHROPIC_API_KEY 를 저장소 Settings → Secrets 에 넣어 주세요'); return
 
     jobs = fetch_jobs(args.job_id or None, args.max)
-    jobs = [j for j in jobs if ((j.get('result') or {}).get('video') or {}).get('status') in ('queued', 'rendering') or args.job_id]
+    jobs = [j for j in jobs if ((j.get('result') or {}).get('video') or {}).get('status') in ('queued', 'rendering')]
     if not jobs:
         log('대기 중인 영상 작업 없음'); return
     failures = 0

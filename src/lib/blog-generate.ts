@@ -45,6 +45,10 @@ export interface WriterResult {
   target: Target | null;
   /** 영상 자동 제작 상태 (글 완성 뒤 jobs.ts 가 채우고, 깃허브 액션이 갱신) */
   video?: import('./video').VideoState | null;
+  /** 정보 릴스(인스타) 상태 */
+  reels?: import('./video').ReelsState | null;
+  /** 말하기 영상(인스타) 상태 — 영상 전용 작업 행에만 있음 */
+  talk?: import('./video').TalkState | null;
 }
 
 /**

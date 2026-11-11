@@ -162,6 +162,14 @@ export default function Home() {
       if (videoDone.length > 0) {
         setMessages((m) => [...m, { role: 'assistant', content: `🎬 영상이 완성되었습니다: ${videoDone[0].result?.draft?.title || ''}\n미리보기의 "🎬 영상" 탭에서 보고 내려받을 수 있습니다.`, employeeName: '영상', employeeEmoji: '🎬', employeeColor: '#C8A951' }]);
       }
+      const reelsDone = next.filter((j) => j.result?.reels?.status === 'done' && prev.some((p) => p.id === j.id && p.result?.reels && p.result.reels.status !== 'done'));
+      const talkDone = next.filter((j) => j.result?.talk?.status === 'done' && prev.some((p) => p.id === j.id && p.result?.talk && p.result.talk.status !== 'done'));
+      if (reelsDone.length > 0) {
+        setMessages((m) => [...m, { role: 'assistant', content: `🎞️ 정보 릴스 ${reelsDone[0].result?.reels?.items?.filter((i) => i.status === 'done').length ?? 0}개가 완성되었습니다: ${reelsDone[0].result?.draft?.title || ''}\n"🎬 영상" 탭에서 보고 내려받을 수 있습니다.`, employeeName: '영상', employeeEmoji: '🎞️', employeeColor: '#C8A951' }]);
+      }
+      if (talkDone.length > 0) {
+        setMessages((m) => [...m, { role: 'assistant', content: `🎤 말하기 영상이 완성되었습니다.\n"🎬 영상" 탭에서 자막을 확인하고 내려받을 수 있습니다.`, employeeName: '영상', employeeEmoji: '🎤', employeeColor: '#C8A951' }]);
+      }
       if (videoFailed.length > 0) {
         setMessages((m) => [...m, { role: 'assistant', content: `⚠️ 영상 제작에 실패했습니다: ${videoFailed[0].result?.video?.error || ''}\n"🎬 영상" 탭에서 다시 만들 수 있습니다.`, employeeName: '영상', employeeEmoji: '⚠️', employeeColor: '#EF4444' }]);
       }
@@ -184,7 +192,10 @@ export default function Home() {
   useEffect(() => { loadJobs(); }, [loadJobs]);
   useEffect(() => {
     const active = jobs.some((j) => ['queued', 'researching', 'writing', 'channels'].includes(j.status));
-    const videoActive = jobs.some((j) => j.result?.video && ['queued', 'rendering'].includes(j.result.video.status));
+    const videoActive = jobs.some((j) => {
+      const r = j.result;
+      return [r?.video?.status, r?.reels?.status, r?.talk?.status].some((st) => st === 'queued' || st === 'rendering');
+    });
     if (!active && !videoActive) return;
     const t = setInterval(loadJobs, active ? 10000 : 20000);
     return () => clearInterval(t);

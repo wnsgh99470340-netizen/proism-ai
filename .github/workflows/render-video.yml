@@ -2,6 +2,7 @@
 # - 앱이 글을 완성하면 repository_dispatch(render-video) 로 바로 깨운다 (Vercel 에 GITHUB_DISPATCH_TOKEN 이 있을 때)
 # - 토큰이 없어도 10분마다 대기 중인 영상 작업을 찾아 처리한다
 # - 결과 mp4 는 Vercel Blob 에 올리고 Supabase blog_jobs.result.video 에 기록한다
+# - 같은 실행에서 정보 릴스(result.reels)·말하기 영상(result.talk) 작업도 처리한다 (run_media.py)
 name: render-video
 
 on:
@@ -43,6 +44,12 @@ jobs:
       - name: 파이썬 패키지
         run: pip install -q -r scripts/video/requirements.txt
 
+      - name: 음성 인식 모델 캐시 (faster-whisper medium)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: whisper-medium-v1
+
       - name: 영상 제작
         env:
           SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
@@ -52,7 +59,9 @@ jobs:
           JOB_ID: ${{ github.event.client_payload.job_id || github.event.inputs.job_id }}
         run: |
           if [ -n "$JOB_ID" ]; then
-            python3 scripts/video/run_job.py --job-id "$JOB_ID"
+            python3 scripts/video/run_job.py --job-id "$JOB_ID" || true
+            python3 scripts/video/run_media.py --job-id "$JOB_ID"
           else
-            python3 scripts/video/run_job.py --max 3
+            python3 scripts/video/run_job.py --max 3 || true
+            python3 scripts/video/run_media.py --max 3
           fi

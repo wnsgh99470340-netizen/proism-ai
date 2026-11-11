@@ -43,6 +43,51 @@ export interface VideoState {
   dispatched?: boolean;
 }
 
+/** 정보 릴스(인스타용 세로 20~30초) — 글 한 편에서 대본 2~3개를 뽑아 전부 렌더 */
+export interface ReelItem {
+  id: string;
+  topic?: string;
+  hook: string;
+  beats?: string[];
+  caption?: string;
+  hashtags?: string[];
+  status: 'rendering' | 'done' | 'failed';
+  url?: string | null;
+  thumbnail?: string | null;
+  duration?: number | null;
+  error?: string | null;
+}
+export interface ReelsState {
+  status: VideoStatus;
+  count?: number;
+  items?: ReelItem[];
+  bgm?: { name: string; url: string };
+  error?: string | null;
+  queued_at?: string;
+  started_at?: string;
+  finished_at?: string;
+  dispatched?: boolean;
+}
+
+/** 사장님이 말하는 30초 — 폰 영상에 자막·세로 규격·연락처 카드 */
+export interface TalkCue { start: number; end: number; text: string }
+export interface TalkState {
+  status: VideoStatus;
+  source_url: string;
+  source_name?: string;
+  cues?: TalkCue[];
+  transcript?: string;
+  url?: string | null;
+  thumbnail?: string | null;
+  duration?: number | null;
+  warnings?: string[];
+  error?: string | null;
+  queued_at?: string;
+  started_at?: string;
+  finished_at?: string;
+  dispatched?: boolean;
+}
+
 const REPO = process.env.GITHUB_REPO || 'wnsgh99470340-netizen/proism-ai';
 
 /** 요청(폼 또는 채팅 문장)에서 사진 폴더 링크 찾기 */
