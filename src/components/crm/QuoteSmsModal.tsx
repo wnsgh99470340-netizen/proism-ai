@@ -32,8 +32,8 @@ const DEFAULT_BENEFITS: Record<ServiceKey, string> = {
   컬러PPF: '필름코팅 · 실내 T존 PPF · 실내 전체코팅 무상',
   랩핑: '필름코팅 · 실내 T존 PPF · 컵/엣지 생활보호 PPF 무상',
   크롬죽이기: '생활보호 PPF 4종(컵·엣지·주유구·트렁크리드) · 실내 액정 PPF 무상',
-  신차패키지: '실내 T존 PPF · B/C필러 PPF · 유리막코팅 2레이어 업그레이드 무상',
-  썬팅: '실내 T존 PPF 무상',
+  신차패키지: '캐리어 왕복 · 신차검수 · 기본 유리막코팅 · 생활보호 PPF 4종 포함 (8월 이벤트: 하이그로시 B/C필러 PPF)',
+  썬팅: '신차면 신차패키지 혜택(캐리어 왕복·신차검수·기본 유리막·생활보호 PPF 4종) 같은 금액에 포함',
   유리막코팅: '실내 전체코팅 무상',
   실내PPF: '필름코팅 무상',
 };
@@ -52,7 +52,7 @@ const DEFAULT_TERMS: Record<ServiceKey, string> = {
  * 가격표 (2026-11-11 사장님 견적표 소비자 가격 = 정상가, 세단 기준)
  * 시공 → 범위 → 항목·정상가. 사장님이 창에서 고친 금액은 localStorage 에 기억되어 다음부터 우선 적용
  */
-type PriceItem = { grade: string; price: number };
+type PriceItem = { grade: string; price: number; note?: string };
 const PRICE_BOOK: Record<ServiceKey, Record<string, PriceItem[]>> = {
   PPF: {
     전체: [
@@ -90,17 +90,50 @@ const PRICE_BOOK: Record<ServiceKey, Record<string, PriceItem[]>> = {
     전체: [{ grade: '크롬죽이기 전체 (3M 2080 글로스블랙)', price: 1400000 }],
   },
   신차패키지: {
-    전체: [
-      { grade: '썬팅 + 프론트 PPF 패키지 + 유리막코팅', price: 0 },
-      { grade: '썬팅 + 전체 PPF + 유리막코팅', price: 0 },
-      { grade: '썬팅 + 생활보호 PPF + 유리막코팅', price: 0 },
+    '기본(썬팅+생활보호 PPF 4종+기본 유리막)': [
+      { grade: '루마 버텍스 1100 (보증 10년)', price: 2700000, note: '선루프 +35만 / 파노라마 +100만' },
+      { grade: '루마 버텍스 900 (보증 10년)', price: 1800000, note: '선루프 +25만 / 파노라마 +65만' },
+      { grade: '루마 버텍스 700 (보증 7년)', price: 1450000, note: '선루프 +20만 / 파노라마 +50만' },
+      { grade: '루마 버텍스 700M 블랙반사 (보증 7년)', price: 1350000, note: '선루프 +18만 / 파노라마 +50만' },
+      { grade: '루마 버텍스 MK 반사 (보증 7년)', price: 1200000, note: '선루프 +15만 / 파노라마 +45만' },
+      { grade: '레인보우 IRIS V90 반사 (보증 10년)', price: 1250000, note: '선루프 +23만 / 파노라마 +46만' },
+      { grade: '레인보우 IRIS IS100 (보증 10년)', price: 1100000, note: '선루프 +20만 / 파노라마 +40만' },
+      { grade: '레인보우 IRIS IS200 (보증 10년)', price: 1450000, note: '선루프 +27만 / 파노라마 +53만' },
+      { grade: '레인보우 IRIS VS200 반사 (보증 10년)', price: 1700000, note: '선루프 +31만 / 파노라마 +62만' },
+      { grade: '티나인 V100 반사 (보증 10년)', price: 1250000, note: '선루프 +20만 / 파노라마 +16만' },
+      { grade: '티나인 R100 (보증 10년)', price: 1150000, note: '선루프 +43만 / 파노라마 +35만' },
+      { grade: '글라스틴트 산타나 (보증 10년)', price: 1300000, note: '선루프 +18만 / 파노라마 +40만' },
+      { grade: '글라스틴트 로데 (보증 10년)', price: 950000, note: '선루프 +15만 / 파노라마 +32만' },
+      { grade: '글라스틴트 펜더 S (보증 10년)', price: 700000, note: '선루프 +7.5만 / 파노라마 +19만' },
+      { grade: '글라스틴트 선셋 반사 (보증 10년)', price: 950000, note: '선루프 +15만 / 파노라마 +32만' },
+      { grade: '3M 크리스탈라인', price: 0 },
+    ],
+    '프론트 PPF 추가': [{ grade: 'FULL 프론트 PPF 패키지 추가(범퍼+본넷+프론트휀더)', price: 2500000 }],
+    '전체 PPF 추가': [
+      { grade: '전체 PPF 시리즈50 추가', price: 5500000 },
+      { grade: '전체 PPF 시리즈100 추가', price: 6000000 },
+      { grade: '전체 PPF 시리즈150 추가', price: 6500000 },
+      { grade: '전체 PPF PRO200 추가', price: 7000000 },
     ],
   },
   썬팅: {
-    전체: [
-      { grade: '3M 크리스탈라인 (전면+측후면)', price: 0 },
-      { grade: '루마 버텍스 900 (전면+측후면)', price: 0 },
-      { grade: '글라스틴트 로데 (전면+측후면)', price: 0 },
+    '전면+측후면': [
+      { grade: '루마 버텍스 1100 (보증 10년)', price: 2700000, note: '선루프 +35만 / 파노라마 +100만' },
+      { grade: '루마 버텍스 900 (보증 10년)', price: 1800000, note: '선루프 +25만 / 파노라마 +65만' },
+      { grade: '루마 버텍스 700 (보증 7년)', price: 1450000, note: '선루프 +20만 / 파노라마 +50만' },
+      { grade: '루마 버텍스 700M 블랙반사 (보증 7년)', price: 1350000, note: '선루프 +18만 / 파노라마 +50만' },
+      { grade: '루마 버텍스 MK 반사 (보증 7년)', price: 1200000, note: '선루프 +15만 / 파노라마 +45만' },
+      { grade: '레인보우 IRIS V90 반사 (보증 10년)', price: 1250000, note: '선루프 +23만 / 파노라마 +46만' },
+      { grade: '레인보우 IRIS IS100 (보증 10년)', price: 1100000, note: '선루프 +20만 / 파노라마 +40만' },
+      { grade: '레인보우 IRIS IS200 (보증 10년)', price: 1450000, note: '선루프 +27만 / 파노라마 +53만' },
+      { grade: '레인보우 IRIS VS200 반사 (보증 10년)', price: 1700000, note: '선루프 +31만 / 파노라마 +62만' },
+      { grade: '티나인 V100 반사 (보증 10년)', price: 1250000, note: '선루프 +20만 / 파노라마 +16만' },
+      { grade: '티나인 R100 (보증 10년)', price: 1150000, note: '선루프 +43만 / 파노라마 +35만' },
+      { grade: '글라스틴트 산타나 (보증 10년)', price: 1300000, note: '선루프 +18만 / 파노라마 +40만' },
+      { grade: '글라스틴트 로데 (보증 10년)', price: 950000, note: '선루프 +15만 / 파노라마 +32만' },
+      { grade: '글라스틴트 펜더 S (보증 10년)', price: 700000, note: '선루프 +7.5만 / 파노라마 +19만' },
+      { grade: '글라스틴트 선셋 반사 (보증 10년)', price: 950000, note: '선루프 +15만 / 파노라마 +32만' },
+      { grade: '3M 크리스탈라인', price: 0 },
     ],
   },
   유리막코팅: {
@@ -206,8 +239,11 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
     lines.push('');
     if (extraLabel && extraPrice) { lines.push(`${extraLabel} ${won(extraPrice)}`); lines.push(''); }
     if (summary) lines.push(summary.trim().replace(/[.。]$/, '') + (recGrade ? ' →' : ''));
+    const noteOf = (g: string) => itemsOf(service, range).find((i) => i.grade === g)?.note;
     if (recGrade) lines.push(`${recWhy ? recWhy + ' ' : ''}${recGrade}${recPrice ? ` ${won(recPrice)}` : ''}`.trim());
     if (altGrade && altPrice) lines.push(`${altWhy ? altWhy + ' ' : ''}${altGrade} ${won(altPrice)}`.trim());
+    const sun = noteOf(recGrade);
+    if (sun) lines.push(`(${sun})`);
     if ((service === 'PPF' || service === '컬러PPF') && range === '전체') lines.push(service === 'PPF' ? '루프 추가 시 30만원 추가' : '루프 추가 시 50만원 추가');
     if (priceNote) lines.push(`(${priceNote})`);
     lines.push('');
