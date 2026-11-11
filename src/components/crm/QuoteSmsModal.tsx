@@ -155,6 +155,7 @@ function loadMemory(): Memory {
 }
 function saveMemory(m: Memory) { try { localStorage.setItem(STORE_KEY, JSON.stringify(m)); } catch { /* ignore */ } }
 
+const fmtNum = (digits: string) => (digits ? Number(digits).toLocaleString() : '');
 const won = (digits: string) => {
   const n = Number(digits.replace(/[^\d]/g, ''));
   if (!n) return '';
@@ -348,25 +349,25 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
               <div className="text-xs font-medium text-[#C8A951]">추천 하나</div>
               <select value={recGrade} onChange={(e) => setRecGrade(e.target.value)} className={inputCls}>{presetGrades.map((g) => <option key={g}>{g}</option>)}<option value="">직접 입력</option></select>
               <div className="grid grid-cols-2 gap-2">
-                <div><label className={labelCls}>정상가</label><input value={recPrice} onChange={(e) => setRecPrice(e.target.value.replace(/[^\d]/g, ''))} inputMode="numeric" className={`${inputCls} text-right`} placeholder="6000000" /></div>
-                <div><label className={labelCls}>할인가 (비우면 정상가만)</label><input value={recSale} onChange={(e) => setRecSale(e.target.value.replace(/[^\d]/g, ''))} inputMode="numeric" className={`${inputCls} text-right`} placeholder="4500000" /></div>
+                <div><label className={labelCls}>정상가</label><input value={fmtNum(recPrice)} onChange={(e) => setRecPrice(e.target.value.replace(/[^\d]/g, ''))} inputMode="numeric" className={`${inputCls} text-right`} placeholder="6,000,000" /></div>
+                <div><label className={labelCls}>할인가 (비우면 정상가만)</label><input value={fmtNum(recSale)} onChange={(e) => setRecSale(e.target.value.replace(/[^\d]/g, ''))} inputMode="numeric" className={`${inputCls} text-right`} placeholder="4,500,000" /></div>
               </div>
               {!presetGrades.includes(recGrade) && <input value={recGrade} onChange={(e) => setRecGrade(e.target.value)} className={inputCls} placeholder="추천 항목 이름" />}
               <input value={recWhy} onChange={(e) => setRecWhy(e.target.value)} className={inputCls} placeholder="앞에 붙일 말 (예: 충분합니다 →, 권합니다 →) 비워도 됨" />
-              <div className="text-[11px] text-[var(--c-text-3)]">{recPrice || recSale ? `표시: ${recPrice ? `정상가 ${won(recPrice)}` : ''}${recPrice && recSale ? ' → ' : ''}${recSale ? won(recSale) : ''}` : '금액은 숫자만 (450만원 → 4500000). 한 번 넣으면 다음에 기억합니다'}</div>
+              <div className="text-[11px] text-[var(--c-text-3)]">{recPrice || recSale ? `표시: ${recPrice ? `정상가 ${won(recPrice)}` : ''}${recPrice && recSale ? ' → ' : ''}${recSale ? won(recSale) : ''}` : '숫자만 치면 쉼표가 자동으로 붙습니다. 한 번 넣으면 다음에 기억합니다'}</div>
             </div>
             <div className="rounded-lg border border-[var(--c-border)] p-3 space-y-2">
               <div className="text-xs font-medium text-[var(--c-text-2)]">상위 선택지 (선택)</div>
               <select value={altGrade} onChange={(e) => setAltGrade(e.target.value)} className={inputCls}><option value="">없음</option>{presetGrades.map((g) => <option key={g}>{g}</option>)}</select>
               <div className="grid grid-cols-2 gap-2">
-                <div><label className={labelCls}>정상가</label><input value={altPrice} onChange={(e) => setAltPrice(e.target.value.replace(/[^\d]/g, ''))} inputMode="numeric" className={`${inputCls} text-right`} placeholder="6500000" /></div>
-                <div><label className={labelCls}>할인가</label><input value={altSale} onChange={(e) => setAltSale(e.target.value.replace(/[^\d]/g, ''))} inputMode="numeric" className={`${inputCls} text-right`} placeholder="5000000" /></div>
+                <div><label className={labelCls}>정상가</label><input value={fmtNum(altPrice)} onChange={(e) => setAltPrice(e.target.value.replace(/[^\d]/g, ''))} inputMode="numeric" className={`${inputCls} text-right`} placeholder="6,500,000" /></div>
+                <div><label className={labelCls}>할인가</label><input value={fmtNum(altSale)} onChange={(e) => setAltSale(e.target.value.replace(/[^\d]/g, ''))} inputMode="numeric" className={`${inputCls} text-right`} placeholder="5,000,000" /></div>
               </div>
               <input value={altWhy} onChange={(e) => setAltWhy(e.target.value)} className={inputCls} placeholder="예: 발수코팅까지 원하시면" />
             </div>
             <div className="grid grid-cols-[1fr_120px] gap-2">
               <div><label className={labelCls}>추가 비용 (선택)</label><input value={extraLabel} onChange={(e) => setExtraLabel(e.target.value)} className={inputCls} placeholder="예: 기존 필름 제거" /></div>
-              <div><label className={labelCls}>금액</label><input value={extraPrice} onChange={(e) => setExtraPrice(e.target.value.replace(/[^\d]/g, ''))} inputMode="numeric" className={`${inputCls} text-right`} placeholder="600000" /></div>
+              <div><label className={labelCls}>금액</label><input value={fmtNum(extraPrice)} onChange={(e) => setExtraPrice(e.target.value.replace(/[^\d]/g, ''))} inputMode="numeric" className={`${inputCls} text-right`} placeholder="600,000" /></div>
             </div>
             <div><label className={labelCls}>가격 조건 한 줄</label><input value={priceNote} onChange={(e) => setPriceNote(e.target.value)} className={inputCls} /></div>
             <div>
