@@ -111,7 +111,10 @@ def transcribe(path, model_size, language='ko'):
 
     log(f'음성 인식 중 (faster-whisper {model_size})…')
     model = WhisperModel(model_size, device='cpu', compute_type='int8')
-    segments, info = model.transcribe(str(path), language=language, vad_filter=True, word_timestamps=True,
+    # PyAV 버전 차이(metadata_errors 인자)로 decode_audio 가 깨지는 환경이 있어, ffmpeg 로 16kHz 모노 PCM 을 직접 뽑아 넘긴다
+    pcm = run(['ffmpeg', '-v', 'error', '-nostdin', '-i', str(path), '-vn', '-ac', '1', '-ar', '16000', '-f', 's16le', '-']).stdout
+    audio = np.frombuffer(pcm, dtype=np.int16).astype(np.float32) / 32768.0
+    segments, info = model.transcribe(audio, language=language, vad_filter=True, word_timestamps=True,
                                       beam_size=5, condition_on_previous_text=False, initial_prompt=VOCAB_PROMPT)
     words = []
     for seg in segments:
