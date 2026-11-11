@@ -1612,13 +1612,16 @@ export default function CRMPage() {
                           )}
                           <button onClick={() => handleOpenWorkOrder(a)} className="bg-[#C8A951]/10 hover:bg-[#C8A951]/20 text-[#C8A951] text-xs font-medium rounded-lg px-2.5 py-1 transition-colors">작업 내역서</button>
                           <button onClick={() => handleOpenWarranty(a)} className={`text-xs font-medium rounded-lg px-2.5 py-1 transition-colors ${hasWarrantyIssued(a.memo) ? 'bg-[#22c55e] text-white' : 'bg-[#22c55e]/10 hover:bg-[#22c55e]/20 text-[#22c55e]'}`}>{hasWarrantyIssued(a.memo) ? '✓ 보증서 발급완료' : '보증서'}</button>
-                          {(() => { try { const m = JSON.parse(a.memo || '{}'); if (m.warranty_url) return <button onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(m.warranty_url); alert('보증서 URL이 복사되었습니다.'); }} className="text-[10px] font-medium px-2 py-1 rounded-lg bg-[#22c55e]/10 text-[#22c55e] hover:bg-[#22c55e]/20 transition-colors">URL 복사</button>; } catch {} return null; })()}
-                          <button onClick={() => handleDownloadICS(a)} className="bg-[#3B82F6]/10 hover:bg-[#3B82F6]/20 text-[#3B82F6] text-xs font-medium rounded-lg px-2.5 py-1 transition-colors">캘린더</button>
-                          {a.customer?.phone && (['proism', 'audi', 'bmw'] as const).map((k) => (
-                            <button key={k} onClick={(e) => { e.stopPropagation(); handleReviewSmsFromAppointment(a, k); }} className="bg-[#F59E0B]/10 hover:bg-[#F59E0B]/20 text-[#FBBF24] text-xs font-medium rounded-lg px-2.5 py-1 transition-colors" title="후기 요청 문자 보내기">
-                              후기 {k === 'proism' ? '프로이즘' : k === 'audi' ? '아우디' : 'BMW'} 문자
-                            </button>
-                          ))}
+                          {a.customer?.phone && (
+                            <div className="flex items-center rounded-lg border border-[#F59E0B]/30 overflow-hidden" title="후기 요청 문자 보내기">
+                              <span className="text-[11px] text-[#FBBF24] px-2 py-1 bg-[#F59E0B]/10 border-r border-[#F59E0B]/30">후기 요청</span>
+                              {(['proism', 'audi', 'bmw'] as const).map((k) => (
+                                <button key={k} onClick={(e) => { e.stopPropagation(); handleReviewSmsFromAppointment(a, k); }} className="text-xs font-medium px-2.5 py-1 text-[var(--c-text-2)] hover:bg-[#F59E0B]/15 hover:text-[#FBBF24] transition-colors border-r border-[#F59E0B]/20 last:border-r-0">
+                                  {k === 'proism' ? '프로이즘' : k === 'audi' ? '아우디' : 'BMW'}
+                                </button>
+                              ))}
+                            </div>
+                          )}
                           {a.status !== '완료' && (
                             <select value="" onChange={(e) => { if (e.target.value) handleStatusChange(a, e.target.value); }} className="bg-[var(--c-subtle)] border border-[#2a2a2e] rounded-lg px-2 py-1 text-xs text-[var(--c-text-2)] outline-none cursor-pointer">
                               <option value="">상태 변경</option>
