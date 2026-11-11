@@ -1345,8 +1345,9 @@ export default function CRMPage() {
                       오늘은 {fmtDot(today)} · 등록 고객 {allCustomers.length}명 · 미처리 사후관리 <span className={pendingCount > 0 ? 'text-white font-bold underline decoration-brand decoration-2 underline-offset-4' : ''}>{pendingCount}건</span>
                     </p>
                     <div className="mt-5 max-w-2xl">
-                      {quote.head && <div className="text-xs font-bold tracking-wide text-white/70 mb-1">{quote.head}</div>}
-                      <p className="text-lg md:text-[22px] font-bold leading-snug text-white drop-shadow">{quote.text}</p>
+                      {quote.head && <div className="text-xs font-bold tracking-wide text-white/70 mb-1.5">{quote.head}</div>}
+                      {quote.lines.map((l, i) => <p key={i} className="text-base md:text-lg text-white/90 leading-snug">{l}</p>)}
+                      <p className="text-lg md:text-[22px] font-bold leading-snug text-white mt-1.5 drop-shadow">{quote.key}</p>
                       {quote.by && <div className="text-sm text-white/60 mt-1.5">— {quote.by}</div>}
                     </div>
                   </div>
@@ -1359,9 +1360,12 @@ export default function CRMPage() {
                   </p>
                   <div className="mt-5 rounded-2xl border border-[var(--c-border)] bg-[var(--c-card)] px-5 md:px-7 py-5 md:py-6 relative overflow-hidden">
                     <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-brand" />
-                    <div className="text-[11px] font-bold tracking-widest text-[var(--c-text-3)] mb-2">오늘의 한 줄{quote.head ? ` · ${quote.head}` : ''}</div>
-                    <p className="text-xl md:text-[26px] font-bold leading-snug tracking-tight text-[var(--c-text-1)] max-w-3xl">{quote.text}</p>
-                    {quote.by && <div className="text-sm text-[var(--c-text-3)] mt-2">— {quote.by}</div>}
+                    <div className="text-[11px] font-bold tracking-widest text-[var(--c-text-3)] mb-2.5">오늘의 한 줄{quote.head ? ` · ${quote.head}` : ''}</div>
+                    <div className="max-w-3xl">
+                      {quote.lines.map((l, i) => <p key={i} className="text-[17px] md:text-xl font-medium leading-snug text-[var(--c-text-2)]">{l}</p>)}
+                      <p className="text-xl md:text-[26px] font-bold leading-snug tracking-tight text-brand mt-2">{quote.key}</p>
+                    </div>
+                    {quote.by && <div className="text-sm text-[var(--c-text-3)] mt-2.5">— {quote.by}</div>}
                   </div>
                 </div>
               )}
