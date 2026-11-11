@@ -245,7 +245,6 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
     };
     if (recGrade) lines.push(`${recWhy ? recWhy + ' ' : ''}${recGrade} ${priceText(recPrice, recSale)}`.trim());
     if (altGrade && (altPrice || altSale)) lines.push(`${altWhy ? altWhy + ' ' : ''}${altGrade} ${priceText(altPrice, altSale)}`.trim());
-    if ((service === 'PPF' || service === '컬러PPF') && range === '전체') lines.push(service === 'PPF' ? '루프 추가 시 30만원 추가' : '루프 추가 시 50만원 추가');
     if (priceNote) lines.push(`(${priceNote})`);
     lines.push('');
     const benefitList = [...benefitSel, ...(benefitExtra.trim() ? [benefitExtra.trim()] : [])];
