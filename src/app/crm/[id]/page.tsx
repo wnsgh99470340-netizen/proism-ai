@@ -194,11 +194,11 @@ export default function CustomerDetailPage() {
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
               className={`px-4 py-2.5 text-sm font-medium transition-colors relative ${
-                activeTab === tab.key ? 'text-[#C8A951]' : 'text-[var(--c-text-3)] hover:text-[var(--c-text-2)]'
+                activeTab === tab.key ? 'text-gold' : 'text-[var(--c-text-3)] hover:text-[var(--c-text-2)]'
               }`}
             >
               {tab.label} <span className="text-xs ml-1 opacity-60">{tab.count}</span>
-              {activeTab === tab.key && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#C8A951]" />}
+              {activeTab === tab.key && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gold" />}
             </button>
           ))}
         </div>
@@ -211,13 +211,13 @@ export default function CustomerDetailPage() {
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-[var(--c-text-1)]">{s.service_type}</span>
-                    {s.amount != null && s.amount > 0 && <span className="text-xs text-[#C8A951]">{s.amount.toLocaleString()}원</span>}
+                    {s.amount != null && s.amount > 0 && <span className="text-xs text-gold">{s.amount.toLocaleString()}원</span>}
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-[var(--c-text-3)]">{formatDate(s.service_date)}{s.completion_date && ` → ${formatDate(s.completion_date)}`}</span>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                      <button onClick={() => handleEditService(s)} className="w-6 h-6 rounded flex items-center justify-center text-[var(--c-text-3)] hover:text-[#C8A951] hover:bg-[#C8A951]/10 transition-all text-xs" title="수정">✎</button>
-                      <button onClick={() => handleDeleteService(s.id)} className="w-6 h-6 rounded flex items-center justify-center text-[var(--c-text-3)] hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-all text-xs" title="삭제">✕</button>
+                      <button onClick={() => handleEditService(s)} className="w-6 h-6 rounded flex items-center justify-center text-[var(--c-text-3)] hover:text-gold hover:bg-gold/10 transition-all text-xs" title="수정">✎</button>
+                      <button onClick={() => handleDeleteService(s.id)} className="w-6 h-6 rounded flex items-center justify-center text-[var(--c-text-3)] hover:text-danger hover:bg-danger/10 transition-all text-xs" title="삭제">✕</button>
                     </div>
                   </div>
                 </div>
@@ -265,7 +265,7 @@ export default function CustomerDetailPage() {
               <div key={c.id} className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs text-[var(--c-text-3)]">{formatDate(c.consultation_date)}</span>
-                  {c.estimate && <span className="text-xs text-[#C8A951]">견적: {c.estimate}</span>}
+                  {c.estimate && <span className="text-xs text-gold">견적: {c.estimate}</span>}
                 </div>
                 {c.content && <p className="text-sm text-[var(--c-text-2)] mb-2">{c.content}</p>}
                 <div className="flex gap-3 text-xs text-[var(--c-text-3)]">
@@ -286,24 +286,24 @@ export default function CustomerDetailPage() {
               const isOverdue = !f.is_completed && f.scheduled_date < today;
               return (
                 <div key={f.id} className={`bg-[var(--c-card)] border rounded-xl p-4 ${
-                  isOverdue ? 'border-[#EF4444]/30' : 'border-[var(--c-border)]'
+                  isOverdue ? 'border-danger/30' : 'border-[var(--c-border)]'
                 }`}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
                         f.follow_up_type === 'QC점검'
-                          ? 'bg-[#3B82F6]/20 text-[#60A5FA]'
-                          : 'bg-[#8B5CF6]/20 text-[#A78BFA]'
+                          ? 'bg-info/20 text-info'
+                          : 'bg-violet/20 text-violet'
                       }`}>{f.follow_up_type}</span>
                       <span className="text-xs text-[var(--c-text-3)]">{f.service?.service_type || ''}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-[var(--c-text-3)]">{formatDate(f.scheduled_date)}</span>
                       {f.is_completed
-                        ? <span className="text-xs text-[#10B981]">완료</span>
+                        ? <span className="text-xs text-ok">완료</span>
                         : isOverdue
-                          ? <span className="text-xs text-[#EF4444]">지남</span>
-                          : <span className="text-xs text-[#C8A951]">예정</span>
+                          ? <span className="text-xs text-danger">지남</span>
+                          : <span className="text-xs text-gold">예정</span>
                       }
                     </div>
                   </div>
@@ -319,13 +319,13 @@ export default function CustomerDetailPage() {
           <div>
             {/* 할인 기록 추가 폼 */}
             <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-4 mb-4">
-              <h4 className="text-xs text-[#C8A951] font-semibold mb-3">할인 기록 추가</h4>
+              <h4 className="text-xs text-gold font-semibold mb-3">할인 기록 추가</h4>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                <input type="date" value={discountForm.discount_date} onChange={(e) => setDiscountForm({ ...discountForm, discount_date: e.target.value })} className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" />
-                <select value={discountForm.discount_type} onChange={(e) => setDiscountForm({ ...discountForm, discount_type: e.target.value })} className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50">
+                <input type="date" value={discountForm.discount_date} onChange={(e) => setDiscountForm({ ...discountForm, discount_date: e.target.value })} className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" />
+                <select value={discountForm.discount_type} onChange={(e) => setDiscountForm({ ...discountForm, discount_type: e.target.value })} className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50">
                   {['재방문', '프로모션', '소개 할인', '시즌 할인', '기타'].map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
-                <input type="text" value={discountForm.discount_value} onChange={(e) => setDiscountForm({ ...discountForm, discount_value: e.target.value })} className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="10% 또는 50,000원" />
+                <input type="text" value={discountForm.discount_value} onChange={(e) => setDiscountForm({ ...discountForm, discount_value: e.target.value })} className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder="10% 또는 50,000원" />
                 <button
                   onClick={async () => {
                     if (!discountForm.discount_date) { alert('날짜를 입력해주세요.'); return; }
@@ -337,10 +337,10 @@ export default function CustomerDetailPage() {
                     setDiscountForm({ discount_date: '', discount_type: '재방문', discount_value: '', memo: '' });
                     fetchData();
                   }}
-                  className="bg-[#E4002B] hover:bg-[#c60026] text-white text-sm font-medium rounded-lg px-3 py-2 transition-colors"
+                  className="bg-brand hover:bg-brand-dark text-white text-sm font-medium rounded-lg px-3 py-2 transition-colors"
                 >추가</button>
               </div>
-              <input type="text" value={discountForm.memo} onChange={(e) => setDiscountForm({ ...discountForm, memo: e.target.value })} className="w-full mt-2 bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="메모 (선택)" />
+              <input type="text" value={discountForm.memo} onChange={(e) => setDiscountForm({ ...discountForm, memo: e.target.value })} className="w-full mt-2 bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder="메모 (선택)" />
             </div>
             {/* 할인 이력 목록 */}
             <div className="space-y-2">
@@ -348,7 +348,7 @@ export default function CustomerDetailPage() {
                 <div key={d.id} className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-4 flex items-center justify-between">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs bg-[#C8A951]/20 text-[#C8A951] px-2 py-0.5 rounded">{d.discount_type}</span>
+                      <span className="text-xs bg-gold/20 text-gold px-2 py-0.5 rounded">{d.discount_type}</span>
                       {d.discount_value && <span className="text-sm font-medium text-[var(--c-text-1)]">{d.discount_value}</span>}
                     </div>
                     <div className="text-xs text-[var(--c-text-3)] mt-1">
@@ -362,7 +362,7 @@ export default function CustomerDetailPage() {
                       await fetch(`/api/discounts?id=${d.id}`, { method: 'DELETE' });
                       fetchData();
                     }}
-                    className="text-xs text-[var(--c-text-3)] hover:text-[#EF4444] transition-colors"
+                    className="text-xs text-[var(--c-text-3)] hover:text-danger transition-colors"
                   >삭제</button>
                 </div>
               ))}
@@ -374,13 +374,13 @@ export default function CustomerDetailPage() {
 
       {/* Service Edit Modal */}
       {editService && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center" onClick={() => setEditService(null)}>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-center justify-center" onClick={() => setEditService(null)}>
           <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl w-full max-w-lg p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-[var(--c-text-1)] font-semibold text-base mb-4">시공 이력 수정</h3>
             <div className="space-y-3">
               <div>
                 <label className="text-xs text-[var(--c-text-3)] mb-1 block">시공 종류</label>
-                <select value={serviceForm.service_type} onChange={(e) => setServiceForm({ ...serviceForm, service_type: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50">
+                <select value={serviceForm.service_type} onChange={(e) => setServiceForm({ ...serviceForm, service_type: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50">
                   <option value="">선택...</option>
                   {SERVICE_TYPE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
@@ -388,25 +388,25 @@ export default function CustomerDetailPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-[var(--c-text-3)] mb-1 block">시공일</label>
-                  <input type="date" value={serviceForm.service_date} onChange={(e) => setServiceForm({ ...serviceForm, service_date: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" />
+                  <input type="date" value={serviceForm.service_date} onChange={(e) => setServiceForm({ ...serviceForm, service_date: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" />
                 </div>
                 <div>
                   <label className="text-xs text-[var(--c-text-3)] mb-1 block">완료일</label>
-                  <input type="date" value={serviceForm.completion_date} onChange={(e) => setServiceForm({ ...serviceForm, completion_date: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" />
+                  <input type="date" value={serviceForm.completion_date} onChange={(e) => setServiceForm({ ...serviceForm, completion_date: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" />
                 </div>
               </div>
               <div>
                 <label className="text-xs text-[var(--c-text-3)] mb-1 block">금액</label>
-                <input type="number" value={serviceForm.amount} onChange={(e) => setServiceForm({ ...serviceForm, amount: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="0" />
+                <input type="number" value={serviceForm.amount} onChange={(e) => setServiceForm({ ...serviceForm, amount: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder="0" />
               </div>
               <div>
                 <label className="text-xs text-[var(--c-text-3)] mb-1 block">메모</label>
-                <textarea value={serviceForm.memo} onChange={(e) => setServiceForm({ ...serviceForm, memo: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50 resize-none h-20" placeholder="특이사항" />
+                <textarea value={serviceForm.memo} onChange={(e) => setServiceForm({ ...serviceForm, memo: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50 resize-none h-20" placeholder="특이사항" />
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-4">
               <button onClick={() => setEditService(null)} className="px-4 py-2 text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-2)] transition-colors">취소</button>
-              <button onClick={handleUpdateService} className="bg-[#E4002B] hover:bg-[#c60026] text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors">저장</button>
+              <button onClick={handleUpdateService} className="bg-brand hover:bg-brand-dark text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors">저장</button>
             </div>
           </div>
         </div>

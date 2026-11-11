@@ -16,17 +16,15 @@ export default function TopBar({ activeEmployeeId, onHelpClick }: TopBarProps) {
   const { theme, toggle: toggleTheme } = useTheme();
 
   return (
-    <div className="h-12 md:h-14 border-b border-[var(--c-border)] bg-[var(--c-card)] flex items-center px-3 md:px-4 justify-between shrink-0 gap-2">
+    <div className="h-14 md:h-16 border-b border-[var(--c-border)] bg-[var(--c-card)] flex items-center px-4 md:px-6 justify-between shrink-0 gap-2">
       <div className="flex items-center gap-2 md:gap-3 min-w-0">
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="text-brand text-lg font-bold">◆</span>
-          <span className="text-[var(--c-text-1)] font-semibold text-sm whitespace-nowrap">3M 프로이즘 AI</span>
+        <div className="flex items-center gap-2.5 shrink-0">
+          <span className="w-9 h-9 rounded-lg bg-brand text-white font-extrabold text-[13px] tracking-tight flex items-center justify-center">3M</span>
+          <span className="text-[var(--c-text-1)] font-bold text-[15px] md:text-base whitespace-nowrap">프로이즘 강남 서초점 <span className="text-[var(--c-text-3)] font-medium ml-1 hidden sm:inline">블로그 AI</span></span>
         </div>
-        <span className="text-[var(--c-text-3)] text-xs hidden lg:inline">마케팅 에이전트</span>
-        <span className="text-[var(--c-border)] hidden lg:inline">|</span>
         <Link
           href="/crm"
-          className="text-xs text-[var(--c-text-3)] hover:text-gold transition-colors bg-[var(--c-subtle)] hover:bg-[var(--c-subtle)]/80 rounded-lg px-2.5 py-1 whitespace-nowrap"
+          className="text-xs md:text-sm font-semibold text-[var(--c-text-1)] border border-[var(--c-border)] hover:bg-[var(--c-subtle)] rounded-full px-3.5 py-1.5 whitespace-nowrap transition-colors ml-1"
         >
           <span className="hidden sm:inline">고객 관리 </span>CRM
         </Link>

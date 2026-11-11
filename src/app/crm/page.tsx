@@ -1242,55 +1242,51 @@ export default function CRMPage() {
 
   return (
     <div className="h-dvh flex flex-col bg-[var(--c-page)]">
-      {/* Header */}
-      <div className="h-12 md:h-14 border-b border-[var(--c-border)] bg-[var(--c-card)] flex items-center px-3 md:px-4 justify-between shrink-0 gap-2">
-        <div className="flex items-center gap-2 md:gap-3 min-w-0">
-          <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity shrink-0">
-            <span className="text-brand text-lg font-bold">◆</span>
-            <span className="text-[var(--c-text-1)] font-semibold text-sm whitespace-nowrap hidden sm:inline">3M 프로이즘 AI</span>
-          </Link>
-          <span className="text-[var(--c-border)] hidden sm:inline">|</span>
-          <span className="text-gold text-sm font-medium whitespace-nowrap">고객 관리 CRM</span>
+      {/* Header (2026-11-11 하남점 페이지 톤: 3M 레드 사각 로고 + 알약형 탭, 가운데 컨테이너) */}
+      <header className="bg-[var(--c-card)] border-b border-[var(--c-border)] shrink-0">
+        <div className="mx-auto max-w-[1360px] px-4 md:px-6">
+          <div className="h-14 md:h-16 flex items-center justify-between gap-3">
+            <Link href="/" className="flex items-center gap-2.5 min-w-0 hover:opacity-80 transition-opacity">
+              <span className="w-9 h-9 rounded-lg bg-brand text-white font-extrabold text-[13px] tracking-tight flex items-center justify-center shrink-0">3M</span>
+              <span className="font-bold text-[15px] md:text-base text-[var(--c-text-1)] whitespace-nowrap truncate">프로이즘 강남 서초점 <span className="text-[var(--c-text-3)] font-medium ml-1">CRM</span></span>
+            </Link>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={toggleTheme}
+                className="w-8 h-8 rounded-full border border-[var(--c-border)] bg-[var(--c-card)] flex items-center justify-center hover:bg-[var(--c-subtle)] transition-colors text-sm"
+                title={theme === 'dark' ? '라이트 모드' : '다크 모드'}
+              >
+                {theme === 'dark' ? '🌙' : '☀️'}
+              </button>
+              <Link
+                href="/"
+                className="text-xs md:text-sm font-semibold text-[var(--c-text-1)] border border-[var(--c-border)] bg-[var(--c-card)] hover:bg-[var(--c-subtle)] rounded-full px-3.5 py-1.5 whitespace-nowrap transition-colors"
+              >
+                <span className="hidden sm:inline">블로그 AI로 이동</span><span className="sm:hidden">← 블로그</span>
+              </Link>
+            </div>
+          </div>
+          {/* Tabs */}
+          <nav className="flex gap-1.5 pb-3 overflow-x-auto">
+            {tabs.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`px-3.5 py-2 rounded-lg text-sm font-semibold whitespace-nowrap shrink-0 transition-colors ${
+                  activeTab === tab.key
+                    ? 'bg-[var(--c-text-1)] text-[var(--c-card)]'
+                    : 'text-[var(--c-text-2)] hover:bg-[var(--c-subtle)]'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </nav>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={toggleTheme}
-            className="w-7 h-7 rounded-full bg-[var(--c-subtle)] flex items-center justify-center hover:bg-[var(--c-hover)] transition-colors text-sm"
-            title={theme === 'dark' ? '라이트 모드' : '다크 모드'}
-          >
-            {theme === 'dark' ? '🌙' : '☀️'}
-          </button>
-          <Link
-            href="/"
-            className="text-xs text-[var(--c-text-3)] hover:text-[var(--c-text-1)] transition-colors bg-[var(--c-subtle)] hover:bg-[var(--c-hover)] rounded-lg px-3 py-1.5 whitespace-nowrap"
-          >
-            <span className="hidden sm:inline">블로그 에이전트로 돌아가기</span><span className="sm:hidden">← 블로그</span>
-          </Link>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="border-b border-[var(--c-border)] bg-[var(--c-card)] px-2 md:px-4 flex gap-0 overflow-x-auto shrink-0">
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`px-3 md:px-4 py-3 text-sm font-medium transition-colors relative whitespace-nowrap shrink-0 ${
-              activeTab === tab.key
-                ? 'text-gold'
-                : 'text-[var(--c-text-3)] hover:text-[var(--c-text-2)]'
-            }`}
-          >
-            {tab.label}
-            {activeTab === tab.key && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gold" />
-            )}
-          </button>
-        ))}
-      </div>
+      </header>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-3 md:p-6">
+      <div className="flex-1 overflow-y-auto px-4 md:px-6 py-5 md:py-6 [&>*]:mx-auto [&>*]:max-w-[1360px]">
         {/* ─── TAB: 고객 목록 ──────────────────────────────── */}
         {activeTab === 'customers' && (
           <div>
@@ -1501,22 +1497,22 @@ export default function CRMPage() {
                             onClick={() => setSelectedDate(isSel ? null : cell.dateStr)}
                             style={{
                               minHeight: '100px',
-                              borderBottom: '1px solid rgba(30,30,34,0.4)',
-                              borderRight: '1px solid rgba(30,30,34,0.4)',
+                              borderBottom: '1px solid var(--c-border)',
+                              borderRight: '1px solid var(--c-border)',
                               padding: '6px',
                               cursor: 'pointer',
-                              backgroundColor: isSel ? 'rgba(200,169,81,0.05)' : 'transparent',
+                              backgroundColor: isSel ? 'var(--c-subtle)' : 'transparent',
                               opacity: isCurrent ? 1 : 0.3,
                               transition: 'background-color 0.15s',
                             }}
-                            onMouseEnter={(e) => { if (!isSel) e.currentTarget.style.backgroundColor = '#1a1a1f'; }}
+                            onMouseEnter={(e) => { if (!isSel) e.currentTarget.style.backgroundColor = 'var(--c-subtle)'; }}
                             onMouseLeave={(e) => { if (!isSel) e.currentTarget.style.backgroundColor = 'transparent'; }}
                           >
                             {/* 날짜 숫자 */}
                             <div style={{ marginBottom: '4px' }}>
                               {isT ? (
                                 <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: 'var(--c-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#000' }}>{cell.day}</span>
+                                  <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--c-card)' }}>{cell.day}</span>
                                 </div>
                               ) : (
                                 <div style={{ width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1830,25 +1826,25 @@ export default function CRMPage() {
                     <div className="flex items-center gap-1.5 flex-wrap pt-2 border-t border-[var(--c-border)]">
                       {f.follow_up_type === 'QC점검' && (
                         <>
-                        <button onClick={() => sendKakao(smsQC, 'qc')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${sent.qc ? sentBtn : 'bg-[#FEE500]/20 text-white hover:bg-[#FEE500]/30'}`}>{sent.qc ? '✓ 카톡완료' : '카톡'}</button>
+                        <button onClick={() => sendKakao(smsQC, 'qc')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${sent.qc ? sentBtn : 'bg-[#FEE500] text-[#191919] hover:bg-[#FDD835]'}`}>{sent.qc ? '✓ 카톡완료' : '카톡'}</button>
                         <button onClick={() => sendSms(smsQC, 'qc')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${qcBtn}`}>{sent.qc ? '✓ 문자완료' : '문자'}</button>
                         <button onClick={() => copyMsg(smsQC)} className="text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors bg-[var(--c-subtle)] text-[var(--c-text-2)] hover:bg-[var(--c-hover)]">복사</button>
                         </>
                       )}
                       {f.follow_up_type === '메인터넌스' && (
                         <>
-                        <button onClick={() => sendKakao(smsMaint, 'maintenance')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${sent.maintenance ? sentBtn : 'bg-[#FEE500]/20 text-white hover:bg-[#FEE500]/30'}`}>{sent.maintenance ? '✓ 카톡완료' : '카톡'}</button>
+                        <button onClick={() => sendKakao(smsMaint, 'maintenance')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${sent.maintenance ? sentBtn : 'bg-[#FEE500] text-[#191919] hover:bg-[#FDD835]'}`}>{sent.maintenance ? '✓ 카톡완료' : '카톡'}</button>
                         <button onClick={() => sendSms(smsMaint, 'maintenance')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${maintBtn}`}>{sent.maintenance ? '✓ 문자완료' : '문자'}</button>
                         <button onClick={() => copyMsg(smsMaint)} className="text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors bg-[var(--c-subtle)] text-[var(--c-text-2)] hover:bg-[var(--c-hover)]">복사</button>
                         </>
                       )}
                       {f.follow_up_type === '후기요청' && (
                         <>
-                        <button onClick={() => sendKakao(smsReviewProism, 'proism')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${sent.proism ? sentBtn : 'bg-[#FEE500]/20 text-white hover:bg-[#FEE500]/30'}`}>{sent.proism ? '✓ 프로이즘 카톡' : '프로이즘 카톡'}</button>
+                        <button onClick={() => sendKakao(smsReviewProism, 'proism')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${sent.proism ? sentBtn : 'bg-[#FEE500] text-[#191919] hover:bg-[#FDD835]'}`}>{sent.proism ? '✓ 프로이즘 카톡' : '프로이즘 카톡'}</button>
                         <button onClick={() => sendSms(smsReviewProism, 'proism')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${reviewBtn('proism')}`}>{sent.proism ? '✓ 프로이즘 문자' : '프로이즘 문자'}</button>
-                        <button onClick={() => sendKakao(smsReviewBMW, 'bmw')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${sent.bmw ? sentBtn : 'bg-[#FEE500]/20 text-white hover:bg-[#FEE500]/30'}`}>{sent.bmw ? '✓ BMW 카톡' : 'BMW 카톡'}</button>
+                        <button onClick={() => sendKakao(smsReviewBMW, 'bmw')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${sent.bmw ? sentBtn : 'bg-[#FEE500] text-[#191919] hover:bg-[#FDD835]'}`}>{sent.bmw ? '✓ BMW 카톡' : 'BMW 카톡'}</button>
                         <button onClick={() => sendSms(smsReviewBMW, 'bmw')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${reviewBtn('bmw')}`}>{sent.bmw ? '✓ BMW 문자' : 'BMW 문자'}</button>
-                        <button onClick={() => sendKakao(smsReviewAudi, 'audi')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${sent.audi ? sentBtn : 'bg-[#FEE500]/20 text-white hover:bg-[#FEE500]/30'}`}>{sent.audi ? '✓ 아우디 카톡' : '아우디 카톡'}</button>
+                        <button onClick={() => sendKakao(smsReviewAudi, 'audi')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${sent.audi ? sentBtn : 'bg-[#FEE500] text-[#191919] hover:bg-[#FDD835]'}`}>{sent.audi ? '✓ 아우디 카톡' : '아우디 카톡'}</button>
                         <button onClick={() => sendSms(smsReviewAudi, 'audi')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${reviewBtn('audi')}`}>{sent.audi ? '✓ 아우디 문자' : '아우디 문자'}</button>
                         </>
                       )}
@@ -2041,7 +2037,7 @@ export default function CRMPage() {
                                     }
                                     trackPromo(cust, msg);
                                   }}
-                                  className="text-xs bg-[#FEE500] hover:bg-[#FDD835] text-white font-semibold rounded-lg px-3 py-1.5 transition-colors whitespace-nowrap"
+                                  className="text-xs bg-[#FEE500] hover:bg-[#FDD835] text-[#191919] font-semibold rounded-lg px-3 py-1.5 transition-colors whitespace-nowrap"
                                 >
                                   카톡
                                 </button>

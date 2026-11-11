@@ -84,6 +84,7 @@
 
 ## UI 테마 (2026-11-11 사장님: "어둡고 눈 아프다, 홈페이지형 블로그처럼 선명하고 깔끔하게")
 - 밝은 테마가 기본(:root). 다크는 토글(🌙)로, localStorage 키 theme_v2 (예전 'theme' 키는 무시)
+- 기준 디자인: 사장님이 하남점에 만든 proism-hq 페이지 — 흰 헤더에 3M 레드 사각 로고+굵은 상호, 검정 알약형 활성 탭, 가운데 정렬 1360px 컨테이너, 흰 카드+1px 테두리(그림자 없음), 강조는 검정·빨강·회색만(라이트에서 --c-gold=#16181d 검정, 금색은 다크 전용). CRM 헤더·탭·컨테이너와 메인 TopBar 가 이 톤(2026-11-11)
 - 색은 src/app/globals.css 변수만 사용: 바탕 --c-page/--c-card/--c-subtle/--c-hover/--c-border, 글자 --c-text-1~4, 강조 --c-brand(3M 레드)/--c-gold/--c-ok/--c-warn/--c-info/--c-danger/--c-violet. Tailwind 클래스는 text-gold·bg-brand·bg-ok/10 처럼 이름으로(@theme inline 매핑). 컴포넌트에 #16진수 색 직접 쓰지 말 것(라이트·다크 둘 다 깨짐). 예외: 공개 명함 페이지(src/app/card)는 다크 고정, 카카오 노랑·네이버 초록 브랜드색, 인쇄용 문서(보증서·작업 내역서) 인라인 스타일
 
 ## 배포 규칙
