@@ -394,8 +394,8 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-center justify-center" onClick={onClose}>
-      <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-center justify-center p-3" onClick={onClose}>
+      <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl w-full max-w-4xl max-h-[calc(100dvh-1.5rem)] flex flex-col shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="px-6 py-4 border-b border-[var(--c-border)] flex items-center justify-between">
           <h3 className="text-[var(--c-text-1)] font-semibold text-base">📩 견적 문자</h3>
         </div>

@@ -375,8 +375,8 @@ export default function CustomerDetailPage() {
 
       {/* Service Edit Modal */}
       {editService && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-center justify-center" onClick={() => setEditService(null)}>
-          <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl w-full max-w-lg p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-center justify-center p-4" onClick={() => setEditService(null)}>
+          <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl w-full max-w-lg p-6 shadow-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-[var(--c-text-1)] font-semibold text-base mb-4">시공 이력 수정</h3>
             <div className="space-y-3">
               <div>
