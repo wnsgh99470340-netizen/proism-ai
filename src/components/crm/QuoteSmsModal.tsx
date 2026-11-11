@@ -48,17 +48,76 @@ const DEFAULT_TERMS: Record<ServiceKey, string> = {
   유리막코팅: '6개월마다 메인터넌스',
   실내PPF: '6개월마다 메인터넌스',
 };
-/** 시공별 등급 선택지 (가격은 비워 두고 사장님이 넣은 값을 기억) */
-const GRADE_PRESETS: Record<ServiceKey, string[]> = {
-  PPF: ['시리즈50(185μm)', '시리즈100(190μm)', '시리즈150(190μm·발수)', 'PRO200 유광(200μm·발수)', 'PRO200 무광(200μm·발수)'],
-  컬러PPF: ['3M PWF 유광', '3M PWF 무광', '3M PWF 사틴'],
-  랩핑: ['3M 2080 유광', '3M 2080 무광', '3M 2080 사틴', '3M 2080 메탈릭'],
-  크롬죽이기: ['3M 2080 글로스블랙 (윈도우몰딩)', '3M 2080 글로스블랙 (그릴 포함)', '3M 2080 글로스블랙 (전체)'],
-  신차패키지: ['썬팅 + 프론트 PPF + 유리막', '썬팅 + 전체 PPF + 유리막', '썬팅 + 생활보호 PPF + 유리막'],
-  썬팅: ['3M 크리스탈라인', '루마 버텍스 900', '글라스틴트 로데'],
-  유리막코팅: ['고강도 유리막코팅', '유리막코팅 2레이어'],
-  실내PPF: ['실내 PPF T존', '실내 PPF 전체'],
+/**
+ * 가격표 (2026-11-11 사장님 견적표 소비자 가격 = 정상가, 세단 기준)
+ * 시공 → 범위 → 항목·정상가. 사장님이 창에서 고친 금액은 localStorage 에 기억되어 다음부터 우선 적용
+ */
+type PriceItem = { grade: string; price: number };
+const PRICE_BOOK: Record<ServiceKey, Record<string, PriceItem[]>> = {
+  PPF: {
+    전체: [
+      { grade: '시리즈50(185μm)', price: 5500000 },
+      { grade: '시리즈100(190μm)', price: 6000000 },
+      { grade: '시리즈150(190μm·발수)', price: 6500000 },
+      { grade: 'PRO200 유광(200μm·발수)', price: 7000000 },
+      { grade: 'PRO200 무광(200μm·발수)', price: 7000000 },
+    ],
+    프론트: [{ grade: 'FULL 프론트 PPF 패키지(범퍼+본넷+프론트휀더)', price: 2500000 }],
+    생활보호: [
+      { grade: '생활보호 PPF 3종(도어컵+도어엣지+주유구)', price: 100000 },
+      { grade: '생활보호 PPF 4종(3종+트렁크리드)', price: 150000 },
+      { grade: '생활보호 PPF 5종(4종+헤드라이트)', price: 350000 },
+      { grade: '생활보호 PPF 6종(5종+사이드미러커버)', price: 500000 },
+    ],
+    부분: [
+      { grade: '헤드라이트 PPF', price: 200000 },
+      { grade: '사이드미러 PPF', price: 150000 },
+      { grade: '트렁크리드 PPF', price: 70000 },
+      { grade: '하이그로시 필러 PPF(1짝)', price: 40000 },
+    ],
+  },
+  컬러PPF: {
+    전체: [{ grade: '전체 컬러 PPF (3M PWF)', price: 6500000 }],
+    투톤: [{ grade: '투톤 컬러 PPF (상단)', price: 3000000 }],
+  },
+  랩핑: {
+    전체: [{ grade: '전체 랩핑 (3M 2080)', price: 3000000 }],
+    투톤: [{ grade: '투톤 랩핑 (상단, PET 고광택)', price: 2000000 }],
+    루프: [{ grade: '루프스킨 랩핑', price: 250000 }],
+  },
+  크롬죽이기: {
+    윈도우몰딩: [{ grade: '크롬죽이기 (윈도우몰딩, 3M 2080 글로스블랙)', price: 0 }],
+    전체: [{ grade: '크롬죽이기 전체 (3M 2080 글로스블랙)', price: 1400000 }],
+  },
+  신차패키지: {
+    전체: [
+      { grade: '썬팅 + 프론트 PPF 패키지 + 유리막코팅', price: 0 },
+      { grade: '썬팅 + 전체 PPF + 유리막코팅', price: 0 },
+      { grade: '썬팅 + 생활보호 PPF + 유리막코팅', price: 0 },
+    ],
+  },
+  썬팅: {
+    전체: [
+      { grade: '3M 크리스탈라인 (전면+측후면)', price: 0 },
+      { grade: '루마 버텍스 900 (전면+측후면)', price: 0 },
+      { grade: '글라스틴트 로데 (전면+측후면)', price: 0 },
+    ],
+  },
+  유리막코팅: {
+    전체: [{ grade: '고강도 유리막코팅', price: 0 }, { grade: '유리막코팅 2레이어', price: 0 }],
+  },
+  실내PPF: {
+    부분: [
+      { grade: '디스플레이(네비게이션) PPF', price: 70000 },
+      { grade: '기어판넬(기어봉 주변) PPF', price: 150000 },
+      { grade: '실내 사이드스텝 PPF(4짝)', price: 160000 },
+      { grade: '가죽코팅(침투형)', price: 500000 },
+    ],
+  },
 };
+const rangesOf = (svc: ServiceKey) => Object.keys(PRICE_BOOK[svc]);
+const itemsOf = (svc: ServiceKey, range: string): PriceItem[] => PRICE_BOOK[svc][range] || PRICE_BOOK[svc][rangesOf(svc)[0]] || [];
+const bookPrice = (svc: ServiceKey, range: string, grade: string) => itemsOf(svc, range).find((i) => i.grade === grade)?.price || 0;
 const DEFAULT_LINK = 'https://blog.naver.com/roice_/223938165520';
 const STORE_KEY = 'crm_quote_sms_memory_v1';
 
@@ -103,7 +162,7 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
   const [phone, setPhone] = useState(initial.phone || '');
   const [car, setCar] = useState(initial.car || '');
   const [service, setService] = useState<ServiceKey>(normalizeService(initial.service));
-  const [range, setRange] = useState('전체');
+  const [range, setRange] = useState<string>(() => rangesOf(normalizeService(initial.service))[0]);
   const [summary, setSummary] = useState('');
   const [recGrade, setRecGrade] = useState('');
   const [recPrice, setRecPrice] = useState('');
@@ -113,7 +172,7 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
   const [altWhy, setAltWhy] = useState('');
   const [extraLabel, setExtraLabel] = useState('');
   const [extraPrice, setExtraPrice] = useState('');
-  const [priceNote, setPriceNote] = useState('후기 남겨주시는 조건의 금액이고, 다른 등급도 안내해 드립니다');
+  const [priceNote, setPriceNote] = useState('정상가 기준이며 세단 기준입니다. SUV·RV는 추가 금액이 있을 수 있고, 다른 등급도 안내해 드립니다');
   const [benefits, setBenefits] = useState('');
   const [terms, setTerms] = useState('');
   const [date1, setDate1] = useState(addDays(today, 2));
@@ -123,26 +182,33 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
-  // 시공 바꾸면 등급·혜택 기본값 갱신 (기억된 가격 복원)
+  // 시공 바꾸면 범위·혜택 기본값 갱신
   useEffect(() => {
-    const presets = GRADE_PRESETS[service];
-    setRecGrade(presets[1] || presets[0] || '');
-    setAltGrade(presets[2] || '');
+    setRange((r) => (rangesOf(service).includes(r) ? r : rangesOf(service)[0]));
     setBenefits(mem.benefits[service] || DEFAULT_BENEFITS[service]);
     setTerms(DEFAULT_TERMS[service]);
   }, [service, mem.benefits]);
-  useEffect(() => { setRecPrice(mem.prices[`${service}|${recGrade}`] || ''); }, [service, recGrade, mem.prices]);
-  useEffect(() => { setAltPrice(mem.prices[`${service}|${altGrade}`] || ''); }, [service, altGrade, mem.prices]);
+  // 범위 바꾸면 추천=두 번째(없으면 첫째), 상위=세 번째
+  useEffect(() => {
+    const items = itemsOf(service, range);
+    setRecGrade(items[1]?.grade || items[0]?.grade || '');
+    setAltGrade(items[2]?.grade || '');
+  }, [service, range]);
+  // 가격: 사장님이 고친 값(기억) → 가격표 정상가 → 빈칸
+  useEffect(() => { const b = bookPrice(service, range, recGrade); setRecPrice(mem.prices[`${service}|${recGrade}`] || (b ? String(b) : '')); }, [service, range, recGrade, mem.prices]);
+  useEffect(() => { const b = bookPrice(service, range, altGrade); setAltPrice(mem.prices[`${service}|${altGrade}`] || (b ? String(b) : '')); }, [service, range, altGrade, mem.prices]);
+  const presetGrades = itemsOf(service, range).map((i) => i.grade);
 
   const text = useMemo(() => {
     const lines: string[] = [];
     lines.push('안녕하세요 3M 프로이즘 진준호입니다.');
-    lines.push(`방금 통화한 ${[car, range !== '전체' ? range : '', service].filter(Boolean).join(' ')} 견적입니다.`);
+    lines.push(`방금 통화한 ${[car, range, service].filter(Boolean).join(' ')} 견적입니다.`);
     lines.push('');
     if (extraLabel && extraPrice) { lines.push(`${extraLabel} ${won(extraPrice)}`); lines.push(''); }
     if (summary) lines.push(summary.trim().replace(/[.。]$/, '') + (recGrade ? ' →' : ''));
     if (recGrade) lines.push(`${recWhy ? recWhy + ' ' : ''}${recGrade}${recPrice ? ` ${won(recPrice)}` : ''}`.trim());
     if (altGrade && altPrice) lines.push(`${altWhy ? altWhy + ' ' : ''}${altGrade} ${won(altPrice)}`.trim());
+    if ((service === 'PPF' || service === '컬러PPF') && range === '전체') lines.push(service === 'PPF' ? '루프 추가 시 30만원 추가' : '루프 추가 시 50만원 추가');
     if (priceNote) lines.push(`(${priceNote})`);
     lines.push('');
     if (benefits) lines.push(`포함: ${benefits}`);
@@ -194,7 +260,7 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
       consultation_date: today,
       content: `[견적 문자] ${summary || ''}`.trim(),
       estimate: recPrice ? `${recGrade} ${won(recPrice)}` : null,
-      interested_services: `${service}${range !== '전체' ? ` ${range}` : ''}`,
+      interested_services: `${service} ${range}`,
       memo: car || null,
     });
   };
@@ -231,7 +297,7 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
               <div><label className={labelCls}>시공</label>
                 <div className="flex gap-2">
                   <select value={service} onChange={(e) => setService(e.target.value as ServiceKey)} className={inputCls}>{SERVICES.map((s) => <option key={s}>{s}</option>)}</select>
-                  <select value={range} onChange={(e) => setRange(e.target.value)} className={`${inputCls} w-28`}>{['전체', '프론트', '생활보호', '부분', '루프', '윈도우몰딩'].map((r) => <option key={r}>{r}</option>)}</select>
+                  <select value={range} onChange={(e) => setRange(e.target.value)} className={`${inputCls} w-32`}>{rangesOf(service).map((r) => <option key={r}>{r}</option>)}</select>
                 </div>
               </div>
             </div>
@@ -242,17 +308,17 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
             <div className="rounded-lg border border-[#C8A951]/30 bg-[#C8A951]/5 p-3 space-y-2">
               <div className="text-xs font-medium text-[#C8A951]">추천 하나</div>
               <div className="grid grid-cols-[1fr_120px] gap-2">
-                <select value={recGrade} onChange={(e) => setRecGrade(e.target.value)} className={inputCls}>{GRADE_PRESETS[service].map((g) => <option key={g}>{g}</option>)}<option value="">직접 입력</option></select>
+                <select value={recGrade} onChange={(e) => setRecGrade(e.target.value)} className={inputCls}>{presetGrades.map((g) => <option key={g}>{g}</option>)}<option value="">직접 입력</option></select>
                 <input value={recPrice} onChange={(e) => setRecPrice(e.target.value.replace(/[^\d]/g, ''))} inputMode="numeric" className={`${inputCls} text-right`} placeholder="4500000" />
               </div>
-              {!GRADE_PRESETS[service].includes(recGrade) && <input value={recGrade} onChange={(e) => setRecGrade(e.target.value)} className={inputCls} placeholder="추천 항목 이름" />}
+              {!presetGrades.includes(recGrade) && <input value={recGrade} onChange={(e) => setRecGrade(e.target.value)} className={inputCls} placeholder="추천 항목 이름" />}
               <input value={recWhy} onChange={(e) => setRecWhy(e.target.value)} className={inputCls} placeholder="앞에 붙일 말 (예: 충분합니다 →, 권합니다 →) 비워도 됨" />
               <div className="text-[11px] text-[var(--c-text-3)]">{recPrice ? `표시: ${won(recPrice)}` : '금액은 숫자만 (450만원 → 4500000). 한 번 넣으면 다음에 기억합니다'}</div>
             </div>
             <div className="rounded-lg border border-[var(--c-border)] p-3 space-y-2">
               <div className="text-xs font-medium text-[var(--c-text-2)]">상위 선택지 (선택)</div>
               <div className="grid grid-cols-[1fr_120px] gap-2">
-                <select value={altGrade} onChange={(e) => setAltGrade(e.target.value)} className={inputCls}><option value="">없음</option>{GRADE_PRESETS[service].map((g) => <option key={g}>{g}</option>)}</select>
+                <select value={altGrade} onChange={(e) => setAltGrade(e.target.value)} className={inputCls}><option value="">없음</option>{presetGrades.map((g) => <option key={g}>{g}</option>)}</select>
                 <input value={altPrice} onChange={(e) => setAltPrice(e.target.value.replace(/[^\d]/g, ''))} inputMode="numeric" className={`${inputCls} text-right`} placeholder="5000000" />
               </div>
               <input value={altWhy} onChange={(e) => setAltWhy(e.target.value)} className={inputCls} placeholder="예: 발수코팅까지 원하시면" />
