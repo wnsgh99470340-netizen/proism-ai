@@ -178,9 +178,9 @@ const DEFAULT_LINK = L.installer;
 const CARD_URL = 'https://proism-ai.vercel.app/card';
 const STORE_KEY = 'crm_quote_sms_memory_v1';
 
-type Memory = { prices: Record<string, string>; link: string; benefits: Record<string, string> };
+type Memory = { prices: Record<string, string>; link: string; links: Record<string, string>; benefits: Record<string, string> };
 function loadMemory(): Memory {
-  try { return { prices: {}, link: DEFAULT_LINK, benefits: {}, ...JSON.parse(localStorage.getItem(STORE_KEY) || '{}') }; } catch { return { prices: {}, link: DEFAULT_LINK, benefits: {} }; }
+  try { return { prices: {}, link: DEFAULT_LINK, links: {}, benefits: {}, ...JSON.parse(localStorage.getItem(STORE_KEY) || '{}') }; } catch { return { prices: {}, link: DEFAULT_LINK, links: {}, benefits: {} }; }
 }
 function saveMemory(m: Memory) { try { localStorage.setItem(STORE_KEY, JSON.stringify(m)); } catch { /* ignore */ } }
 
@@ -238,7 +238,9 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
   const [terms, setTerms] = useState('');
   const [date1, setDate1] = useState(addDays(today, 2));
   const [date2, setDate2] = useState(addDays(today, 5));
-  const [link, setLink] = useState(DEFAULT_LINK);
+  const [link, setLink] = useState(DEFAULT_LINK);       // 첫 문자
+  const [link2, setLink2] = useState(L.reviews);        // 재연락(D+1)
+  const [link3, setLink3] = useState(L.cheapPpf);       // 마무리(D+3)
   const [withFollowUps, setWithFollowUps] = useState(true);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -247,8 +249,11 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
   useEffect(() => {
     setRange((r) => (rangesOf(service).includes(r) ? r : rangesOf(service)[0]));
     setTerms(DEFAULT_TERMS[service]);
-    setLink(FIRST_LINK[service]);
-  }, [service]);
+    // 사장님이 이 시공에 저장해 둔 링크가 있으면 그것, 없으면 추천 글
+    setLink(mem.links[`${service}|1`] || FIRST_LINK[service]);
+    setLink2(mem.links[`${service}|2`] || NUDGE_LINK[service]);
+    setLink3(mem.links[`${service}|3`] || CLOSE_LINK[service]);
+  }, [service, mem.links]);
   // 범위 바꾸면 추천=두 번째(없으면 첫째), 상위=세 번째
   useEffect(() => {
     const items = itemsOf(service, range);
@@ -294,8 +299,8 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
     return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
   }, [car, range, service, extraLabel, extraPrice, summary, recGrade, recPrice, recSale, recWhy, altGrade, altPrice, altSale, altWhy, priceNote, benefitSel, benefitExtra, terms, date1, date2, link]);
 
-  const followUp1 = `안녕하세요 3M 프로이즘 대표 진준호입니다.\n어제 보내드린 ${car || ''} ${service} 견적 보셨을까요?\n${date1 ? `${dayLabel(date1)} 자리는 아직 비어 있습니다.` : '입고 일정은 맞춰 드릴 수 있습니다.'}\n\n저희에서 시공하신 분들 후기는 여기 모아 두었습니다\n${NUDGE_LINK[service]}\n\n궁금한 점 있으시면 편하게 물어봐 주세요.\n010-7287-7140`;
-  const followUp2 = `3M 프로이즘 대표 진준호입니다. 마지막으로 한 가지만 말씀드리면,\n${service === 'PPF' || service === '컬러PPF' ? '어디서 하시더라도 외부 패널은 열 없이 습식으로, 필름 끝을 패널 안쪽으로 넣어 마감하는지 꼭 확인해 보세요.' : service === '썬팅' ? '어디서 하시더라도 기존 필름 제거는 스팀으로 하는지, 후면 유리는 한 장 시공인지 꼭 확인해 보세요.' : '어디서 하시더라도 필름 끝단 마감과 메인터넌스가 있는지 꼭 확인해 보세요.'}\n\n고르실 때 참고하시라고 글 하나 남깁니다\n${CLOSE_LINK[service]}\n\n도움이 필요하시면 언제든 연락 주세요. 감사합니다.\n010-7287-7140`;
+  const followUp1 = `안녕하세요 3M 프로이즘 대표 진준호입니다.\n어제 보내드린 ${car || ''} ${service} 견적 보셨을까요?\n${date1 ? `${dayLabel(date1)} 자리는 아직 비어 있습니다.` : '입고 일정은 맞춰 드릴 수 있습니다.'}\n\n저희에서 시공하신 분들 후기는 여기 모아 두었습니다\n${link2}\n\n궁금한 점 있으시면 편하게 물어봐 주세요.\n010-7287-7140`;
+  const followUp2 = `3M 프로이즘 대표 진준호입니다. 마지막으로 한 가지만 말씀드리면,\n${service === 'PPF' || service === '컬러PPF' ? '어디서 하시더라도 외부 패널은 열 없이 습식으로, 필름 끝을 패널 안쪽으로 넣어 마감하는지 꼭 확인해 보세요.' : service === '썬팅' ? '어디서 하시더라도 기존 필름 제거는 스팀으로 하는지, 후면 유리는 한 장 시공인지 꼭 확인해 보세요.' : '어디서 하시더라도 필름 끝단 마감과 메인터넌스가 있는지 꼭 확인해 보세요.'}\n\n고르실 때 참고하시라고 글 하나 남깁니다\n${link3}\n\n도움이 필요하시면 언제든 연락 주세요. 감사합니다.\n010-7287-7140`;
 
   const remember = () => {
     const m = loadMemory();
@@ -304,6 +309,8 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
     if (recGrade) m.prices[`${service}|${recGrade}|sale`] = recSale;
     if (altGrade) m.prices[`${service}|${altGrade}|sale`] = altSale;
     m.link = link;
+    m.links = m.links || {};
+    m.links[`${service}|1`] = link; m.links[`${service}|2`] = link2; m.links[`${service}|3`] = link3;
     saveMemory(m);
   };
 
@@ -455,7 +462,13 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
               <div><label className={labelCls}>입고 가능 날짜 1</label><input type="date" value={date1} onChange={(e) => setDate1(e.target.value)} className={inputCls} /></div>
               <div><label className={labelCls}>입고 가능 날짜 2</label><input type="date" value={date2} onChange={(e) => setDate2(e.target.value)} className={inputCls} /></div>
             </div>
-            <div><label className={labelCls}>링크 하나 (시공별 기본 글이 들어가고, 바꿀 수 있음)</label><input value={link} onChange={(e) => setLink(e.target.value)} className={inputCls} /></div>
+            <div className="rounded-lg border border-[var(--c-border)] p-3 space-y-2">
+              <div className="text-xs font-medium text-[var(--c-text-2)]">링크 (문자 하나에 하나 · 시공을 고르면 추천 글이 들어가고, 바꾸면 그 시공에 기억됨)</div>
+              <div><label className={labelCls}>① 첫 문자</label><input value={link} onChange={(e) => setLink(e.target.value)} className={inputCls} /></div>
+              <div><label className={labelCls}>② 재연락 (내일)</label><input value={link2} onChange={(e) => setLink2(e.target.value)} className={inputCls} /></div>
+              <div><label className={labelCls}>③ 마무리 (3일 뒤)</label><input value={link3} onChange={(e) => setLink3(e.target.value)} className={inputCls} /></div>
+              <button type="button" onClick={() => { setLink(FIRST_LINK[service]); setLink2(NUDGE_LINK[service]); setLink3(CLOSE_LINK[service]); }} className="text-xs text-[var(--c-text-3)] underline">추천 글로 되돌리기</button>
+            </div>
             <label className="flex items-center gap-2 text-xs text-[var(--c-text-2)]">
               <input type="checkbox" checked={withFollowUps} onChange={(e) => setWithFollowUps(e.target.checked)} className="accent-[#E4002B]" />
               보내면 사후관리에 재연락(내일)·마무리(3일 뒤) 문자를 자동 등록
