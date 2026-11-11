@@ -314,6 +314,8 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
     const formatted = digits.length === 11 ? `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}` : phone.trim();
     const { data: found } = await supabase.from('customers').select('id').or(`phone.eq.${formatted},phone.eq.${digits}`).limit(1);
     if (found && found.length > 0) return found[0].id as string;
+    // 실제 예약으로 이어질지 모르는 문의라, 고객 목록에 넣을지는 사장님이 고른다
+    if (!confirm(`${name.trim() || '이 번호'}(${formatted})는 고객 목록에 없습니다.\n고객 목록에 추가할까요?\n\n[취소]를 누르면 고객 등록 없이 상담 기록과 재연락만 남깁니다.`)) return null;
     const [brand, ...rest] = car.trim().split(/\s+/);
     const { data: created, error } = await supabase.from('customers').insert({
       name: name.trim() || `전화문의 ${digits.slice(-4)}`,
@@ -336,14 +338,14 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
     if (error) throw new Error(`재연락 등록 실패: ${error.message}`);
   };
   const logConsultation = async (customerId: string | null) => {
-    if (!customerId) return;
+    const who = `${name.trim() || '미등록'} ${phone.trim()}`.trim();
     const { error } = await supabase.from('consultations').insert({
       customer_id: customerId,
       consultation_date: today,
-      content: `[견적 문자 발송]\n${text}`,
+      content: `[견적 문자 발송]${customerId ? '' : ` ${who}`}\n${text}`,
       estimate: recPrice || recSale ? `${recGrade} ${recSale ? won(recSale) : won(recPrice)}` : null,
       interested_services: `${service} ${range}`,
-      memo: summary ? `${car} · ${summary}` : car || null,
+      memo: [customerId ? '' : who, car, summary].filter(Boolean).join(' · ') || null,
     });
     if (error) throw new Error(`상담 기록 실패: ${error.message}`);
   };
@@ -356,7 +358,7 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
       const customerId = await ensureCustomer();
       await logConsultation(customerId);
       if (withFollowUps) await registerFollowUps(customerId);
-      setNote(`${how === 'copy' ? '복사했습니다.' : '문자 앱을 열었습니다.'} 상담 기록에 보낸 문자를 남겼고${withFollowUps ? ', 사후관리에 재연락 2건을 넣었습니다' : ''}${customerId && !initial.customerId ? ' (고객 목록에도 등록)' : ''}.`);
+      setNote(`${how === 'copy' ? '복사했습니다.' : '문자 앱을 열었습니다.'} 상담 기록에 보낸 문자를 남겼고${withFollowUps ? ', 사후관리에 재연락 2건을 넣었습니다' : ''}${customerId && !initial.customerId ? ' (고객 목록에도 등록)' : customerId ? '' : ' (고객 등록은 안 함)'}.`);
       onDone();
     } catch (e) {
       setNote(`⚠️ ${e instanceof Error ? e.message : '실패'}`);

@@ -2129,7 +2129,7 @@ export default function CRMPage() {
                 <div key={c.id} className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-4">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-[var(--c-text-1)]">{c.customer?.name || '-'}</span>
+                      <span className="text-sm font-medium text-[var(--c-text-1)]">{c.customer?.name || (c.memo ? c.memo.split(' · ')[0] : '-')}</span>
                       {c.customer?.phone && <span className="text-xs text-[var(--c-text-3)]">{c.customer.phone}</span>}
                     </div>
                     <div className="flex items-center gap-2">
@@ -2145,7 +2145,9 @@ export default function CRMPage() {
                       <span className="text-xs text-[var(--c-text-3)]">{formatDate(c.consultation_date)}</span>
                     </div>
                   </div>
-                  {c.content && <p className="text-sm text-[var(--c-text-2)] mb-2">{c.content}</p>}
+                  {c.content && (c.content.startsWith('[견적 문자 발송]')
+                    ? <details className="mb-2 text-sm text-[var(--c-text-2)]"><summary className="cursor-pointer">{c.content.split('\n')[0]} — 보낸 문자 보기</summary><pre className="whitespace-pre-wrap font-sans mt-2 text-xs text-[var(--c-text-2)] bg-[var(--c-input)] rounded-lg p-3">{c.content.split('\n').slice(1).join('\n')}</pre></details>
+                    : <p className="text-sm text-[var(--c-text-2)] mb-2">{c.content}</p>)}
                   <div className="flex items-center gap-3 text-xs text-[var(--c-text-3)]">
                     {c.estimate && <span>견적: <span className="text-[#C8A951]">{c.estimate}</span></span>}
                     {c.interested_services && <span>관심: <span className="text-[var(--c-text-2)]">{c.interested_services}</span></span>}
