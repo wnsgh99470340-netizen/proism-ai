@@ -16,7 +16,7 @@ export default function TopBar({ activeEmployeeId, onHelpClick }: TopBarProps) {
   const { theme, toggle: toggleTheme } = useTheme();
 
   return (
-    <div className="h-14 md:h-16 border-b border-[var(--c-border)] bg-[var(--c-card)] flex items-center px-4 md:px-6 justify-between shrink-0 gap-2">
+    <div className="h-14 md:h-16 border-b border-[var(--c-border)] bg-[var(--c-card)] flex items-center px-4 md:px-6 justify-between shrink-0 gap-2 pt-[env(safe-area-inset-top)] box-content">
       <div className="flex items-center gap-2 md:gap-3 min-w-0">
         <div className="flex items-center gap-2.5 shrink-0">
           <span className="w-9 h-9 rounded-lg bg-brand text-white font-extrabold text-[13px] tracking-tight flex items-center justify-center">3M</span>

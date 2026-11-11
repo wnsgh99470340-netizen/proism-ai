@@ -140,7 +140,7 @@ export default function CustomerDetailPage() {
 
   if (!customer) {
     return (
-      <div className="h-screen bg-[var(--c-page)] flex items-center justify-center text-[var(--c-text-3)] text-sm">
+      <div className="h-dvh bg-[var(--c-page)] flex items-center justify-center text-[var(--c-text-3)] text-sm">
         불러오는 중...
       </div>
     );
@@ -154,9 +154,9 @@ export default function CustomerDetailPage() {
   ];
 
   return (
-    <div className="h-screen flex flex-col bg-[var(--c-page)]">
+    <div className="h-dvh flex flex-col bg-[var(--c-page)]">
       {/* Header */}
-      <div className="h-14 border-b border-[var(--c-border)] bg-[var(--c-card)] flex items-center px-4 justify-between shrink-0">
+      <div className="h-14 border-b border-[var(--c-border)] bg-[var(--c-card)] flex items-center px-4 justify-between shrink-0 pt-[env(safe-area-inset-top)] box-content">
         <div className="flex items-center gap-3">
           <Link href="/crm" className="text-[var(--c-text-3)] hover:text-[var(--c-text-1)] transition-colors text-sm">
             ← CRM

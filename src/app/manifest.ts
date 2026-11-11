@@ -7,11 +7,11 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: '3M 프로이즘',
     description: '3M 프로이즘 강남서초점 블로그 자동화 + 고객 관리',
     lang: 'ko',
-    start_url: '/',
+    start_url: '/crm',
     scope: '/',
     display: 'standalone',
     orientation: 'any',
-    background_color: '#1a1a1f',
+    background_color: '#f5f5f6',
     theme_color: '#E4002B',
     icons: [
       { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },

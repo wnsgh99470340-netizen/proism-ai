@@ -3,12 +3,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { todaySeoul, toSeoulISO, addDaysISO } from '@/lib/local-date';
 import { supabase } from '@/lib/supabase';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { quoteForDate } from '@/config/daily-quotes';
 import { BLOG_PREFILL_KEY, CRM_SERVICE_TO_KEY, type BlogPrefill } from '@/config/blog-options';
 import { useTheme } from '@/components/ThemeProvider';
 import QuoteSmsModal, { type QuoteSmsInitial } from '@/components/crm/QuoteSmsModal';
+import BlogWorkspace from '@/components/BlogWorkspace';
+import HelpModal from '@/components/HelpModal';
+import PushToggle from '@/components/PushToggle';
 
 // ─── Types ───────────────────────────────────────────────
 interface Customer {
@@ -69,7 +71,8 @@ interface Consultation {
   customer?: { name: string; phone: string | null };
 }
 
-type Tab = 'home' | 'customers' | 'appointments' | 'followups' | 'consultations';
+type Tab = 'home' | 'blog' | 'customers' | 'appointments' | 'followups' | 'consultations';
+const TAB_KEYS: Tab[] = ['home', 'blog', 'customers', 'appointments', 'followups', 'consultations'];
 
 const SERVICE_TYPES = ['PPF', '컬러PPF', 'PWF', '랩핑', '크롬죽이기', '썬팅', '유리막코팅', '가죽코팅', '실내PPF', '신차패키지'];
 const APPOINTMENT_STATUSES = ['상담중', '예약확정', '시공중', '완료'];
@@ -185,6 +188,18 @@ export default function CRMPage() {
   const router = useRouter();
   const { theme, toggle: toggleTheme } = useTheme();
   const [activeTab, setActiveTab] = useState<Tab>('home');
+  // 블로그 AI 탭 (2026-11-12): 한 번 열면 다른 탭을 봐도 대화·초안을 유지하기 위해 숨기기만 한다
+  const [blogVisited, setBlogVisited] = useState(false);
+  const [prefillNonce, setPrefillNonce] = useState(0);
+  const [helpOpen, setHelpOpen] = useState(false);
+  useEffect(() => { if (activeTab === 'blog') setBlogVisited(true); }, [activeTab]);
+  // 주소 ?tab=blog 로 바로 열기
+  useEffect(() => {
+    try {
+      const t = new URLSearchParams(window.location.search).get('tab');
+      if (t && (TAB_KEYS as string[]).includes(t)) setActiveTab(t as Tab);
+    } catch { /* ignore */ }
+  }, []);
 
   // 카카오 SDK 동적 로드 + 초기화
   useEffect(() => {
@@ -1294,12 +1309,14 @@ export default function CRMPage() {
       source: `CRM ${dateLabel} ${a.customer?.name || ''} ${a.service_type}`.trim(),
     };
     try { sessionStorage.setItem(BLOG_PREFILL_KEY, JSON.stringify(prefill)); } catch { /* ignore */ }
-    router.push('/');
+    setPrefillNonce((n) => n + 1);
+    setActiveTab('blog');
   };
 
   // ─── Render ─────────────────────────────────────────────
   const tabs: { key: Tab; label: string }[] = [
     { key: 'home', label: '홈' },
+    { key: 'blog', label: '✍️ 블로그 AI' },
     { key: 'customers', label: '고객 목록' },
     { key: 'appointments', label: '예약/일정' },
     { key: 'followups', label: '사후관리' },
@@ -1309,13 +1326,13 @@ export default function CRMPage() {
   return (
     <div className="h-dvh flex flex-col bg-[var(--c-page)]">
       {/* Header (2026-11-11 하남점 페이지 톤: 3M 레드 사각 로고 + 알약형 탭, 가운데 컨테이너) */}
-      <header className="bg-[var(--c-card)] border-b border-[var(--c-border)] shrink-0">
+      <header className="bg-[var(--c-card)] border-b border-[var(--c-border)] shrink-0 pt-[env(safe-area-inset-top)]">
         <div className="mx-auto max-w-[1360px] px-4 md:px-6">
           <div className="h-14 md:h-16 flex items-center justify-between gap-3">
-            <Link href="/" className="flex items-center gap-2.5 min-w-0 hover:opacity-80 transition-opacity">
+            <button type="button" onClick={() => setActiveTab('home')} className="flex items-center gap-2.5 min-w-0 hover:opacity-80 transition-opacity text-left">
               <span className="w-9 h-9 rounded-lg bg-brand text-white font-extrabold text-[13px] tracking-tight flex items-center justify-center shrink-0">3M</span>
-              <span className="font-bold text-[15px] md:text-base text-[var(--c-text-1)] whitespace-nowrap truncate">프로이즘 강남 서초점 <span className="text-[var(--c-text-3)] font-medium ml-1">CRM</span></span>
-            </Link>
+              <span className="font-bold text-[15px] md:text-base text-[var(--c-text-1)] whitespace-nowrap truncate">프로이즘 강남 서초점{activeTab === 'blog' && <span className="text-[var(--c-text-3)] font-medium ml-1 hidden sm:inline">블로그 AI</span>}</span>
+            </button>
             <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={toggleTheme}
@@ -1324,12 +1341,16 @@ export default function CRMPage() {
               >
                 {theme === 'dark' ? '🌙' : '☀️'}
               </button>
-              <Link
-                href="/"
-                className="text-xs md:text-sm font-semibold text-[var(--c-text-1)] border border-[var(--c-border)] bg-[var(--c-card)] hover:bg-[var(--c-subtle)] rounded-full px-3.5 py-1.5 whitespace-nowrap transition-colors"
-              >
-                <span className="hidden sm:inline">블로그 AI로 이동</span><span className="sm:hidden">← 블로그</span>
-              </Link>
+              {activeTab === 'blog' && (
+                <button
+                  onClick={() => setHelpOpen(true)}
+                  className="w-8 h-8 rounded-full border border-[var(--c-border)] bg-[var(--c-card)] flex items-center justify-center text-[var(--c-text-3)] hover:text-[var(--c-text-1)] hover:bg-[var(--c-subtle)] transition-colors text-sm"
+                  title="블로그 AI 사용 가이드"
+                >
+                  ?
+                </button>
+              )}
+              <PushToggle />
             </div>
           </div>
           {/* Tabs */}
@@ -1352,7 +1373,7 @@ export default function CRMPage() {
       </header>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto px-4 md:px-6 py-5 md:py-6 [&>*]:mx-auto [&>*]:max-w-[1360px]">
+      <div className={activeTab === 'blog' ? 'hidden' : 'flex-1 overflow-y-auto px-4 md:px-6 py-5 md:py-6 [&>*]:mx-auto [&>*]:max-w-[1360px]'}>
         {/* ─── TAB: 홈 (2026-11-11 하남점 페이지 구조: 인사 → 빠른 실행 → 오늘 예약 / 연락할 사후관리) ─── */}
         {activeTab === 'home' && (() => {
           const fmtDot = (d: string) => d.replace(/-/g, '.');
@@ -1370,7 +1391,7 @@ export default function CRMPage() {
             { icon: '👤', label: '고객 등록', desc: '새 고객 추가', onClick: () => setShowAddCustomer(true) },
             { icon: '📅', label: '예약 등록', desc: '입고 일정 잡기', onClick: () => setShowAddAppointment(true) },
             { icon: '📩', label: '견적 문자', desc: '통화 직후 견적 보내기', onClick: () => setQuoteSms({}) },
-            { icon: '✍️', label: '시공기 쓰기', desc: '블로그 AI로 이동', onClick: () => router.push('/') },
+            { icon: '✍️', label: '시공기 쓰기', desc: '블로그 AI 탭에서 작성', onClick: () => setActiveTab('blog') },
           ];
           const card = 'bg-[var(--c-card)] border border-[var(--c-border)] rounded-2xl';
           const quote = quoteForDate(today);
@@ -2321,6 +2342,14 @@ export default function CRMPage() {
         )}
       </div>
 
+      {/* ─── TAB: 블로그 AI (2026-11-12 블로그 페이지를 CRM 탭으로 합침) ─── */}
+      {blogVisited && (
+        <div className={activeTab === 'blog' ? 'flex-1 flex flex-col min-h-0' : 'hidden'}>
+          <BlogWorkspace embedded prefillNonce={prefillNonce} />
+        </div>
+      )}
+      <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
+
       {/* ─── Modal: 고객 추가 ────────────────────────────────── */}
       {showAddCustomer && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-center justify-center" onClick={() => { setShowAddCustomer(false); setEditCustomerId(null); }}>
@@ -2561,10 +2590,12 @@ export default function CRMPage() {
         />
       )}
 
-      {/* Footer */}
-      <div className="fixed bottom-0 left-0 right-0 bg-[var(--c-input)]/80 backdrop-blur-sm border-t border-[var(--c-border)] py-1.5 px-4 text-center text-[10px] text-[var(--c-text-4)] z-10">
-        3M 프로이즘 | 서초중앙로8길 82, 1동 1층 | 010-7287-7140 | poi_1357@naver.com
-      </div>
+      {/* Footer (블로그 탭에서는 입력창을 가리므로 숨김) */}
+      {activeTab !== 'blog' && (
+        <div className="fixed bottom-0 left-0 right-0 bg-[var(--c-input)]/80 backdrop-blur-sm border-t border-[var(--c-border)] py-1.5 px-4 text-center text-[10px] text-[var(--c-text-4)] z-10">
+          3M 프로이즘 | 서초중앙로8길 82, 1동 1층 | 010-7287-7140 | poi_1357@naver.com
+        </div>
+      )}
     </div>
   );
 }
