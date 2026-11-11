@@ -232,7 +232,7 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
 
   const text = useMemo(() => {
     const lines: string[] = [];
-    lines.push('안녕하세요 3M 프로이즘 진준호입니다.');
+    lines.push('안녕하세요 3M 프로이즘 대표 진준호입니다.');
     lines.push(`방금 통화한 ${[car, range, service].filter(Boolean).join(' ')} 견적입니다.`);
     lines.push('');
     if (extraLabel && extraPrice) { lines.push(`${extraLabel} ${won(extraPrice)}`); lines.push(''); }
