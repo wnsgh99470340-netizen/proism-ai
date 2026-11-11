@@ -1220,6 +1220,42 @@ export default function CRMPage() {
       return a.scheduled_date.localeCompare(b.scheduled_date);
     });
 
+  /** 견적 문자로만 남은 미등록 문의를 고객 목록에 추가 (며칠 뒤 예약이 잡혔을 때). 같은 번호의 상담 기록·재연락을 그 고객에 연결 */
+  const handleAddCustomerFromQuote = async (who: string) => {
+    // who: "이름 010-0000-0000 · 차종 · 요약" 또는 "이름 010-0000-0000"
+    const head = who.split(' · ')[0].trim();
+    const phoneMatch = head.match(/01[016789]-?\d{3,4}-?\d{4}/);
+    if (!phoneMatch) { alert('전화번호를 찾지 못했습니다.'); return; }
+    const digits = phoneMatch[0].replace(/[^\d]/g, '');
+    const formatted = digits.length === 11 ? `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}` : phoneMatch[0];
+    const name = head.replace(phoneMatch[0], '').trim() || `전화문의 ${digits.slice(-4)}`;
+    const car = (who.split(' · ')[1] || '').trim();
+    const [brand, ...rest] = car.split(/\s+/);
+    let customerId: string | null = null;
+    const { data: found } = await supabase.from('customers').select('id').or(`phone.eq.${formatted},phone.eq.${digits}`).limit(1);
+    const existed = !!(found && found.length > 0);
+    if (existed) {
+      customerId = found![0].id as string;
+    } else {
+      const { data: created, error } = await supabase.from('customers').insert({
+        name, phone: formatted, car_brand: brand || null, car_model: rest.join(' ') || null, source: '경로X', memo: '견적 문자 문의 → 고객 등록',
+      }).select('id').single();
+      if (error || !created) { alert(`고객 등록 실패: ${error?.message || ''}`); return; }
+      customerId = created.id as string;
+    }
+    // 같은 번호로 남은 미연결 상담 기록·재연락을 전부 이 고객에 연결
+    const { data: cons } = await supabase.from('consultations').select('id, memo, content').is('customer_id', null);
+    const consIds = (cons || []).filter((c) => `${c.memo || ''} ${c.content || ''}`.replace(/-/g, '').includes(digits)).map((c) => c.id);
+    if (consIds.length) await supabase.from('consultations').update({ customer_id: customerId }).in('id', consIds);
+    const { data: fus } = await supabase.from('follow_ups').select('id, memo').is('customer_id', null);
+    const fuIds = (fus || []).filter((f) => (f.memo || '').split('\n')[0].replace(/-/g, '').includes(digits)).map((f) => f.id);
+    if (fuIds.length) await supabase.from('follow_ups').update({ customer_id: customerId }).in('id', fuIds);
+    alert(`${name} 고객을 ${existed ? '기존 고객으로 연결' : '고객 목록에 추가'}했습니다. (상담 ${consIds.length}건, 재연락 ${fuIds.length}건 연결)`);
+    fetchCustomers();
+    fetchConsultations();
+    fetchFollowUps();
+  };
+
   // ─── Consultation Actions ───────────────────────────────
   const handleAddConsultation = async () => {
     if (!consultationForm.customer_id || !consultationForm.consultation_date) return;
@@ -1962,6 +1998,9 @@ export default function CRMPage() {
                         <button onClick={() => sendSms(smsReviewAudi, 'audi')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${reviewBtn('audi')}`}>{sent.audi ? '✓ 아우디 문자' : '아우디 문자'}</button>
                         </>
                       )}
+                      {isQuote && !f.customer_id && (
+                        <button onClick={() => handleAddCustomerFromQuote(quoteHead)} className="text-[10px] font-medium px-2.5 py-1 rounded-lg bg-[#22c55e]/15 hover:bg-[#22c55e]/25 text-[#22c55e] transition-colors">＋ 고객 목록에 추가</button>
+                      )}
                       {isQuote && (
                         <>
                         <button onClick={() => sendSms(quoteBody, 'quote')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${sent.quote ? sentBtn : 'bg-[#C8A951]/20 text-[#C8A951] hover:bg-[#C8A951]/30'}`}>{sent.quote ? '✓ 문자완료' : (f.follow_up_type === '견적재연락' ? '재연락 문자' : '마무리 문자')}</button>
@@ -2133,6 +2172,9 @@ export default function CRMPage() {
                       {c.customer?.phone && <span className="text-xs text-[var(--c-text-3)]">{c.customer.phone}</span>}
                     </div>
                     <div className="flex items-center gap-2">
+                      {!c.customer_id && c.memo && /01[016789]-?\d{3,4}-?\d{4}/.test(c.memo) && (
+                        <button onClick={() => handleAddCustomerFromQuote(c.memo!)} className="text-[10px] font-medium px-2.5 py-1 rounded-lg bg-[#22c55e]/15 hover:bg-[#22c55e]/25 text-[#22c55e] transition-colors">＋ 고객 목록에 추가</button>
+                      )}
                       <button
                         onClick={() => {
                           const cu = customers.find((x) => x.id === c.customer_id);
