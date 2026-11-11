@@ -10,7 +10,8 @@ export function middleware(request: NextRequest) {
     pathname.startsWith('/api/cron/') ||
     pathname === '/sw.js' ||
     pathname === '/manifest.webmanifest' ||
-    pathname === '/api/jobs/run' // 서버 내부 단계 호출 (라우트에서 시크릿/쿠키 직접 검증)
+    pathname === '/api/jobs/run' || // 서버 내부 단계 호출 (라우트에서 시크릿/쿠키 직접 검증)
+    pathname === '/card' || pathname.startsWith('/card/') // 공개 명함 페이지·명함 이미지·연락처 파일 (견적 문자 링크)
   ) {
     return NextResponse.next();
   }

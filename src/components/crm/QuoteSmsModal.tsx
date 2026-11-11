@@ -147,6 +147,7 @@ const rangesOf = (svc: ServiceKey) => Object.keys(PRICE_BOOK[svc]);
 const itemsOf = (svc: ServiceKey, range: string): PriceItem[] => PRICE_BOOK[svc][range] || PRICE_BOOK[svc][rangesOf(svc)[0]] || [];
 const bookPrice = (svc: ServiceKey, range: string, grade: string) => itemsOf(svc, range).find((i) => i.grade === grade)?.price || 0;
 const DEFAULT_LINK = 'https://blog.naver.com/roice_/223938165520';
+const CARD_URL = 'https://proism-ai.vercel.app/card';
 const STORE_KEY = 'crm_quote_sms_memory_v1';
 
 type Memory = { prices: Record<string, string>; link: string; benefits: Record<string, string> };
@@ -259,6 +260,7 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
       lines.push('');
     }
     if (link) { lines.push('시공 사진·과정은 여기 한 편만 보시면 됩니다'); lines.push(link); lines.push(''); }
+    lines.push(`명함·연락처 저장: ${CARD_URL}`);
     lines.push('3M 프로이즘 강남서초점 010-7287-7140');
     return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
   }, [car, range, service, extraLabel, extraPrice, summary, recGrade, recPrice, recSale, recWhy, altGrade, altPrice, altSale, altWhy, priceNote, benefitSel, benefitExtra, terms, date1, date2, link]);
@@ -281,6 +283,27 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
     if (!p) { setNote('전화번호가 필요합니다.'); return; }
     const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
     window.open(isIOS ? `sms:${p}&body=${encodeURIComponent(text)}` : `sms:${p}?body=${encodeURIComponent(text)}`);
+  };
+
+  /** 명함 이미지 보내기: 폰 공유 창에 명함 앞뒷면을 들고 열어 메시지 앱으로 사진 문자 전송 */
+  const shareCard = async () => {
+    try {
+      const files = await Promise.all(['front', 'back'].map(async (side) => {
+        const r = await fetch(`/card/${side}.jpg`);
+        const b = await r.blob();
+        return new File([b], `3M프로이즘_명함_${side === 'front' ? '앞' : '뒤'}.jpg`, { type: 'image/jpeg' });
+      }));
+      const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
+      if (nav.share && (!nav.canShare || nav.canShare({ files }))) {
+        await nav.share({ files, text: `3M 프로이즘 강남서초점 대표 진준호 / 010-7287-7140\n${CARD_URL}` });
+        setNote('명함 이미지를 공유했습니다.');
+      } else {
+        window.open('/card/front.jpg', '_blank');
+        setNote('이 기기는 이미지 공유를 지원하지 않아 명함 이미지를 새 창에 열었습니다. 길게 눌러 저장한 뒤 보내 주세요.');
+      }
+    } catch (e) {
+      if (!(e instanceof Error && e.name === 'AbortError')) setNote('명함 공유에 실패했습니다.');
+    }
   };
 
   const registerFollowUps = async () => {
@@ -409,6 +432,7 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
         </div>
         <div className="px-6 py-4 border-t border-[var(--c-border)] flex justify-end gap-2">
           <button onClick={onClose} className="px-4 py-2 text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-2)]">닫기</button>
+          <button onClick={shareCard} disabled={busy} className="bg-[var(--c-subtle)] hover:bg-[var(--c-hover)] text-[var(--c-text-1)] text-sm font-medium rounded-lg px-4 py-2 disabled:opacity-50" title="문자를 보낸 뒤 명함 사진을 같은 번호로 보낼 때">📇 명함 이미지</button>
           <button onClick={() => send('copy')} disabled={busy || !car} className="bg-[var(--c-subtle)] hover:bg-[var(--c-hover)] text-[var(--c-text-1)] text-sm font-medium rounded-lg px-4 py-2 disabled:opacity-50">📋 복사</button>
           <button onClick={() => send('sms')} disabled={busy || !car || !phone} className="bg-[#E4002B] hover:bg-[#c60026] text-white text-sm font-medium rounded-lg px-4 py-2 disabled:opacity-50">💬 문자 보내기</button>
         </div>
