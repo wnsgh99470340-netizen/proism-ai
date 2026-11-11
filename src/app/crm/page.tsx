@@ -72,6 +72,20 @@ type Tab = 'customers' | 'appointments' | 'followups' | 'consultations';
 const SERVICE_TYPES = ['PPF', '컬러PPF', 'PWF', '랩핑', '크롬죽이기', '썬팅', '유리막코팅', '가죽코팅', '실내PPF', '신차패키지'];
 const APPOINTMENT_STATUSES = ['상담중', '예약확정', '시공중', '완료'];
 const FOLLOW_UP_TYPES = ['QC점검', '메인터넌스', '후기요청'];
+/** 후기 요청 문자 3종(후기 게시판 링크만 다름). 사후관리 탭과 예약/일정 상세 줄에서 같이 쓴다 */
+const REVIEW_SMS = {
+  proism: `안녕하세요, 3M프로이즘입니다.\n멋지게 작업이 완료된 차량 사진을 보내드리오니, 소중한 후기 작성 잘 부탁드리겠습니다.\n➊ 아래의 링크 클릭\n➋ 첨부드린 사진으로 후기 작성\n[ 🚩 후기 게시판 링크 ]\nhttps://m.site.naver.com/1S6dj\n고객님의 솔직한 리뷰는 저희에게 아주 큰 힘이 됩니다. 정말 감사드리며, 이후에 이어질 메인터넌스 시기(약 6개월 후)에도 차별화 된 서비스로 다시 또 찾아뵐게요!`,
+  bmw: `안녕하세요, 3M프로이즘입니다.\n멋지게 작업이 완료된 차량 사진을 보내드리오니, 소중한 후기 작성 잘 부탁드리겠습니다.\n➊ 아래의 링크 클릭\n➋ 첨부드린 사진으로 후기 작성\n[ 🚩 후기 게시판 링크 ]\nhttps://m.site.naver.com/1S6e3\n고객님의 솔직한 리뷰는 저희에게 아주 큰 힘이 됩니다. 정말 감사드리며, 이후에 이어질 메인터넌스 시기(약 6개월 후)에도 차별화 된 서비스로 다시 또 찾아뵈겠습니다!`,
+  audi: `안녕하세요, 3M프로이즘입니다.\n멋지게 작업이 완료된 차량 사진을 보내드리오니, 소중한 후기 작성 잘 부탁드리겠습니다.\n➊ 아래의 링크 클릭\n➋ 첨부드린 사진으로 후기 작성\n[ 🚩 후기 게시판 링크 ]\nhttps://m.site.naver.com/1S6ej\n고객님의 솔직한 리뷰는 저희에게 아주 큰 힘이 됩니다. 정말 감사드리며, 이후에 이어질 메인터넌스 시기(약 6개월 후)에도 차별화 된 서비스로 다시 또 찾아뵈겠습니다!`,
+};
+/** 폰 문자 앱 열기 (iOS는 &body=, Android는 ?body=) */
+function openSmsApp(phone: string, msg: string) {
+  const p = phone.replace(/[^\d]/g, '');
+  const cleanMsg = msg.replace(/\\n/g, '\n').trim();
+  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  window.open(isIOS ? `sms:${p}&body=${encodeURIComponent(cleanMsg)}` : `sms:${p}?body=${encodeURIComponent(cleanMsg)}`);
+}
+
 
 
 const TEMPLATE_KEYS = ['크롬죽이기', 'PPF', '신차패키지', '랩핑'];
@@ -522,6 +536,18 @@ export default function CRMPage() {
     ].join('\r\n');
   };
 
+  // 예약/일정 상세 줄에서 후기 요청 문자 (프로이즘·아우디·BMW). 보냈다고 하면 그 고객의 후기요청 사후관리에도 보낸 표시
+  const handleReviewSmsFromAppointment = async (a: Appointment, key: 'proism' | 'bmw' | 'audi') => {
+    const phone = a.customer?.phone;
+    if (!phone) return;
+    openSmsApp(phone, REVIEW_SMS[key]);
+    if (!confirm('문자를 전송하셨나요?')) return;
+    const { data } = await supabase.from('follow_ups').select('id, sms_sent').eq('customer_id', a.customer_id).eq('follow_up_type', '후기요청').eq('is_completed', false);
+    for (const f of data || []) {
+      await supabase.from('follow_ups').update({ sms_sent: { ...((f.sms_sent as Record<string, boolean> | null) || {}), [key]: true } }).eq('id', f.id);
+    }
+    if (data && data.length > 0) fetchFollowUps();
+  };
   const handleDownloadICS = (appointment: Appointment) => {
     const ics = generateICS(appointment);
     const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
@@ -1588,6 +1614,11 @@ export default function CRMPage() {
                           <button onClick={() => handleOpenWarranty(a)} className={`text-xs font-medium rounded-lg px-2.5 py-1 transition-colors ${hasWarrantyIssued(a.memo) ? 'bg-[#22c55e] text-white' : 'bg-[#22c55e]/10 hover:bg-[#22c55e]/20 text-[#22c55e]'}`}>{hasWarrantyIssued(a.memo) ? '✓ 보증서 발급완료' : '보증서'}</button>
                           {(() => { try { const m = JSON.parse(a.memo || '{}'); if (m.warranty_url) return <button onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(m.warranty_url); alert('보증서 URL이 복사되었습니다.'); }} className="text-[10px] font-medium px-2 py-1 rounded-lg bg-[#22c55e]/10 text-[#22c55e] hover:bg-[#22c55e]/20 transition-colors">URL 복사</button>; } catch {} return null; })()}
                           <button onClick={() => handleDownloadICS(a)} className="bg-[#3B82F6]/10 hover:bg-[#3B82F6]/20 text-[#3B82F6] text-xs font-medium rounded-lg px-2.5 py-1 transition-colors">캘린더</button>
+                          {a.customer?.phone && (['proism', 'audi', 'bmw'] as const).map((k) => (
+                            <button key={k} onClick={(e) => { e.stopPropagation(); handleReviewSmsFromAppointment(a, k); }} className="bg-[#F59E0B]/10 hover:bg-[#F59E0B]/20 text-[#FBBF24] text-xs font-medium rounded-lg px-2.5 py-1 transition-colors" title="후기 요청 문자 보내기">
+                              후기 {k === 'proism' ? '프로이즘' : k === 'audi' ? '아우디' : 'BMW'} 문자
+                            </button>
+                          ))}
                           {a.status !== '완료' && (
                             <select value="" onChange={(e) => { if (e.target.value) handleStatusChange(a, e.target.value); }} className="bg-[var(--c-subtle)] border border-[#2a2a2e] rounded-lg px-2 py-1 text-xs text-[var(--c-text-2)] outline-none cursor-pointer">
                               <option value="">상태 변경</option>
@@ -1666,9 +1697,9 @@ export default function CRMPage() {
 
                 const smsQC = `안녕하세요, 3M프로이즘입니다 ^^\n시공해드린 차량, 잘 타고 계신가요?\n\n시공 후 2주가 지나 QC 점검 시기가 되어 연락드렸습니다.\n필름이 완전히 안착되는 시기이기도 하고, 혹시 생활하시면서 불편하셨던 부분이 있으시다면 이번에 같이 확인해드리려고 합니다.\n\n편하신 날짜 말씀해주시면 점검 일정 잡아드리겠습니다.\n늘 감사합니다!`;
                 const smsMaint = `안녕하세요, 3M프로이즘입니다 ^^\n시공 후 6개월이 되어 메인터넌스 안내드립니다.\n\n필름 상태 점검과 함께 가벼운 외부 세척, 마감 재점검까지 진행해드리고 있습니다.\n오래오래 깔끔하게 유지하실 수 있도록 저희가 꾸준히 관리해드릴게요.\n\n편하신 날짜 말씀해주시면 일정 잡아드리겠습니다.\n항상 감사합니다!`;
-                const smsReviewProism = `안녕하세요, 3M프로이즘입니다.\n멋지게 작업이 완료된 차량 사진을 보내드리오니, 소중한 후기 작성 잘 부탁드리겠습니다.\n➊ 아래의 링크 클릭\n➋ 첨부드린 사진으로 후기 작성\n[ 🚩 후기 게시판 링크 ]\nhttps://m.site.naver.com/1S6dj\n고객님의 솔직한 리뷰는 저희에게 아주 큰 힘이 됩니다. 정말 감사드리며, 이후에 이어질 메인터넌스 시기(약 6개월 후)에도 차별화 된 서비스로 다시 또 찾아뵐게요!`;
-                const smsReviewBMW = `안녕하세요, 3M프로이즘입니다.\n멋지게 작업이 완료된 차량 사진을 보내드리오니, 소중한 후기 작성 잘 부탁드리겠습니다.\n➊ 아래의 링크 클릭\n➋ 첨부드린 사진으로 후기 작성\n[ 🚩 후기 게시판 링크 ]\nhttps://m.site.naver.com/1S6e3\n고객님의 솔직한 리뷰는 저희에게 아주 큰 힘이 됩니다. 정말 감사드리며, 이후에 이어질 메인터넌스 시기(약 6개월 후)에도 차별화 된 서비스로 다시 또 찾아뵈겠습니다!`;
-                const smsReviewAudi = `안녕하세요, 3M프로이즘입니다.\n멋지게 작업이 완료된 차량 사진을 보내드리오니, 소중한 후기 작성 잘 부탁드리겠습니다.\n➊ 아래의 링크 클릭\n➋ 첨부드린 사진으로 후기 작성\n[ 🚩 후기 게시판 링크 ]\nhttps://m.site.naver.com/1S6ej\n고객님의 솔직한 리뷰는 저희에게 아주 큰 힘이 됩니다. 정말 감사드리며, 이후에 이어질 메인터넌스 시기(약 6개월 후)에도 차별화 된 서비스로 다시 또 찾아뵈겠습니다!`;
+                const smsReviewProism = REVIEW_SMS.proism;
+                const smsReviewBMW = REVIEW_SMS.bmw;
+                const smsReviewAudi = REVIEW_SMS.audi;
                 const sent = f.sms_sent || {};
                 const markSent = async (key: string) => {
                   const updated = { ...sent, [key]: true };
