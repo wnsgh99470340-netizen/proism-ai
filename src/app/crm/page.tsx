@@ -67,82 +67,12 @@ interface Consultation {
   customer?: { name: string; phone: string | null };
 }
 
-type Tab = 'customers' | 'appointments' | 'followups' | 'consultations' | 'templates';
+type Tab = 'customers' | 'appointments' | 'followups' | 'consultations';
 
 const SERVICE_TYPES = ['PPF', '컬러PPF', 'PWF', '랩핑', '크롬죽이기', '썬팅', '유리막코팅', '가죽코팅', '실내PPF', '신차패키지'];
 const APPOINTMENT_STATUSES = ['상담중', '예약확정', '시공중', '완료'];
 const FOLLOW_UP_TYPES = ['QC점검', '메인터넌스', '후기요청'];
 
-const DEFAULT_TEMPLATES: Record<string, string> = {
-  '크롬죽이기': `안녕하세요? 3M 프로이즘 입니다.
-문의주신 견적 안내드리며, 자세한 내용과 서비스 혜택 안내드립니다.
-
-크롬죽이기 전체시공 정가 140>할인가 120만원까지 시공가능하시며 그릴을 가져오신다면 ( 90만원까지 전체크롬죽이기 가능하십니다 ^^)
-
-집중하여 작업하고있는 것을 원칙으로하여, 바로 예약이 안되어
-사전예약을 받고 있으니 참고 부탁드립니다 ^^
-
-사전예약 시 다음 무상시공 혜택을 드립니다.
-[무상시공] 생활보호패키지 4종(컵 엣지 주유구 트렁크리드 )
-[무상시공] 실내PPF [ 액정 )
-[옵션시공] PPF / 랩핑 / 루프스킨 / 크롬딜리트 / 투톤PPF
-
-[참고 해주세요]
-1. 우리는 전 세계적으로 인증받고있는 제품의 3M PRO 취급점 이며 제품과 기술력의 인증이 확실합니다.
-2. 시공 후 6개월 주기로 꾸준한 메인터넌스 헤택을 받을 수 있습니다.
-3. 제품보증과 시공보증 2중발급 시스템으로 확실한 사후관리가 가능합니다.
-
-[입금 안내]
-KB국민은행 77501-04-276096 (브레이브보이즈)`,
-  'PPF': `안녕하세요? 3M 프로이즘 입니다.
-문의주신 견적 안내드리며, 자세한 내용과 서비스 혜택 안내드립니다.
-
-사전예약 시 다음 무상시공 혜택을 드립니다.
-[무상시공] 필름코팅
-[무상시공] 실내PPF [ T존 ]
-[무상시공] 실내전체코팅
-[옵션시공] PPF / 랩핑 / 루프스킨 / 크롬딜리트 / 투톤PPF
-
-[참고 해주세요]
-1. 우리는 전 세계적으로 인증받고있는 제품의 3M PRO 취급점 이며 제품과 기술력의 인증이 확실합니다.
-2. 시공 후 6개월 주기로 꾸준한 메인터넌스 헤택을 받을 수 있습니다.
-3. 제품보증과 시공보증 2중발급 시스템으로 확실한 사후관리가 가능합니다.
-
-[입금 안내]
-KB국민은행 77501-04-276096 (브레이브보이즈)`,
-  '신차패키지': `안녕하세요? 3M 프로이즘 입니다.
-문의주신 견적 안내드리며, 자세한 내용과 서비스 혜택 안내드립니다.
-
-사전예약 시 다음 무상시공 혜택을 드립니다.
-[무상시공] 실내PPF [ T존 ]
-[무상시공] B/C필러 PPF
-[무상시공] 유리막코팅 업그레이드 (2layering)
-[옵션시공] PPF / 랩핑 / 루프스킨 / 크롬딜리트 / 투톤PPF
-
-[참고 해주세요]
-1. 신차계약 후 탁송지 지정은 3M 프로이즘으로 해주세요 [서울시 서초구 서초중앙로8길 82, 1동 1층 1호 3M 프로이즘]
-2. 차량도착 후 정비자격증소지자의 섬세한 검수가 이뤄집니다. [도막/열화상/진단기/스코프/공기압/배터리진단기 사용] 6SET 첨단장비 사용
-3. 인수인계 여부 및 이슈발생 시, 해결방안 피드백까지 전달드립니다.
-
-[입금 안내]
-KB국민은행 77501-04-276096 (브레이브보이즈)`,
-  '랩핑': `안녕하세요? 3M 프로이즘 입니다.
-문의주신 견적 안내드리며, 자세한 내용과 서비스 혜택 안내드립니다.
-
-사전예약 시 다음 무상시공 혜택을 드립니다.
-[무상시공] 필름코팅
-[무상시공] 실내PPF [ T존 ]
-[무상시공] 생활보호패키지 컵 /엣지 PPF
-[옵션시공] PPF / 랩핑 / 루프스킨 / 크롬딜리트 / 투톤PPF
-
-[참고 해주세요]
-1. 우리는 전 세계적으로 인증받고있는 제품의 3M PRO 취급점 이며 제품과 기술력의 인증이 확실합니다.
-2. 시공 후 6개월 주기로 꾸준한 메인터넌스 헤택을 받을 수 있습니다.
-3. 제품보증과 시공보증 2중발급 시스템으로 확실한 사후관리가 가능합니다.
-
-[입금 안내]
-KB국민은행 77501-04-276096 (브레이브보이즈)`,
-};
 
 const TEMPLATE_KEYS = ['크롬죽이기', 'PPF', '신차패키지', '랩핑'];
 
@@ -292,12 +222,6 @@ export default function CRMPage() {
     customer_id: '', consultation_date: '', content: '', estimate: '', interested_services: '', memo: '',
   });
 
-  // Estimate state
-  const [estimateForm, setEstimateForm] = useState({
-    customer_id: '', services: [] as string[], serviceDetails: {} as Record<string, string>, amount: '', scheduledDate: '', memo: '',
-  });
-  const [estimateUrl, setEstimateUrl] = useState<string | null>(null);
-  const [estimateLoading, setEstimateLoading] = useState(false);
 
   // Work order modal state
   const [showWorkOrder, setShowWorkOrder] = useState(false);
@@ -335,114 +259,6 @@ export default function CRMPage() {
     notes: '',
   });
 
-  // Template state
-  const [templates, setTemplates] = useState<Record<string, string>>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('crm_templates');
-      if (saved) { try { return JSON.parse(saved); } catch { /* ignore */ } }
-    }
-    return { ...DEFAULT_TEMPLATES };
-  });
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const debounceRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
-
-  const handleTemplateChange = (key: string, value: string) => {
-    const updated = { ...templates, [key]: value };
-    setTemplates(updated);
-    if (debounceRef.current[key]) clearTimeout(debounceRef.current[key]);
-    debounceRef.current[key] = setTimeout(() => {
-      localStorage.setItem('crm_templates', JSON.stringify(updated));
-    }, 500);
-  };
-
-  const handleCopyTemplate = async (key: string) => {
-    await navigator.clipboard.writeText(templates[key] || '');
-    setCopiedKey(key);
-    setTimeout(() => setCopiedKey(null), 2000);
-  };
-
-  const handleResetTemplate = (key: string) => {
-    if (!confirm(`"${key}" 템플릿을 기본값으로 복원하시겠습니까?`)) return;
-    const updated = { ...templates, [key]: DEFAULT_TEMPLATES[key] };
-    setTemplates(updated);
-    localStorage.setItem('crm_templates', JSON.stringify(updated));
-  };
-
-  const handleSaveTemplateImage = (key: string) => {
-    const text = templates[key] || '';
-    const lines = text.split('\n');
-    const W = 800;
-    const PAD = 48;
-    const LINE_H = 28;
-    const FONT_SIZE = 16;
-    const HEADER_H = 80;
-    const FOOTER_H = 70;
-    const bodyH = lines.length * LINE_H + 24;
-    const H = HEADER_H + bodyH + FOOTER_H + PAD * 2;
-
-    const canvas = document.createElement('canvas');
-    canvas.width = W * 2;
-    canvas.height = H * 2;
-    const ctx = canvas.getContext('2d')!;
-    ctx.scale(2, 2);
-
-    // 배경
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, W, H);
-
-    // 상단 로고
-    ctx.fillStyle = '#E4002B';
-    ctx.font = `bold 24px "Pretendard Variable", -apple-system, sans-serif`;
-    ctx.fillText('◆ 3M 프로이즘', PAD, PAD + 30);
-    ctx.fillStyle = '#666666';
-    ctx.font = `14px "Pretendard Variable", -apple-system, sans-serif`;
-    ctx.fillText(`${key} 견적 안내`, PAD + 220, PAD + 30);
-
-    // 구분선
-    ctx.strokeStyle = '#E4002B';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(PAD, HEADER_H + PAD - 10);
-    ctx.lineTo(W - PAD, HEADER_H + PAD - 10);
-    ctx.stroke();
-
-    // 본문
-    ctx.fillStyle = '#1a1a1a';
-    ctx.font = `${FONT_SIZE}px "Pretendard Variable", -apple-system, sans-serif`;
-    lines.forEach((line, i) => {
-      const y = HEADER_H + PAD + 20 + i * LINE_H;
-      if (line.startsWith('[') && line.endsWith(']')) {
-        ctx.font = `bold ${FONT_SIZE}px "Pretendard Variable", -apple-system, sans-serif`;
-        ctx.fillStyle = '#E4002B';
-        ctx.fillText(line, PAD, y);
-        ctx.font = `${FONT_SIZE}px "Pretendard Variable", -apple-system, sans-serif`;
-        ctx.fillStyle = '#1a1a1a';
-      } else {
-        ctx.fillText(line, PAD, y);
-      }
-    });
-
-    // 하단 구분선
-    const footerY = H - FOOTER_H - 10;
-    ctx.strokeStyle = '#dddddd';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(PAD, footerY);
-    ctx.lineTo(W - PAD, footerY);
-    ctx.stroke();
-
-    // 하단 정보
-    ctx.fillStyle = '#888888';
-    ctx.font = `13px "Pretendard Variable", -apple-system, sans-serif`;
-    ctx.fillText('서울특별시 서초구 서초중앙로8길 82 1동 1층 1호 | 3M 프로이즘', PAD, footerY + 25);
-    ctx.fillText('3M 공식 프리퍼드 인스톨러 인증점', PAD, footerY + 48);
-
-    // 다운로드
-    const link = document.createElement('a');
-    link.download = `프로이즘_${key}_견적.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-  };
 
   // Customer picker state (shared)
   const [allCustomers, setAllCustomers] = useState<{ id: string; name: string; phone: string | null; car_brand?: string | null; car_model?: string | null; car_color?: string | null }[]>([]);
@@ -1396,7 +1212,6 @@ export default function CRMPage() {
     { key: 'appointments', label: '예약/일정' },
     { key: 'followups', label: '사후관리' },
     { key: 'consultations', label: '상담 기록' },
-    { key: 'templates', label: '견적 템플릿' },
   ];
 
   return (
@@ -2293,172 +2108,6 @@ export default function CRMPage() {
               {consultations.length === 0 && (
                 <div className="text-center py-12 text-sm text-[var(--c-text-3)]">등록된 상담 기록이 없습니다</div>
               )}
-            </div>
-          </div>
-        )}
-        {/* ─── TAB: 견적 템플릿 ──────────────────────────────── */}
-        {activeTab === 'templates' && (
-          <div className="space-y-6">
-            {/* 견적서 생성 */}
-            <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-5">
-              <h3 className="text-sm font-semibold text-[#C8A951] mb-4">Notion 견적서 생성</h3>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-                <div className="col-span-2 lg:col-span-1">
-                  <label className="text-xs text-[var(--c-text-3)] mb-1 block">고객 선택 *</label>
-                  <select
-                    value={estimateForm.customer_id}
-                    onChange={(e) => setEstimateForm({ ...estimateForm, customer_id: e.target.value })}
-                    className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50"
-                  >
-                    <option value="">선택</option>
-                    {allCustomers.map((c) => <option key={c.id} value={c.id}>{c.name}{c.car_brand ? ` (${c.car_brand} ${c.car_model || ''})` : ''}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs text-[var(--c-text-3)] mb-1 block">예상 금액</label>
-                  <input type="text" inputMode="numeric" value={estimateForm.amount ? Number(estimateForm.amount).toLocaleString() : ''} onChange={(e) => { const raw = e.target.value.replace(/[^0-9]/g, ''); setEstimateForm({ ...estimateForm, amount: raw }); }} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="2,500,000" />
-                </div>
-                <div>
-                  <label className="text-xs text-[var(--c-text-3)] mb-1 block">작업 예정일</label>
-                  <input type="date" value={estimateForm.scheduledDate} onChange={(e) => setEstimateForm({ ...estimateForm, scheduledDate: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" />
-                </div>
-                <div>
-                  <label className="text-xs text-[var(--c-text-3)] mb-1 block">비고</label>
-                  <input type="text" value={estimateForm.memo} onChange={(e) => setEstimateForm({ ...estimateForm, memo: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="추가 메모" />
-                </div>
-              </div>
-              {/* 서비스 선택 */}
-              <div className="mb-4">
-                <label className="text-xs text-[var(--c-text-3)] mb-2 block">서비스 선택</label>
-                <div className="flex flex-wrap gap-2">
-                  {['PPF', '틴팅', '세라믹코팅', '래핑', '크롬죽이기', '신차패키지'].map((svc) => (
-                    <button
-                      key={svc}
-                      onClick={() => setEstimateForm((f) => {
-                        const selected = f.services.includes(svc);
-                        const services = selected ? f.services.filter((s) => s !== svc) : [...f.services, svc];
-                        const serviceDetails = { ...f.serviceDetails };
-                        if (selected) delete serviceDetails[svc];
-                        return { ...f, services, serviceDetails };
-                      })}
-                      className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
-                        estimateForm.services.includes(svc)
-                          ? 'bg-[#C8A951]/20 border-[#C8A951]/50 text-[#C8A951]'
-                          : 'bg-[var(--c-input)] border-[var(--c-border)] text-[var(--c-text-3)] hover:text-[var(--c-text-2)]'
-                      }`}
-                    >
-                      {svc}
-                    </button>
-                  ))}
-                </div>
-                {/* 서비스별 세부 내용 입력 */}
-                {estimateForm.services.length > 0 && (
-                  <div className="mt-3 space-y-2">
-                    {estimateForm.services.map((svc) => (
-                      <div key={svc} className="flex items-start gap-2">
-                        <span className="text-xs text-[#C8A951] bg-[#C8A951]/10 rounded px-2 py-1.5 whitespace-nowrap mt-px">{svc}</span>
-                        <input
-                          type="text"
-                          value={estimateForm.serviceDetails[svc] || ''}
-                          onChange={(e) => setEstimateForm((f) => ({ ...f, serviceDetails: { ...f.serviceDetails, [svc]: e.target.value } }))}
-                          className="flex-1 bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-1.5 text-xs text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50"
-                          placeholder={svc === 'PPF' ? '전면 풀랩 + 사이드미러 + 도어엣지' : svc === '틴팅' ? '전면 크리스탈라인 70% + 측후면 루마 15%' : `${svc} 세부 내용`}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-              {/* 생성 버튼 + 결과 */}
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={async () => {
-                    const cust = allCustomers.find((c) => c.id === estimateForm.customer_id);
-                    if (!cust) { alert('고객을 선택해주세요.'); return; }
-                    setEstimateLoading(true);
-                    setEstimateUrl(null);
-                    try {
-                      const res = await fetch('/api/notion/estimate', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          customerName: cust.name,
-                          phone: cust.phone,
-                          carModel: [cust.car_brand, cust.car_model].filter(Boolean).join(' ') || null,
-                          services: estimateForm.services,
-                          serviceDetails: estimateForm.serviceDetails,
-                          amount: estimateForm.amount ? Number(estimateForm.amount) : null,
-                          scheduledDate: estimateForm.scheduledDate || null,
-                          memo: estimateForm.memo || null,
-                        }),
-                      });
-                      const data = await res.json();
-                      if (data.url) {
-                        setEstimateUrl(data.url);
-                      } else {
-                        alert('견적서 생성 실패: ' + (data.error || ''));
-                      }
-                    } catch (err) { alert('견적서 생성 오류'); console.error(err); }
-                    setEstimateLoading(false);
-                  }}
-                  disabled={estimateLoading}
-                  className="bg-[#C8A951] hover:bg-[#b89a41] text-[#09090b] text-sm font-semibold rounded-lg px-5 py-2 transition-colors disabled:opacity-50"
-                >
-                  {estimateLoading ? '생성 중...' : 'Notion 견적서 생성'}
-                </button>
-                {estimateUrl && (
-                  <div className="flex items-center gap-2">
-                    <a href={estimateUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-[#3B82F6] hover:underline truncate max-w-[300px]">{estimateUrl}</a>
-                    <button
-                      onClick={() => { navigator.clipboard.writeText(estimateUrl); }}
-                      className="text-xs bg-[#3B82F6]/10 hover:bg-[#3B82F6]/20 text-[#3B82F6] rounded-lg px-3 py-1.5 transition-colors whitespace-nowrap"
-                    >
-                      URL 복사
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* 기존 견적 템플릿 */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {TEMPLATE_KEYS.map((key) => (
-              <div key={key} className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-4 flex flex-col">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-semibold text-[#C8A951]">{key}</h3>
-                  <button
-                    onClick={() => handleResetTemplate(key)}
-                    className="text-[10px] text-[var(--c-text-3)] hover:text-[var(--c-text-2)] transition-colors"
-                  >
-                    기본값 복원
-                  </button>
-                </div>
-                <textarea
-                  value={templates[key] || ''}
-                  onChange={(e) => handleTemplateChange(key, e.target.value)}
-                  className="flex-1 bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50 resize-y leading-relaxed"
-                  style={{ minHeight: '300px' }}
-                />
-                <div className="flex gap-2 mt-3">
-                  <button
-                    onClick={() => handleCopyTemplate(key)}
-                    className={`flex-1 text-sm font-medium rounded-lg px-4 py-2 transition-colors ${
-                      copiedKey === key
-                        ? 'bg-[#10B981]/20 text-[#34D399]'
-                        : 'bg-[#E4002B] hover:bg-[#c60026] text-white'
-                    }`}
-                  >
-                    {copiedKey === key ? '복사 완료!' : '복사하기'}
-                  </button>
-                  <button
-                    onClick={() => handleSaveTemplateImage(key)}
-                    className="flex-1 bg-[#C8A951]/10 hover:bg-[#C8A951]/20 text-[#C8A951] text-sm font-medium rounded-lg px-4 py-2 transition-colors"
-                  >
-                    이미지 저장
-                  </button>
-                </div>
-              </div>
-            ))}
             </div>
           </div>
         )}
