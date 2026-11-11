@@ -153,10 +153,18 @@ export default function Home() {
       const next: BlogJob[] = Array.isArray(data.jobs) ? data.jobs : [];
       const prev = jobsRef.current;
       const justDone = next.filter((j) => j.status === 'done' && prev.some((p) => p.id === j.id && p.status !== 'done'));
+      const videoDone = next.filter((j) => j.result?.video?.status === 'done' && prev.some((p) => p.id === j.id && p.result?.video && p.result.video.status !== 'done'));
+      const videoFailed = next.filter((j) => j.result?.video?.status === 'failed' && prev.some((p) => p.id === j.id && p.result?.video && p.result.video.status !== 'failed'));
       const newlyFailed = next.filter((j) => j.status === 'failed' && prev.some((p) => p.id === j.id && p.status !== 'failed'));
       jobsRef.current = next;
       setJobs(next);
       if (justDone.length > 0) applyJobResult(justDone[0]);
+      if (videoDone.length > 0) {
+        setMessages((m) => [...m, { role: 'assistant', content: `🎬 영상이 완성되었습니다: ${videoDone[0].result?.draft?.title || ''}\n미리보기의 "🎬 영상" 탭에서 보고 내려받을 수 있습니다.`, employeeName: '영상', employeeEmoji: '🎬', employeeColor: '#C8A951' }]);
+      }
+      if (videoFailed.length > 0) {
+        setMessages((m) => [...m, { role: 'assistant', content: `⚠️ 영상 제작에 실패했습니다: ${videoFailed[0].result?.video?.error || ''}\n"🎬 영상" 탭에서 다시 만들 수 있습니다.`, employeeName: '영상', employeeEmoji: '⚠️', employeeColor: '#EF4444' }]);
+      }
       if (newlyFailed.length > 0) {
         setMessages((m) => [
           ...m,
@@ -176,8 +184,9 @@ export default function Home() {
   useEffect(() => { loadJobs(); }, [loadJobs]);
   useEffect(() => {
     const active = jobs.some((j) => ['queued', 'researching', 'writing', 'channels'].includes(j.status));
-    if (!active) return;
-    const t = setInterval(loadJobs, 10000);
+    const videoActive = jobs.some((j) => j.result?.video && ['queued', 'rendering'].includes(j.result.video.status));
+    if (!active && !videoActive) return;
+    const t = setInterval(loadJobs, active ? 10000 : 20000);
     return () => clearInterval(t);
   }, [jobs, loadJobs]);
 
@@ -634,6 +643,8 @@ export default function Home() {
             onRetryJob={handleRetryJob}
             onDeleteJob={handleDeleteJob}
             onPostsChanged={() => setPostsRefreshKey((k) => k + 1)}
+            onJobsChanged={loadJobs}
+            draftTarget={draftMeta ? { carModel: draftMeta.carModel, serviceType: draftMeta.serviceType, product: draftMeta.product, region: draftMeta.region } : null}
           />
         </div>
       </div>

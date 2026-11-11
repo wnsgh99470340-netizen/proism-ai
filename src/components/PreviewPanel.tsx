@@ -5,6 +5,7 @@ import PostLibrary from './PostLibrary';
 import SavedPosts from './SavedPosts';
 import type { BlogPost } from '@/lib/posts';
 import type { BlogJob } from '@/lib/jobs';
+import VideoTab from './VideoTab';
 import { htmlToPlainText } from '@/lib/draft-format';
 
 /** 텍스트(+선택적으로 HTML)를 클립보드에 복사. HTML을 함께 넣으면 네이버 에디터 등 서식 지원 곳에서는 문단이 유지되고, 메모장 등에서는 일반 텍스트로 붙음 */
@@ -119,6 +120,10 @@ interface PreviewPanelProps {
   onDeleteJob: (id: string) => void;
   /** 저장된 글 목록을 다시 불러와야 할 때 */
   onPostsChanged: () => void;
+  /** 영상 작업을 접수·재시도한 뒤 작업 목록을 다시 불러올 때 */
+  onJobsChanged: () => void;
+  /** 열린 글의 차량·시공 정보 (영상 전용 작업에 넘김) */
+  draftTarget: { carModel: string | null; serviceType: string | null; product: string | null; region: string | null } | null;
 }
 
 export default function PreviewPanel({
@@ -142,8 +147,11 @@ export default function PreviewPanel({
   onRetryJob,
   onDeleteJob,
   onPostsChanged,
+  onJobsChanged,
+  draftTarget,
 }: PreviewPanelProps) {
-  const [activeTab, setActiveTab] = useState<'preview' | 'instagram' | 'cafe' | 'insight'>('preview');
+  const [activeTab, setActiveTab] = useState<'preview' | 'instagram' | 'cafe' | 'video' | 'insight'>('preview');
+  const videoBusy = jobs.some((j) => j.result?.video && (j.result.video.status === 'queued' || j.result.video.status === 'rendering'));
   const draftPlain = draft ? draft.content.replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n\n').replace(/<[^>]+>/g, '').trim() : '';
   const tabCls = (key: typeof activeTab) =>
     `flex-1 py-2.5 text-xs font-medium transition-colors ${activeTab === key ? 'text-[var(--c-text-1)] border-b-2 border-[#C8A951]' : 'text-[var(--c-text-3)] hover:text-[var(--c-text-2)]'}`;
@@ -171,8 +179,14 @@ export default function PreviewPanel({
         <button onClick={() => setActiveTab('preview')} className={tabCls('preview')}>📄 블로그</button>
         <button onClick={() => setActiveTab('instagram')} className={tabCls('instagram')}>📸 인스타{channelsLoading ? ' …' : ''}</button>
         <button onClick={() => setActiveTab('cafe')} className={tabCls('cafe')}>☕ 카페{channelsLoading ? ' …' : ''}</button>
+        <button onClick={() => setActiveTab('video')} className={tabCls('video')}>🎬 영상{videoBusy ? ' …' : ''}</button>
         <button onClick={() => setActiveTab('insight')} className={tabCls('insight')}>📊 인사이트</button>
       </div>
+
+      {/* 영상 탭 */}
+      {activeTab === 'video' && (
+        <VideoTab jobs={jobs} draft={draft ? { title: draft.title, content: draft.content } : null} activePostId={activePostId} target={draftTarget} onJobsChanged={onJobsChanged} />
+      )}
 
       {/* 미리보기 탭 */}
       {activeTab === 'preview' && (

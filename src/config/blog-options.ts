@@ -98,6 +98,12 @@ export interface BlogRequest {
   extra?: string;
   region: string;
   notes?: string;
+  /** 이번 글 제목에 반드시 넣을 키워드 (사장님이 요청 때마다 지정, 2026-11-11) */
+  keyword?: string;
+  /** 시공 사진이 들어 있는 구글 드라이브 공유 폴더 링크. 있으면 글 완성 뒤 영상을 자동 제작 */
+  photosUrl?: string;
+  /** 세로(9:16) 영상도 함께 만들기 */
+  vertical?: boolean;
 }
 
 /** 폼 입력을 기존 채팅 파이프라인이 이해하는 한 문장으로 만든다 */
@@ -109,7 +115,9 @@ export function buildBlogMessage(r: BlogRequest): string {
     productLine ? `제품: ${productLine}.` : '',
     r.color ? `차량 색상: ${r.color}.` : '',
     r.notes ? `참고: ${r.notes}` : '',
+    r.keyword ? `제목 키워드: ${r.keyword}.` : '',
     `제목과 본문의 지역명은 "${r.region}"으로 써줘.`,
+    r.photosUrl ? `사진: ${r.photosUrl}` : '',
   ];
   return parts.filter(Boolean).join(' ');
 }

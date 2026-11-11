@@ -33,6 +33,8 @@
 - 열린 글 수정: 미리보기에 글이 열려 있으면 채팅 메시지는 /api/revise 로 가서 그 글만 지시대로 고쳐 새 초안 버전(draft_id=원본)으로 저장. 새 시공기 요청(써줘·시공기 등 키워드/폼)은 수정이 아니라 새 글. 입력창 위 배너에서 일반 대화 모드로 전환 가능. 일반 대화 답변은 초안으로 저장하지 않음(save: isBlog)
 - 사장님 글 DB: Supabase blog_posts (kind=owner/draft/final, supabase-schema.sql 6번). 글 생성 시 owner·final 최근 3편 앞부분과 final의 feedback을 "문체 참고"로 주입. 미리보기 하단 "사장님 글 DB"에서 최종본+피드백 저장, 직접 쓴 글 추가
 - 멀티 채널: 블로그 글 완성 직후 /api/channels가 인스타 캡션(+해시태그, 첫 장 추천)과 카페 대표이야기 버전을 본문 사실만으로 생성. 미리보기 탭 📸 인스타 / ☕ 카페
+- **제목 키워드**(2026-11-11): 폼 "제목 키워드" 칸 또는 채팅 "제목 키워드: 양재 랩핑". 프롬프트에 필수 블록 주입 + 형식 검사(제목 포함·본문 3~5회)로 1회 수정. 사장님이 요청 때마다 지정(실장 역할 인수)
+- **영상 자동 제작**(2026-11-11, 실장 역할 인수): 폼 "사진 폴더 링크"(구글 드라이브 공유 폴더, 링크가 있는 모든 사용자 보기) 또는 채팅에 드라이브 링크 → 글 완성 시 jobs.ts 가 src/lib/drive.ts 로 사진 목록을 읽어 blog_jobs.result.video=queued 저장 → 깃허브 액션 .github/workflows/render-video.yml 이 렌더(repository_dispatch 즉시 또는 10분 cron) → scripts/video/run_job.py(사진 내려받기·BGM 순번) → plan.py(Claude 비전: 18~26장 선별·역할별 길이·구간 자막 3~5개·제목 카드, 모델 claude-sonnet-5-5) → render.py(Pillow+ffmpeg: 시작 영상→제목 카드→켄번즈 슬라이드+크로스페이드 0.45s→연락처 카드→끝 영상, 로고 우상단 172px, 1080p30 H.264 CRF20, loudnorm BGM) → Vercel Blob(videos/{jobId}/video.mp4, 최근 12편 보관) → result.video 갱신. 미리보기 탭 🎬 영상(재생·내려받기·세로 버전·장면 모아보기·다시 만들기). 열린 글에 링크만 붙여 만들기는 POST /api/video. 자산: assets/video(intro/outro/logo), BGM 16곡은 Blob bgm/ (scripts/video/bgm.json). 액션 시크릿: NEXT_PUBLIC_SUPABASE_URL·NEXT_PUBLIC_SUPABASE_ANON_KEY·BLOB_READ_WRITE_TOKEN·ANTHROPIC_API_KEY. Vercel 선택 env: GITHUB_DISPATCH_TOKEN(즉시 깨우기), GOOGLE_API_KEY(드라이브 API). 렌더 규격 원본은 실장 Codex 프롬프트(사진당 1.8s·크로스페이드 0.45s·로고 172px/36px·자막 바 140px 178/255)에서 출발, 사장님 승인으로 선별·켄번즈·구간 자막·제목/연락처 카드로 고도화
 
 ## 프로젝트 개요
 - 3M 프로이즘 강남서초점 AI 블로그 자동화 + CRM 시스템
@@ -46,6 +48,7 @@
 - 전화: 010-7287-7140
 - 블로그: blog.naver.com/roice_
 - 서비스: PPF, 컬러PPF(PWF), 랩핑, 크롬죽이기, 썬팅, 신차패키지, 신차검수, 유리막코팅, 실내PPF
+- 운영 변경(2026-11-11): roice_ 블로그는 대표 혼자 운영(마케팅 실장은 다른 마케팅 담당). 키워드 지정·영상 제작 등 실장이 하던 일을 시스템이 대신함
 
 ## 제품 스펙 (절대 AI가 임의 작성 금지)
 - PPF: 시리즈50(185μm,셀프힐링O,고광택O), 시리즈100(190μm,셀프힐링O,고광택O), 시리즈150(190μm,셀프힐링O,발수코팅O,고광택O), PRO200유광(200μm,셀프힐링O,발수코팅O,고광택O), PRO200무광(200μm,셀프힐링O,발수코팅O)

@@ -9,6 +9,7 @@ import { generateBlogPost, type WriterResult } from './blog-generate';
 import { generateChannels, type Channels } from './channels';
 import type { BlogRequest } from '@/config/blog-options';
 import { sendPushToAll } from './push';
+import { findPhotosUrl, buildQueuedVideo, dispatchRender, type VideoState } from './video';
 
 export type JobStatus = 'queued' | 'researching' | 'writing' | 'channels' | 'done' | 'failed';
 
@@ -137,9 +138,28 @@ export async function runNextStep(id: string): Promise<JobStatus> {
           console.warn('[jobs] channels failed:', e);
         }
       }
-      await updateJob(id, { status: 'done', channels });
+      // 사진 폴더 링크가 있으면 영상 작업을 result.video 에 queued 로 적고 깃허브 액션을 깨운다
+      let result = r;
+      let videoNote = '';
+      const photosUrl = findPhotosUrl(job.message, job.request);
+      if (r?.draft && photosUrl) {
+        let video: VideoState;
+        try {
+          video = await buildQueuedVideo(photosUrl, Boolean(job.request?.vertical));
+          videoNote = `\n🎬 사진 ${video.photos?.length ?? 0}장으로 영상을 만듭니다.`;
+        } catch (e) {
+          video = { status: 'failed', error: e instanceof Error ? e.message : String(e), queued_at: new Date().toISOString() };
+          videoNote = `\n⚠️ 영상: ${video.error}`;
+        }
+        result = { ...r, video };
+      }
+      await updateJob(id, { status: 'done', channels, result });
+      if (result?.video?.status === 'queued') {
+        const dispatched = await dispatchRender(id);
+        if (dispatched) await updateJob(id, { result: { ...result, video: { ...result.video, dispatched: true } } }).catch(() => {});
+      }
       const title = r?.draft?.title || '블로그 글';
-      await sendPushToAll({ title: '✅ 시공기 완성', body: `${title}\n앱에서 미리보기를 확인하세요.`, url: '/', tag: `job-${id}` }).catch(() => {});
+      await sendPushToAll({ title: '✅ 시공기 완성', body: `${title}${videoNote}\n앱에서 미리보기를 확인하세요.`, url: '/', tag: `job-${id}` }).catch(() => {});
       return 'done';
     }
 

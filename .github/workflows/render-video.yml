@@ -1,0 +1,58 @@
+# 시공기 영상 자동 제작 (2026-11-11)
+# - 앱이 글을 완성하면 repository_dispatch(render-video) 로 바로 깨운다 (Vercel 에 GITHUB_DISPATCH_TOKEN 이 있을 때)
+# - 토큰이 없어도 10분마다 대기 중인 영상 작업을 찾아 처리한다
+# - 결과 mp4 는 Vercel Blob 에 올리고 Supabase blog_jobs.result.video 에 기록한다
+name: render-video
+
+on:
+  repository_dispatch:
+    types: [render-video]
+  workflow_dispatch:
+    inputs:
+      job_id:
+        description: 'blog_jobs id (비우면 대기 중인 작업 전부)'
+        required: false
+        default: ''
+  schedule:
+    - cron: '*/10 * * * *'
+
+concurrency:
+  group: render-video
+  cancel-in-progress: false
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: scripts/video/requirements.txt
+
+      - name: 도구 설치 (ffmpeg, Noto Sans CJK)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-noto-cjk > /dev/null
+          ffmpeg -version | head -1
+          fc-list | grep -i "Noto Sans CJK" | head -2
+
+      - name: 파이썬 패키지
+        run: pip install -q -r scripts/video/requirements.txt
+
+      - name: 영상 제작
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          JOB_ID: ${{ github.event.client_payload.job_id || github.event.inputs.job_id }}
+        run: |
+          if [ -n "$JOB_ID" ]; then
+            python3 scripts/video/run_job.py --job-id "$JOB_ID"
+          else
+            python3 scripts/video/run_job.py --max 3
+          fi

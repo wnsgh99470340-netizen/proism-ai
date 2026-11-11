@@ -19,7 +19,23 @@ export const BLOG_WRITER_MODEL = 'claude-opus-4-6';
 export type Violation = { rule: string; detail: string };
 export type Checks = { violations: Violation[]; facts: FactIssue[]; format: string[] };
 export type Draft = { title: string; content: string; tags: string[]; category: string };
-export type Target = { carModel: string | null; serviceType: string; product: string | null; region: string | null };
+export type Target = { carModel: string | null; serviceType: string; product: string | null; region: string | null; keyword?: string | null };
+
+/** 채팅 요청에서 "제목 키워드: 양재 랩핑" / "키워드: ..." 를 뽑는다 (폼 값이 없을 때) */
+export function extractKeyword(message: string): string | null {
+  const m = message.match(/(?:제목\s*)?키워드\s*[:：]\s*([^\n.。]+)/);
+  if (!m) return null;
+  const k = m[1].trim().replace(/["'“”‘’]/g, '');
+  return k.length >= 2 && k.length <= 30 ? k : null;
+}
+
+/** 채팅 요청에서 구글 드라이브 공유 링크를 뽑는다 */
+export function extractDriveUrl(message: string): string | null {
+  const m = message.match(/https?:\/\/drive\.google\.com\/[^\s)\]>"']+/);
+  return m ? m[0] : null;
+}
+
+const normKw = (s: string) => s.replace(/\s+/g, '').toLowerCase();
 
 export interface WriterResult {
   reply: string;
@@ -27,6 +43,8 @@ export interface WriterResult {
   checks: Checks | null;
   draftId: string | null;
   target: Target | null;
+  /** 영상 자동 제작 상태 (글 완성 뒤 jobs.ts 가 채우고, 깃허브 액션이 갱신) */
+  video?: import('./video').VideoState | null;
 }
 
 /**
@@ -111,8 +129,18 @@ export function splitTitleBody(text: string): { title: string; body: string } | 
 const MIN_BODY_CHARS = 2300;   // 목표 2500자, 약간의 여유
 const MIN_TITLE_CHARS = 18;    // 목표 20~25자
 
-export function checkFormatIssues(title: string, body: string): string[] {
+export function checkFormatIssues(title: string, body: string, keyword?: string | null): string[] {
   const issues: string[] = [];
+  if (keyword) {
+    if (!normKw(title).includes(normKw(keyword))) {
+      issues.push(`제목에 지정 키워드 "${keyword}"가 없음 → 제목 앞부분에 "${keyword}"를 그대로 넣을 것(글자 순서·띄어쓰기 유지)`);
+    }
+    const bodyPlain = normKw(body.replace(/<[^>]+>/g, ''));
+    const count = bodyPlain.split(normKw(keyword)).length - 1;
+    if (count < 3) {
+      issues.push(`본문에 지정 키워드 "${keyword}"가 ${count}회 → 문장 흐름을 해치지 않는 자리에 3~5회 들어가게(제목·해시태그 제외)`);
+    }
+  }
   const pureLen = body.replace(/\[사진\s*\d+\]/g, '').replace(/\s/g, '').length;
   if (pureLen < MIN_BODY_CHARS) {
     issues.push(`분량 부족: 공백 제외 ${pureLen}자 → 2,500자 이상으로 보강. 시공 과정·마감·관리 안내를 더 구체적으로 풀고, 차량 소개는 늘리지 말 것`);
@@ -239,8 +267,11 @@ async function saveDraftFile(title: string, body: string): Promise<void> {
 }
 
 /** 블로그 작성용 시스템 프롬프트: 규칙 + 사장님 문체 + 사전 조사 + 이전 글 목록 */
-export async function buildBlogSystemPrompt(researchContext: string, serviceType?: string): Promise<string> {
+export async function buildBlogSystemPrompt(researchContext: string, serviceType?: string, keyword?: string | null): Promise<string> {
   const toneReference = await buildToneReference(serviceType);
+  const keywordContext = keyword
+    ? `\n\n[이번 글 제목 키워드 — 필수]\n"${keyword}"를 제목 앞부분에 그대로 넣고(띄어쓰기·순서 유지), 본문에도 3~5회 자연스럽게 넣는다. 억지로 반복하지 말고 문장 안에 녹인다. 해시태그에도 한 번 넣는다.`
+    : '';
   const vehicleContext = researchContext ? '\n\n' + researchContext : '';
   const previousDrafts = await getPreviousDrafts();
   let previousContext = '';
@@ -248,7 +279,7 @@ export async function buildBlogSystemPrompt(researchContext: string, serviceType
     const list = previousDrafts.map((d, i) => `${i + 1}. ${d.title}${d.intro ? `\n   도입: ${d.intro}` : ''}${d.closing ? `\n   마무리: ${d.closing}` : ''}`).join('\n');
     previousContext = `\n\n[이전에 작성한 글 — 겹침 금지]\n아래 글들의 도입 순서·첫 문장·마무리 문장을 그대로 쓰지 마세요. 특히 "완성된 모습부터 보여드립니다 → 자기소개 → 자격 → 신차 출고 직후" 순서가 이미 여러 번 쓰였으니 이번 글은 다른 방식으로 엽니다. 마무리도 아래와 다른 문장으로 끝냅니다.\n${list}`;
   }
-  return `${BLOG_SYSTEM_PROMPT}${toneReference}${vehicleContext}${previousContext}`;
+  return `${BLOG_SYSTEM_PROMPT}${keywordContext}${toneReference}${vehicleContext}${previousContext}`;
 }
 
 export interface RunWriterOptions {
@@ -282,7 +313,7 @@ export async function runWriter(opts: RunWriterOptions): Promise<WriterResult> {
   const previous = save ? await getPreviousDrafts() : [];
   let violations = first ? [...checkHardViolations(first.body, combinedMessage, serviceType), ...checkIntroRepeat(first.body, previous)] : [];
   let factIssues: FactIssue[] = first ? factCheck({ body: first.body, serviceType, product: target.product ?? undefined }) : [];
-  let formatIssues = first ? checkFormatIssues(first.title, first.body) : [];
+  let formatIssues = first ? checkFormatIssues(first.title, first.body, target.keyword) : [];
   const pureLen = (b: string) => b.replace(/\[사진\s*\d+\]/g, '').replace(/\s/g, '').length;
 
   if (first && (violations.length > 0 || factIssues.length > 0 || formatIssues.length > 0)) {
@@ -293,7 +324,7 @@ export async function runWriter(opts: RunWriterOptions): Promise<WriterResult> {
       if (f && pureLen(f.body) >= Math.min(1500, pureLen(first.body))) {
         const fixedViolations = [...checkHardViolations(f.body, combinedMessage, serviceType), ...checkIntroRepeat(f.body, previous)];
         const fixedFacts = factCheck({ body: f.body, serviceType, product: target.product ?? undefined });
-        const fixedFormat = checkFormatIssues(f.title, f.body);
+        const fixedFormat = checkFormatIssues(f.title, f.body, target.keyword);
         // 위반·팩트 오류가 늘지 않고 형식 미달이 줄었거나 같으면 채택
         if (fixedViolations.length <= violations.length && fixedFacts.length <= factIssues.length && fixedFormat.length <= formatIssues.length) {
           reply = fixed;
@@ -347,8 +378,9 @@ export async function generateBlogPost(input: {
   history?: { role: string; content: string }[];
 }): Promise<WriterResult> {
   const t = resolveTarget(input.message, input.request);
-  const target: Target = { carModel: t.carModel, serviceType: t.serviceType, product: t.product, region: input.request?.region || null };
-  const systemPrompt = await buildBlogSystemPrompt(input.research?.context || '', target.serviceType);
+  const keyword = input.request?.keyword?.trim() || extractKeyword(input.message);
+  const target: Target = { carModel: t.carModel, serviceType: t.serviceType, product: t.product, region: input.request?.region || null, keyword };
+  const systemPrompt = await buildBlogSystemPrompt(input.research?.context || '', target.serviceType, keyword);
   return runWriter({
     systemPrompt,
     model: BLOG_WRITER_MODEL,

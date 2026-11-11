@@ -32,6 +32,9 @@ export default function BlogRequestForm({ disabled, onSubmit, initial = null }: 
   const [extra, setExtra] = useState(initial?.extra ?? '');
   const [region, setRegion] = useState<string>(REGIONS[0]);
   const [notes, setNotes] = useState(initial?.notes ?? '');
+  const [keyword, setKeyword] = useState('');
+  const [photosUrl, setPhotosUrl] = useState('');
+  const [vertical, setVertical] = useState(false);
   const notesRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -49,7 +52,9 @@ export default function BlogRequestForm({ disabled, onSubmit, initial = null }: 
   };
 
   const finalBrand = brand === '기타' ? customBrand.trim() : brand;
-  const canSubmit = !disabled && finalBrand.length > 0 && model.trim().length > 0 && (service.products.length === 0 ? extra.trim().length > 0 : product.length > 0);
+  const photosUrlTrim = photosUrl.trim();
+  const photosUrlOk = photosUrlTrim === '' || /^https?:\/\/drive\.google\.com\//.test(photosUrlTrim);
+  const canSubmit = !disabled && finalBrand.length > 0 && model.trim().length > 0 && (service.products.length === 0 ? extra.trim().length > 0 : product.length > 0) && photosUrlOk;
 
   const submit = () => {
     if (!canSubmit) return;
@@ -64,6 +69,9 @@ export default function BlogRequestForm({ disabled, onSubmit, initial = null }: 
       extra: service.products.length === 0 ? undefined : (extra.trim() || undefined),
       region,
       notes: notes.trim() || undefined,
+      keyword: keyword.trim() || undefined,
+      photosUrl: photosUrlTrim || undefined,
+      vertical: photosUrlTrim ? vertical : undefined,
     };
     onSubmit(buildBlogMessage(req), req);
   };
@@ -138,6 +146,29 @@ export default function BlogRequestForm({ disabled, onSubmit, initial = null }: 
             <input value={extra} onChange={(e) => setExtra(e.target.value)} placeholder={service.extraPlaceholder} className={inputCls} />
           </div>
         )}
+      </div>
+
+      <div className="grid grid-cols-1 @lg:grid-cols-2 gap-2 mb-2">
+        <div>
+          <label className={labelCls}>제목 키워드 (선택) — 이번 글 제목에 꼭 넣을 말. 본문에도 3~5회 들어갑니다</label>
+          <input value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="예: 양재 랩핑" className={inputCls} />
+        </div>
+        <div>
+          <label className={labelCls}>사진 폴더 링크 (선택) — 구글 드라이브 공유 폴더. 넣으면 글 완성 뒤 영상까지 자동 제작</label>
+          <input
+            value={photosUrl}
+            onChange={(e) => setPhotosUrl(e.target.value)}
+            placeholder="https://drive.google.com/drive/folders/..."
+            className={`${inputCls} ${!photosUrlOk ? 'border-[#E4002B]/60' : ''}`}
+          />
+          {!photosUrlOk && <p className="text-[10px] text-[#E4002B] mt-1">구글 드라이브 폴더 링크만 됩니다 (링크가 있는 모든 사용자 보기 권한)</p>}
+          {photosUrlTrim && photosUrlOk && (
+            <label className="flex items-center gap-1.5 mt-1 text-[10px] text-[var(--c-text-2)]">
+              <input type="checkbox" checked={vertical} onChange={(e) => setVertical(e.target.checked)} className="accent-[#E4002B]" />
+              세로 영상(인스타 릴스·네이버 클립용)도 함께 만들기
+            </label>
+          )}
+        </div>
       </div>
 
       <div className="mb-2">

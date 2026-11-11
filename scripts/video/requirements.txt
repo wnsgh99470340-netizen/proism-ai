@@ -1,0 +1,4 @@
+pillow>=9.2
+numpy>=1.21
+requests>=2.31
+anthropic>=0.40
