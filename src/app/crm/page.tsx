@@ -231,6 +231,7 @@ export default function CRMPage() {
   const [followDate, setFollowDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [followMonth, setFollowMonth] = useState<{ y: number; m: number }>(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
   const [showOverdue, setShowOverdue] = useState(false);
+  const [homeFollowMore, setHomeFollowMore] = useState(false); // 홈 '연락할 사후관리' 더보기
 
   // Consultation state
   const [consultations, setConsultations] = useState<Consultation[]>([]);
@@ -1312,7 +1313,8 @@ export default function CRMPage() {
           const todayAppts = appointments.filter((a) => a.appointment_date <= today && (a.end_date || a.appointment_date) >= today && a.status !== '취소');
           const weekAppts = appointments.filter((a) => a.appointment_date > today && a.appointment_date <= plus(7) && a.status !== '취소').slice(0, 5);
           // 오늘에 가까운 것부터 (몇 달 지난 미처리는 아래로 밀려 '모두 보기'에서)
-          const dueFollow = followUps.filter((f) => !f.is_completed && f.scheduled_date <= plus(3)).sort((a, b) => b.scheduled_date.localeCompare(a.scheduled_date)).slice(0, 8);
+          const dueAll = followUps.filter((f) => !f.is_completed && f.scheduled_date <= plus(3)).sort((a, b) => b.scheduled_date.localeCompare(a.scheduled_date));
+          const dueFollow = dueAll.slice(0, homeFollowMore ? 10 : 3);
           const pendingCount = followUps.filter((f) => !f.is_completed).length;
           const followName = (f: FollowUp) => f.customer?.name || (f.memo || '').split('\n')[0].split(' ')[0] || '-';
           const followLabel = (f: FollowUp) => f.follow_up_type === 'QC점검' ? 'QC 점검' : f.follow_up_type === '견적재연락' ? '견적 재연락' : f.follow_up_type === '견적마무리' ? '견적 마무리' : f.follow_up_type;
@@ -1405,9 +1407,14 @@ export default function CRMPage() {
                       ))}
                     </ul>
                   )}
-                  {pendingCount > dueFollow.length && (
-                    <button onClick={() => setActiveTab('followups')} className="mt-4 w-full text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-1)] py-2 rounded-lg border border-dashed border-[var(--c-border)] transition-colors">
-                      미처리 {pendingCount}건 모두 보기
+                  {dueAll.length > 3 && !homeFollowMore && (
+                    <button onClick={() => setHomeFollowMore(true)} className="mt-3 w-full text-sm font-semibold text-[var(--c-text-2)] hover:text-[var(--c-text-1)] py-2.5 rounded-xl bg-[var(--c-subtle)] hover:bg-[var(--c-hover)] transition-colors">
+                      + 더보기 ({dueAll.length - 3}건 더)
+                    </button>
+                  )}
+                  {homeFollowMore && pendingCount > dueFollow.length && (
+                    <button onClick={() => setActiveTab('followups')} className="mt-3 w-full text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-1)] py-2 rounded-xl border border-dashed border-[var(--c-border)] transition-colors">
+                      미처리 {pendingCount}건 모두 보기 →
                     </button>
                   )}
                 </section>
@@ -1537,16 +1544,6 @@ export default function CRMPage() {
             return dateStr >= start && dateStr <= end;
           });
 
-          const statusBarColor = (status: string) => {
-            switch (status) {
-              case '상담중': return 'bg-[var(--c-text-4)]';
-              case '예약확정': return 'bg-info';
-              case '시공중': return 'bg-gold';
-              case '완료': return 'bg-ok';
-              default: return 'bg-[var(--c-text-4)]';
-            }
-          };
-
           // 담당자 자동 분류: 틴팅 → 이팀장님, 나머지 → 대표
           const getManager = (a: Appointment): '대표' | '이팀장님' | '김막내' => {
             // memo JSON에 수동 배정된 담당자가 있으면 우선
@@ -1576,193 +1573,155 @@ export default function CRMPage() {
             setSelectedDate(today);
           };
 
+          const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+          const chip = (status: string) =>
+            status === '완료' ? 'bg-ok/10 text-ok'
+            : status === '시공중' ? 'bg-[var(--c-text-1)] text-[var(--c-card)]'
+            : status === '예약확정' ? 'bg-info/10 text-info'
+            : 'bg-[var(--c-subtle)] text-[var(--c-text-2)] border border-[var(--c-border)]';
+          const pill = 'text-xs font-semibold rounded-full px-3 py-1.5 border border-[var(--c-border)] bg-[var(--c-card)] hover:bg-[var(--c-subtle)] text-[var(--c-text-1)] transition-colors whitespace-nowrap';
+          const selLabel = selectedDate ? new Date(selectedDate + 'T00:00:00').toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' }) : '';
+
           return (
-            <div>
+            <div className="space-y-5">
               {/* 상단 바 */}
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <button onClick={() => setCalendarMonth((p) => { const d = new Date(p.year, p.month - 1); return { year: d.getFullYear(), month: d.getMonth() }; })} className="text-[var(--c-text-3)] hover:text-[var(--c-text-1)] transition-colors text-lg leading-none">◀</button>
-                  <span className="text-base font-semibold text-[var(--c-text-1)] min-w-[120px] text-center">{cY}년 {cM + 1}월</span>
-                  <button onClick={() => setCalendarMonth((p) => { const d = new Date(p.year, p.month + 1); return { year: d.getFullYear(), month: d.getMonth() }; })} className="text-[var(--c-text-3)] hover:text-[var(--c-text-1)] transition-colors text-lg leading-none">▶</button>
-                  <button onClick={goToday} className="text-xs bg-[var(--c-subtle)] hover:bg-[var(--c-hover)] text-[var(--c-text-2)] rounded-lg px-3 py-1 transition-colors ml-1">오늘</button>
-                  <div className="flex bg-[var(--c-subtle)] rounded-lg p-0.5 ml-2">
-                    <button onClick={() => setCalendarView('calendar')} className={`text-xs px-3 py-1 rounded-md transition-colors ${calendarView === 'calendar' ? 'bg-gold/20 text-gold' : 'text-[var(--c-text-3)]'}`}>달력</button>
-                    <button onClick={() => setCalendarView('list')} className={`text-xs px-3 py-1 rounded-md transition-colors ${calendarView === 'list' ? 'bg-gold/20 text-gold' : 'text-[var(--c-text-3)]'}`}>리스트</button>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button onClick={() => setCalendarMonth((p) => { const d = new Date(p.year, p.month - 1); return { year: d.getFullYear(), month: d.getMonth() }; })} className="w-9 h-9 rounded-full border border-[var(--c-border)] bg-[var(--c-card)] hover:bg-[var(--c-subtle)] flex items-center justify-center text-[var(--c-text-2)] text-lg leading-none transition-colors" aria-label="이전 달">‹</button>
+                  <h2 className="text-xl md:text-2xl font-bold tracking-tight text-[var(--c-text-1)] min-w-[130px] text-center">{cY}년 {cM + 1}월</h2>
+                  <button onClick={() => setCalendarMonth((p) => { const d = new Date(p.year, p.month + 1); return { year: d.getFullYear(), month: d.getMonth() }; })} className="w-9 h-9 rounded-full border border-[var(--c-border)] bg-[var(--c-card)] hover:bg-[var(--c-subtle)] flex items-center justify-center text-[var(--c-text-2)] text-lg leading-none transition-colors" aria-label="다음 달">›</button>
+                  <button onClick={goToday} className={`${pill} ml-1`}>오늘</button>
+                  <div className="ml-2 flex bg-[var(--c-subtle)] rounded-full p-1">
+                    {(['calendar', 'list'] as const).map((v) => (
+                      <button key={v} onClick={() => setCalendarView(v)} className={`text-sm font-semibold rounded-full px-3.5 py-1.5 transition-colors ${calendarView === v ? 'bg-[var(--c-text-1)] text-[var(--c-card)]' : 'text-[var(--c-text-3)] hover:text-[var(--c-text-1)]'}`}>{v === 'calendar' ? '달력' : '리스트'}</button>
+                    ))}
                   </div>
-                  {/* 담당자 필터(전체·대표·이팀장님·김막내)는 2026-11-11 사장님 요청으로 제거. managerFilter 는 '전체' 고정 */}
-                  <div className="flex gap-2 ml-3">
-                    <span className="text-[10px] bg-gold/10 text-gold px-2 py-1 rounded">오늘 {todayCount}건</span>
-                    <span className="text-[10px] bg-info/10 text-info px-2 py-1 rounded">이번주 {weekCount}건</span>
-                  </div>
+                  <span className="ml-2 text-sm text-[var(--c-text-3)]">오늘 <b className="text-[var(--c-text-1)]">{todayCount}</b>건 · 이번 주 <b className="text-[var(--c-text-1)]">{weekCount}</b>건</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => setShowCalendarSub(true)} className="bg-info/10 hover:bg-info/20 text-info text-sm font-medium rounded-lg px-3 py-2 transition-colors">캘린더 구독</button>
-                  <button onClick={() => setShowAddAppointment(true)} className="bg-brand hover:bg-brand-dark text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors">+ 예약 추가</button>
+                  <button onClick={() => setShowCalendarSub(true)} className={`${pill} py-2 px-4 text-sm`}>캘린더 구독</button>
+                  <button onClick={() => setShowAddAppointment(true)} className="bg-brand hover:bg-brand-dark text-white text-sm font-semibold rounded-full px-4 py-2 transition-colors whitespace-nowrap">+ 예약 추가</button>
                 </div>
               </div>
 
               {/* 달력 뷰 */}
               {calendarView === 'calendar' && (
-                <div style={{ marginBottom: '16px' }}>
-                  <div style={{ backgroundColor: 'var(--c-card)', border: '1px solid var(--c-border)', borderRadius: '12px', overflow: 'hidden' }}>
-                    {/* 요일 헤더 */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
-                      {['일', '월', '화', '수', '목', '금', '토'].map((d, i) => (
-                        <div key={d} style={{ textAlign: 'center', padding: '10px 0', fontSize: '12px', fontWeight: 600, borderBottom: '1px solid var(--c-border)', color: i === 0 ? 'var(--c-danger)' : i === 6 ? 'var(--c-info)' : 'var(--c-text-3)' }}>{d}</div>
-                      ))}
-                    </div>
-                    {/* 날짜 그리드 */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
-                      {cells.map((cell, i) => {
-                        const dayAppts = apptByDate(cell.dateStr);
-                        const isT = cell.dateStr === today;
-                        const isSel = cell.dateStr === selectedDate;
-                        const isCurrent = cell.month === 'current';
-                        const dayOfWeek = i % 7;
-                        const dayColor = dayOfWeek === 0 ? 'var(--c-danger)' : dayOfWeek === 6 ? 'var(--c-info)' : 'var(--c-text-2)';
-                        return (
-                          <div
-                            key={cell.dateStr + cell.month}
-                            onClick={() => setSelectedDate(isSel ? null : cell.dateStr)}
-                            style={{
-                              minHeight: '100px',
-                              borderBottom: '1px solid var(--c-border)',
-                              borderRight: '1px solid var(--c-border)',
-                              padding: '6px',
-                              cursor: 'pointer',
-                              backgroundColor: isSel ? 'var(--c-subtle)' : 'transparent',
-                              opacity: isCurrent ? 1 : 0.3,
-                              transition: 'background-color 0.15s',
-                            }}
-                            onMouseEnter={(e) => { if (!isSel) e.currentTarget.style.backgroundColor = 'var(--c-subtle)'; }}
-                            onMouseLeave={(e) => { if (!isSel) e.currentTarget.style.backgroundColor = 'transparent'; }}
-                          >
-                            {/* 날짜 숫자 */}
-                            <div style={{ marginBottom: '4px' }}>
-                              {isT ? (
-                                <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: 'var(--c-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                  <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--c-card)' }}>{cell.day}</span>
-                                </div>
-                              ) : (
-                                <div style={{ width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                  <span style={{ fontSize: '12px', fontWeight: 500, color: dayColor }}>{cell.day}</span>
-                                </div>
-                              )}
-                            </div>
-                            {/* 예약 바 */}
-                            {isCurrent && dayAppts.length > 0 && (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                {dayAppts.slice(0, 3).map((a) => {
-                                  const barBg = a.status === '상담중' ? 'var(--c-text-4)' : a.status === '예약확정' ? 'var(--c-info)' : a.status === '시공중' ? 'var(--c-gold)' : 'var(--c-ok)';
-                                  const isCompleted = a.status === '완료';
-                                  const isStart = a.appointment_date === cell.dateStr;
-                                  return (
-                                    <div key={a.id} style={{ backgroundColor: barBg, borderRadius: '3px', padding: '2px 6px', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', opacity: isCompleted ? 0.6 : 1 }}>
-                                      <span style={{ fontSize: '10px', fontWeight: 500, color: '#fff' }}>
-                                        {isStart
-                                          ? `${a.customer?.name || '?'}${a.service_type ? ` · ${a.service_type}` : ''}`
-                                          : `→ ${a.customer?.name || '?'}`}
-                                      </span>
-                                    </div>
-                                  );
-                                })}
-                                {dayAppts.length > 3 && (
-                                  <div style={{ fontSize: '10px', color: 'var(--c-gold)', fontWeight: 500, paddingLeft: '4px' }}>+{dayAppts.length - 3}건 더보기</div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
+                <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-2xl overflow-hidden">
+                  <div className="grid grid-cols-7 border-b border-[var(--c-border)] bg-[var(--c-subtle)]/60">
+                    {dayNames.map((d, i) => (
+                      <div key={d} className={`py-2.5 text-center text-xs font-semibold ${i === 0 ? 'text-danger' : i === 6 ? 'text-info' : 'text-[var(--c-text-3)]'}`}>{d}</div>
+                    ))}
                   </div>
-
-                  {/* 선택된 날짜 헤더 */}
-                  {selectedDate && (
-                    <div style={{ marginTop: '16px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div style={{ width: '4px', height: '20px', backgroundColor: 'var(--c-gold)', borderRadius: '9999px' }} />
-                      <span style={{ fontSize: '14px', fontWeight: 600, color: '#fafaf9' }}>
-                        {new Date(selectedDate + 'T00:00:00').toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' })}
-                      </span>
-                      <span style={{ fontSize: '12px', color: 'var(--c-text-3)' }}>{apptByDate(selectedDate).length}건</span>
-                    </div>
-                  )}
+                  <div className="grid grid-cols-7">
+                    {cells.map((cell, i) => {
+                      const dayAppts = apptByDate(cell.dateStr);
+                      const isT = cell.dateStr === today;
+                      const isSel = cell.dateStr === selectedDate;
+                      const isCurrent = cell.month === 'current';
+                      const dow = i % 7;
+                      const numColor = dow === 0 ? 'text-danger' : dow === 6 ? 'text-info' : 'text-[var(--c-text-1)]';
+                      const lastRow = i >= cells.length - 7;
+                      return (
+                        <button
+                          key={cell.dateStr + cell.month}
+                          onClick={() => setSelectedDate(isSel ? null : cell.dateStr)}
+                          className={`relative min-h-[96px] md:min-h-[116px] p-2 text-left align-top border-[var(--c-border)] transition-colors ${dow !== 6 ? 'border-r' : ''} ${!lastRow ? 'border-b' : ''} ${isSel ? 'bg-[var(--c-subtle)]' : 'hover:bg-[var(--c-subtle)]/60'} ${!isCurrent ? 'opacity-35' : ''}`}
+                        >
+                          <span className={`inline-flex w-7 h-7 items-center justify-center rounded-full text-[13px] ${isT ? 'bg-[var(--c-text-1)] text-[var(--c-card)] font-bold' : `font-medium ${numColor}`}`}>{cell.day}</span>
+                          {isCurrent && dayAppts.length > 0 && (
+                            <div className="mt-1.5 flex flex-col gap-1">
+                              {dayAppts.slice(0, 3).map((a) => {
+                                const isStart = a.appointment_date === cell.dateStr;
+                                return (
+                                  <div key={a.id} className={`truncate rounded-md px-1.5 py-1 text-[11px] font-semibold ${chip(a.status)}`}>
+                                    {isStart ? `${a.customer?.name || '?'}${a.service_type ? ` · ${a.service_type}` : ''}` : `→ ${a.customer?.name || '?'}`}
+                                  </div>
+                                );
+                              })}
+                              {dayAppts.length > 3 && <div className="text-[11px] text-[var(--c-text-3)] pl-1">+{dayAppts.length - 3}건</div>}
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
-              {/* 예약 카드 리스트 */}
+              {/* 선택한 날짜 / 리스트 */}
               {(calendarView === 'list' || (calendarView === 'calendar' && selectedDate)) && (
-                <div className="space-y-2">
-                  {displayAppointments.map((a) => {
-                    const isToday = a.appointment_date === today;
-                    const isPast = a.appointment_date < today;
-                    const borderClass = a.status === '완료' ? 'border-[var(--c-border)]' : isToday ? 'border-gold/40' : isPast ? 'border-danger/20' : 'border-[var(--c-border)]';
-                    const opacityClass = a.status === '완료' ? 'opacity-50' : isPast && a.status !== '완료' ? 'opacity-60' : '';
-                    let memoDisplay = a.memo;
-                    try { if (a.memo && JSON.parse(a.memo)?.car_number !== undefined) memoDisplay = null; } catch { /* not JSON */ }
-
-                    return (
-                      <div key={a.id} className={`bg-[var(--c-card)] border rounded-xl p-4 flex items-center justify-between group ${borderClass} ${opacityClass}`}>
-                        <div className="flex items-center gap-4">
-                          <div className="text-center min-w-[60px]">
-                            <div className={`text-lg font-bold ${isToday ? 'text-gold' : 'text-[var(--c-text-1)]'}`}>
-                              {new Date(a.appointment_date).getDate()}
-                              {a.end_date && a.end_date !== a.appointment_date && (
-                                <span className="text-xs font-normal text-[var(--c-text-3)]">~{new Date(a.end_date).getDate()}</span>
-                              )}
-                            </div>
-                            <div className="text-[10px] text-[var(--c-text-3)]">
-                              {new Date(a.appointment_date).toLocaleDateString('ko-KR', { month: 'short' })}
-                              {isToday && <span className="text-gold ml-0.5">오늘</span>}
-                            </div>
-                          </div>
-                          <div className="h-10 w-px bg-[var(--c-subtle)]" />
-                          <div>
-                            <div className="text-sm font-medium text-[var(--c-text-1)]">
-                              {a.customer?.name || '(삭제된 고객)'}
-                              {a.customer?.phone && <span className="text-[var(--c-text-3)] ml-2 font-normal">{a.customer.phone}</span>}
-                            </div>
-                            <div className="text-xs text-[var(--c-text-3)] mt-0.5">
-                              {a.service_type || '미정'}
-                              <span className={`ml-1.5 text-[9px] px-1.5 py-0.5 rounded ${getManager(a) === '이팀장님' ? 'bg-ok/15 text-ok' : getManager(a) === '김막내' ? 'bg-violet/15 text-violet' : 'bg-info/15 text-info'}`}>{getManager(a)}</span>
-                              {a.amount ? <span className="ml-2 text-gold">{a.amount.toLocaleString()}원</span> : null}
-                              {memoDisplay && <span className="ml-2">· {memoDisplay}</span>}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusColor(a.status)}`}>{a.status}</span>
-                          {a.service_type && CRM_SERVICE_TO_KEY[a.service_type] && (
-                            <button onClick={() => handleWriteBlogFromAppointment(a)} className="bg-brand/10 hover:bg-brand/20 text-brand text-xs font-medium rounded-lg px-2.5 py-1 transition-colors" title="이 시공으로 블로그 시공기 폼 채우기">✍️ 시공기</button>
-                          )}
-                          <button onClick={() => handleOpenWorkOrder(a)} className="bg-gold/10 hover:bg-gold/20 text-gold text-xs font-medium rounded-lg px-2.5 py-1 transition-colors">작업 내역서</button>
-                          <button onClick={() => handleOpenWarranty(a)} className={`text-xs font-medium rounded-lg px-2.5 py-1 transition-colors ${hasWarrantyIssued(a.memo) ? 'bg-ok text-white' : 'bg-ok/10 hover:bg-ok/20 text-ok'}`}>{hasWarrantyIssued(a.memo) ? '✓ 보증서 발급완료' : '보증서'}</button>
-                          {a.customer?.phone && (
-                            <div className="flex items-center rounded-lg border border-warn/30 overflow-hidden" title="후기 요청 문자 보내기">
-                              <span className="text-[11px] text-warn px-2 py-1 bg-warn/10 border-r border-warn/30">후기 요청</span>
-                              {(['proism', 'audi', 'bmw'] as const).map((k) => (
-                                <button key={k} onClick={(e) => { e.stopPropagation(); handleReviewSmsFromAppointment(a, k); }} className="text-xs font-medium px-2.5 py-1 text-[var(--c-text-2)] hover:bg-warn/15 hover:text-warn transition-colors border-r border-warn/20 last:border-r-0">
-                                  {k === 'proism' ? '프로이즘' : k === 'audi' ? '아우디' : 'BMW'}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                          {a.status !== '완료' && (
-                            <select value="" onChange={(e) => { if (e.target.value) handleStatusChange(a, e.target.value); }} className="bg-[var(--c-subtle)] border border-[var(--c-border)] rounded-lg px-2 py-1 text-xs text-[var(--c-text-2)] outline-none cursor-pointer">
-                              <option value="">상태 변경</option>
-                              {APPOINTMENT_STATUSES.filter((s) => s !== a.status).map((s) => (<option key={s} value={s}>{s}</option>))}
-                            </select>
-                          )}
-                          <button onClick={() => handleDeleteAppointment(a.id)} className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded flex items-center justify-center text-[var(--c-text-3)] hover:text-danger hover:bg-danger/10 transition-all text-xs" title="삭제">✕</button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {displayAppointments.length === 0 && (
-                    <div className="text-center py-12 text-sm text-[var(--c-text-3)]">
-                      {calendarView === 'calendar' && selectedDate ? '이 날짜에 예약이 없습니다' : '등록된 예약이 없습니다'}
+                <div>
+                  {calendarView === 'calendar' && selectedDate && (
+                    <div className="flex items-center gap-2 mb-3">
+                      <h3 className="text-lg font-bold text-[var(--c-text-1)]">{selLabel}</h3>
+                      <span className="text-sm text-[var(--c-text-3)]">{apptByDate(selectedDate).length}건</span>
                     </div>
                   )}
+                  <div className="space-y-2.5">
+                    {displayAppointments.map((a) => {
+                      const isToday = a.appointment_date === today;
+                      const isPast = a.appointment_date < today;
+                      const dim = a.status === '완료' ? 'opacity-60' : isPast ? 'opacity-70' : '';
+                      let memoDisplay = a.memo;
+                      try { if (a.memo && JSON.parse(a.memo)?.car_number !== undefined) memoDisplay = null; } catch { /* not JSON */ }
+                      const d = new Date(a.appointment_date + 'T00:00:00');
+                      return (
+                        <div key={a.id} className={`bg-[var(--c-card)] border border-[var(--c-border)] rounded-2xl p-4 md:p-5 flex flex-wrap items-center justify-between gap-3 group ${dim}`}>
+                          <div className="flex items-center gap-4 min-w-0">
+                            <div className="text-center w-14 shrink-0">
+                              <div className={`text-2xl font-bold leading-none ${isToday ? 'text-brand' : 'text-[var(--c-text-1)]'}`}>{d.getDate()}</div>
+                              <div className="text-[11px] text-[var(--c-text-3)] mt-1">
+                                {d.getMonth() + 1}월 {dayNames[d.getDay()]}
+                                {a.end_date && a.end_date !== a.appointment_date ? ` ~${new Date(a.end_date + 'T00:00:00').getDate()}일` : ''}
+                              </div>
+                            </div>
+                            <div className="h-10 w-px bg-[var(--c-border)]" />
+                            <div className="min-w-0">
+                              <div className="text-[15px] font-semibold text-[var(--c-text-1)] truncate">
+                                {a.customer?.name || '(삭제된 고객)'}
+                                {a.customer?.phone && <span className="text-[var(--c-text-3)] ml-2 font-normal text-sm">{a.customer.phone}</span>}
+                              </div>
+                              <div className="text-sm text-[var(--c-text-3)] mt-0.5 truncate">
+                                {a.service_type || '시공 미정'}
+                                {a.amount ? <span className="ml-2 text-[var(--c-text-1)] font-medium">{a.amount.toLocaleString()}원</span> : null}
+                                {memoDisplay && <span className="ml-2">· {memoDisplay}</span>}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
+                            <span className={`text-xs font-semibold px-2.5 py-1.5 rounded-full ${chip(a.status)}`}>{a.status}</span>
+                            {a.service_type && CRM_SERVICE_TO_KEY[a.service_type] && (
+                              <button onClick={() => handleWriteBlogFromAppointment(a)} className={pill} title="이 시공으로 블로그 시공기 폼 채우기">✍️ 시공기</button>
+                            )}
+                            <button onClick={() => handleOpenWorkOrder(a)} className={pill}>작업 내역서</button>
+                            <button onClick={() => handleOpenWarranty(a)} className={hasWarrantyIssued(a.memo) ? 'text-xs font-semibold rounded-full px-3 py-1.5 bg-ok text-white whitespace-nowrap' : pill}>{hasWarrantyIssued(a.memo) ? '✓ 보증서 발급' : '보증서'}</button>
+                            {a.customer?.phone && (
+                              <div className="flex items-center rounded-full border border-[var(--c-border)] bg-[var(--c-card)] overflow-hidden" title="후기 요청 문자 보내기">
+                                <span className="text-[11px] font-semibold text-[var(--c-text-3)] pl-3 pr-2 py-1.5">후기</span>
+                                {(['proism', 'audi', 'bmw'] as const).map((k) => (
+                                  <button key={k} onClick={(e) => { e.stopPropagation(); handleReviewSmsFromAppointment(a, k); }} className="text-xs font-semibold px-2.5 py-1.5 text-[var(--c-text-1)] hover:bg-[var(--c-subtle)] transition-colors border-l border-[var(--c-border)]">
+                                    {k === 'proism' ? '프로이즘' : k === 'audi' ? '아우디' : 'BMW'}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                            {a.status !== '완료' && (
+                              <select value="" onChange={(e) => { if (e.target.value) handleStatusChange(a, e.target.value); }} className={`${pill} appearance-none pr-3 cursor-pointer outline-none`}>
+                                <option value="">상태 변경</option>
+                                {APPOINTMENT_STATUSES.filter((st) => st !== a.status).map((st) => (<option key={st} value={st}>{st}</option>))}
+                              </select>
+                            )}
+                            <button onClick={() => handleDeleteAppointment(a.id)} className="opacity-0 group-hover:opacity-100 w-7 h-7 rounded-full flex items-center justify-center text-[var(--c-text-3)] hover:text-danger hover:bg-danger/10 transition-all text-xs" title="삭제">✕</button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {displayAppointments.length === 0 && (
+                      <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-2xl text-center py-12 text-sm text-[var(--c-text-3)]">
+                        {calendarView === 'calendar' && selectedDate ? '이 날짜에 예약이 없습니다' : '등록된 예약이 없습니다'}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
