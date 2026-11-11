@@ -239,9 +239,41 @@ export default function CRMPage() {
   // Consultation state
   const [consultations, setConsultations] = useState<Consultation[]>([]);
   const [showAddConsultation, setShowAddConsultation] = useState(false);
+  // 상담은 아직 고객이 아닌 분이 대부분 → 고객 선택 없이 이름·전화만 적어도 저장 (2026-11-11 사장님 지적)
   const [consultationForm, setConsultationForm] = useState({
-    customer_id: '', consultation_date: '', content: '', estimate: '', interested_services: '', memo: '',
+    customer_id: '', consultation_date: '', content: '', estimate: '', interested_services: '', memo: '', name: '', phone: '', car: '', photos: [] as string[],
   });
+  const [consultPhotoBusy, setConsultPhotoBusy] = useState(false);
+  const consultPhotoRef = useRef<HTMLInputElement>(null);
+  // 캡처 사진 첨부: 브라우저에서 1600px 이하로 줄여 base64 로 보내면 서버가 Blob 저장 + 이름·전화·차종 읽어 줌
+  const handleConsultPhoto = async (file: File | undefined) => {
+    if (!file || !/^image\//.test(file.type)) return;
+    setConsultPhotoBusy(true);
+    try {
+      const bitmap = await createImageBitmap(file);
+      const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(bitmap.width * scale); canvas.height = Math.round(bitmap.height * scale);
+      canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      const res = await fetch('/api/consult/photo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: dataUrl.split(',')[1], mediaType: 'image/jpeg', name: file.name }) });
+      const j = await res.json();
+      if (!res.ok || j.error) { alert(j.error || '사진 업로드 실패'); return; }
+      setConsultationForm((f) => ({
+        ...f,
+        photos: [...f.photos, j.url as string],
+        // 비어 있는 칸만 캡처에서 읽은 값으로 채움
+        name: f.name || j.name || '',
+        phone: f.phone || j.phone || '',
+        car: f.car || j.car || '',
+      }));
+    } catch (e) {
+      alert(e instanceof Error ? e.message : '사진 처리 실패');
+    } finally {
+      setConsultPhotoBusy(false);
+      if (consultPhotoRef.current) consultPhotoRef.current.value = '';
+    }
+  };
 
 
   // Work order modal state
@@ -1126,15 +1158,26 @@ export default function CRMPage() {
 
   // ─── Consultation Actions ───────────────────────────────
   const handleAddConsultation = async () => {
-    if (!consultationForm.customer_id || !consultationForm.consultation_date) return;
-    await supabase.from('consultations').insert({
-      customer_id: consultationForm.customer_id,
-      consultation_date: consultationForm.consultation_date,
-      content: consultationForm.content || null,
-      estimate: consultationForm.estimate || null,
-      interested_services: consultationForm.interested_services || null,
-      memo: consultationForm.memo || null,
+    const f = consultationForm;
+    const date = f.consultation_date || today;
+    const phoneDigits = f.phone.replace(/[^\d]/g, '');
+    if (!f.customer_id && !phoneDigits && f.photos.length === 0) { alert('고객을 고르거나, 전화번호를 적거나, 캡처 사진을 붙여 주세요.'); return; }
+    // 고객 미선택: 메모 첫 칸을 "이름 전화 · 차종" 으로 (견적 문자 기록과 같은 형식). 나중에 '＋ 고객 목록에 추가'로 연결 가능
+    const phoneFmt = phoneDigits.length === 11 ? `${phoneDigits.slice(0, 3)}-${phoneDigits.slice(3, 7)}-${phoneDigits.slice(7)}` : f.phone.trim();
+    const who = f.customer_id ? '' : `${f.name.trim() || '전화문의'} ${phoneFmt}`.trim();
+    const photoPart = f.photos.length ? `사진: ${f.photos.join(' ')}` : '';
+    const memo = f.customer_id
+      ? [f.memo.trim(), photoPart].filter(Boolean).join(' · ') || null
+      : [who, f.car.trim(), f.memo.trim(), photoPart].filter(Boolean).join(' · ');
+    const { error } = await supabase.from('consultations').insert({
+      customer_id: f.customer_id || null,
+      consultation_date: date,
+      content: f.content || null,
+      estimate: f.estimate || null,
+      interested_services: f.interested_services || null,
+      memo,
     });
+    if (error) { alert(`저장 실패: ${error.message}`); return; }
 
     // Notion 상담 기록 동기화 (fire-and-forget)
     const consultCustomer = allCustomers.find((c) => c.id === consultationForm.customer_id);
@@ -1154,7 +1197,7 @@ export default function CRMPage() {
         .catch((err) => console.warn('[CRM] Notion 상담 기록 실패:', err));
     }
 
-    setConsultationForm({ customer_id: '', consultation_date: '', content: '', estimate: '', interested_services: '', memo: '' });
+    setConsultationForm({ customer_id: '', consultation_date: '', content: '', estimate: '', interested_services: '', memo: '', name: '', phone: '', car: '', photos: [] });
     setShowAddConsultation(false);
     fetchConsultations();
   };
@@ -2239,7 +2282,10 @@ export default function CRMPage() {
                       <button
                         onClick={() => {
                           const cu = customers.find((x) => x.id === c.customer_id);
-                          setQuoteSms({ customerId: c.customer_id, name: c.customer?.name || cu?.name || '', phone: c.customer?.phone || cu?.phone || '', car: cu ? [cu.car_brand, cu.car_model].filter(Boolean).join(' ') : '', service: c.interested_services || '' });
+                          const parts = (c.memo || '').split(' · ');
+                          const headPhone = parts[0]?.match(/01[016789]-?\d{3,4}-?\d{4}/)?.[0] || '';
+                          const headName = headPhone ? parts[0].replace(headPhone, '').trim() : '';
+                          setQuoteSms({ customerId: c.customer_id, name: c.customer?.name || cu?.name || headName, phone: c.customer?.phone || cu?.phone || headPhone, car: cu ? [cu.car_brand, cu.car_model].filter(Boolean).join(' ') : (headPhone ? parts[1] || '' : ''), service: c.interested_services || '' });
                         }}
                         className="text-[10px] font-medium px-2.5 py-1 rounded-lg bg-gold/10 hover:bg-gold/20 text-gold transition-colors"
                       >
@@ -2254,8 +2300,16 @@ export default function CRMPage() {
                   <div className="flex items-center gap-3 text-xs text-[var(--c-text-3)]">
                     {c.estimate && <span>견적: <span className="text-gold">{c.estimate}</span></span>}
                     {c.interested_services && <span>관심: <span className="text-[var(--c-text-2)]">{c.interested_services}</span></span>}
-                    {c.memo && <span>메모: {c.memo}</span>}
+                    {c.memo && <span>메모: {c.memo.split(' · ').filter((seg) => !seg.startsWith('사진: ')).join(' · ') || '-'}</span>}
                   </div>
+                  {c.memo && c.memo.includes('사진: ') && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {c.memo.split(' · ').filter((seg) => seg.startsWith('사진: ')).flatMap((seg) => seg.slice(4).trim().split(/\s+/)).filter(Boolean).map((u) => (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <a key={u} href={u} target="_blank" rel="noreferrer"><img src={u} alt="상담 첨부 사진" className="w-20 h-20 object-cover rounded-lg border border-[var(--c-border)] hover:opacity-90" /></a>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
               {consultations.length === 0 && (
@@ -2399,11 +2453,22 @@ export default function CRMPage() {
             <h3 className="text-[var(--c-text-1)] font-semibold text-base mb-4">상담 추가</h3>
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-[var(--c-text-3)] mb-1 block">고객 *</label>
+                <label className="text-xs text-[var(--c-text-3)] mb-1 block">고객 목록에 있는 분이면 선택 (선택사항)</label>
                 <CustomerPicker value={consultationForm.customer_id} onChange={(id) => setConsultationForm({ ...consultationForm, customer_id: id })} />
               </div>
+              {!consultationForm.customer_id && (
+                <div className="rounded-xl border border-dashed border-[var(--c-border)] bg-[var(--c-subtle)]/60 p-3">
+                  <div className="text-xs font-semibold text-[var(--c-text-2)] mb-2">고객 목록에 없는 분 — 이름·전화만 적으면 됩니다 (전화 필수)</div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <input type="text" placeholder="이름" value={consultationForm.name} onChange={(e) => setConsultationForm({ ...consultationForm, name: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[var(--c-text-1)]" />
+                    <input type="tel" placeholder="010-0000-0000 *" value={consultationForm.phone} onChange={(e) => setConsultationForm({ ...consultationForm, phone: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[var(--c-text-1)]" />
+                    <input type="text" placeholder="차종 (예: 포르쉐 카이엔)" value={consultationForm.car} onChange={(e) => setConsultationForm({ ...consultationForm, car: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[var(--c-text-1)]" />
+                  </div>
+                  <div className="text-[11px] text-[var(--c-text-3)] mt-2">계약으로 이어지면 상담 기록 줄의 "＋ 고객 목록에 추가"로 등록하면 이 기록이 자동으로 연결됩니다</div>
+                </div>
+              )}
               <div>
-                <label className="text-xs text-[var(--c-text-3)] mb-1 block">상담 날짜 *</label>
+                <label className="text-xs text-[var(--c-text-3)] mb-1 block">상담 날짜 (비우면 오늘)</label>
                 <input type="date" value={consultationForm.consultation_date} onChange={(e) => setConsultationForm({ ...consultationForm, consultation_date: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" />
               </div>
               <div>
@@ -2418,6 +2483,22 @@ export default function CRMPage() {
                 <div>
                   <label className="text-xs text-[var(--c-text-3)] mb-1 block">관심 시공</label>
                   <input type="text" value={consultationForm.interested_services} onChange={(e) => setConsultationForm({ ...consultationForm, interested_services: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder="PPF, 썬팅 등" />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-[var(--c-text-3)] mb-1 block">사진 (통화 기록·문자 캡처 등. 올리면 이름·전화·차종을 읽어 빈 칸을 채웁니다)</label>
+                <div className="flex flex-wrap items-center gap-2">
+                  {consultationForm.photos.map((u) => (
+                    <div key={u} className="relative">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={u} alt="첨부 사진" className="w-16 h-16 object-cover rounded-lg border border-[var(--c-border)]" />
+                      <button type="button" onClick={() => setConsultationForm({ ...consultationForm, photos: consultationForm.photos.filter((x) => x !== u) })} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[var(--c-text-1)] text-[var(--c-card)] text-[10px] flex items-center justify-center" title="빼기">✕</button>
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => consultPhotoRef.current?.click()} disabled={consultPhotoBusy} className="w-16 h-16 rounded-lg border border-dashed border-[var(--c-border)] hover:border-[var(--c-text-1)] text-[var(--c-text-3)] hover:text-[var(--c-text-1)] flex flex-col items-center justify-center text-[11px] transition-colors disabled:opacity-50">
+                    <span className="text-lg leading-none">{consultPhotoBusy ? '…' : '📷'}</span>{consultPhotoBusy ? '읽는 중' : '사진 추가'}
+                  </button>
+                  <input ref={consultPhotoRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleConsultPhoto(e.target.files?.[0])} />
                 </div>
               </div>
               <div>
