@@ -300,7 +300,7 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
   }, [car, range, service, extraLabel, extraPrice, summary, recGrade, recPrice, recSale, recWhy, altGrade, altPrice, altSale, altWhy, priceNote, benefitSel, benefitExtra, terms, date1, date2, link]);
 
   const followUp1 = `안녕하세요 3M 프로이즘 대표 진준호입니다.\n어제 보내드린 ${car || ''} ${service} 견적 보셨을까요?\n${date1 ? `${dayLabel(date1)} 자리는 아직 비어 있습니다.` : '입고 일정은 맞춰 드릴 수 있습니다.'}\n\n저희에서 시공하신 분들 후기는 여기 모아 두었습니다\n${link2}\n\n궁금한 점 있으시면 편하게 물어봐 주세요.\n010-7287-7140`;
-  const followUp2 = `3M 프로이즘 대표 진준호입니다. 마지막으로 한 가지만 말씀드리면,\n${service === 'PPF' || service === '컬러PPF' ? '어디서 하시더라도 외부 패널은 열 없이 습식으로, 필름 끝을 패널 안쪽으로 넣어 마감하는지 꼭 확인해 보세요.' : service === '썬팅' ? '어디서 하시더라도 기존 필름 제거는 스팀으로 하는지, 후면 유리는 한 장 시공인지 꼭 확인해 보세요.' : '어디서 하시더라도 어떤 제품을 쓰는지, 누가 시공하는지, 사후 관리는 어떻게 이루어지는지 꼭 확인해 보세요.'}\n\n고르실 때 참고하시라고 글 하나 남깁니다\n${link3}\n\n도움이 필요하시면 언제든 연락 주세요. 감사합니다.\n010-7287-7140`;
+  const followUp2 = `3M 프로이즘 대표 진준호입니다. 마지막으로 한 가지만 말씀드리면,\n어디서 하시더라도 어떤 제품을 쓰는지, 누가 시공하는지, 사후 관리는 어떻게 이루어지는지 꼭 확인해 보세요.\n\n고르실 때 참고하시라고 글 하나 남깁니다\n${link3}\n\n도움이 필요하시면 언제든 연락 주세요. 감사합니다.\n010-7287-7140`;
 
   const remember = () => {
     const m = loadMemory();
