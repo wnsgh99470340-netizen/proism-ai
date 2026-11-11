@@ -146,7 +146,35 @@ const PRICE_BOOK: Record<ServiceKey, Record<string, PriceItem[]>> = {
 const rangesOf = (svc: ServiceKey) => Object.keys(PRICE_BOOK[svc]);
 const itemsOf = (svc: ServiceKey, range: string): PriceItem[] => PRICE_BOOK[svc][range] || PRICE_BOOK[svc][rangesOf(svc)[0]] || [];
 const bookPrice = (svc: ServiceKey, range: string, grade: string) => itemsOf(svc, range).find((i) => i.grade === grade)?.price || 0;
-const DEFAULT_LINK = 'https://blog.naver.com/roice_/223938165520';
+/** 상황별 링크 (2026-11-11 사장님 제공). 문자 하나에 링크 하나 */
+const L = {
+  installer: 'https://blog.naver.com/roice_/223938165520',   // 프리퍼드 인스톨러가 운영
+  why3mPpf: 'https://blog.naver.com/roice_/223959906199',    // 왜 3M PPF 를 추천하는가
+  whyProism: 'https://blog.naver.com/roice_/223943072909',   // 강남서초점에서 랩핑·PPF 받아야 하는 이유
+  ppfCheck: 'https://blog.naver.com/roice_/223964543053',    // PPF 적용 시 꼭 체크할 부분
+  wrapValue: 'https://blog.naver.com/effort--/223985285107', // 랩핑, 가격보다 기회비용
+  tintApproach: 'https://blog.naver.com/roice_/223963852286',// 신차패키지 전문점의 썬팅 필름 접근법
+  youtube: 'https://blog.naver.com/roice_/224472810201',     // 유튜브 채널·영상
+  reviews: 'https://blog.naver.com/roice_/224472736789',     // 고객 실제 후기 리뷰
+  newcarModel3: 'https://blog.naver.com/roice_/224289189596',// 모델3 신차패키지, 정비사 출신 업체
+  cheapPpf: 'https://blog.naver.com/roice_/224286484844',    // 최저 PPF 가격 검색은 그만
+};
+/** 첫 문자(실력·과정 한 편) */
+const FIRST_LINK: Record<ServiceKey, string> = {
+  PPF: L.installer, 컬러PPF: L.installer, 랩핑: L.whyProism, 크롬죽이기: L.whyProism,
+  신차패키지: L.newcarModel3, 썬팅: L.tintApproach, 유리막코팅: L.installer, 실내PPF: L.installer,
+};
+/** 다음 날 재연락(신뢰: 실제 후기) */
+const NUDGE_LINK: Record<ServiceKey, string> = {
+  PPF: L.reviews, 컬러PPF: L.reviews, 랩핑: L.reviews, 크롬죽이기: L.reviews,
+  신차패키지: L.reviews, 썬팅: L.reviews, 유리막코팅: L.reviews, 실내PPF: L.reviews,
+};
+/** 3일 뒤 마무리(도움 되는 글 한 편) */
+const CLOSE_LINK: Record<ServiceKey, string> = {
+  PPF: L.cheapPpf, 컬러PPF: L.ppfCheck, 랩핑: L.wrapValue, 크롬죽이기: L.wrapValue,
+  신차패키지: L.ppfCheck, 썬팅: L.youtube, 유리막코팅: L.why3mPpf, 실내PPF: L.ppfCheck,
+};
+const DEFAULT_LINK = L.installer;
 const CARD_URL = 'https://proism-ai.vercel.app/card';
 const STORE_KEY = 'crm_quote_sms_memory_v1';
 
@@ -210,7 +238,7 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
   const [terms, setTerms] = useState('');
   const [date1, setDate1] = useState(addDays(today, 2));
   const [date2, setDate2] = useState(addDays(today, 5));
-  const [link, setLink] = useState(mem.link || DEFAULT_LINK);
+  const [link, setLink] = useState(DEFAULT_LINK);
   const [withFollowUps, setWithFollowUps] = useState(true);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -219,6 +247,7 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
   useEffect(() => {
     setRange((r) => (rangesOf(service).includes(r) ? r : rangesOf(service)[0]));
     setTerms(DEFAULT_TERMS[service]);
+    setLink(FIRST_LINK[service]);
   }, [service]);
   // 범위 바꾸면 추천=두 번째(없으면 첫째), 상위=세 번째
   useEffect(() => {
@@ -265,8 +294,8 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
     return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
   }, [car, range, service, extraLabel, extraPrice, summary, recGrade, recPrice, recSale, recWhy, altGrade, altPrice, altSale, altWhy, priceNote, benefitSel, benefitExtra, terms, date1, date2, link]);
 
-  const followUp1 = `안녕하세요 3M 프로이즘입니다.\n어제 보내드린 ${car || ''} ${service} 견적 보셨을까요?\n${date1 ? `${dayLabel(date1)} 자리는 아직 비어 있습니다.` : '입고 일정은 맞춰 드릴 수 있습니다.'}\n궁금한 점 있으시면 편하게 물어봐 주세요.`;
-  const followUp2 = `3M 프로이즘입니다. 마지막으로 한 가지만 말씀드리면,\n${service === 'PPF' || service === '컬러PPF' ? '어디서 하시더라도 외부 패널은 열 없이 습식으로, 필름 끝을 패널 안쪽으로 넣어 마감하는지 꼭 확인해 보세요.' : service === '썬팅' ? '어디서 하시더라도 기존 필름 제거는 스팀으로 하는지, 후면 유리는 한 장 시공인지 꼭 확인해 보세요.' : '어디서 하시더라도 필름 끝단 마감과 메인터넌스가 있는지 꼭 확인해 보세요.'}\n도움이 필요하시면 언제든 연락 주세요. 감사합니다.`;
+  const followUp1 = `안녕하세요 3M 프로이즘 대표 진준호입니다.\n어제 보내드린 ${car || ''} ${service} 견적 보셨을까요?\n${date1 ? `${dayLabel(date1)} 자리는 아직 비어 있습니다.` : '입고 일정은 맞춰 드릴 수 있습니다.'}\n\n저희에서 시공하신 분들 후기는 여기 모아 두었습니다\n${NUDGE_LINK[service]}\n\n궁금한 점 있으시면 편하게 물어봐 주세요.\n010-7287-7140`;
+  const followUp2 = `3M 프로이즘 대표 진준호입니다. 마지막으로 한 가지만 말씀드리면,\n${service === 'PPF' || service === '컬러PPF' ? '어디서 하시더라도 외부 패널은 열 없이 습식으로, 필름 끝을 패널 안쪽으로 넣어 마감하는지 꼭 확인해 보세요.' : service === '썬팅' ? '어디서 하시더라도 기존 필름 제거는 스팀으로 하는지, 후면 유리는 한 장 시공인지 꼭 확인해 보세요.' : '어디서 하시더라도 필름 끝단 마감과 메인터넌스가 있는지 꼭 확인해 보세요.'}\n\n고르실 때 참고하시라고 글 하나 남깁니다\n${CLOSE_LINK[service]}\n\n도움이 필요하시면 언제든 연락 주세요. 감사합니다.\n010-7287-7140`;
 
   const remember = () => {
     const m = loadMemory();
@@ -426,7 +455,7 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
               <div><label className={labelCls}>입고 가능 날짜 1</label><input type="date" value={date1} onChange={(e) => setDate1(e.target.value)} className={inputCls} /></div>
               <div><label className={labelCls}>입고 가능 날짜 2</label><input type="date" value={date2} onChange={(e) => setDate2(e.target.value)} className={inputCls} /></div>
             </div>
-            <div><label className={labelCls}>링크 하나</label><input value={link} onChange={(e) => setLink(e.target.value)} className={inputCls} /></div>
+            <div><label className={labelCls}>링크 하나 (시공별 기본 글이 들어가고, 바꿀 수 있음)</label><input value={link} onChange={(e) => setLink(e.target.value)} className={inputCls} /></div>
             <label className="flex items-center gap-2 text-xs text-[var(--c-text-2)]">
               <input type="checkbox" checked={withFollowUps} onChange={(e) => setWithFollowUps(e.target.checked)} className="accent-[#E4002B]" />
               보내면 사후관리에 재연락(내일)·마무리(3일 뒤) 문자를 자동 등록
