@@ -26,17 +26,12 @@ interface Props {
 const SERVICES = ['PPF', '컬러PPF', '랩핑', '크롬죽이기', '신차패키지', '썬팅', '유리막코팅', '실내PPF'] as const;
 type ServiceKey = typeof SERVICES[number];
 
-/** 시공별 기본 포함 혜택 (기존 견적 템플릿의 무상시공 항목) */
-const DEFAULT_BENEFITS: Record<ServiceKey, string> = {
-  PPF: '필름코팅 · 실내 T존 PPF · 실내 전체코팅 무상',
-  컬러PPF: '필름코팅 · 실내 T존 PPF · 실내 전체코팅 무상',
-  랩핑: '필름코팅 · 실내 T존 PPF · 컵/엣지 생활보호 PPF 무상',
-  크롬죽이기: '생활보호 PPF 4종(컵·엣지·주유구·트렁크리드) · 실내 액정 PPF 무상',
-  신차패키지: '실내 T존 PPF · B/C필러 PPF · 유리막코팅 2레이어 업그레이드 무상',
-  썬팅: '',
-  유리막코팅: '실내 전체코팅 무상',
-  실내PPF: '필름코팅 무상',
-};
+/** 서비스(무상) 항목 — 처음엔 아무것도 선택 안 됨. 필요한 것만 체크해서 "포함:" 줄을 만든다 */
+const SERVICE_ITEMS = [
+  'B/C필러 하이그로시 PPF', '실내 PPF (T존)', '실내 PPF (액정)', '실내 전체코팅', '필름코팅',
+  '캐리어 탁송 (왕복)', '신차검수', '기본 유리막코팅', '유리막코팅 2레이어 업그레이드',
+  '생활보호 PPF 4종 (컵·엣지·주유구·트렁크리드)', '컵/엣지 PPF', '디스플레이 PPF', '사이드미러 PPF', '헤드라이트 PPF',
+] as const;
 /** 시공별 기간·보증 한 줄 */
 const DEFAULT_TERMS: Record<ServiceKey, string> = {
   PPF: '시공 3박4일 / 2주 뒤 QC / 6개월마다 메인터넌스',
@@ -206,7 +201,8 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
   const [extraLabel, setExtraLabel] = useState('');
   const [extraPrice, setExtraPrice] = useState('');
   const [priceNote, setPriceNote] = useState('정상가 기준이며 세단 기준입니다. SUV·RV는 추가 금액이 있을 수 있고, 다른 등급도 안내해 드립니다');
-  const [benefits, setBenefits] = useState('');
+  const [benefitSel, setBenefitSel] = useState<string[]>([]);
+  const [benefitExtra, setBenefitExtra] = useState('');
   const [terms, setTerms] = useState('');
   const [date1, setDate1] = useState(addDays(today, 2));
   const [date2, setDate2] = useState(addDays(today, 5));
@@ -218,9 +214,8 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
   // 시공 바꾸면 범위·혜택 기본값 갱신
   useEffect(() => {
     setRange((r) => (rangesOf(service).includes(r) ? r : rangesOf(service)[0]));
-    setBenefits(mem.benefits[service] || DEFAULT_BENEFITS[service]);
     setTerms(DEFAULT_TERMS[service]);
-  }, [service, mem.benefits]);
+  }, [service]);
   // 범위 바꾸면 추천=두 번째(없으면 첫째), 상위=세 번째
   useEffect(() => {
     const items = itemsOf(service, range);
@@ -244,7 +239,8 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
     if ((service === 'PPF' || service === '컬러PPF') && range === '전체') lines.push(service === 'PPF' ? '루프 추가 시 30만원 추가' : '루프 추가 시 50만원 추가');
     if (priceNote) lines.push(`(${priceNote})`);
     lines.push('');
-    if (benefits) lines.push(`포함: ${benefits}`);
+    const benefitList = [...benefitSel, ...(benefitExtra.trim() ? [benefitExtra.trim()] : [])];
+    if (benefitList.length > 0) lines.push(`포함(무상): ${benefitList.join(' · ')}`);
     if (terms) lines.push(terms);
     lines.push('보증: 3M 제품보증 + 시공보증서 발급');
     lines.push('');
@@ -257,7 +253,7 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
     if (link) { lines.push('시공 사진·과정은 여기 한 편만 보시면 됩니다'); lines.push(link); lines.push(''); }
     lines.push('3M 프로이즘 강남서초점 010-7287-7140');
     return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
-  }, [car, range, service, extraLabel, extraPrice, summary, recGrade, recPrice, recWhy, altGrade, altPrice, altWhy, priceNote, benefits, terms, date1, date2, link]);
+  }, [car, range, service, extraLabel, extraPrice, summary, recGrade, recPrice, recWhy, altGrade, altPrice, altWhy, priceNote, benefitSel, benefitExtra, terms, date1, date2, link]);
 
   const followUp1 = `안녕하세요 3M 프로이즘입니다.\n어제 보내드린 ${car || ''} ${service} 견적 보셨을까요?\n${date1 ? `${dayLabel(date1)} 자리는 아직 비어 있습니다.` : '입고 일정은 맞춰 드릴 수 있습니다.'}\n궁금한 점 있으시면 편하게 물어봐 주세요.`;
   const followUp2 = `3M 프로이즘입니다. 마지막으로 한 가지만 말씀드리면,\n${service === 'PPF' || service === '컬러PPF' ? '어디서 하시더라도 외부 패널은 열 없이 습식으로, 필름 끝을 패널 안쪽으로 넣어 마감하는지 꼭 확인해 보세요.' : service === '썬팅' ? '어디서 하시더라도 기존 필름 제거는 스팀으로 하는지, 후면 유리는 한 장 시공인지 꼭 확인해 보세요.' : '어디서 하시더라도 필름 끝단 마감과 메인터넌스가 있는지 꼭 확인해 보세요.'}\n도움이 필요하시면 언제든 연락 주세요. 감사합니다.`;
@@ -266,7 +262,7 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
     const m = loadMemory();
     if (recGrade && recPrice) m.prices[`${service}|${recGrade}`] = recPrice;
     if (altGrade && altPrice) m.prices[`${service}|${altGrade}`] = altPrice;
-    m.link = link; m.benefits[service] = benefits;
+    m.link = link;
     saveMemory(m);
   };
 
@@ -361,7 +357,21 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
               <div><label className={labelCls}>금액</label><input value={extraPrice} onChange={(e) => setExtraPrice(e.target.value.replace(/[^\d]/g, ''))} inputMode="numeric" className={`${inputCls} text-right`} placeholder="600000" /></div>
             </div>
             <div><label className={labelCls}>가격 조건 한 줄</label><input value={priceNote} onChange={(e) => setPriceNote(e.target.value)} className={inputCls} /></div>
-            <div><label className={labelCls}>포함 혜택</label><input value={benefits} onChange={(e) => setBenefits(e.target.value)} className={inputCls} /></div>
+            <div>
+              <label className={labelCls}>서비스 항목 (무상) — 필요한 것만 체크. 기본은 비어 있음</label>
+              <div className="flex flex-wrap gap-1.5">
+                {SERVICE_ITEMS.map((it) => {
+                  const on = benefitSel.includes(it);
+                  return (
+                    <button key={it} type="button" onClick={() => setBenefitSel(on ? benefitSel.filter((x) => x !== it) : [...benefitSel, it])}
+                      className={`text-[11px] px-2.5 py-1 rounded-lg border transition-colors ${on ? 'bg-[#C8A951]/20 border-[#C8A951]/60 text-[#C8A951]' : 'bg-[var(--c-input)] border-[var(--c-border)] text-[var(--c-text-2)] hover:border-[#C8A951]/40'}`}>
+                      {on ? '✓ ' : ''}{it}
+                    </button>
+                  );
+                })}
+              </div>
+              <input value={benefitExtra} onChange={(e) => setBenefitExtra(e.target.value)} className={`${inputCls} mt-2`} placeholder="목록에 없는 서비스 직접 입력 (선택)" />
+            </div>
             <div><label className={labelCls}>기간·관리</label><input value={terms} onChange={(e) => setTerms(e.target.value)} className={inputCls} /></div>
             <div className="grid grid-cols-2 gap-3">
               <div><label className={labelCls}>입고 가능 날짜 1</label><input type="date" value={date1} onChange={(e) => setDate1(e.target.value)} className={inputCls} /></div>
