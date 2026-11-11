@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { BLOG_PREFILL_KEY, CRM_SERVICE_TO_KEY, type BlogPrefill } from '@/config/blog-options';
 import { useTheme } from '@/components/ThemeProvider';
+import QuoteSmsModal, { type QuoteSmsInitial } from '@/components/crm/QuoteSmsModal';
 
 // ─── Types ───────────────────────────────────────────────
 interface Customer {
@@ -275,7 +276,9 @@ export default function CRMPage() {
 
   // Follow-up state
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
-  const [followUpFilter, setFollowUpFilter] = useState<'all' | 'QC점검' | '메인터넌스' | '후기요청'>('all');
+  const [followUpFilter, setFollowUpFilter] = useState<'all' | 'QC점검' | '메인터넌스' | '후기요청' | '견적재연락' | '견적마무리'>('all');
+  // 견적 문자 생성 창 (2026-11-11): 전화 상담 뒤 보내는 문자 + 재연락 2회 자동 등록
+  const [quoteSms, setQuoteSms] = useState<QuoteSmsInitial | null>(null);
 
   // Consultation state
   const [consultations, setConsultations] = useState<Consultation[]>([]);
@@ -1208,6 +1211,7 @@ export default function CRMPage() {
   const filteredFollowUps = followUps
     .filter((f) => {
       if (followUpFilter === 'all') return true;
+      if (followUpFilter === '견적재연락') return f.follow_up_type === '견적재연락' || f.follow_up_type === '견적마무리';
       return f.follow_up_type === followUpFilter;
     })
     .sort((a, b) => {
@@ -1774,6 +1778,7 @@ export default function CRMPage() {
                 { key: 'QC점검' as const, label: 'QC', count: followUps.filter((f) => f.follow_up_type === 'QC점검').length, style: 'bg-[#3B82F6]/20 text-[#60A5FA]' },
                 { key: '메인터넌스' as const, label: '메인터넌스', count: followUps.filter((f) => f.follow_up_type === '메인터넌스').length, style: 'bg-[#8B5CF6]/20 text-[#A78BFA]' },
                 { key: '후기요청' as const, label: '후기요청', count: followUps.filter((f) => f.follow_up_type === '후기요청').length, style: 'bg-[#F59E0B]/20 text-[#FBBF24]' },
+                { key: '견적재연락' as const, label: '견적 재연락', count: followUps.filter((f) => f.follow_up_type === '견적재연락' || f.follow_up_type === '견적마무리').length, style: 'bg-[#C8A951]/20 text-[#C8A951]' },
               ]).map((f) => (
                 <button
                   key={f.key}
@@ -1793,7 +1798,12 @@ export default function CRMPage() {
             {/* 카드 리스트 */}
             <div className="space-y-3">
               {filteredFollowUps.map((f) => {
-                const phone = f.customer?.phone;
+                const isQuote = f.follow_up_type === '견적재연락' || f.follow_up_type === '견적마무리';
+                // 견적 재연락은 고객 등록이 없을 수 있어 메모 첫 줄("이름 전화 · 차종 시공")에서 전화를 읽는다
+                const memoPhone = isQuote ? (f.memo || '').split('\n')[0].match(/01[016789]-?\d{3,4}-?\d{4}/)?.[0] : undefined;
+                const phone = f.customer?.phone || memoPhone;
+                const quoteHead = isQuote ? (f.memo || '').split('\n')[0] : '';
+                const quoteBody = isQuote ? (f.memo || '').split('\n').slice(1).join('\n') : '';
                 const daysUntil = Math.ceil((new Date(f.scheduled_date).getTime() - new Date(today).getTime()) / 86400000);
                 const isUrgent = !f.is_completed && daysUntil >= 0 && daysUntil <= 3;
                 const isOverdue = !f.is_completed && f.scheduled_date < today;
@@ -1852,7 +1862,9 @@ export default function CRMPage() {
                   ? 'bg-[#3B82F6]/20 text-[#60A5FA]'
                   : f.follow_up_type === '후기요청'
                     ? 'bg-[#F59E0B]/20 text-[#FBBF24]'
-                    : 'bg-[#8B5CF6]/20 text-[#A78BFA]';
+                    : isQuote
+                      ? 'bg-[#C8A951]/20 text-[#C8A951]'
+                      : 'bg-[#8B5CF6]/20 text-[#A78BFA]';
 
                 const statusBadge = f.is_completed
                   ? { text: '처리완료', class: 'bg-[#10B981]/20 text-[#34D399]' }
@@ -1914,7 +1926,13 @@ export default function CRMPage() {
                           <span>{formatDate(f.scheduled_date)}</span>
                           {f.scheduled_date === today && <span className="text-[#F59E0B] font-medium">(오늘)</span>}
                         </div>
-                        {f.memo && <div className="text-xs text-[var(--c-text-4)] mt-1">{f.memo}</div>}
+                        {f.memo && !isQuote && <div className="text-xs text-[var(--c-text-4)] mt-1">{f.memo}</div>}
+                        {isQuote && (
+                          <div className="text-xs text-[var(--c-text-4)] mt-1">
+                            {quoteHead}
+                            <details className="mt-1"><summary className="cursor-pointer text-[var(--c-text-3)]">보낼 문자 보기</summary><pre className="whitespace-pre-wrap font-sans mt-1 text-[var(--c-text-2)]">{quoteBody}</pre></details>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -1942,6 +1960,12 @@ export default function CRMPage() {
                         <button onClick={() => sendSms(smsReviewBMW, 'bmw')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${reviewBtn('bmw')}`}>{sent.bmw ? '✓ BMW 문자' : 'BMW 문자'}</button>
                         <button onClick={() => sendKakao(smsReviewAudi, 'audi')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${sent.audi ? sentBtn : 'bg-[#FEE500]/20 text-[#3C1E1E] hover:bg-[#FEE500]/30'}`}>{sent.audi ? '✓ 아우디 카톡' : '아우디 카톡'}</button>
                         <button onClick={() => sendSms(smsReviewAudi, 'audi')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${reviewBtn('audi')}`}>{sent.audi ? '✓ 아우디 문자' : '아우디 문자'}</button>
+                        </>
+                      )}
+                      {isQuote && (
+                        <>
+                        <button onClick={() => sendSms(quoteBody, 'quote')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${sent.quote ? sentBtn : 'bg-[#C8A951]/20 text-[#C8A951] hover:bg-[#C8A951]/30'}`}>{sent.quote ? '✓ 문자완료' : (f.follow_up_type === '견적재연락' ? '재연락 문자' : '마무리 문자')}</button>
+                        <button onClick={() => copyMsg(quoteBody)} className="text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors bg-[var(--c-subtle)] text-[var(--c-text-2)] hover:bg-[var(--c-hover)]">복사</button>
                         </>
                       )}
                       <button
@@ -2083,12 +2107,21 @@ export default function CRMPage() {
           <div>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm text-[var(--c-text-3)]">{consultations.length}건의 상담</h2>
-              <button
-                onClick={() => setShowAddConsultation(true)}
-                className="bg-[#E4002B] hover:bg-[#c60026] text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors"
-              >
-                + 상담 추가
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setQuoteSms({})}
+                  className="bg-[#C8A951]/15 hover:bg-[#C8A951]/25 text-[#C8A951] text-sm font-medium rounded-lg px-4 py-2 transition-colors"
+                  title="전화 끊고 바로 보내는 견적 문자 (재연락 2회 자동 등록)"
+                >
+                  📩 견적 문자
+                </button>
+                <button
+                  onClick={() => setShowAddConsultation(true)}
+                  className="bg-[#E4002B] hover:bg-[#c60026] text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors"
+                >
+                  + 상담 추가
+                </button>
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -2099,7 +2132,18 @@ export default function CRMPage() {
                       <span className="text-sm font-medium text-[var(--c-text-1)]">{c.customer?.name || '-'}</span>
                       {c.customer?.phone && <span className="text-xs text-[var(--c-text-3)]">{c.customer.phone}</span>}
                     </div>
-                    <span className="text-xs text-[var(--c-text-3)]">{formatDate(c.consultation_date)}</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          const cu = customers.find((x) => x.id === c.customer_id);
+                          setQuoteSms({ customerId: c.customer_id, name: c.customer?.name || cu?.name || '', phone: c.customer?.phone || cu?.phone || '', car: cu ? [cu.car_brand, cu.car_model].filter(Boolean).join(' ') : '', service: c.interested_services || '' });
+                        }}
+                        className="text-[10px] font-medium px-2.5 py-1 rounded-lg bg-[#C8A951]/10 hover:bg-[#C8A951]/20 text-[#C8A951] transition-colors"
+                      >
+                        📩 견적 문자
+                      </button>
+                      <span className="text-xs text-[var(--c-text-3)]">{formatDate(c.consultation_date)}</span>
+                    </div>
                   </div>
                   {c.content && <p className="text-sm text-[var(--c-text-2)] mb-2">{c.content}</p>}
                   <div className="flex items-center gap-3 text-xs text-[var(--c-text-3)]">
@@ -2482,6 +2526,9 @@ export default function CRMPage() {
             </div>
           </div>
         </div>
+      )}
+      {quoteSms && (
+        <QuoteSmsModal initial={quoteSms} onClose={() => setQuoteSms(null)} onDone={() => { fetchFollowUps(); if (activeTab === 'consultations') fetchConsultations(); }} />
       )}
       {showWarranty && warrantyAppointment && (
         <WarrantyModal

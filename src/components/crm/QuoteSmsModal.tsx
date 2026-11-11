@@ -1,0 +1,297 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import { supabase } from '@/lib/supabase';
+
+/**
+ * 견적 문자 생성 (2026-11-11)
+ * 전화 상담 뒤 보내는 문자를 "통화 한 줄 + 추천 하나 + 날짜 두 개 + 링크 하나" 형식으로 만들어 폰 문자 앱을 연다.
+ * 보내면 사후관리에 재연락(다음 날)·마무리(3일 뒤)가 자동 등록되고, 상담 기록도 한 줄 남는다.
+ */
+
+export interface QuoteSmsInitial {
+  customerId?: string | null;
+  name?: string;
+  phone?: string;
+  car?: string;
+  service?: string;
+}
+
+interface Props {
+  initial: QuoteSmsInitial;
+  onClose: () => void;
+  onDone: () => void;
+}
+
+const SERVICES = ['PPF', '컬러PPF', '랩핑', '크롬죽이기', '신차패키지', '썬팅', '유리막코팅', '실내PPF'] as const;
+type ServiceKey = typeof SERVICES[number];
+
+/** 시공별 기본 포함 혜택 (기존 견적 템플릿의 무상시공 항목) */
+const DEFAULT_BENEFITS: Record<ServiceKey, string> = {
+  PPF: '필름코팅 · 실내 T존 PPF · 실내 전체코팅 무상',
+  컬러PPF: '필름코팅 · 실내 T존 PPF · 실내 전체코팅 무상',
+  랩핑: '필름코팅 · 실내 T존 PPF · 컵/엣지 생활보호 PPF 무상',
+  크롬죽이기: '생활보호 PPF 4종(컵·엣지·주유구·트렁크리드) · 실내 액정 PPF 무상',
+  신차패키지: '실내 T존 PPF · B/C필러 PPF · 유리막코팅 2레이어 업그레이드 무상',
+  썬팅: '실내 T존 PPF 무상',
+  유리막코팅: '실내 전체코팅 무상',
+  실내PPF: '필름코팅 무상',
+};
+/** 시공별 기간·보증 한 줄 */
+const DEFAULT_TERMS: Record<ServiceKey, string> = {
+  PPF: '시공 3박4일 / 2주 뒤 QC / 6개월마다 메인터넌스',
+  컬러PPF: '시공 3박4일 / 2주 뒤 QC / 6개월마다 메인터넌스',
+  랩핑: '6개월마다 메인터넌스',
+  크롬죽이기: '6개월마다 메인터넌스',
+  신차패키지: '검수 → 썬팅 → PPF → 코팅 순서 / 6개월마다 메인터넌스',
+  썬팅: '시공 후 2~3일 창문 유지 / 6개월마다 메인터넌스',
+  유리막코팅: '6개월마다 메인터넌스',
+  실내PPF: '6개월마다 메인터넌스',
+};
+/** 시공별 등급 선택지 (가격은 비워 두고 사장님이 넣은 값을 기억) */
+const GRADE_PRESETS: Record<ServiceKey, string[]> = {
+  PPF: ['시리즈50(185μm)', '시리즈100(190μm)', '시리즈150(190μm·발수)', 'PRO200 유광(200μm·발수)', 'PRO200 무광(200μm·발수)'],
+  컬러PPF: ['3M PWF 유광', '3M PWF 무광', '3M PWF 사틴'],
+  랩핑: ['3M 2080 유광', '3M 2080 무광', '3M 2080 사틴', '3M 2080 메탈릭'],
+  크롬죽이기: ['3M 2080 글로스블랙 (윈도우몰딩)', '3M 2080 글로스블랙 (그릴 포함)', '3M 2080 글로스블랙 (전체)'],
+  신차패키지: ['썬팅 + 프론트 PPF + 유리막', '썬팅 + 전체 PPF + 유리막', '썬팅 + 생활보호 PPF + 유리막'],
+  썬팅: ['3M 크리스탈라인', '루마 버텍스 900', '글라스틴트 로데'],
+  유리막코팅: ['고강도 유리막코팅', '유리막코팅 2레이어'],
+  실내PPF: ['실내 PPF T존', '실내 PPF 전체'],
+};
+const DEFAULT_LINK = 'https://blog.naver.com/roice_/223938165520';
+const STORE_KEY = 'crm_quote_sms_memory_v1';
+
+type Memory = { prices: Record<string, string>; link: string; benefits: Record<string, string> };
+function loadMemory(): Memory {
+  try { return { prices: {}, link: DEFAULT_LINK, benefits: {}, ...JSON.parse(localStorage.getItem(STORE_KEY) || '{}') }; } catch { return { prices: {}, link: DEFAULT_LINK, benefits: {} }; }
+}
+function saveMemory(m: Memory) { try { localStorage.setItem(STORE_KEY, JSON.stringify(m)); } catch { /* ignore */ } }
+
+const won = (digits: string) => {
+  const n = Number(digits.replace(/[^\d]/g, ''));
+  if (!n) return '';
+  if (n % 10000 === 0) return `${(n / 10000).toLocaleString()}만원`;
+  return `${n.toLocaleString()}원`;
+};
+const dayLabel = (iso: string) => {
+  if (!iso) return '';
+  const d = new Date(iso + 'T00:00:00');
+  const w = ['일', '월', '화', '수', '목', '금', '토'][d.getDay()];
+  return `${d.getMonth() + 1}/${d.getDate()}(${w})`;
+};
+const addDays = (iso: string, n: number) => { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + n); return d.toISOString().split('T')[0]; };
+const normalizeService = (s?: string): ServiceKey => {
+  const t = (s || '').replace(/\s/g, '');
+  if (/컬러|PWF/i.test(t)) return '컬러PPF';
+  if (/실내/.test(t)) return '실내PPF';
+  if (/크롬/.test(t)) return '크롬죽이기';
+  if (/신차/.test(t)) return '신차패키지';
+  if (/썬팅|틴팅/.test(t)) return '썬팅';
+  if (/유리막|코팅/.test(t)) return '유리막코팅';
+  if (/랩핑/.test(t)) return '랩핑';
+  return 'PPF';
+};
+
+const inputCls = 'w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50';
+const labelCls = 'text-xs text-[var(--c-text-3)] mb-1 block';
+
+export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
+  const today = new Date().toISOString().split('T')[0];
+  const [mem] = useState<Memory>(() => loadMemory());
+  const [name, setName] = useState(initial.name || '');
+  const [phone, setPhone] = useState(initial.phone || '');
+  const [car, setCar] = useState(initial.car || '');
+  const [service, setService] = useState<ServiceKey>(normalizeService(initial.service));
+  const [range, setRange] = useState('전체');
+  const [summary, setSummary] = useState('');
+  const [recGrade, setRecGrade] = useState('');
+  const [recPrice, setRecPrice] = useState('');
+  const [recWhy, setRecWhy] = useState('');
+  const [altGrade, setAltGrade] = useState('');
+  const [altPrice, setAltPrice] = useState('');
+  const [altWhy, setAltWhy] = useState('');
+  const [extraLabel, setExtraLabel] = useState('');
+  const [extraPrice, setExtraPrice] = useState('');
+  const [priceNote, setPriceNote] = useState('후기 남겨주시는 조건의 금액이고, 다른 등급도 안내해 드립니다');
+  const [benefits, setBenefits] = useState('');
+  const [terms, setTerms] = useState('');
+  const [date1, setDate1] = useState(addDays(today, 2));
+  const [date2, setDate2] = useState(addDays(today, 5));
+  const [link, setLink] = useState(mem.link || DEFAULT_LINK);
+  const [withFollowUps, setWithFollowUps] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+
+  // 시공 바꾸면 등급·혜택 기본값 갱신 (기억된 가격 복원)
+  useEffect(() => {
+    const presets = GRADE_PRESETS[service];
+    setRecGrade(presets[1] || presets[0] || '');
+    setAltGrade(presets[2] || '');
+    setBenefits(mem.benefits[service] || DEFAULT_BENEFITS[service]);
+    setTerms(DEFAULT_TERMS[service]);
+  }, [service, mem.benefits]);
+  useEffect(() => { setRecPrice(mem.prices[`${service}|${recGrade}`] || ''); }, [service, recGrade, mem.prices]);
+  useEffect(() => { setAltPrice(mem.prices[`${service}|${altGrade}`] || ''); }, [service, altGrade, mem.prices]);
+
+  const text = useMemo(() => {
+    const lines: string[] = [];
+    lines.push('안녕하세요 3M 프로이즘 진준호입니다.');
+    lines.push(`방금 통화한 ${[car, range !== '전체' ? range : '', service].filter(Boolean).join(' ')} 견적입니다.`);
+    lines.push('');
+    if (extraLabel && extraPrice) { lines.push(`${extraLabel} ${won(extraPrice)}`); lines.push(''); }
+    if (summary) lines.push(summary.trim().replace(/[.。]$/, '') + (recGrade ? ' →' : ''));
+    if (recGrade) lines.push(`${recWhy ? recWhy + ' ' : ''}${recGrade}${recPrice ? ` ${won(recPrice)}` : ''}`.trim());
+    if (altGrade && altPrice) lines.push(`${altWhy ? altWhy + ' ' : ''}${altGrade} ${won(altPrice)}`.trim());
+    if (priceNote) lines.push(`(${priceNote})`);
+    lines.push('');
+    if (benefits) lines.push(`포함: ${benefits}`);
+    if (terms) lines.push(terms);
+    lines.push('보증: 3M 제품보증 + 시공보증서 발급');
+    lines.push('');
+    if (date1 || date2) {
+      const ds = [date1, date2].filter(Boolean).map(dayLabel);
+      lines.push(`${ds.join(', ')} 입고 가능합니다.`);
+      lines.push(ds.length > 1 ? '어느 쪽이 편하세요?' : '괜찮으실까요?');
+      lines.push('');
+    }
+    if (link) { lines.push('시공 사진·과정은 여기 한 편만 보시면 됩니다'); lines.push(link); lines.push(''); }
+    lines.push('010-7287-7140 / 톡톡으로 답 주셔도 됩니다');
+    return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  }, [car, range, service, extraLabel, extraPrice, summary, recGrade, recPrice, recWhy, altGrade, altPrice, altWhy, priceNote, benefits, terms, date1, date2, link]);
+
+  const followUp1 = `안녕하세요 3M 프로이즘입니다.\n어제 보내드린 ${car || ''} ${service} 견적 보셨을까요?\n${date1 ? `${dayLabel(date1)} 자리는 아직 비어 있습니다.` : '입고 일정은 맞춰 드릴 수 있습니다.'}\n궁금한 점 있으시면 편하게 물어봐 주세요.`;
+  const followUp2 = `3M 프로이즘입니다. 마지막으로 한 가지만 말씀드리면,\n${service === 'PPF' || service === '컬러PPF' ? '어디서 하시더라도 외부 패널은 열 없이 습식으로, 필름 끝을 패널 안쪽으로 넣어 마감하는지 꼭 확인해 보세요.' : service === '썬팅' ? '어디서 하시더라도 기존 필름 제거는 스팀으로 하는지, 후면 유리는 한 장 시공인지 꼭 확인해 보세요.' : '어디서 하시더라도 필름 끝단 마감과 메인터넌스가 있는지 꼭 확인해 보세요.'}\n도움이 필요하시면 언제든 연락 주세요. 감사합니다.`;
+
+  const remember = () => {
+    const m = loadMemory();
+    if (recGrade && recPrice) m.prices[`${service}|${recGrade}`] = recPrice;
+    if (altGrade && altPrice) m.prices[`${service}|${altGrade}`] = altPrice;
+    m.link = link; m.benefits[service] = benefits;
+    saveMemory(m);
+  };
+
+  const openSms = () => {
+    const p = phone.replace(/[^\d]/g, '');
+    if (!p) { setNote('전화번호가 필요합니다.'); return; }
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    window.open(isIOS ? `sms:${p}&body=${encodeURIComponent(text)}` : `sms:${p}?body=${encodeURIComponent(text)}`);
+  };
+
+  const registerFollowUps = async () => {
+    const who = `${name || '고객'} ${phone}`.trim();
+    const rows = [
+      { customer_id: initial.customerId || null, follow_up_type: '견적재연락', scheduled_date: addDays(today, 1), memo: `${who} · ${car} ${service}\n${followUp1}` },
+      { customer_id: initial.customerId || null, follow_up_type: '견적마무리', scheduled_date: addDays(today, 3), memo: `${who} · ${car} ${service}\n${followUp2}` },
+    ];
+    const { error } = await supabase.from('follow_ups').insert(rows);
+    if (error) throw new Error(error.message);
+  };
+  const logConsultation = async () => {
+    if (!initial.customerId) return;
+    await supabase.from('consultations').insert({
+      customer_id: initial.customerId,
+      consultation_date: today,
+      content: `[견적 문자] ${summary || ''}`.trim(),
+      estimate: recPrice ? `${recGrade} ${won(recPrice)}` : null,
+      interested_services: `${service}${range !== '전체' ? ` ${range}` : ''}`,
+      memo: car || null,
+    });
+  };
+
+  const send = async (how: 'sms' | 'copy') => {
+    setBusy(true); setNote(null);
+    try {
+      remember();
+      if (how === 'copy') { await navigator.clipboard.writeText(text); } else { openSms(); }
+      if (withFollowUps) await registerFollowUps();
+      await logConsultation().catch(() => {});
+      setNote(how === 'copy' ? '복사했습니다. 사후관리에 재연락 2건을 넣었습니다.' : '문자 앱을 열었습니다. 사후관리에 재연락 2건을 넣었습니다.');
+      onDone();
+    } catch (e) {
+      setNote(`⚠️ ${e instanceof Error ? e.message : '실패'}`);
+    }
+    setBusy(false);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center" onClick={onClose}>
+      <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="px-6 py-4 border-b border-[var(--c-border)] flex items-center justify-between">
+          <h3 className="text-[var(--c-text-1)] font-semibold text-base">📩 견적 문자</h3>
+          <span className="text-[11px] text-[var(--c-text-3)]">통화 한 줄 · 추천 하나 · 날짜 두 개 · 링크 하나</span>
+        </div>
+        <div className="flex-1 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-0">
+          {/* 입력 */}
+          <div className="px-6 py-4 space-y-3 md:border-r border-[var(--c-border)]">
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className={labelCls}>고객</label><input value={name} onChange={(e) => setName(e.target.value)} className={inputCls} placeholder="이름" /></div>
+              <div><label className={labelCls}>전화 *</label><input value={phone} onChange={(e) => setPhone(e.target.value)} className={inputCls} placeholder="010-0000-0000" /></div>
+              <div><label className={labelCls}>차종 *</label><input value={car} onChange={(e) => setCar(e.target.value)} className={inputCls} placeholder="예: 포르쉐 카이엔" /></div>
+              <div><label className={labelCls}>시공</label>
+                <div className="flex gap-2">
+                  <select value={service} onChange={(e) => setService(e.target.value as ServiceKey)} className={inputCls}>{SERVICES.map((s) => <option key={s}>{s}</option>)}</select>
+                  <select value={range} onChange={(e) => setRange(e.target.value)} className={`${inputCls} w-28`}>{['전체', '프론트', '생활보호', '부분', '루프', '윈도우몰딩'].map((r) => <option key={r}>{r}</option>)}</select>
+                </div>
+              </div>
+            </div>
+            <div>
+              <label className={labelCls}>통화에서 들은 것 한 줄 (이 줄이 다른 집 문자와 구분을 만듭니다)</label>
+              <input value={summary} onChange={(e) => setSummary(e.target.value)} className={inputCls} placeholder="예: 말씀하신 대로 주말 위주 운행이면" />
+            </div>
+            <div className="rounded-lg border border-[#C8A951]/30 bg-[#C8A951]/5 p-3 space-y-2">
+              <div className="text-xs font-medium text-[#C8A951]">추천 하나</div>
+              <div className="grid grid-cols-[1fr_120px] gap-2">
+                <select value={recGrade} onChange={(e) => setRecGrade(e.target.value)} className={inputCls}>{GRADE_PRESETS[service].map((g) => <option key={g}>{g}</option>)}<option value="">직접 입력</option></select>
+                <input value={recPrice} onChange={(e) => setRecPrice(e.target.value.replace(/[^\d]/g, ''))} inputMode="numeric" className={`${inputCls} text-right`} placeholder="4500000" />
+              </div>
+              {!GRADE_PRESETS[service].includes(recGrade) && <input value={recGrade} onChange={(e) => setRecGrade(e.target.value)} className={inputCls} placeholder="추천 항목 이름" />}
+              <input value={recWhy} onChange={(e) => setRecWhy(e.target.value)} className={inputCls} placeholder="앞에 붙일 말 (예: 충분합니다 →, 권합니다 →) 비워도 됨" />
+              <div className="text-[11px] text-[var(--c-text-3)]">{recPrice ? `표시: ${won(recPrice)}` : '금액은 숫자만 (450만원 → 4500000). 한 번 넣으면 다음에 기억합니다'}</div>
+            </div>
+            <div className="rounded-lg border border-[var(--c-border)] p-3 space-y-2">
+              <div className="text-xs font-medium text-[var(--c-text-2)]">상위 선택지 (선택)</div>
+              <div className="grid grid-cols-[1fr_120px] gap-2">
+                <select value={altGrade} onChange={(e) => setAltGrade(e.target.value)} className={inputCls}><option value="">없음</option>{GRADE_PRESETS[service].map((g) => <option key={g}>{g}</option>)}</select>
+                <input value={altPrice} onChange={(e) => setAltPrice(e.target.value.replace(/[^\d]/g, ''))} inputMode="numeric" className={`${inputCls} text-right`} placeholder="5000000" />
+              </div>
+              <input value={altWhy} onChange={(e) => setAltWhy(e.target.value)} className={inputCls} placeholder="예: 발수코팅까지 원하시면" />
+            </div>
+            <div className="grid grid-cols-[1fr_120px] gap-2">
+              <div><label className={labelCls}>추가 비용 (선택)</label><input value={extraLabel} onChange={(e) => setExtraLabel(e.target.value)} className={inputCls} placeholder="예: 기존 필름 제거" /></div>
+              <div><label className={labelCls}>금액</label><input value={extraPrice} onChange={(e) => setExtraPrice(e.target.value.replace(/[^\d]/g, ''))} inputMode="numeric" className={`${inputCls} text-right`} placeholder="600000" /></div>
+            </div>
+            <div><label className={labelCls}>가격 조건 한 줄</label><input value={priceNote} onChange={(e) => setPriceNote(e.target.value)} className={inputCls} /></div>
+            <div><label className={labelCls}>포함 혜택</label><input value={benefits} onChange={(e) => setBenefits(e.target.value)} className={inputCls} /></div>
+            <div><label className={labelCls}>기간·관리</label><input value={terms} onChange={(e) => setTerms(e.target.value)} className={inputCls} /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className={labelCls}>입고 가능 날짜 1</label><input type="date" value={date1} onChange={(e) => setDate1(e.target.value)} className={inputCls} /></div>
+              <div><label className={labelCls}>입고 가능 날짜 2</label><input type="date" value={date2} onChange={(e) => setDate2(e.target.value)} className={inputCls} /></div>
+            </div>
+            <div><label className={labelCls}>링크 하나</label><input value={link} onChange={(e) => setLink(e.target.value)} className={inputCls} /></div>
+            <label className="flex items-center gap-2 text-xs text-[var(--c-text-2)]">
+              <input type="checkbox" checked={withFollowUps} onChange={(e) => setWithFollowUps(e.target.checked)} className="accent-[#E4002B]" />
+              보내면 사후관리에 재연락(내일)·마무리(3일 뒤) 문자를 자동 등록
+            </label>
+          </div>
+          {/* 미리보기 */}
+          <div className="px-6 py-4 space-y-3 bg-[var(--c-bg)]/40">
+            <div className="text-xs text-[var(--c-text-3)]">문자 미리보기 ({text.length}자)</div>
+            <pre className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--c-text-1)] bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-4 font-sans">{text}</pre>
+            <details className="text-[11px] text-[var(--c-text-3)]">
+              <summary className="cursor-pointer">재연락 문자 2통 미리보기</summary>
+              <pre className="whitespace-pre-wrap mt-2 p-3 rounded-lg bg-[var(--c-card)] border border-[var(--c-border)] font-sans text-[var(--c-text-2)]">[내일] {followUp1}</pre>
+              <pre className="whitespace-pre-wrap mt-2 p-3 rounded-lg bg-[var(--c-card)] border border-[var(--c-border)] font-sans text-[var(--c-text-2)]">[3일 뒤] {followUp2}</pre>
+            </details>
+            {note && <div className="text-xs text-[var(--c-text-2)]">{note}</div>}
+          </div>
+        </div>
+        <div className="px-6 py-4 border-t border-[var(--c-border)] flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-2)]">닫기</button>
+          <button onClick={() => send('copy')} disabled={busy || !car} className="bg-[var(--c-subtle)] hover:bg-[var(--c-hover)] text-[var(--c-text-1)] text-sm font-medium rounded-lg px-4 py-2 disabled:opacity-50">📋 복사</button>
+          <button onClick={() => send('sms')} disabled={busy || !car || !phone} className="bg-[#E4002B] hover:bg-[#c60026] text-white text-sm font-medium rounded-lg px-4 py-2 disabled:opacity-50">💬 문자 보내기</button>
+        </div>
+      </div>
+    </div>
+  );
+}
