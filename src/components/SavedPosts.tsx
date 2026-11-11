@@ -36,8 +36,8 @@ function elapsed(iso: string) {
 
 const KIND_LABEL: Record<string, { text: string; cls: string }> = {
   draft: { text: '초안', cls: 'bg-[#06B6D4]/15 text-[#06B6D4]' },
-  final: { text: '최종본', cls: 'bg-[#10B981]/15 text-[#10B981]' },
-  owner: { text: '내 글', cls: 'bg-[#C8A951]/15 text-[#C8A951]' },
+  final: { text: '최종본', cls: 'bg-ok/15 text-ok' },
+  owner: { text: '내 글', cls: 'bg-gold/15 text-gold' },
 };
 
 function fmtDate(iso?: string) {
@@ -87,7 +87,7 @@ export default function SavedPosts({ refreshKey, activeId, onOpen, jobs, onRetry
   return (
     <>
     {visibleJobs.length > 0 && (
-      <div className="mx-3 mt-3 bg-[#1a1a1f] border border-[#C8A951]/40 rounded-xl overflow-hidden">
+      <div className="mx-3 mt-3 bg-[var(--c-page)] border border-gold/40 rounded-xl overflow-hidden">
         <div className="px-3 py-2 text-xs font-medium text-[var(--c-text-1)]">⚙️ 생성 중인 글</div>
         <div className="border-t border-[var(--c-border)]">
           {visibleJobs.map((j) => (
@@ -97,14 +97,14 @@ export default function SavedPosts({ refreshKey, activeId, onOpen, jobs, onRetry
                 <span className="text-[10px] text-[var(--c-text-3)] shrink-0">{elapsed(j.created_at)} 경과</span>
                 {j.status === 'failed' ? (
                   <>
-                    <button onClick={() => onRetryJob(j.id)} className="text-[10px] text-[#C8A951] hover:underline shrink-0">다시 시도</button>
-                    <button onClick={() => onDeleteJob(j.id)} className="text-[var(--c-text-4)] hover:text-[#EF4444] text-xs px-1 shrink-0" title="삭제">✕</button>
+                    <button onClick={() => onRetryJob(j.id)} className="text-[10px] text-gold hover:underline shrink-0">다시 시도</button>
+                    <button onClick={() => onDeleteJob(j.id)} className="text-[var(--c-text-4)] hover:text-danger text-xs px-1 shrink-0" title="삭제">✕</button>
                   </>
                 ) : (
-                  <span className="w-2 h-2 rounded-full bg-[#C8A951] animate-pulse shrink-0" />
+                  <span className="w-2 h-2 rounded-full bg-gold animate-pulse shrink-0" />
                 )}
               </div>
-              <div className={`text-[11px] mt-0.5 ${j.status === 'failed' ? 'text-[#EF4444]' : 'text-[var(--c-text-2)]'}`}>
+              <div className={`text-[11px] mt-0.5 ${j.status === 'failed' ? 'text-danger' : 'text-[var(--c-text-2)]'}`}>
                 {JOB_STATUS_LABEL[j.status] || j.status}
                 {j.status === 'failed' && j.error ? ` — ${j.error.slice(0, 120)}` : ''}
               </div>
@@ -116,11 +116,11 @@ export default function SavedPosts({ refreshKey, activeId, onOpen, jobs, onRetry
         </div>
       </div>
     )}
-    <div className="mx-3 mt-3 bg-[#1a1a1f] border border-[var(--c-border)] rounded-xl overflow-hidden">
+    <div className="mx-3 mt-3 bg-[var(--c-page)] border border-[var(--c-border)] rounded-xl overflow-hidden">
       <div className="flex items-center justify-between px-3 py-2">
         <button
           onClick={() => setOpen((v) => !v)}
-          className="text-xs font-medium text-[var(--c-text-1)] hover:text-[#C8A951]"
+          className="text-xs font-medium text-[var(--c-text-1)] hover:text-gold"
         >
           {open ? '▾' : '▸'} 📂 저장된 글 {loading ? '' : `(${posts.length})`}
         </button>
@@ -131,7 +131,7 @@ export default function SavedPosts({ refreshKey, activeId, onOpen, jobs, onRetry
 
       {open && (
         <div className="max-h-56 overflow-y-auto border-t border-[var(--c-border)]">
-          {error && <div className="px-3 py-3 text-[11px] text-[#EF4444]">{error}</div>}
+          {error && <div className="px-3 py-3 text-[11px] text-danger">{error}</div>}
           {!error && !loading && posts.length === 0 && (
             <div className="px-3 py-4 text-[11px] text-[var(--c-text-3)] text-center">
               아직 저장된 글이 없습니다. 글을 만들면 여기에 자동으로 쌓입니다.
@@ -143,7 +143,7 @@ export default function SavedPosts({ refreshKey, activeId, onOpen, jobs, onRetry
             return (
               <div
                 key={p.id}
-                className={`flex items-center gap-2 px-3 py-2 border-b border-[var(--c-border)]/60 last:border-b-0 ${isActive ? 'bg-[#C8A951]/10' : 'hover:bg-[var(--c-hover)]'}`}
+                className={`flex items-center gap-2 px-3 py-2 border-b border-[var(--c-border)]/60 last:border-b-0 ${isActive ? 'bg-gold/10' : 'hover:bg-[var(--c-hover)]'}`}
               >
                 <button onClick={() => onOpen(p)} className="flex-1 min-w-0 text-left">
                   <div className="flex items-center gap-1.5">
@@ -160,7 +160,7 @@ export default function SavedPosts({ refreshKey, activeId, onOpen, jobs, onRetry
                 <button
                   onClick={() => remove(p)}
                   title="삭제"
-                  className="text-[var(--c-text-4)] hover:text-[#EF4444] text-xs px-1 shrink-0"
+                  className="text-[var(--c-text-4)] hover:text-danger text-xs px-1 shrink-0"
                 >
                   ✕
                 </button>

@@ -34,7 +34,7 @@ export default function ChatMessage({
             </div>
           )}
           {content && (
-            <div className="bg-[#E4002B] text-white rounded-2xl rounded-br-md px-4 py-2.5 text-sm leading-relaxed">
+            <div className="bg-brand text-white rounded-2xl rounded-br-md px-4 py-2.5 text-sm leading-relaxed">
               {content}
             </div>
           )}
@@ -58,7 +58,7 @@ export default function ChatMessage({
           </div>
         )}
 
-        <div className="bg-[#1a1a1f] border border-[var(--c-border)] rounded-2xl rounded-bl-md px-4 py-2.5 text-sm text-[#e4e4e7] leading-relaxed whitespace-pre-wrap">
+        <div className="bg-[var(--c-page)] border border-[var(--c-border)] rounded-2xl rounded-bl-md px-4 py-2.5 text-sm text-[var(--c-text-1)] leading-relaxed whitespace-pre-wrap">
           {content}
         </div>
       </div>

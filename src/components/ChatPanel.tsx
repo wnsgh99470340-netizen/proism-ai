@@ -120,7 +120,7 @@ export default function ChatPanel({
                     setInput(prompt);
                     inputRef.current?.focus();
                   }}
-                  className="text-left bg-[#1a1a1f] border border-[var(--c-border)] rounded-xl px-3 py-2.5 text-xs text-[var(--c-text-2)] hover:border-[#C8A951]/50 hover:text-[var(--c-text-1)] transition-colors"
+                  className="text-left bg-[var(--c-page)] border border-[var(--c-border)] rounded-xl px-3 py-2.5 text-xs text-[var(--c-text-2)] hover:border-gold/50 hover:text-[var(--c-text-1)] transition-colors"
                 >
                   {prompt}
                 </button>
@@ -135,14 +135,14 @@ export default function ChatPanel({
 
         {loading && (
           <div className="flex mb-4 gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-[#C8A951]/10 flex items-center justify-center text-sm shrink-0">
+            <div className="w-8 h-8 rounded-full bg-gold/10 flex items-center justify-center text-sm shrink-0">
               ✍️
             </div>
-            <div className="bg-[#1a1a1f] border border-[var(--c-border)] rounded-2xl rounded-bl-md px-4 py-3">
+            <div className="bg-[var(--c-page)] border border-[var(--c-border)] rounded-2xl rounded-bl-md px-4 py-3">
               <div className="flex gap-1">
-                <div className="w-1.5 h-1.5 rounded-full bg-[#C8A951] animate-bounce" style={{ animationDelay: '0ms' }} />
-                <div className="w-1.5 h-1.5 rounded-full bg-[#C8A951] animate-bounce" style={{ animationDelay: '150ms' }} />
-                <div className="w-1.5 h-1.5 rounded-full bg-[#C8A951] animate-bounce" style={{ animationDelay: '300ms' }} />
+                <div className="w-1.5 h-1.5 rounded-full bg-gold animate-bounce" style={{ animationDelay: '0ms' }} />
+                <div className="w-1.5 h-1.5 rounded-full bg-gold animate-bounce" style={{ animationDelay: '150ms' }} />
+                <div className="w-1.5 h-1.5 rounded-full bg-gold animate-bounce" style={{ animationDelay: '300ms' }} />
               </div>
             </div>
           </div>
@@ -160,7 +160,7 @@ export default function ChatPanel({
       {/* 입력 */}
       <div className="p-3 border-t border-[var(--c-border)]">
         {openDraftTitle && (
-          <div className={`mb-2 flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-[11px] ${reviseMode ? 'bg-[#C8A951]/10 text-[#C8A951]' : 'bg-[var(--c-subtle)] text-[var(--c-text-3)]'}`}>
+          <div className={`mb-2 flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-[11px] ${reviseMode ? 'bg-gold/10 text-gold' : 'bg-[var(--c-subtle)] text-[var(--c-text-3)]'}`}>
             <span className="truncate">
               {reviseMode ? '✏️ 지금 보내는 말은 열린 글 수정 요청으로 처리: ' : '💬 일반 대화 모드 (열린 글은 안 건드림): '}
               <span className="text-[var(--c-text-2)]">{openDraftTitle}</span>
@@ -170,7 +170,7 @@ export default function ChatPanel({
             </button>
           </div>
         )}
-        <div className="flex gap-2 items-end bg-[#1a1a1f] border border-[var(--c-border)] rounded-xl px-3 py-2 focus-within:border-[#C8A951]/50 transition-colors">
+        <div className="flex gap-2 items-end bg-[var(--c-page)] border border-[var(--c-border)] rounded-xl px-3 py-2 focus-within:border-gold/50 transition-colors">
           <textarea
             ref={inputRef}
             value={input}
@@ -178,13 +178,13 @@ export default function ChatPanel({
             onKeyDown={handleKeyDown}
             placeholder={openDraftTitle && reviseMode ? '예: 마무리 더 짧게 / 서초를 반포로 / 범퍼 부분 더 구체적으로' : '메시지를 입력하세요...'}
             rows={1}
-            className="flex-1 bg-transparent text-[var(--c-text-1)] text-sm placeholder-[#71717a] resize-none outline-none min-h-[20px] max-h-[120px]"
+            className="flex-1 bg-transparent text-[var(--c-text-1)] text-sm placeholder-[var(--c-text-4)] resize-none outline-none min-h-[20px] max-h-[120px]"
             style={{ fieldSizing: 'content' } as React.CSSProperties}
           />
           <button
             onClick={handleSend}
             disabled={loading || (!input.trim() && images.length === 0)}
-            className="shrink-0 w-9 h-9 md:w-8 md:h-8 rounded-lg bg-[#E4002B] hover:bg-[#c60026] disabled:bg-[var(--c-subtle)] disabled:text-[var(--c-text-3)] text-white flex items-center justify-center transition-colors text-sm"
+            className="shrink-0 w-9 h-9 md:w-8 md:h-8 rounded-lg bg-brand hover:bg-brand-dark disabled:bg-[var(--c-subtle)] disabled:text-[var(--c-text-3)] text-white flex items-center justify-center transition-colors text-sm"
           >
             ↑
           </button>

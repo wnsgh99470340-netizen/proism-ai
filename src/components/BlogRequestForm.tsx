@@ -11,7 +11,7 @@ interface Props {
 }
 
 const inputCls =
-  'w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-2.5 py-2 text-xs text-[var(--c-text-1)] placeholder-[var(--c-text-4)] outline-none focus:border-[#C8A951]/60 min-h-[36px]';
+  'w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-2.5 py-2 text-xs text-[var(--c-text-1)] placeholder-[var(--c-text-4)] outline-none focus:border-gold/60 min-h-[36px]';
 const labelCls = 'block text-[10px] text-[var(--c-text-3)] mb-1';
 
 /**
@@ -77,14 +77,14 @@ export default function BlogRequestForm({ disabled, onSubmit, initial = null }: 
   };
 
   return (
-    <div className="@container mx-3 md:mx-4 mt-3 mb-1 bg-[var(--c-card)] border border-[#C8A951]/30 rounded-xl p-3">
+    <div className="@container mx-3 md:mx-4 mt-3 mb-1 bg-[var(--c-card)] border border-gold/30 rounded-xl p-3">
       <div className="flex items-center justify-between mb-2 gap-2">
         <span className="text-xs font-semibold text-[var(--c-text-1)] shrink-0">⚡ 시공기 빠른 생성</span>
         <span className="text-[10px] text-[var(--c-text-3)] hidden @sm:inline truncate">차량·시공·제품만 고르면 조사부터 초안까지 자동</span>
       </div>
 
       {initial && (
-        <div className="mb-2 rounded-lg border border-[#C8A951]/40 bg-[#C8A951]/10 px-2.5 py-2 text-[11px] text-[var(--c-text-1)] leading-relaxed">
+        <div className="mb-2 rounded-lg border border-gold/40 bg-gold/10 px-2.5 py-2 text-[11px] text-[var(--c-text-1)] leading-relaxed">
           📋 {initial.source || 'CRM'}에서 가져왔습니다. <b>제품 등급을 확인</b>하고, 아래 <b>참고 메모에 그 차의 이야기 두세 줄</b>(입고 상황·고객 요청·특이 부위)을 적은 뒤 생성하세요. 메모에 적은 것만 글에 들어갑니다.
         </div>
       )}
@@ -134,7 +134,7 @@ export default function BlogRequestForm({ disabled, onSubmit, initial = null }: 
         {service.products.length > 0 && (
           <div>
             <label className={labelCls}>제품</label>
-            <select value={product} onChange={(e) => setProduct(e.target.value)} className={`${inputCls} ${!product ? 'border-[#E4002B]/60' : ''}`}>
+            <select value={product} onChange={(e) => setProduct(e.target.value)} className={`${inputCls} ${!product ? 'border-brand/60' : ''}`}>
               {!product && <option value="">제품을 선택하세요</option>}
               {service.products.map((p) => <option key={p} value={p}>{p}</option>)}
             </select>
@@ -159,12 +159,12 @@ export default function BlogRequestForm({ disabled, onSubmit, initial = null }: 
             value={photosUrl}
             onChange={(e) => setPhotosUrl(e.target.value)}
             placeholder="https://drive.google.com/drive/folders/..."
-            className={`${inputCls} ${!photosUrlOk ? 'border-[#E4002B]/60' : ''}`}
+            className={`${inputCls} ${!photosUrlOk ? 'border-brand/60' : ''}`}
           />
-          {!photosUrlOk && <p className="text-[10px] text-[#E4002B] mt-1">구글 드라이브 폴더 링크만 됩니다 (링크가 있는 모든 사용자 보기 권한)</p>}
+          {!photosUrlOk && <p className="text-[10px] text-brand mt-1">구글 드라이브 폴더 링크만 됩니다 (링크가 있는 모든 사용자 보기 권한)</p>}
           {photosUrlTrim && photosUrlOk && (
             <label className="flex items-center gap-1.5 mt-1 text-[10px] text-[var(--c-text-2)]">
-              <input type="checkbox" checked={vertical} onChange={(e) => setVertical(e.target.checked)} className="accent-[#E4002B]" />
+              <input type="checkbox" checked={vertical} onChange={(e) => setVertical(e.target.checked)} className="accent-brand" />
               세로 영상(인스타 릴스·네이버 클립용)도 함께 만들기
             </label>
           )}
@@ -186,7 +186,7 @@ export default function BlogRequestForm({ disabled, onSubmit, initial = null }: 
       <button
         onClick={submit}
         disabled={!canSubmit}
-        className="w-full bg-[#E4002B] hover:bg-[#c60026] disabled:bg-[var(--c-subtle)] disabled:text-[var(--c-text-3)] text-white text-xs font-semibold py-3 rounded-lg transition-colors"
+        className="w-full bg-brand hover:bg-brand-dark disabled:bg-[var(--c-subtle)] disabled:text-[var(--c-text-3)] text-white text-xs font-semibold py-3 rounded-lg transition-colors"
       >
         {disabled ? '작성 중...' : '🔎 조사 → ✍️ 시공기 생성'}
       </button>

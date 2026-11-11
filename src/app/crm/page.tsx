@@ -148,11 +148,11 @@ function formatDate(dateStr: string | null) {
 
 function statusColor(status: string) {
   switch (status) {
-    case '상담중': return 'bg-[#71717a]/20 text-[var(--c-text-2)]';
-    case '예약확정': return 'bg-[#3B82F6]/20 text-[#60A5FA]';
-    case '시공중': return 'bg-[#F59E0B]/20 text-[#FBBF24]';
-    case '완료': return 'bg-[#10B981]/20 text-[#34D399]';
-    default: return 'bg-[#71717a]/20 text-[var(--c-text-2)]';
+    case '상담중': return 'bg-[var(--c-hover)] text-[var(--c-text-2)]';
+    case '예약확정': return 'bg-info/20 text-info';
+    case '시공중': return 'bg-warn/20 text-warn';
+    case '완료': return 'bg-ok/20 text-ok';
+    default: return 'bg-[var(--c-hover)] text-[var(--c-text-2)]';
   }
 }
 
@@ -1154,7 +1154,7 @@ export default function CRMPage() {
         <button
           type="button"
           onClick={() => { setOpen(!open); setCustomerPickerSearch(''); }}
-          className="w-full text-left bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] hover:border-[#C8A951]/50 transition-colors"
+          className="w-full text-left bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] hover:border-gold/50 transition-colors"
         >
           {selected ? `${selected.name}${selected.phone ? ` (${selected.phone})` : ''}` : '고객 선택...'}
         </button>
@@ -1166,7 +1166,7 @@ export default function CRMPage() {
                 placeholder="이름 또는 연락처 검색..."
                 value={customerPickerSearch}
                 onChange={(e) => setCustomerPickerSearch(e.target.value)}
-                className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded px-2 py-1.5 text-xs text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50"
+                className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded px-2 py-1.5 text-xs text-[var(--c-text-1)] outline-none focus:border-gold/50"
                 autoFocus
               />
             </div>
@@ -1246,11 +1246,11 @@ export default function CRMPage() {
       <div className="h-12 md:h-14 border-b border-[var(--c-border)] bg-[var(--c-card)] flex items-center px-3 md:px-4 justify-between shrink-0 gap-2">
         <div className="flex items-center gap-2 md:gap-3 min-w-0">
           <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity shrink-0">
-            <span className="text-[#E4002B] text-lg font-bold">◆</span>
+            <span className="text-brand text-lg font-bold">◆</span>
             <span className="text-[var(--c-text-1)] font-semibold text-sm whitespace-nowrap hidden sm:inline">3M 프로이즘 AI</span>
           </Link>
           <span className="text-[var(--c-border)] hidden sm:inline">|</span>
-          <span className="text-[#C8A951] text-sm font-medium whitespace-nowrap">고객 관리 CRM</span>
+          <span className="text-gold text-sm font-medium whitespace-nowrap">고객 관리 CRM</span>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -1277,13 +1277,13 @@ export default function CRMPage() {
             onClick={() => setActiveTab(tab.key)}
             className={`px-3 md:px-4 py-3 text-sm font-medium transition-colors relative whitespace-nowrap shrink-0 ${
               activeTab === tab.key
-                ? 'text-[#C8A951]'
+                ? 'text-gold'
                 : 'text-[var(--c-text-3)] hover:text-[var(--c-text-2)]'
             }`}
           >
             {tab.label}
             {activeTab === tab.key && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#C8A951]" />
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gold" />
             )}
           </button>
         ))}
@@ -1301,13 +1301,13 @@ export default function CRMPage() {
                   placeholder="이름, 차종으로 검색..."
                   value={customerSearch}
                   onChange={(e) => setCustomerSearch(e.target.value)}
-                  className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] w-64 outline-none focus:border-[#C8A951]/50 transition-colors placeholder:text-[var(--c-text-3)]"
+                  className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] w-64 outline-none focus:border-gold/50 transition-colors placeholder:text-[var(--c-text-3)]"
                 />
                 <span className="text-xs text-[var(--c-text-3)]">{filteredCustomers.length}명</span>
               </div>
               <button
                 onClick={() => { setEditCustomerId(null); setCustomerForm({ name: '', phone: '', car_brand: '', car_model: '', car_year: '', car_color: '', source: '', memo: '', appointment_start_date: '', appointment_end_date: '', appointment_service_type: '', appointment_amount: '', appointment_memo: '' }); setShowAddCustomer(true); }}
-                className="bg-[#E4002B] hover:bg-[#c60026] text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors"
+                className="bg-brand hover:bg-brand-dark text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors"
               >
                 + 고객 추가
               </button>
@@ -1330,11 +1330,11 @@ export default function CRMPage() {
                     <tr
                       key={c.id}
                       onClick={() => router.push(`/crm/${c.id}`)}
-                      className="border-b border-[var(--c-border)] last:border-b-0 hover:bg-[#1a1a1f] cursor-pointer transition-colors group"
+                      className="border-b border-[var(--c-border)] last:border-b-0 hover:bg-[var(--c-page)] cursor-pointer transition-colors group"
                     >
                       <td className="px-4 py-3 text-sm text-[var(--c-text-1)] font-medium">
                         {c.name}
-                        {c.service_count >= 2 && <span className="ml-1.5 text-[9px] bg-[#C8A951]/20 text-[#C8A951] px-1.5 py-0.5 rounded-full font-medium">재방문</span>}
+                        {c.service_count >= 2 && <span className="ml-1.5 text-[9px] bg-gold/20 text-gold px-1.5 py-0.5 rounded-full font-medium">재방문</span>}
                       </td>
                       <td className="px-4 py-3 text-sm text-[var(--c-text-2)]">{c.phone || '-'}</td>
                       <td className="px-4 py-3 text-sm text-[var(--c-text-2)]">
@@ -1352,12 +1352,12 @@ export default function CRMPage() {
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
                           <button
                             onClick={(e) => { e.stopPropagation(); handleEditCustomer(c); }}
-                            className="w-6 h-6 rounded flex items-center justify-center text-[var(--c-text-3)] hover:text-[#C8A951] hover:bg-[#C8A951]/10 transition-all text-xs"
+                            className="w-6 h-6 rounded flex items-center justify-center text-[var(--c-text-3)] hover:text-gold hover:bg-gold/10 transition-all text-xs"
                             title="수정"
                           >✎</button>
                           <button
                             onClick={(e) => { e.stopPropagation(); handleDeleteCustomer(c.id, c.name); }}
-                            className="w-6 h-6 rounded flex items-center justify-center text-[var(--c-text-3)] hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-all text-xs"
+                            className="w-6 h-6 rounded flex items-center justify-center text-[var(--c-text-3)] hover:text-danger hover:bg-danger/10 transition-all text-xs"
                             title="삭제"
                           >✕</button>
                         </div>
@@ -1414,11 +1414,11 @@ export default function CRMPage() {
 
           const statusBarColor = (status: string) => {
             switch (status) {
-              case '상담중': return 'bg-[#71717a]';
-              case '예약확정': return 'bg-[#3B82F6]';
-              case '시공중': return 'bg-[#C8A951]';
-              case '완료': return 'bg-[#22C55E]';
-              default: return 'bg-[#71717a]';
+              case '상담중': return 'bg-[var(--c-text-4)]';
+              case '예약확정': return 'bg-info';
+              case '시공중': return 'bg-gold';
+              case '완료': return 'bg-ok';
+              default: return 'bg-[var(--c-text-4)]';
             }
           };
 
@@ -1461,18 +1461,18 @@ export default function CRMPage() {
                   <button onClick={() => setCalendarMonth((p) => { const d = new Date(p.year, p.month + 1); return { year: d.getFullYear(), month: d.getMonth() }; })} className="text-[var(--c-text-3)] hover:text-[var(--c-text-1)] transition-colors text-lg leading-none">▶</button>
                   <button onClick={goToday} className="text-xs bg-[var(--c-subtle)] hover:bg-[var(--c-hover)] text-[var(--c-text-2)] rounded-lg px-3 py-1 transition-colors ml-1">오늘</button>
                   <div className="flex bg-[var(--c-subtle)] rounded-lg p-0.5 ml-2">
-                    <button onClick={() => setCalendarView('calendar')} className={`text-xs px-3 py-1 rounded-md transition-colors ${calendarView === 'calendar' ? 'bg-[#C8A951]/20 text-[#C8A951]' : 'text-[var(--c-text-3)]'}`}>달력</button>
-                    <button onClick={() => setCalendarView('list')} className={`text-xs px-3 py-1 rounded-md transition-colors ${calendarView === 'list' ? 'bg-[#C8A951]/20 text-[#C8A951]' : 'text-[var(--c-text-3)]'}`}>리스트</button>
+                    <button onClick={() => setCalendarView('calendar')} className={`text-xs px-3 py-1 rounded-md transition-colors ${calendarView === 'calendar' ? 'bg-gold/20 text-gold' : 'text-[var(--c-text-3)]'}`}>달력</button>
+                    <button onClick={() => setCalendarView('list')} className={`text-xs px-3 py-1 rounded-md transition-colors ${calendarView === 'list' ? 'bg-gold/20 text-gold' : 'text-[var(--c-text-3)]'}`}>리스트</button>
                   </div>
                   {/* 담당자 필터(전체·대표·이팀장님·김막내)는 2026-11-11 사장님 요청으로 제거. managerFilter 는 '전체' 고정 */}
                   <div className="flex gap-2 ml-3">
-                    <span className="text-[10px] bg-[#C8A951]/10 text-[#C8A951] px-2 py-1 rounded">오늘 {todayCount}건</span>
-                    <span className="text-[10px] bg-[#3B82F6]/10 text-[#3B82F6] px-2 py-1 rounded">이번주 {weekCount}건</span>
+                    <span className="text-[10px] bg-gold/10 text-gold px-2 py-1 rounded">오늘 {todayCount}건</span>
+                    <span className="text-[10px] bg-info/10 text-info px-2 py-1 rounded">이번주 {weekCount}건</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => setShowCalendarSub(true)} className="bg-[#3B82F6]/10 hover:bg-[#3B82F6]/20 text-[#3B82F6] text-sm font-medium rounded-lg px-3 py-2 transition-colors">캘린더 구독</button>
-                  <button onClick={() => setShowAddAppointment(true)} className="bg-[#E4002B] hover:bg-[#c60026] text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors">+ 예약 추가</button>
+                  <button onClick={() => setShowCalendarSub(true)} className="bg-info/10 hover:bg-info/20 text-info text-sm font-medium rounded-lg px-3 py-2 transition-colors">캘린더 구독</button>
+                  <button onClick={() => setShowAddAppointment(true)} className="bg-brand hover:bg-brand-dark text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors">+ 예약 추가</button>
                 </div>
               </div>
 
@@ -1483,7 +1483,7 @@ export default function CRMPage() {
                     {/* 요일 헤더 */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
                       {['일', '월', '화', '수', '목', '금', '토'].map((d, i) => (
-                        <div key={d} style={{ textAlign: 'center', padding: '10px 0', fontSize: '12px', fontWeight: 600, borderBottom: '1px solid #1e1e22', color: i === 0 ? '#EF4444' : i === 6 ? '#3B82F6' : '#71717a' }}>{d}</div>
+                        <div key={d} style={{ textAlign: 'center', padding: '10px 0', fontSize: '12px', fontWeight: 600, borderBottom: '1px solid var(--c-border)', color: i === 0 ? 'var(--c-danger)' : i === 6 ? 'var(--c-info)' : 'var(--c-text-3)' }}>{d}</div>
                       ))}
                     </div>
                     {/* 날짜 그리드 */}
@@ -1494,7 +1494,7 @@ export default function CRMPage() {
                         const isSel = cell.dateStr === selectedDate;
                         const isCurrent = cell.month === 'current';
                         const dayOfWeek = i % 7;
-                        const dayColor = dayOfWeek === 0 ? '#EF4444' : dayOfWeek === 6 ? '#3B82F6' : '#a1a1aa';
+                        const dayColor = dayOfWeek === 0 ? 'var(--c-danger)' : dayOfWeek === 6 ? 'var(--c-info)' : 'var(--c-text-2)';
                         return (
                           <div
                             key={cell.dateStr + cell.month}
@@ -1515,7 +1515,7 @@ export default function CRMPage() {
                             {/* 날짜 숫자 */}
                             <div style={{ marginBottom: '4px' }}>
                               {isT ? (
-                                <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#C8A951', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: 'var(--c-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                   <span style={{ fontSize: '12px', fontWeight: 700, color: '#000' }}>{cell.day}</span>
                                 </div>
                               ) : (
@@ -1528,7 +1528,7 @@ export default function CRMPage() {
                             {isCurrent && dayAppts.length > 0 && (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                 {dayAppts.slice(0, 3).map((a) => {
-                                  const barBg = a.status === '상담중' ? '#71717a' : a.status === '예약확정' ? '#3B82F6' : a.status === '시공중' ? '#C8A951' : '#22C55E';
+                                  const barBg = a.status === '상담중' ? 'var(--c-text-4)' : a.status === '예약확정' ? 'var(--c-info)' : a.status === '시공중' ? 'var(--c-gold)' : 'var(--c-ok)';
                                   const isCompleted = a.status === '완료';
                                   const isStart = a.appointment_date === cell.dateStr;
                                   return (
@@ -1542,7 +1542,7 @@ export default function CRMPage() {
                                   );
                                 })}
                                 {dayAppts.length > 3 && (
-                                  <div style={{ fontSize: '10px', color: '#C8A951', fontWeight: 500, paddingLeft: '4px' }}>+{dayAppts.length - 3}건 더보기</div>
+                                  <div style={{ fontSize: '10px', color: 'var(--c-gold)', fontWeight: 500, paddingLeft: '4px' }}>+{dayAppts.length - 3}건 더보기</div>
                                 )}
                               </div>
                             )}
@@ -1555,11 +1555,11 @@ export default function CRMPage() {
                   {/* 선택된 날짜 헤더 */}
                   {selectedDate && (
                     <div style={{ marginTop: '16px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div style={{ width: '4px', height: '20px', backgroundColor: '#C8A951', borderRadius: '9999px' }} />
+                      <div style={{ width: '4px', height: '20px', backgroundColor: 'var(--c-gold)', borderRadius: '9999px' }} />
                       <span style={{ fontSize: '14px', fontWeight: 600, color: '#fafaf9' }}>
                         {new Date(selectedDate + 'T00:00:00').toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' })}
                       </span>
-                      <span style={{ fontSize: '12px', color: '#71717a' }}>{apptByDate(selectedDate).length}건</span>
+                      <span style={{ fontSize: '12px', color: 'var(--c-text-3)' }}>{apptByDate(selectedDate).length}건</span>
                     </div>
                   )}
                 </div>
@@ -1571,7 +1571,7 @@ export default function CRMPage() {
                   {displayAppointments.map((a) => {
                     const isToday = a.appointment_date === today;
                     const isPast = a.appointment_date < today;
-                    const borderClass = a.status === '완료' ? 'border-[var(--c-border)]' : isToday ? 'border-[#C8A951]/40' : isPast ? 'border-[#EF4444]/20' : 'border-[var(--c-border)]';
+                    const borderClass = a.status === '완료' ? 'border-[var(--c-border)]' : isToday ? 'border-gold/40' : isPast ? 'border-danger/20' : 'border-[var(--c-border)]';
                     const opacityClass = a.status === '완료' ? 'opacity-50' : isPast && a.status !== '완료' ? 'opacity-60' : '';
                     let memoDisplay = a.memo;
                     try { if (a.memo && JSON.parse(a.memo)?.car_number !== undefined) memoDisplay = null; } catch { /* not JSON */ }
@@ -1580,7 +1580,7 @@ export default function CRMPage() {
                       <div key={a.id} className={`bg-[var(--c-card)] border rounded-xl p-4 flex items-center justify-between group ${borderClass} ${opacityClass}`}>
                         <div className="flex items-center gap-4">
                           <div className="text-center min-w-[60px]">
-                            <div className={`text-lg font-bold ${isToday ? 'text-[#C8A951]' : 'text-[var(--c-text-1)]'}`}>
+                            <div className={`text-lg font-bold ${isToday ? 'text-gold' : 'text-[var(--c-text-1)]'}`}>
                               {new Date(a.appointment_date).getDate()}
                               {a.end_date && a.end_date !== a.appointment_date && (
                                 <span className="text-xs font-normal text-[var(--c-text-3)]">~{new Date(a.end_date).getDate()}</span>
@@ -1588,7 +1588,7 @@ export default function CRMPage() {
                             </div>
                             <div className="text-[10px] text-[var(--c-text-3)]">
                               {new Date(a.appointment_date).toLocaleDateString('ko-KR', { month: 'short' })}
-                              {isToday && <span className="text-[#C8A951] ml-0.5">오늘</span>}
+                              {isToday && <span className="text-gold ml-0.5">오늘</span>}
                             </div>
                           </div>
                           <div className="h-10 w-px bg-[var(--c-subtle)]" />
@@ -1599,8 +1599,8 @@ export default function CRMPage() {
                             </div>
                             <div className="text-xs text-[var(--c-text-3)] mt-0.5">
                               {a.service_type || '미정'}
-                              <span className={`ml-1.5 text-[9px] px-1.5 py-0.5 rounded ${getManager(a) === '이팀장님' ? 'bg-[#22C55E]/15 text-[#22C55E]' : getManager(a) === '김막내' ? 'bg-[#A78BFA]/15 text-[#A78BFA]' : 'bg-[#3B82F6]/15 text-[#3B82F6]'}`}>{getManager(a)}</span>
-                              {a.amount ? <span className="ml-2 text-[#C8A951]">{a.amount.toLocaleString()}원</span> : null}
+                              <span className={`ml-1.5 text-[9px] px-1.5 py-0.5 rounded ${getManager(a) === '이팀장님' ? 'bg-ok/15 text-ok' : getManager(a) === '김막내' ? 'bg-violet/15 text-violet' : 'bg-info/15 text-info'}`}>{getManager(a)}</span>
+                              {a.amount ? <span className="ml-2 text-gold">{a.amount.toLocaleString()}원</span> : null}
                               {memoDisplay && <span className="ml-2">· {memoDisplay}</span>}
                             </div>
                           </div>
@@ -1608,27 +1608,27 @@ export default function CRMPage() {
                         <div className="flex items-center gap-2">
                           <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusColor(a.status)}`}>{a.status}</span>
                           {a.service_type && CRM_SERVICE_TO_KEY[a.service_type] && (
-                            <button onClick={() => handleWriteBlogFromAppointment(a)} className="bg-[#E4002B]/10 hover:bg-[#E4002B]/20 text-[#E4002B] text-xs font-medium rounded-lg px-2.5 py-1 transition-colors" title="이 시공으로 블로그 시공기 폼 채우기">✍️ 시공기</button>
+                            <button onClick={() => handleWriteBlogFromAppointment(a)} className="bg-brand/10 hover:bg-brand/20 text-brand text-xs font-medium rounded-lg px-2.5 py-1 transition-colors" title="이 시공으로 블로그 시공기 폼 채우기">✍️ 시공기</button>
                           )}
-                          <button onClick={() => handleOpenWorkOrder(a)} className="bg-[#C8A951]/10 hover:bg-[#C8A951]/20 text-[#C8A951] text-xs font-medium rounded-lg px-2.5 py-1 transition-colors">작업 내역서</button>
-                          <button onClick={() => handleOpenWarranty(a)} className={`text-xs font-medium rounded-lg px-2.5 py-1 transition-colors ${hasWarrantyIssued(a.memo) ? 'bg-[#22c55e] text-white' : 'bg-[#22c55e]/10 hover:bg-[#22c55e]/20 text-[#22c55e]'}`}>{hasWarrantyIssued(a.memo) ? '✓ 보증서 발급완료' : '보증서'}</button>
+                          <button onClick={() => handleOpenWorkOrder(a)} className="bg-gold/10 hover:bg-gold/20 text-gold text-xs font-medium rounded-lg px-2.5 py-1 transition-colors">작업 내역서</button>
+                          <button onClick={() => handleOpenWarranty(a)} className={`text-xs font-medium rounded-lg px-2.5 py-1 transition-colors ${hasWarrantyIssued(a.memo) ? 'bg-ok text-white' : 'bg-ok/10 hover:bg-ok/20 text-ok'}`}>{hasWarrantyIssued(a.memo) ? '✓ 보증서 발급완료' : '보증서'}</button>
                           {a.customer?.phone && (
-                            <div className="flex items-center rounded-lg border border-[#F59E0B]/30 overflow-hidden" title="후기 요청 문자 보내기">
-                              <span className="text-[11px] text-[#FBBF24] px-2 py-1 bg-[#F59E0B]/10 border-r border-[#F59E0B]/30">후기 요청</span>
+                            <div className="flex items-center rounded-lg border border-warn/30 overflow-hidden" title="후기 요청 문자 보내기">
+                              <span className="text-[11px] text-warn px-2 py-1 bg-warn/10 border-r border-warn/30">후기 요청</span>
                               {(['proism', 'audi', 'bmw'] as const).map((k) => (
-                                <button key={k} onClick={(e) => { e.stopPropagation(); handleReviewSmsFromAppointment(a, k); }} className="text-xs font-medium px-2.5 py-1 text-[var(--c-text-2)] hover:bg-[#F59E0B]/15 hover:text-[#FBBF24] transition-colors border-r border-[#F59E0B]/20 last:border-r-0">
+                                <button key={k} onClick={(e) => { e.stopPropagation(); handleReviewSmsFromAppointment(a, k); }} className="text-xs font-medium px-2.5 py-1 text-[var(--c-text-2)] hover:bg-warn/15 hover:text-warn transition-colors border-r border-warn/20 last:border-r-0">
                                   {k === 'proism' ? '프로이즘' : k === 'audi' ? '아우디' : 'BMW'}
                                 </button>
                               ))}
                             </div>
                           )}
                           {a.status !== '완료' && (
-                            <select value="" onChange={(e) => { if (e.target.value) handleStatusChange(a, e.target.value); }} className="bg-[var(--c-subtle)] border border-[#2a2a2e] rounded-lg px-2 py-1 text-xs text-[var(--c-text-2)] outline-none cursor-pointer">
+                            <select value="" onChange={(e) => { if (e.target.value) handleStatusChange(a, e.target.value); }} className="bg-[var(--c-subtle)] border border-[var(--c-border)] rounded-lg px-2 py-1 text-xs text-[var(--c-text-2)] outline-none cursor-pointer">
                               <option value="">상태 변경</option>
                               {APPOINTMENT_STATUSES.filter((s) => s !== a.status).map((s) => (<option key={s} value={s}>{s}</option>))}
                             </select>
                           )}
-                          <button onClick={() => handleDeleteAppointment(a.id)} className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded flex items-center justify-center text-[var(--c-text-3)] hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-all text-xs" title="삭제">✕</button>
+                          <button onClick={() => handleDeleteAppointment(a.id)} className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded flex items-center justify-center text-[var(--c-text-3)] hover:text-danger hover:bg-danger/10 transition-all text-xs" title="삭제">✕</button>
                         </div>
                       </div>
                     );
@@ -1664,11 +1664,11 @@ export default function CRMPage() {
             {/* 필터 버튼 (유형별) */}
             <div className="flex items-center gap-2 mb-4">
               {([
-                { key: 'all' as const, label: '전체', count: followUps.length, style: 'bg-[#C8A951]/20 text-[#C8A951]' },
-                { key: 'QC점검' as const, label: 'QC', count: followUps.filter((f) => f.follow_up_type === 'QC점검').length, style: 'bg-[#3B82F6]/20 text-[#60A5FA]' },
-                { key: '메인터넌스' as const, label: '메인터넌스', count: followUps.filter((f) => f.follow_up_type === '메인터넌스').length, style: 'bg-[#8B5CF6]/20 text-[#A78BFA]' },
-                { key: '후기요청' as const, label: '후기요청', count: followUps.filter((f) => f.follow_up_type === '후기요청').length, style: 'bg-[#F59E0B]/20 text-[#FBBF24]' },
-                { key: '견적재연락' as const, label: '견적 재연락', count: followUps.filter((f) => f.follow_up_type === '견적재연락' || f.follow_up_type === '견적마무리').length, style: 'bg-[#C8A951]/20 text-[#C8A951]' },
+                { key: 'all' as const, label: '전체', count: followUps.length, style: 'bg-gold/20 text-gold' },
+                { key: 'QC점검' as const, label: 'QC', count: followUps.filter((f) => f.follow_up_type === 'QC점검').length, style: 'bg-info/20 text-info' },
+                { key: '메인터넌스' as const, label: '메인터넌스', count: followUps.filter((f) => f.follow_up_type === '메인터넌스').length, style: 'bg-violet/20 text-violet' },
+                { key: '후기요청' as const, label: '후기요청', count: followUps.filter((f) => f.follow_up_type === '후기요청').length, style: 'bg-warn/20 text-warn' },
+                { key: '견적재연락' as const, label: '견적 재연락', count: followUps.filter((f) => f.follow_up_type === '견적재연락' || f.follow_up_type === '견적마무리').length, style: 'bg-gold/20 text-gold' },
               ]).map((f) => (
                 <button
                   key={f.key}
@@ -1749,38 +1749,38 @@ export default function CRMPage() {
                 };
 
                 const typeBadgeClass = f.follow_up_type === 'QC점검'
-                  ? 'bg-[#3B82F6]/20 text-[#60A5FA]'
+                  ? 'bg-info/20 text-info'
                   : f.follow_up_type === '후기요청'
-                    ? 'bg-[#F59E0B]/20 text-[#FBBF24]'
+                    ? 'bg-warn/20 text-warn'
                     : isQuote
-                      ? 'bg-[#C8A951]/20 text-[#C8A951]'
-                      : 'bg-[#8B5CF6]/20 text-[#A78BFA]';
+                      ? 'bg-gold/20 text-gold'
+                      : 'bg-violet/20 text-violet';
 
                 const statusBadge = f.is_completed
-                  ? { text: '처리완료', class: 'bg-[#10B981]/20 text-[#34D399]' }
+                  ? { text: '처리완료', class: 'bg-ok/20 text-ok' }
                   : isOverdue
-                    ? { text: `${Math.abs(daysUntil)}일 지남`, class: 'bg-[#EF4444]/20 text-[#F87171]' }
+                    ? { text: `${Math.abs(daysUntil)}일 지남`, class: 'bg-danger/20 text-danger' }
                     : isUrgent
-                      ? { text: daysUntil === 0 ? '오늘' : `D-${daysUntil}`, class: 'bg-[#F59E0B]/20 text-[#FBBF24]' }
-                      : { text: '미처리', class: 'bg-[#EF4444]/15 text-[#F87171]' };
+                      ? { text: daysUntil === 0 ? '오늘' : `D-${daysUntil}`, class: 'bg-warn/20 text-warn' }
+                      : { text: '미처리', class: 'bg-danger/15 text-danger' };
 
                 const cardBorder = isOverdue
-                  ? 'border-[#EF4444]/40'
+                  ? 'border-danger/40'
                   : isUrgent
-                    ? 'border-[#F59E0B]/40'
+                    ? 'border-warn/40'
                     : f.is_completed
-                      ? 'border-[#10B981]/20'
+                      ? 'border-ok/20'
                       : 'border-[var(--c-border)]';
 
-                const sentBtn = 'bg-[#10B981]/15 text-[#34D399]';
-                const qcBtn = phone ? (sent.qc ? sentBtn : 'bg-[#3B82F6]/15 text-[#60A5FA] hover:bg-[#3B82F6]/25') : 'bg-[var(--c-subtle)] text-[var(--c-text-3)]/40 cursor-not-allowed';
-                const maintBtn = phone ? (sent.maintenance ? sentBtn : 'bg-[#8B5CF6]/15 text-[#A78BFA] hover:bg-[#8B5CF6]/25') : 'bg-[var(--c-subtle)] text-[var(--c-text-3)]/40 cursor-not-allowed';
-                const reviewBtn = (key: string) => phone ? (sent[key] ? sentBtn : 'bg-[#F59E0B]/15 text-[#FBBF24] hover:bg-[#F59E0B]/25') : 'bg-[var(--c-subtle)] text-[var(--c-text-3)]/40 cursor-not-allowed';
+                const sentBtn = 'bg-ok/15 text-ok';
+                const qcBtn = phone ? (sent.qc ? sentBtn : 'bg-info/15 text-info hover:bg-info/25') : 'bg-[var(--c-subtle)] text-[var(--c-text-3)]/40 cursor-not-allowed';
+                const maintBtn = phone ? (sent.maintenance ? sentBtn : 'bg-violet/15 text-violet hover:bg-violet/25') : 'bg-[var(--c-subtle)] text-[var(--c-text-3)]/40 cursor-not-allowed';
+                const reviewBtn = (key: string) => phone ? (sent[key] ? sentBtn : 'bg-warn/15 text-warn hover:bg-warn/25') : 'bg-[var(--c-subtle)] text-[var(--c-text-3)]/40 cursor-not-allowed';
 
                 return (
                   <div
                     key={f.id}
-                    className={`bg-[var(--c-card)] border rounded-xl p-4 ${cardBorder} ${isUrgent ? 'ring-1 ring-[#F59E0B]/20' : ''}`}
+                    className={`bg-[var(--c-card)] border rounded-xl p-4 ${cardBorder} ${isUrgent ? 'ring-1 ring-warn/20' : ''}`}
                   >
                     {/* 카드 상단: 유형 + 상태 뱃지 */}
                     <div className="flex items-center justify-between mb-3">
@@ -1796,8 +1796,8 @@ export default function CRMPage() {
                         onClick={() => handleToggleFollowUp(f)}
                         className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors shrink-0 ${
                           f.is_completed
-                            ? 'bg-[#10B981] border-[#10B981] text-white'
-                            : 'border-[#52525b] hover:border-[#C8A951]'
+                            ? 'bg-ok border-ok text-white'
+                            : 'border-[var(--c-text-4)] hover:border-gold'
                         }`}
                       >
                         {f.is_completed && <span className="text-xs font-bold">✓</span>}
@@ -1814,7 +1814,7 @@ export default function CRMPage() {
                         <div className="flex items-center gap-2 text-xs text-[var(--c-text-3)]">
                           <span className="bg-[var(--c-subtle)] px-2 py-0.5 rounded">{f.service?.service_type || '-'}</span>
                           <span>{formatDate(f.scheduled_date)}</span>
-                          {f.scheduled_date === today && <span className="text-[#F59E0B] font-medium">(오늘)</span>}
+                          {f.scheduled_date === today && <span className="text-warn font-medium">(오늘)</span>}
                         </div>
                         {f.memo && !isQuote && <div className="text-xs text-[var(--c-text-4)] mt-1">{f.memo}</div>}
                         {isQuote && (
@@ -1830,34 +1830,34 @@ export default function CRMPage() {
                     <div className="flex items-center gap-1.5 flex-wrap pt-2 border-t border-[var(--c-border)]">
                       {f.follow_up_type === 'QC점검' && (
                         <>
-                        <button onClick={() => sendKakao(smsQC, 'qc')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${sent.qc ? sentBtn : 'bg-[#FEE500]/20 text-[#3C1E1E] hover:bg-[#FEE500]/30'}`}>{sent.qc ? '✓ 카톡완료' : '카톡'}</button>
+                        <button onClick={() => sendKakao(smsQC, 'qc')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${sent.qc ? sentBtn : 'bg-[#FEE500]/20 text-white hover:bg-[#FEE500]/30'}`}>{sent.qc ? '✓ 카톡완료' : '카톡'}</button>
                         <button onClick={() => sendSms(smsQC, 'qc')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${qcBtn}`}>{sent.qc ? '✓ 문자완료' : '문자'}</button>
                         <button onClick={() => copyMsg(smsQC)} className="text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors bg-[var(--c-subtle)] text-[var(--c-text-2)] hover:bg-[var(--c-hover)]">복사</button>
                         </>
                       )}
                       {f.follow_up_type === '메인터넌스' && (
                         <>
-                        <button onClick={() => sendKakao(smsMaint, 'maintenance')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${sent.maintenance ? sentBtn : 'bg-[#FEE500]/20 text-[#3C1E1E] hover:bg-[#FEE500]/30'}`}>{sent.maintenance ? '✓ 카톡완료' : '카톡'}</button>
+                        <button onClick={() => sendKakao(smsMaint, 'maintenance')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${sent.maintenance ? sentBtn : 'bg-[#FEE500]/20 text-white hover:bg-[#FEE500]/30'}`}>{sent.maintenance ? '✓ 카톡완료' : '카톡'}</button>
                         <button onClick={() => sendSms(smsMaint, 'maintenance')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${maintBtn}`}>{sent.maintenance ? '✓ 문자완료' : '문자'}</button>
                         <button onClick={() => copyMsg(smsMaint)} className="text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors bg-[var(--c-subtle)] text-[var(--c-text-2)] hover:bg-[var(--c-hover)]">복사</button>
                         </>
                       )}
                       {f.follow_up_type === '후기요청' && (
                         <>
-                        <button onClick={() => sendKakao(smsReviewProism, 'proism')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${sent.proism ? sentBtn : 'bg-[#FEE500]/20 text-[#3C1E1E] hover:bg-[#FEE500]/30'}`}>{sent.proism ? '✓ 프로이즘 카톡' : '프로이즘 카톡'}</button>
+                        <button onClick={() => sendKakao(smsReviewProism, 'proism')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${sent.proism ? sentBtn : 'bg-[#FEE500]/20 text-white hover:bg-[#FEE500]/30'}`}>{sent.proism ? '✓ 프로이즘 카톡' : '프로이즘 카톡'}</button>
                         <button onClick={() => sendSms(smsReviewProism, 'proism')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${reviewBtn('proism')}`}>{sent.proism ? '✓ 프로이즘 문자' : '프로이즘 문자'}</button>
-                        <button onClick={() => sendKakao(smsReviewBMW, 'bmw')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${sent.bmw ? sentBtn : 'bg-[#FEE500]/20 text-[#3C1E1E] hover:bg-[#FEE500]/30'}`}>{sent.bmw ? '✓ BMW 카톡' : 'BMW 카톡'}</button>
+                        <button onClick={() => sendKakao(smsReviewBMW, 'bmw')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${sent.bmw ? sentBtn : 'bg-[#FEE500]/20 text-white hover:bg-[#FEE500]/30'}`}>{sent.bmw ? '✓ BMW 카톡' : 'BMW 카톡'}</button>
                         <button onClick={() => sendSms(smsReviewBMW, 'bmw')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${reviewBtn('bmw')}`}>{sent.bmw ? '✓ BMW 문자' : 'BMW 문자'}</button>
-                        <button onClick={() => sendKakao(smsReviewAudi, 'audi')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${sent.audi ? sentBtn : 'bg-[#FEE500]/20 text-[#3C1E1E] hover:bg-[#FEE500]/30'}`}>{sent.audi ? '✓ 아우디 카톡' : '아우디 카톡'}</button>
+                        <button onClick={() => sendKakao(smsReviewAudi, 'audi')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${sent.audi ? sentBtn : 'bg-[#FEE500]/20 text-white hover:bg-[#FEE500]/30'}`}>{sent.audi ? '✓ 아우디 카톡' : '아우디 카톡'}</button>
                         <button onClick={() => sendSms(smsReviewAudi, 'audi')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${reviewBtn('audi')}`}>{sent.audi ? '✓ 아우디 문자' : '아우디 문자'}</button>
                         </>
                       )}
                       {isQuote && !f.customer_id && (
-                        <button onClick={() => handleAddCustomerFromQuote(quoteHead)} className="text-[10px] font-medium px-2.5 py-1 rounded-lg bg-[#22c55e]/15 hover:bg-[#22c55e]/25 text-[#22c55e] transition-colors">＋ 고객 목록에 추가</button>
+                        <button onClick={() => handleAddCustomerFromQuote(quoteHead)} className="text-[10px] font-medium px-2.5 py-1 rounded-lg bg-ok/15 hover:bg-ok/25 text-ok transition-colors">＋ 고객 목록에 추가</button>
                       )}
                       {isQuote && (
                         <>
-                        <button onClick={() => sendSms(quoteBody, 'quote')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${sent.quote ? sentBtn : 'bg-[#C8A951]/20 text-[#C8A951] hover:bg-[#C8A951]/30'}`}>{sent.quote ? '✓ 문자완료' : (f.follow_up_type === '견적재연락' ? '재연락 문자' : '마무리 문자')}</button>
+                        <button onClick={() => sendSms(quoteBody, 'quote')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${sent.quote ? sentBtn : 'bg-gold/20 text-gold hover:bg-gold/30'}`}>{sent.quote ? '✓ 문자완료' : (f.follow_up_type === '견적재연락' ? '재연락 문자' : '마무리 문자')}</button>
                         <button onClick={() => copyMsg(quoteBody)} className="text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors bg-[var(--c-subtle)] text-[var(--c-text-2)] hover:bg-[var(--c-hover)]">복사</button>
                         </>
                       )}
@@ -1865,13 +1865,13 @@ export default function CRMPage() {
                         onClick={() => handleToggleFollowUp(f)}
                         className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ml-auto ${
                           f.is_completed
-                            ? 'bg-[#10B981]/15 text-[#34D399]'
+                            ? 'bg-ok/15 text-ok'
                             : 'bg-[var(--c-subtle)] text-[var(--c-text-2)] hover:bg-[var(--c-hover)]'
                         }`}
                       >
                         {f.is_completed ? '✓ 완료됨' : '완료 처리'}
                       </button>
-                      <button onClick={() => handleOpenWarrantyFromFollowUp(f)} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${customerHasWarranty(f.customer_id) ? 'bg-[#22c55e] text-white' : 'bg-[#22c55e]/10 hover:bg-[#22c55e]/20 text-[#22c55e]'}`}>{customerHasWarranty(f.customer_id) ? '✓ 보증서' : '보증서'}</button>
+                      <button onClick={() => handleOpenWarrantyFromFollowUp(f)} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${customerHasWarranty(f.customer_id) ? 'bg-ok text-white' : 'bg-ok/10 hover:bg-ok/20 text-ok'}`}>{customerHasWarranty(f.customer_id) ? '✓ 보증서' : '보증서'}</button>
                     </div>
                   </div>
                 );
@@ -1908,7 +1908,7 @@ export default function CRMPage() {
                         value={followSearch}
                         onChange={(e) => setFollowSearch(e.target.value)}
                         placeholder="고객 이름·전화번호로 찾기"
-                        className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2.5 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50"
+                        className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2.5 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50"
                       />
                       <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-3">
                         <div className="flex items-center justify-between mb-2">
@@ -1929,9 +1929,9 @@ export default function CRMPage() {
                             const past = iso < today;
                             return (
                               <button key={iso} onClick={() => pickDate(iso)}
-                                className={`relative aspect-square rounded-lg text-xs flex flex-col items-center justify-center transition-colors ${sel ? 'bg-[#C8A951] text-black font-bold' : isToday ? 'bg-[#C8A951]/20 text-[#C8A951] font-semibold' : 'hover:bg-[var(--c-hover)] text-[var(--c-text-2)]'}`}>
+                                className={`relative aspect-square rounded-lg text-xs flex flex-col items-center justify-center transition-colors ${sel ? 'bg-gold text-black font-bold' : isToday ? 'bg-gold/20 text-gold font-semibold' : 'hover:bg-[var(--c-hover)] text-[var(--c-text-2)]'}`}>
                                 <span>{Number(iso.slice(-2))}</span>
-                                {n > 0 && <span className={`mt-0.5 text-[9px] leading-none px-1 rounded-full ${sel ? 'bg-black/20 text-black' : past ? 'bg-[#EF4444]/25 text-[#F87171]' : 'bg-[#3B82F6]/25 text-[#60A5FA]'}`}>{n}</span>}
+                                {n > 0 && <span className={`mt-0.5 text-[9px] leading-none px-1 rounded-full ${sel ? 'bg-black/20 text-black' : past ? 'bg-danger/25 text-danger' : 'bg-info/25 text-info'}`}>{n}</span>}
                               </button>
                             );
                           })}
@@ -1944,20 +1944,20 @@ export default function CRMPage() {
                     <div className="space-y-3 min-w-0">
                       {q ? (
                         <>
-                          <div className="text-sm text-[var(--c-text-2)]">"{followSearch.trim()}" 검색 결과 <span className="text-[#C8A951] font-semibold">{searched.length}</span>건</div>
+                          <div className="text-sm text-[var(--c-text-2)]">"{followSearch.trim()}" 검색 결과 <span className="text-gold font-semibold">{searched.length}</span>건</div>
                           {searched.map(renderFollowUp)}
                           {searched.length === 0 && <div className="text-center py-12 text-sm text-[var(--c-text-3)]">일치하는 고객이 없습니다</div>}
                         </>
                       ) : (
                         <>
                           <div className="flex items-center justify-between">
-                            <div className="text-sm font-semibold text-[var(--c-text-1)]">{dateLabel(followDate)}{followDate === today ? ' (오늘)' : ''} <span className="text-[#C8A951]">{dayList.length}</span>건</div>
+                            <div className="text-sm font-semibold text-[var(--c-text-1)]">{dateLabel(followDate)}{followDate === today ? ' (오늘)' : ''} <span className="text-gold">{dayList.length}</span>건</div>
                           </div>
                           {dayList.map(renderFollowUp)}
                           {dayList.length === 0 && <div className="text-center py-10 text-sm text-[var(--c-text-3)]">이 날 보낼 사후관리 문자가 없습니다</div>}
                           {overdue.length > 0 && (
                             <div className="pt-2">
-                              <button onClick={() => setShowOverdue((v) => !v)} className="w-full text-left text-xs px-3 py-2 rounded-lg bg-[#EF4444]/10 text-[#F87171] hover:bg-[#EF4444]/15">
+                              <button onClick={() => setShowOverdue((v) => !v)} className="w-full text-left text-xs px-3 py-2 rounded-lg bg-danger/10 text-danger hover:bg-danger/15">
                                 {showOverdue ? '▾' : '▸'} 지난 미처리 {overdue.length}건 {showOverdue ? '접기' : '보기'}
                               </button>
                               {showOverdue && <div className="space-y-3 mt-3">{overdue.map(renderFollowUp)}</div>}
@@ -1973,7 +1973,7 @@ export default function CRMPage() {
 
             {/* 프로모션 발송 섹션 */}
             <div className="mt-6 bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-5">
-              <h3 className="text-sm font-semibold text-[#C8A951] mb-4">프로모션 발송</h3>
+              <h3 className="text-sm font-semibold text-gold mb-4">프로모션 발송</h3>
               {(() => {
                 const month = new Date().getMonth() + 1;
                 const promos = [
@@ -1991,7 +1991,7 @@ export default function CRMPage() {
                       <div key={promo.label} className="border border-[var(--c-border)] rounded-lg p-3">
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
-                            <span className="text-xs bg-[#C8A951]/20 text-[#C8A951] px-2 py-0.5 rounded">{promo.season}</span>
+                            <span className="text-xs bg-gold/20 text-gold px-2 py-0.5 rounded">{promo.season}</span>
                             <span className="text-sm text-[var(--c-text-1)] font-medium">{promo.label}</span>
                           </div>
                         </div>
@@ -2041,7 +2041,7 @@ export default function CRMPage() {
                                     }
                                     trackPromo(cust, msg);
                                   }}
-                                  className="text-xs bg-[#FEE500] hover:bg-[#FDD835] text-[#3C1E1E] font-semibold rounded-lg px-3 py-1.5 transition-colors whitespace-nowrap"
+                                  className="text-xs bg-[#FEE500] hover:bg-[#FDD835] text-white font-semibold rounded-lg px-3 py-1.5 transition-colors whitespace-nowrap"
                                 >
                                   카톡
                                 </button>
@@ -2053,7 +2053,7 @@ export default function CRMPage() {
                                     window.open(`sms:${cust.phone}&body=${encodeURIComponent(msg)}`);
                                     trackPromo(cust, msg);
                                   }}
-                                  className="text-xs bg-[#3B82F6] hover:bg-[#2563EB] text-white font-semibold rounded-lg px-3 py-1.5 transition-colors whitespace-nowrap"
+                                  className="text-xs bg-info hover:bg-info text-white font-semibold rounded-lg px-3 py-1.5 transition-colors whitespace-nowrap"
                                 >
                                   문자
                                 </button>
@@ -2066,7 +2066,7 @@ export default function CRMPage() {
                                     trackPromo(cust, msg);
                                     alert(`${cust.name}님 문구가 복사되었습니다.`);
                                   }}
-                                  className="text-xs bg-[#C8A951] hover:bg-[#b89a41] text-[#09090b] font-semibold rounded-lg px-3 py-1.5 transition-colors whitespace-nowrap"
+                                  className="text-xs bg-gold hover:bg-gold/90 text-white font-semibold rounded-lg px-3 py-1.5 transition-colors whitespace-nowrap"
                                 >
                                   복사
                                 </button>
@@ -2091,14 +2091,14 @@ export default function CRMPage() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setQuoteSms({})}
-                  className="bg-[#C8A951]/15 hover:bg-[#C8A951]/25 text-[#C8A951] text-sm font-medium rounded-lg px-4 py-2 transition-colors"
+                  className="bg-gold/15 hover:bg-gold/25 text-gold text-sm font-medium rounded-lg px-4 py-2 transition-colors"
                   title="전화 끊고 바로 보내는 견적 문자 (재연락 2회 자동 등록)"
                 >
                   📩 견적 문자
                 </button>
                 <button
                   onClick={() => setShowAddConsultation(true)}
-                  className="bg-[#E4002B] hover:bg-[#c60026] text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors"
+                  className="bg-brand hover:bg-brand-dark text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors"
                 >
                   + 상담 추가
                 </button>
@@ -2115,14 +2115,14 @@ export default function CRMPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       {!c.customer_id && c.memo && /01[016789]-?\d{3,4}-?\d{4}/.test(c.memo) && (
-                        <button onClick={() => handleAddCustomerFromQuote(c.memo!)} className="text-[10px] font-medium px-2.5 py-1 rounded-lg bg-[#22c55e]/15 hover:bg-[#22c55e]/25 text-[#22c55e] transition-colors">＋ 고객 목록에 추가</button>
+                        <button onClick={() => handleAddCustomerFromQuote(c.memo!)} className="text-[10px] font-medium px-2.5 py-1 rounded-lg bg-ok/15 hover:bg-ok/25 text-ok transition-colors">＋ 고객 목록에 추가</button>
                       )}
                       <button
                         onClick={() => {
                           const cu = customers.find((x) => x.id === c.customer_id);
                           setQuoteSms({ customerId: c.customer_id, name: c.customer?.name || cu?.name || '', phone: c.customer?.phone || cu?.phone || '', car: cu ? [cu.car_brand, cu.car_model].filter(Boolean).join(' ') : '', service: c.interested_services || '' });
                         }}
-                        className="text-[10px] font-medium px-2.5 py-1 rounded-lg bg-[#C8A951]/10 hover:bg-[#C8A951]/20 text-[#C8A951] transition-colors"
+                        className="text-[10px] font-medium px-2.5 py-1 rounded-lg bg-gold/10 hover:bg-gold/20 text-gold transition-colors"
                       >
                         📩 견적 문자
                       </button>
@@ -2133,7 +2133,7 @@ export default function CRMPage() {
                     ? <details className="mb-2 text-sm text-[var(--c-text-2)]"><summary className="cursor-pointer">{c.content.split('\n')[0]} — 보낸 문자 보기</summary><pre className="whitespace-pre-wrap font-sans mt-2 text-xs text-[var(--c-text-2)] bg-[var(--c-input)] rounded-lg p-3">{c.content.split('\n').slice(1).join('\n')}</pre></details>
                     : <p className="text-sm text-[var(--c-text-2)] mb-2">{c.content}</p>)}
                   <div className="flex items-center gap-3 text-xs text-[var(--c-text-3)]">
-                    {c.estimate && <span>견적: <span className="text-[#C8A951]">{c.estimate}</span></span>}
+                    {c.estimate && <span>견적: <span className="text-gold">{c.estimate}</span></span>}
                     {c.interested_services && <span>관심: <span className="text-[var(--c-text-2)]">{c.interested_services}</span></span>}
                     {c.memo && <span>메모: {c.memo}</span>}
                   </div>
@@ -2149,83 +2149,83 @@ export default function CRMPage() {
 
       {/* ─── Modal: 고객 추가 ────────────────────────────────── */}
       {showAddCustomer && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center" onClick={() => { setShowAddCustomer(false); setEditCustomerId(null); }}>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-center justify-center" onClick={() => { setShowAddCustomer(false); setEditCustomerId(null); }}>
           <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl w-full max-w-lg p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-[var(--c-text-1)] font-semibold text-base mb-4">{editCustomerId ? '고객 수정' : '고객 추가'}</h3>
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
                 <label className="text-xs text-[var(--c-text-3)] mb-1 block">이름 *</label>
-                <input type="text" value={customerForm.name} onChange={(e) => setCustomerForm({ ...customerForm, name: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="고객 이름" />
+                <input type="text" value={customerForm.name} onChange={(e) => setCustomerForm({ ...customerForm, name: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder="고객 이름" />
               </div>
               <div>
                 <label className="text-xs text-[var(--c-text-3)] mb-1 block">연락처</label>
-                <input type="text" value={customerForm.phone} onChange={(e) => setCustomerForm({ ...customerForm, phone: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="010-0000-0000" />
+                <input type="text" value={customerForm.phone} onChange={(e) => setCustomerForm({ ...customerForm, phone: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder="010-0000-0000" />
               </div>
               <div>
                 <label className="text-xs text-[var(--c-text-3)] mb-1 block">유입경로</label>
-                <select value={customerForm.source} onChange={(e) => setCustomerForm({ ...customerForm, source: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50">
+                <select value={customerForm.source} onChange={(e) => setCustomerForm({ ...customerForm, source: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50">
                   <option value="">선택...</option>
                   {['카페', '블로그', '소개/재방문', '유튜브', '고정', '경로X', '기타'].map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
               <div>
                 <label className="text-xs text-[var(--c-text-3)] mb-1 block">차량 브랜드</label>
-                <input type="text" value={customerForm.car_brand} onChange={(e) => setCustomerForm({ ...customerForm, car_brand: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="BMW, 벤츠, 포르쉐 등" />
+                <input type="text" value={customerForm.car_brand} onChange={(e) => setCustomerForm({ ...customerForm, car_brand: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder="BMW, 벤츠, 포르쉐 등" />
               </div>
               <div>
                 <label className="text-xs text-[var(--c-text-3)] mb-1 block">차량 모델</label>
-                <input type="text" value={customerForm.car_model} onChange={(e) => setCustomerForm({ ...customerForm, car_model: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="X5, GLE, 카이엔 등" />
+                <input type="text" value={customerForm.car_model} onChange={(e) => setCustomerForm({ ...customerForm, car_model: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder="X5, GLE, 카이엔 등" />
               </div>
               <div>
                 <label className="text-xs text-[var(--c-text-3)] mb-1 block">연식</label>
-                <input type="text" value={customerForm.car_year} onChange={(e) => setCustomerForm({ ...customerForm, car_year: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="2024" />
+                <input type="text" value={customerForm.car_year} onChange={(e) => setCustomerForm({ ...customerForm, car_year: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder="2024" />
               </div>
               <div>
                 <label className="text-xs text-[var(--c-text-3)] mb-1 block">색상</label>
-                <input type="text" value={customerForm.car_color} onChange={(e) => setCustomerForm({ ...customerForm, car_color: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="블랙, 화이트 등" />
+                <input type="text" value={customerForm.car_color} onChange={(e) => setCustomerForm({ ...customerForm, car_color: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder="블랙, 화이트 등" />
               </div>
               <div className="col-span-2">
                 <label className="text-xs text-[var(--c-text-3)] mb-1 block">메모</label>
-                <textarea value={customerForm.memo} onChange={(e) => setCustomerForm({ ...customerForm, memo: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50 resize-none h-20" placeholder="특이사항" />
+                <textarea value={customerForm.memo} onChange={(e) => setCustomerForm({ ...customerForm, memo: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50 resize-none h-20" placeholder="특이사항" />
               </div>
               {editCustomerId && (
               <div className="col-span-2 border-t border-[var(--c-border)] pt-3 mt-1">
                 <label className="text-xs text-[var(--c-text-3)] mb-1 block">예상 금액</label>
-                <input type="text" inputMode="numeric" value={customerForm.appointment_amount ? Number(customerForm.appointment_amount).toLocaleString() : ''} onChange={(e) => { const raw = e.target.value.replace(/[^0-9]/g, ''); setCustomerForm({ ...customerForm, appointment_amount: raw }); }} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="2,500,000" />
+                <input type="text" inputMode="numeric" value={customerForm.appointment_amount ? Number(customerForm.appointment_amount).toLocaleString() : ''} onChange={(e) => { const raw = e.target.value.replace(/[^0-9]/g, ''); setCustomerForm({ ...customerForm, appointment_amount: raw }); }} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder="2,500,000" />
               </div>
               )}
               {!editCustomerId && (<>
               <div className="col-span-2 border-t border-[var(--c-border)] pt-3 mt-1">
-                <div className="text-xs text-[#C8A951] font-medium mb-2">예약 정보 (선택)</div>
+                <div className="text-xs text-gold font-medium mb-2">예약 정보 (선택)</div>
               </div>
               <div>
                 <label className="text-xs text-[var(--c-text-3)] mb-1 block">시공 시작일</label>
-                <input type="date" value={customerForm.appointment_start_date} onChange={(e) => setCustomerForm({ ...customerForm, appointment_start_date: e.target.value })} onInput={(e) => setCustomerForm({ ...customerForm, appointment_start_date: (e.target as HTMLInputElement).value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" />
+                <input type="date" value={customerForm.appointment_start_date} onChange={(e) => setCustomerForm({ ...customerForm, appointment_start_date: e.target.value })} onInput={(e) => setCustomerForm({ ...customerForm, appointment_start_date: (e.target as HTMLInputElement).value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" />
               </div>
               <div>
                 <label className="text-xs text-[var(--c-text-3)] mb-1 block">시공 종료일</label>
-                <input type="date" value={customerForm.appointment_end_date} onChange={(e) => setCustomerForm({ ...customerForm, appointment_end_date: e.target.value })} onInput={(e) => setCustomerForm({ ...customerForm, appointment_end_date: (e.target as HTMLInputElement).value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" />
+                <input type="date" value={customerForm.appointment_end_date} onChange={(e) => setCustomerForm({ ...customerForm, appointment_end_date: e.target.value })} onInput={(e) => setCustomerForm({ ...customerForm, appointment_end_date: (e.target as HTMLInputElement).value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" />
               </div>
               <div className="col-span-2">
                 <label className="text-xs text-[var(--c-text-3)] mb-1 block">시공 종류</label>
-                <select value={customerForm.appointment_service_type} onChange={(e) => setCustomerForm({ ...customerForm, appointment_service_type: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50">
+                <select value={customerForm.appointment_service_type} onChange={(e) => setCustomerForm({ ...customerForm, appointment_service_type: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50">
                   <option value="">선택...</option>
                   {SERVICE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <div className="col-span-2">
                 <label className="text-xs text-[var(--c-text-3)] mb-1 block">예상 금액</label>
-                <input type="text" inputMode="numeric" value={customerForm.appointment_amount ? Number(customerForm.appointment_amount).toLocaleString() : ''} onChange={(e) => { const raw = e.target.value.replace(/[^0-9]/g, ''); setCustomerForm({ ...customerForm, appointment_amount: raw }); }} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="2,500,000" />
+                <input type="text" inputMode="numeric" value={customerForm.appointment_amount ? Number(customerForm.appointment_amount).toLocaleString() : ''} onChange={(e) => { const raw = e.target.value.replace(/[^0-9]/g, ''); setCustomerForm({ ...customerForm, appointment_amount: raw }); }} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder="2,500,000" />
               </div>
               <div className="col-span-2">
                 <label className="text-xs text-[var(--c-text-3)] mb-1 block">예약 메모</label>
-                <textarea value={customerForm.appointment_memo} onChange={(e) => setCustomerForm({ ...customerForm, appointment_memo: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50 resize-none h-16" placeholder="예약 관련 메모" />
+                <textarea value={customerForm.appointment_memo} onChange={(e) => setCustomerForm({ ...customerForm, appointment_memo: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50 resize-none h-16" placeholder="예약 관련 메모" />
               </div>
               </>)}
             </div>
             <div className="flex justify-end gap-2 mt-4">
               <button onClick={() => { setShowAddCustomer(false); setEditCustomerId(null); }} className="px-4 py-2 text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-2)] transition-colors">취소</button>
-              <button onClick={editCustomerId ? handleUpdateCustomer : handleAddCustomer} className="bg-[#E4002B] hover:bg-[#c60026] text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors">{editCustomerId ? '수정' : '추가'}</button>
+              <button onClick={editCustomerId ? handleUpdateCustomer : handleAddCustomer} className="bg-brand hover:bg-brand-dark text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors">{editCustomerId ? '수정' : '추가'}</button>
             </div>
           </div>
         </div>
@@ -2233,7 +2233,7 @@ export default function CRMPage() {
 
       {/* ─── Modal: 예약 추가 ────────────────────────────────── */}
       {showAddAppointment && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center" onClick={() => setShowAddAppointment(false)}>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-center justify-center" onClick={() => setShowAddAppointment(false)}>
           <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl w-full max-w-lg p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-[var(--c-text-1)] font-semibold text-base mb-4">예약 추가</h3>
             <div className="space-y-3">
@@ -2243,31 +2243,31 @@ export default function CRMPage() {
               </div>
               <div>
                 <label className="text-xs text-[var(--c-text-3)] mb-1 block">시공 시작일 *</label>
-                <input type="date" value={appointmentForm.appointment_date} onChange={(e) => setAppointmentForm({ ...appointmentForm, appointment_date: e.target.value })} onInput={(e) => setAppointmentForm({ ...appointmentForm, appointment_date: (e.target as HTMLInputElement).value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" />
+                <input type="date" value={appointmentForm.appointment_date} onChange={(e) => setAppointmentForm({ ...appointmentForm, appointment_date: e.target.value })} onInput={(e) => setAppointmentForm({ ...appointmentForm, appointment_date: (e.target as HTMLInputElement).value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" />
               </div>
               <div>
                 <label className="text-xs text-[var(--c-text-3)] mb-1 block">시공 종료일</label>
-                <input type="date" value={appointmentForm.end_date} onChange={(e) => setAppointmentForm({ ...appointmentForm, end_date: e.target.value })} onInput={(e) => setAppointmentForm({ ...appointmentForm, end_date: (e.target as HTMLInputElement).value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" />
+                <input type="date" value={appointmentForm.end_date} onChange={(e) => setAppointmentForm({ ...appointmentForm, end_date: e.target.value })} onInput={(e) => setAppointmentForm({ ...appointmentForm, end_date: (e.target as HTMLInputElement).value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" />
               </div>
               <div>
                 <label className="text-xs text-[var(--c-text-3)] mb-1 block">시공 종류</label>
-                <select value={appointmentForm.service_type} onChange={(e) => setAppointmentForm({ ...appointmentForm, service_type: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50">
+                <select value={appointmentForm.service_type} onChange={(e) => setAppointmentForm({ ...appointmentForm, service_type: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50">
                   <option value="">선택...</option>
                   {SERVICE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <div>
                 <label className="text-xs text-[var(--c-text-3)] mb-1 block">예상 금액</label>
-                <input type="text" inputMode="numeric" value={appointmentForm.amount ? Number(appointmentForm.amount).toLocaleString() : ''} onChange={(e) => { const raw = e.target.value.replace(/[^0-9]/g, ''); setAppointmentForm({ ...appointmentForm, amount: raw }); }} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="2,500,000" />
+                <input type="text" inputMode="numeric" value={appointmentForm.amount ? Number(appointmentForm.amount).toLocaleString() : ''} onChange={(e) => { const raw = e.target.value.replace(/[^0-9]/g, ''); setAppointmentForm({ ...appointmentForm, amount: raw }); }} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder="2,500,000" />
               </div>
               <div>
                 <label className="text-xs text-[var(--c-text-3)] mb-1 block">메모</label>
-                <textarea value={appointmentForm.memo} onChange={(e) => setAppointmentForm({ ...appointmentForm, memo: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50 resize-none h-20" placeholder="메모" />
+                <textarea value={appointmentForm.memo} onChange={(e) => setAppointmentForm({ ...appointmentForm, memo: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50 resize-none h-20" placeholder="메모" />
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-4">
               <button onClick={() => setShowAddAppointment(false)} className="px-4 py-2 text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-2)] transition-colors">취소</button>
-              <button onClick={handleAddAppointment} className="bg-[#E4002B] hover:bg-[#c60026] text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors">추가</button>
+              <button onClick={handleAddAppointment} className="bg-brand hover:bg-brand-dark text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors">추가</button>
             </div>
           </div>
         </div>
@@ -2275,7 +2275,7 @@ export default function CRMPage() {
 
       {/* ─── Modal: 상담 추가 ────────────────────────────────── */}
       {showAddConsultation && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center" onClick={() => setShowAddConsultation(false)}>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-center justify-center" onClick={() => setShowAddConsultation(false)}>
           <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl w-full max-w-lg p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-[var(--c-text-1)] font-semibold text-base mb-4">상담 추가</h3>
             <div className="space-y-3">
@@ -2285,30 +2285,30 @@ export default function CRMPage() {
               </div>
               <div>
                 <label className="text-xs text-[var(--c-text-3)] mb-1 block">상담 날짜 *</label>
-                <input type="date" value={consultationForm.consultation_date} onChange={(e) => setConsultationForm({ ...consultationForm, consultation_date: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" />
+                <input type="date" value={consultationForm.consultation_date} onChange={(e) => setConsultationForm({ ...consultationForm, consultation_date: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" />
               </div>
               <div>
                 <label className="text-xs text-[var(--c-text-3)] mb-1 block">상담 내용</label>
-                <textarea value={consultationForm.content} onChange={(e) => setConsultationForm({ ...consultationForm, content: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50 resize-none h-24" placeholder="상담 내용을 입력하세요" />
+                <textarea value={consultationForm.content} onChange={(e) => setConsultationForm({ ...consultationForm, content: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50 resize-none h-24" placeholder="상담 내용을 입력하세요" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-[var(--c-text-3)] mb-1 block">견적</label>
-                  <input type="text" value={consultationForm.estimate} onChange={(e) => setConsultationForm({ ...consultationForm, estimate: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="예: 350만원" />
+                  <input type="text" value={consultationForm.estimate} onChange={(e) => setConsultationForm({ ...consultationForm, estimate: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder="예: 350만원" />
                 </div>
                 <div>
                   <label className="text-xs text-[var(--c-text-3)] mb-1 block">관심 시공</label>
-                  <input type="text" value={consultationForm.interested_services} onChange={(e) => setConsultationForm({ ...consultationForm, interested_services: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="PPF, 썬팅 등" />
+                  <input type="text" value={consultationForm.interested_services} onChange={(e) => setConsultationForm({ ...consultationForm, interested_services: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder="PPF, 썬팅 등" />
                 </div>
               </div>
               <div>
                 <label className="text-xs text-[var(--c-text-3)] mb-1 block">메모</label>
-                <input type="text" value={consultationForm.memo} onChange={(e) => setConsultationForm({ ...consultationForm, memo: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="메모" />
+                <input type="text" value={consultationForm.memo} onChange={(e) => setConsultationForm({ ...consultationForm, memo: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder="메모" />
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-4">
               <button onClick={() => setShowAddConsultation(false)} className="px-4 py-2 text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-2)] transition-colors">취소</button>
-              <button onClick={handleAddConsultation} className="bg-[#E4002B] hover:bg-[#c60026] text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors">추가</button>
+              <button onClick={handleAddConsultation} className="bg-brand hover:bg-brand-dark text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors">추가</button>
             </div>
           </div>
         </div>
@@ -2325,16 +2325,16 @@ export default function CRMPage() {
         />
       )}
       {showCalendarSub && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center" onClick={() => setShowCalendarSub(false)}>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-center justify-center" onClick={() => setShowCalendarSub(false)}>
           <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl w-full max-w-lg p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-[var(--c-text-1)] font-semibold text-base mb-4">캘린더 구독</h3>
             <p className="text-xs text-[var(--c-text-3)] mb-3">아래 URL을 캘린더 앱에서 구독하면 예약 일정이 자동으로 동기화됩니다.</p>
             <div className="flex items-center gap-2 mb-4">
               <input readOnly value="https://proism-ai.vercel.app/api/calendar?token=proism2026" className="flex-1 bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-xs text-[var(--c-text-1)] outline-none select-all" onFocus={(e) => e.target.select()} />
-              <button onClick={() => { navigator.clipboard.writeText('https://proism-ai.vercel.app/api/calendar?token=proism2026'); alert('URL이 복사되었습니다!'); }} className="bg-[#3B82F6] hover:bg-[#2563EB] text-white text-xs font-medium rounded-lg px-3 py-2 transition-colors whitespace-nowrap">URL 복사</button>
+              <button onClick={() => { navigator.clipboard.writeText('https://proism-ai.vercel.app/api/calendar?token=proism2026'); alert('URL이 복사되었습니다!'); }} className="bg-info hover:bg-info text-white text-xs font-medium rounded-lg px-3 py-2 transition-colors whitespace-nowrap">URL 복사</button>
             </div>
             <div className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg p-4 text-xs text-[var(--c-text-2)] space-y-1.5">
-              <div className="text-[#C8A951] font-medium mb-1">구독 방법</div>
+              <div className="text-gold font-medium mb-1">구독 방법</div>
               <div>1. TimeTree 앱 → 설정 → 캘린더 구독 → URL 붙여넣기</div>
               <div>2. 팀원들도 같은 URL로 구독하면 모두 같이 볼 수 있습니다</div>
               <div>3. 예약이 추가/변경되면 자동으로 반영됩니다</div>
@@ -2383,9 +2383,9 @@ function CheckItem({ label, checked, onChange }: { label: string; checked: boole
   return (
     <div
       onClick={() => onChange(!checked)}
-      className="flex items-center gap-2 cursor-pointer text-sm text-[var(--c-text-1)] hover:text-[#C8A951] transition-colors select-none"
+      className="flex items-center gap-2 cursor-pointer text-sm text-[var(--c-text-1)] hover:text-gold transition-colors select-none"
     >
-      <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors shrink-0 ${checked ? 'bg-[#C8A951] border-[#C8A951]' : 'border-[#71717a]'}`}>
+      <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors shrink-0 ${checked ? 'bg-gold border-gold' : 'border-[var(--c-text-4)]'}`}>
         {checked && <span className="text-[10px] text-black font-bold">✓</span>}
       </div>
       <span>{label}</span>
@@ -2396,7 +2396,7 @@ function CheckItem({ label, checked, onChange }: { label: string; checked: boole
 function SectionTitle({ title }: { title: string }) {
   return (
     <div className="border-t border-[var(--c-border)] pt-4 mt-4">
-      <h4 className="text-sm font-semibold text-[#C8A951] mb-3">{title}</h4>
+      <h4 className="text-sm font-semibold text-gold mb-3">{title}</h4>
     </div>
   );
 }
@@ -2452,7 +2452,7 @@ function WorkOrderModal({ appointment, workOrder, setWorkOrder, onSubmit, onSave
   const customer = appointment.customer;
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="sticky top-0 bg-[var(--c-card)] border-b border-[var(--c-border)] px-6 py-4 flex items-center justify-between z-10">
           <h3 className="text-[var(--c-text-1)] font-semibold text-base">작업 내역서</h3>
@@ -2476,7 +2476,7 @@ function WorkOrderModal({ appointment, workOrder, setWorkOrder, onSubmit, onSave
             </div>
             <div>
               <label className="text-xs text-[var(--c-text-3)] mb-1 block">차량번호</label>
-              <input type="text" value={workOrder.car_number} onChange={(e) => setWorkOrder({ ...workOrder, car_number: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="12가 3456" />
+              <input type="text" value={workOrder.car_number} onChange={(e) => setWorkOrder({ ...workOrder, car_number: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder="12가 3456" />
             </div>
             <div>
               <label className="text-xs text-[var(--c-text-3)] mb-1 block">성명</label>
@@ -2516,7 +2516,7 @@ function WorkOrderModal({ appointment, workOrder, setWorkOrder, onSubmit, onSave
                   <span className="text-xs font-medium text-[var(--c-text-2)]">{label}</span>
                   <div className="flex items-center gap-1">
                     <span className="text-xs text-[var(--c-text-3)]">농도:</span>
-                    <input type="text" value={workOrder.tinting[brand].density} onChange={(e) => setTintingDensity(brand, e.target.value)} className="w-40 bg-[var(--c-card)] border border-[var(--c-border)] rounded px-2 py-1 text-xs text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="전면 30 / 측후면 15" />
+                    <input type="text" value={workOrder.tinting[brand].density} onChange={(e) => setTintingDensity(brand, e.target.value)} className="w-40 bg-[var(--c-card)] border border-[var(--c-border)] rounded px-2 py-1 text-xs text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder="전면 30 / 측후면 15" />
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-3">
@@ -2538,7 +2538,7 @@ function WorkOrderModal({ appointment, workOrder, setWorkOrder, onSubmit, onSave
                   <CheckItem key={p} label={p} checked={workOrder.ppf.includes(p)} onChange={() => setWorkOrder({ ...workOrder, ppf: toggleArray(workOrder.ppf, p) })} />
                 ))}
               </div>
-              <input type="text" value={workOrder.ppf_etc} onChange={(e) => setWorkOrder({ ...workOrder, ppf_etc: e.target.value })} className="w-full bg-[var(--c-card)] border border-[var(--c-border)] rounded px-2 py-1 text-xs text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="기타 (직접 입력)" />
+              <input type="text" value={workOrder.ppf_etc} onChange={(e) => setWorkOrder({ ...workOrder, ppf_etc: e.target.value })} className="w-full bg-[var(--c-card)] border border-[var(--c-border)] rounded px-2 py-1 text-xs text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder="기타 (직접 입력)" />
             </div>
             <div className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg p-3">
               <span className="text-xs font-medium text-[var(--c-text-2)] mb-2 block">랩핑</span>
@@ -2547,7 +2547,7 @@ function WorkOrderModal({ appointment, workOrder, setWorkOrder, onSubmit, onSave
                   <CheckItem key={p} label={p} checked={workOrder.wrapping.includes(p)} onChange={() => setWorkOrder({ ...workOrder, wrapping: toggleArray(workOrder.wrapping, p) })} />
                 ))}
               </div>
-              <input type="text" value={workOrder.wrapping_etc} onChange={(e) => setWorkOrder({ ...workOrder, wrapping_etc: e.target.value })} className="w-full bg-[var(--c-card)] border border-[var(--c-border)] rounded px-2 py-1 text-xs text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="기타 (직접 입력)" />
+              <input type="text" value={workOrder.wrapping_etc} onChange={(e) => setWorkOrder({ ...workOrder, wrapping_etc: e.target.value })} className="w-full bg-[var(--c-card)] border border-[var(--c-border)] rounded px-2 py-1 text-xs text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder="기타 (직접 입력)" />
             </div>
           </div>
 
@@ -2571,7 +2571,7 @@ function WorkOrderModal({ appointment, workOrder, setWorkOrder, onSubmit, onSave
                   <CheckItem key={p} label={p} checked={workOrder.electrical.includes(p)} onChange={() => setWorkOrder({ ...workOrder, electrical: toggleArray(workOrder.electrical, p) })} />
                 ))}
               </div>
-              <input type="text" value={workOrder.electrical_etc} onChange={(e) => setWorkOrder({ ...workOrder, electrical_etc: e.target.value })} className="w-full bg-[var(--c-card)] border border-[var(--c-border)] rounded px-2 py-1 text-xs text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="기타 (직접 입력)" />
+              <input type="text" value={workOrder.electrical_etc} onChange={(e) => setWorkOrder({ ...workOrder, electrical_etc: e.target.value })} className="w-full bg-[var(--c-card)] border border-[var(--c-border)] rounded px-2 py-1 text-xs text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder="기타 (직접 입력)" />
             </div>
             <div className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg p-3">
               <span className="text-xs font-medium text-[var(--c-text-2)] mb-2 block">프리미엄광택</span>
@@ -2580,7 +2580,7 @@ function WorkOrderModal({ appointment, workOrder, setWorkOrder, onSubmit, onSave
                   <CheckItem key={p} label={p} checked={workOrder.polish.includes(p)} onChange={() => setWorkOrder({ ...workOrder, polish: toggleArray(workOrder.polish, p) })} />
                 ))}
               </div>
-              <input type="text" value={workOrder.polish_etc} onChange={(e) => setWorkOrder({ ...workOrder, polish_etc: e.target.value })} className="w-full bg-[var(--c-card)] border border-[var(--c-border)] rounded px-2 py-1 text-xs text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50" placeholder="기타 (직접 입력)" />
+              <input type="text" value={workOrder.polish_etc} onChange={(e) => setWorkOrder({ ...workOrder, polish_etc: e.target.value })} className="w-full bg-[var(--c-card)] border border-[var(--c-border)] rounded px-2 py-1 text-xs text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder="기타 (직접 입력)" />
             </div>
           </div>
 
@@ -2599,7 +2599,7 @@ function WorkOrderModal({ appointment, workOrder, setWorkOrder, onSubmit, onSave
           <textarea
             value={workOrder.notes}
             onChange={(e) => setWorkOrder({ ...workOrder, notes: e.target.value })}
-            className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50 resize-none h-24"
+            className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50 resize-none h-24"
             placeholder="특이사항을 입력하세요"
           />
         </div>
@@ -2729,9 +2729,9 @@ function WorkOrderModal({ appointment, workOrder, setWorkOrder, onSubmit, onSave
         {/* Footer */}
         <div className="sticky bottom-0 bg-[var(--c-card)] border-t border-[var(--c-border)] px-6 py-4 flex justify-end gap-2">
           <button onClick={onClose} className="px-4 py-2 text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-2)] transition-colors">취소</button>
-          <button onClick={handlePdfSave} className="bg-[#3B82F6] hover:bg-[#2563EB] text-white text-sm font-medium rounded-lg px-5 py-2 transition-colors">PDF 저장</button>
-          <button onClick={onSaveOnly} className="bg-[var(--c-subtle)] hover:bg-[var(--c-hover)] text-[var(--c-text-2)] text-sm font-medium rounded-lg px-5 py-2 transition-colors border border-[#2a2a2e]">저장만 하기</button>
-          <button onClick={onSubmit} className="bg-[#E4002B] hover:bg-[#c60026] text-white text-sm font-medium rounded-lg px-6 py-2 transition-colors">시공 완료 처리</button>
+          <button onClick={handlePdfSave} className="bg-info hover:bg-info text-white text-sm font-medium rounded-lg px-5 py-2 transition-colors">PDF 저장</button>
+          <button onClick={onSaveOnly} className="bg-[var(--c-subtle)] hover:bg-[var(--c-hover)] text-[var(--c-text-2)] text-sm font-medium rounded-lg px-5 py-2 transition-colors border border-[var(--c-border)]">저장만 하기</button>
+          <button onClick={onSubmit} className="bg-brand hover:bg-brand-dark text-white text-sm font-medium rounded-lg px-6 py-2 transition-colors">시공 완료 처리</button>
         </div>
       </div>
     </div>
@@ -2810,10 +2810,10 @@ function WarrantyModal({ warrantyForm, setWarrantyForm, onSave, onDownloaded, on
     }, 500);
   };
 
-  const inputClass = 'w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#22c55e]/50';
+  const inputClass = 'w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-ok/50';
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-center justify-center" onClick={onClose}>
       <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="px-6 py-4 border-b border-[var(--c-border)]">
           <h3 className="text-[var(--c-text-1)] font-semibold text-base">시공 보증서 발급</h3>
@@ -2875,14 +2875,14 @@ function WarrantyModal({ warrantyForm, setWarrantyForm, onSave, onDownloaded, on
                       placeholder="400,000"
                     />
                   </div>
-                  <button type="button" onClick={() => removeItem(i)} className="shrink-0 w-8 h-8 rounded-lg text-[var(--c-text-3)] hover:text-[#EF4444] hover:bg-[#EF4444]/10 text-sm" title="항목 삭제">✕</button>
+                  <button type="button" onClick={() => removeItem(i)} className="shrink-0 w-8 h-8 rounded-lg text-[var(--c-text-3)] hover:text-danger hover:bg-danger/10 text-sm" title="항목 삭제">✕</button>
                 </div>
               ))}
-              <button type="button" onClick={addItem} className="text-xs text-[#22c55e] hover:bg-[#22c55e]/10 px-3 py-1.5 rounded-lg">＋ 항목 추가</button>
+              <button type="button" onClick={addItem} className="text-xs text-ok hover:bg-ok/10 px-3 py-1.5 rounded-lg">＋ 항목 추가</button>
             </div>
             <p className="text-[10px] text-[var(--c-text-3)] mt-1">정상가는 항목 합계로 자동 채워지고, 직접 고치면 그 값이 유지됩니다.</p>
           </div>
-          <div className="mt-3 px-1 py-2 border border-[#22c55e]/20 bg-[#22c55e]/5 rounded-lg text-center text-xs text-[#22c55e]">
+          <div className="mt-3 px-1 py-2 border border-ok/20 bg-ok/5 rounded-lg text-center text-xs text-ok">
             📎 보증 카드 + 시공 후 안내사항이 함께 첨부됩니다
           </div>
         </div>
@@ -2991,8 +2991,8 @@ function WarrantyModal({ warrantyForm, setWarrantyForm, onSave, onDownloaded, on
 
         <div className="sticky bottom-0 bg-[var(--c-card)] border-t border-[var(--c-border)] px-6 py-4 flex justify-end gap-2">
           <button onClick={onClose} className="px-4 py-2 text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-2)] transition-colors">취소</button>
-          <button onClick={async () => { await onSave(); onClose(); }} className="bg-[var(--c-subtle)] hover:bg-[var(--c-hover)] text-[var(--c-text-2)] text-sm font-medium rounded-lg px-5 py-2 transition-colors border border-[#2a2a2e]">저장만 하기</button>
-          <button onClick={handleDownloadPng} className="bg-[#22c55e] hover:bg-[#16a34a] text-white text-sm font-medium rounded-lg px-5 py-2 transition-colors">PNG 다운로드</button>
+          <button onClick={async () => { await onSave(); onClose(); }} className="bg-[var(--c-subtle)] hover:bg-[var(--c-hover)] text-[var(--c-text-2)] text-sm font-medium rounded-lg px-5 py-2 transition-colors border border-[var(--c-border)]">저장만 하기</button>
+          <button onClick={handleDownloadPng} className="bg-ok hover:bg-ok text-white text-sm font-medium rounded-lg px-5 py-2 transition-colors">PNG 다운로드</button>
         </div>
       </div>
     </div>

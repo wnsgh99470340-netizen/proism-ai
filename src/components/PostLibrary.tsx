@@ -13,7 +13,7 @@ interface Props {
 }
 
 const inputCls =
-  'w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-2.5 py-2 text-xs text-[var(--c-text-1)] placeholder-[var(--c-text-4)] outline-none focus:border-[#C8A951]/60';
+  'w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-2.5 py-2 text-xs text-[var(--c-text-1)] placeholder-[var(--c-text-4)] outline-none focus:border-gold/60';
 
 /**
  * 사장님 글 데이터베이스 입력부
@@ -71,7 +71,7 @@ export default function PostLibrary({ draftTitle, draftBody, onSaveFinal, onSave
   };
 
   return (
-    <div className="mx-3 mb-3 bg-[#1a1a1f] border border-[var(--c-border)] rounded-xl p-3">
+    <div className="mx-3 mb-3 bg-[var(--c-page)] border border-[var(--c-border)] rounded-xl p-3">
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium text-[var(--c-text-1)]">📚 사장님 글 DB</span>
         <span className="text-[10px] text-[var(--c-text-3)]">쌓일수록 내 말투에 가까워짐</span>
@@ -89,7 +89,7 @@ export default function PostLibrary({ draftTitle, draftBody, onSaveFinal, onSave
           <button
             onClick={() => open('final')}
             disabled={!draftBody}
-            className="bg-[#C8A951]/10 hover:bg-[#C8A951]/20 text-[#C8A951] text-xs py-2.5 rounded-lg font-medium disabled:opacity-40"
+            className="bg-gold/10 hover:bg-gold/20 text-gold text-xs py-2.5 rounded-lg font-medium disabled:opacity-40"
           >
             ✅ 이 글 고쳐서 최종본 저장
           </button>
@@ -122,7 +122,7 @@ export default function PostLibrary({ draftTitle, draftBody, onSaveFinal, onSave
             />
           )}
           <div className="grid grid-cols-2 gap-2">
-            <button onClick={submit} disabled={busy} className="bg-[#E4002B] hover:bg-[#c60026] text-white text-xs py-2 rounded-lg font-medium disabled:opacity-50">
+            <button onClick={submit} disabled={busy} className="bg-brand hover:bg-brand-dark text-white text-xs py-2 rounded-lg font-medium disabled:opacity-50">
               {busy ? '저장 중...' : '저장'}
             </button>
             <button onClick={() => setMode('none')} className="bg-[var(--c-subtle)] text-[var(--c-text-2)] text-xs py-2 rounded-lg">취소</button>

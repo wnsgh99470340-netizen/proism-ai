@@ -82,6 +82,10 @@
 ## Notion 연동 DB
 - 고객 DB, 예약 일정, 상담 기록, 블로그 발행 이력, 시공 기록, 시공 포트폴리오, 견적서
 
+## UI 테마 (2026-11-11 사장님: "어둡고 눈 아프다, 홈페이지형 블로그처럼 선명하고 깔끔하게")
+- 밝은 테마가 기본(:root). 다크는 토글(🌙)로, localStorage 키 theme_v2 (예전 'theme' 키는 무시)
+- 색은 src/app/globals.css 변수만 사용: 바탕 --c-page/--c-card/--c-subtle/--c-hover/--c-border, 글자 --c-text-1~4, 강조 --c-brand(3M 레드)/--c-gold/--c-ok/--c-warn/--c-info/--c-danger/--c-violet. Tailwind 클래스는 text-gold·bg-brand·bg-ok/10 처럼 이름으로(@theme inline 매핑). 컴포넌트에 #16진수 색 직접 쓰지 말 것(라이트·다크 둘 다 깨짐). 예외: 공개 명함 페이지(src/app/card)는 다크 고정, 카카오 노랑·네이버 초록 브랜드색, 인쇄용 문서(보증서·작업 내역서) 인라인 스타일
+
 ## 배포 규칙
 - 코드 수정 후 반드시: 타입 체크(npx tsc --noEmit) → 빌드(npm run build) → 커밋+푸시 → npx vercel --prod
 - .next 캐시 에러 시: rm -rf .next 후 재시도

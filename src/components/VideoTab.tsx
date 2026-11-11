@@ -15,8 +15,8 @@ interface Props {
 }
 
 const inputCls =
-  'w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-2.5 py-2 text-xs text-[var(--c-text-1)] placeholder-[var(--c-text-4)] outline-none focus:border-[#C8A951]/60 min-h-[36px]';
-const btnPrimary = 'bg-[#E4002B] hover:bg-[#c60026] disabled:bg-[var(--c-subtle)] disabled:text-[var(--c-text-3)] text-white text-xs font-semibold py-2.5 rounded-lg';
+  'w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-2.5 py-2 text-xs text-[var(--c-text-1)] placeholder-[var(--c-text-4)] outline-none focus:border-gold/60 min-h-[36px]';
+const btnPrimary = 'bg-brand hover:bg-brand-dark disabled:bg-[var(--c-subtle)] disabled:text-[var(--c-text-3)] text-white text-xs font-semibold py-2.5 rounded-lg';
 const btnSub = 'bg-[var(--c-subtle)] hover:bg-[var(--c-border)] text-[var(--c-text-1)] text-[11px] px-3 py-1.5 rounded-lg';
 const dl = (u: string) => (u.includes('?') ? `${u}&download=1` : `${u}?download=1`);
 
@@ -31,9 +31,9 @@ function describe(v: VideoState): string {
 }
 
 function statusTone(st: string | undefined) {
-  if (st === 'done') return 'bg-[#10B981]/10 border-[#10B981]/30';
-  if (st === 'failed') return 'bg-[#EF4444]/10 border-[#EF4444]/30';
-  return 'bg-[#C8A951]/10 border-[#C8A951]/30';
+  if (st === 'done') return 'bg-ok/10 border-ok/30';
+  if (st === 'failed') return 'bg-danger/10 border-danger/30';
+  return 'bg-gold/10 border-gold/30';
 }
 
 async function copyText(t: string) {
@@ -120,7 +120,7 @@ export default function VideoTab({ jobs, draft, activePostId, target, onJobsChan
             <video controls preload="metadata" src={video.url} poster={video.thumbnail || video.contact_sheet || undefined} className="w-full rounded-xl bg-black" />
             <div className={`grid ${video.vertical_url ? 'grid-cols-2' : 'grid-cols-1'} gap-2`}>
               <a href={dl(video.url)} download className={`block text-center ${btnPrimary}`}>⬇️ 영상 내려받기 (가로)</a>
-              {video.vertical_url && <a href={dl(video.vertical_url)} download className="block text-center bg-[#C8A951] hover:bg-[#b3953f] text-black text-xs font-semibold py-2.5 rounded-lg">⬇️ 세로 영상</a>}
+              {video.vertical_url && <a href={dl(video.vertical_url)} download className="block text-center bg-gold hover:bg-gold/90 text-white text-xs font-semibold py-2.5 rounded-lg">⬇️ 세로 영상</a>}
             </div>
             {video.thumbnail && <a href={dl(video.thumbnail)} download className={`block text-center ${btnSub}`}>🖼️ 썸네일 이미지 내려받기</a>}
             <div className="text-[10px] text-[var(--c-text-3)]">첫 장면이 완성 사진+제목이라 네이버 썸네일이 자동으로 그 장면이 됩니다. 영상은 최근 12편까지만 보관됩니다.</div>
@@ -143,9 +143,9 @@ export default function VideoTab({ jobs, draft, activePostId, target, onJobsChan
             {!draft && <div className="text-[11px] text-[var(--c-text-3)]">먼저 글을 열거나 생성하세요. 폼에서 사진 폴더 링크를 넣으면 글 완성 뒤 영상까지 자동으로 만듭니다.</div>}
             {draft && (
               <>
-                <input value={photosUrl} onChange={(e) => setPhotosUrl(e.target.value)} placeholder="구글 드라이브 공유 폴더 링크 (링크가 있는 모든 사용자 보기)" className={`${inputCls} ${!urlOk ? 'border-[#E4002B]/60' : ''}`} />
+                <input value={photosUrl} onChange={(e) => setPhotosUrl(e.target.value)} placeholder="구글 드라이브 공유 폴더 링크 (링크가 있는 모든 사용자 보기)" className={`${inputCls} ${!urlOk ? 'border-brand/60' : ''}`} />
                 <label className="flex items-center gap-1.5 text-[11px] text-[var(--c-text-2)]">
-                  <input type="checkbox" checked={vertical} onChange={(e) => setVertical(e.target.checked)} className="accent-[#E4002B]" /> 세로 영상도 함께
+                  <input type="checkbox" checked={vertical} onChange={(e) => setVertical(e.target.checked)} className="accent-brand" /> 세로 영상도 함께
                 </label>
                 <button onClick={makeVideo} disabled={busy || !photosUrl.trim() || !urlOk} className={`w-full ${btnPrimary}`}>{busy ? '접수 중…' : '🎬 블로그 영상 만들기'}</button>
               </>
@@ -161,7 +161,7 @@ export default function VideoTab({ jobs, draft, activePostId, target, onJobsChan
           <div className="rounded-xl border border-[var(--c-border)] p-3 space-y-2">
             <div className="text-[11px] text-[var(--c-text-2)]">이 글의 내용과 사진으로 "흔한 오해 / 왜 이 선택 / 관리법" 같은 주제의 릴스 3개를 만듭니다. 캡션과 해시태그도 같이 나옵니다.</div>
             {!(video?.photos?.length) && (
-              <input value={photosUrl} onChange={(e) => setPhotosUrl(e.target.value)} placeholder="사진 폴더 링크(구글 드라이브) — 이 글에 연결된 사진이 없을 때만" className={`${inputCls} ${!urlOk ? 'border-[#E4002B]/60' : ''}`} />
+              <input value={photosUrl} onChange={(e) => setPhotosUrl(e.target.value)} placeholder="사진 폴더 링크(구글 드라이브) — 이 글에 연결된 사진이 없을 때만" className={`${inputCls} ${!urlOk ? 'border-brand/60' : ''}`} />
             )}
             <button onClick={makeReels} disabled={busy} className={`w-full ${btnPrimary}`}>{busy ? '접수 중…' : '🎞️ 정보 릴스 3개 만들기'}</button>
           </div>
@@ -199,7 +199,7 @@ function ReelsBlock({ reels, busy, onRetry }: { reels: ReelsState; busy: boolean
       </div>
       {items.map((it) => (
         <div key={it.id} className="rounded-xl border border-[var(--c-border)] p-3 space-y-2">
-          <div className="text-[11px] text-[#C8A951] font-medium">{it.topic || it.id}{it.duration ? ` · ${Math.round(it.duration)}초` : ''}{it.status === 'rendering' ? ' · 만드는 중…' : it.status === 'failed' ? ` · 실패: ${it.error || ''}` : ''}</div>
+          <div className="text-[11px] text-gold font-medium">{it.topic || it.id}{it.duration ? ` · ${Math.round(it.duration)}초` : ''}{it.status === 'rendering' ? ' · 만드는 중…' : it.status === 'failed' ? ` · 실패: ${it.error || ''}` : ''}</div>
           <div className="text-sm font-semibold text-[var(--c-text-1)] whitespace-pre-line leading-snug">{it.hook}</div>
           {it.beats && it.beats.length > 0 && (
             <ol className="text-[11px] text-[var(--c-text-2)] space-y-0.5 list-decimal pl-4">{it.beats.map((b, i) => <li key={i}>{b.replace(/\n/g, ' ')}</li>)}</ol>
@@ -253,9 +253,9 @@ function TalkUpload({ onCreated, onError }: { onCreated: () => void; onError: (m
     <div className="rounded-xl border border-[var(--c-border)] p-3 space-y-2">
       <div className="text-[11px] text-[var(--c-text-2)]">작업 중인 차 앞에서 한마디 하신 영상(세로 권장, 가로도 됨)을 올리면 자막을 붙이고 세로 규격으로 맞춰 돌려드립니다. 자막 오타는 아래에서 고쳐 다시 만들 수 있습니다.</div>
       <input ref={fileRef} type="file" accept="video/*" capture="environment" onChange={(e) => pick(e.target.files?.[0])} disabled={progress !== null}
-        className="block w-full text-[11px] text-[var(--c-text-2)] file:mr-3 file:rounded-lg file:border-0 file:bg-[#E4002B] file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white hover:file:bg-[#c60026]" />
+        className="block w-full text-[11px] text-[var(--c-text-2)] file:mr-3 file:rounded-lg file:border-0 file:bg-brand file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white hover:file:bg-brand-dark" />
       {progress !== null && (
-        <div className="h-2 w-full rounded bg-[var(--c-subtle)] overflow-hidden"><div className="h-full bg-[#E4002B] transition-all" style={{ width: `${progress}%` }} /></div>
+        <div className="h-2 w-full rounded bg-[var(--c-subtle)] overflow-hidden"><div className="h-full bg-brand transition-all" style={{ width: `${progress}%` }} /></div>
       )}
     </div>
   );

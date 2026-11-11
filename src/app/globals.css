@@ -1,9 +1,38 @@
 @import "tailwindcss";
 
+/*
+  테마 토큰 (2026-11-11 밝은 테마가 기본. 사장님: "어둡고 눈 아프다, 홈페이지형 블로그처럼 선명하고 깔끔하게")
+  - 기본(:root) = 라이트: 흰 카드 + 아주 옅은 회색 바탕 + 또렷한 글자
+  - [data-theme="dark"] = 예전 다크 톤 (토글로 선택)
+  - 색은 전부 변수로. 컴포넌트에서는 text-gold / bg-brand / text-ok 같은 이름 클래스 또는 var(--c-*) 사용
+*/
 :root {
-  --background: #1a1a1f;
-  --foreground: #fafaf9;
-  /* Theme tokens — dark (default, 눈 편한 톤) */
+  --c-page: #f4f5f7;
+  --c-card: #ffffff;
+  --c-subtle: #f1f3f6;
+  --c-hover: #e8ebef;
+  --c-input: #ffffff;
+  --c-border: #e2e5ea;
+  --c-text-1: #16181d;
+  --c-text-2: #3f4650;
+  --c-text-3: #6b7280;
+  --c-text-4: #9aa1ab;
+  --c-card-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.05);
+
+  --c-brand: #E4002B;        /* 3M 레드 */
+  --c-brand-dark: #c60026;
+  --c-gold: #9a7a2a;         /* 흰 바탕에서 읽히는 진한 금색 */
+  --c-ok: #16a34a;
+  --c-warn: #d97706;
+  --c-info: #2563eb;
+  --c-danger: #dc2626;
+  --c-violet: #7c3aed;
+
+  --background: var(--c-page);
+  --foreground: var(--c-text-1);
+}
+
+[data-theme="dark"] {
   --c-page: #1a1a1f;
   --c-card: #222228;
   --c-subtle: #2c2c34;
@@ -14,60 +43,57 @@
   --c-text-2: #a1a1aa;
   --c-text-3: #71717a;
   --c-text-4: #5a5a63;
-}
+  --c-card-shadow: none;
 
-[data-theme="light"] {
-  --background: #f0f0f3;
-  --foreground: #2a2a2e;
-  --c-page: #f0f0f3;
-  --c-card: #e8e8ec;
-  --c-subtle: #dcdce0;
-  --c-hover: #d0d0d6;
-  --c-input: #f0f0f3;
-  --c-border: #d0d0d6;
-  --c-text-1: #2a2a2e;
-  --c-text-2: #505058;
-  --c-text-3: #6e6e78;
-  --c-text-4: #9898a0;
+  --c-gold: #C8A951;
+  --c-ok: #22c55e;
+  --c-warn: #fbbf24;
+  --c-info: #60a5fa;
+  --c-danger: #ef4444;
+  --c-violet: #a78bfa;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-brand: var(--c-brand);
+  --color-brand-dark: var(--c-brand-dark);
+  --color-gold: var(--c-gold);
+  --color-ok: var(--c-ok);
+  --color-warn: var(--c-warn);
+  --color-info: var(--c-info);
+  --color-danger: var(--c-danger);
+  --color-violet: var(--c-violet);
 }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--c-subtle) transparent;
+  scrollbar-color: var(--c-hover) transparent;
 }
+*::-webkit-scrollbar { width: 6px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: var(--c-hover); border-radius: 3px; }
+*::-webkit-scrollbar-thumb:hover { background: var(--c-text-4); }
 
-*::-webkit-scrollbar {
-  width: 6px;
-}
-
-*::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-*::-webkit-scrollbar-thumb {
-  background: var(--c-subtle);
-  border-radius: 3px;
-}
-
-*::-webkit-scrollbar-thumb:hover {
-  background: var(--c-hover);
-}
+html { color-scheme: light; }
+[data-theme="dark"] { color-scheme: dark; }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
   overflow: hidden;
+}
+
+/* 라이트에서 카드가 바탕과 구분되도록 아주 옅은 그림자 */
+[class*="bg-[var(--c-card)]"][class*="rounded-x"],
+[class*="bg-[var(--c-card)]"][class*="rounded-2xl"] {
+  box-shadow: var(--c-card-shadow);
 }
 
 /* 텍스트 영역 자동 크기 조절 */
 @supports (field-sizing: content) {
-  textarea {
-    field-sizing: content;
-  }
+  textarea { field-sizing: content; }
 }

@@ -19,14 +19,14 @@ export default function TopBar({ activeEmployeeId, onHelpClick }: TopBarProps) {
     <div className="h-12 md:h-14 border-b border-[var(--c-border)] bg-[var(--c-card)] flex items-center px-3 md:px-4 justify-between shrink-0 gap-2">
       <div className="flex items-center gap-2 md:gap-3 min-w-0">
         <div className="flex items-center gap-2 shrink-0">
-          <span className="text-[#E4002B] text-lg font-bold">◆</span>
+          <span className="text-brand text-lg font-bold">◆</span>
           <span className="text-[var(--c-text-1)] font-semibold text-sm whitespace-nowrap">3M 프로이즘 AI</span>
         </div>
         <span className="text-[var(--c-text-3)] text-xs hidden lg:inline">마케팅 에이전트</span>
         <span className="text-[var(--c-border)] hidden lg:inline">|</span>
         <Link
           href="/crm"
-          className="text-xs text-[var(--c-text-3)] hover:text-[#C8A951] transition-colors bg-[var(--c-subtle)] hover:bg-[var(--c-subtle)]/80 rounded-lg px-2.5 py-1 whitespace-nowrap"
+          className="text-xs text-[var(--c-text-3)] hover:text-gold transition-colors bg-[var(--c-subtle)] hover:bg-[var(--c-subtle)]/80 rounded-lg px-2.5 py-1 whitespace-nowrap"
         >
           <span className="hidden sm:inline">고객 관리 </span>CRM
         </Link>
@@ -45,7 +45,7 @@ export default function TopBar({ activeEmployeeId, onHelpClick }: TopBarProps) {
                   key={member.id}
                   className={`w-6 h-6 rounded-full flex items-center justify-center text-xs border-2 ${
                     activeEmployeeId === member.id
-                      ? 'border-[#C8A951] ring-1 ring-[#C8A951]'
+                      ? 'border-gold ring-1 ring-gold'
                       : 'border-[var(--c-card)]'
                   }`}
                   style={{ backgroundColor: member.color + '22' }}
@@ -76,7 +76,7 @@ export default function TopBar({ activeEmployeeId, onHelpClick }: TopBarProps) {
                         <span>{member.emoji}</span>
                         <span className="text-[var(--c-text-1)]">{member.name}</span>
                         {activeEmployeeId === member.id && (
-                          <span className="ml-auto text-[10px] text-[#C8A951]">작업중</span>
+                          <span className="ml-auto text-[10px] text-gold">작업중</span>
                         )}
                       </div>
                     ))}
@@ -103,7 +103,7 @@ export default function TopBar({ activeEmployeeId, onHelpClick }: TopBarProps) {
             ?
           </button>
           <div className="hidden sm:flex items-center gap-1.5 bg-[var(--c-subtle)] rounded-lg px-2.5 py-1">
-            <div className="w-2 h-2 rounded-full bg-[#10B981]" />
+            <div className="w-2 h-2 rounded-full bg-ok" />
             <span className="text-[var(--c-text-1)] text-xs">roice_</span>
           </div>
         </div>

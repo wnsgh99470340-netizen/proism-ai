@@ -154,7 +154,7 @@ export default function PreviewPanel({
   const videoBusy = jobs.some((j) => j.result?.video && (j.result.video.status === 'queued' || j.result.video.status === 'rendering'));
   const draftPlain = draft ? draft.content.replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n\n').replace(/<[^>]+>/g, '').trim() : '';
   const tabCls = (key: typeof activeTab) =>
-    `flex-1 py-2.5 text-xs font-medium transition-colors ${activeTab === key ? 'text-[var(--c-text-1)] border-b-2 border-[#C8A951]' : 'text-[var(--c-text-3)] hover:text-[var(--c-text-2)]'}`;
+    `flex-1 py-2.5 text-xs font-medium transition-colors ${activeTab === key ? 'text-[var(--c-text-1)] border-b-2 border-gold' : 'text-[var(--c-text-3)] hover:text-[var(--c-text-2)]'}`;
 
   const renderContent = (content: string) => {
     // [IMAGE:N] → 실제 이미지
@@ -193,8 +193,8 @@ export default function PreviewPanel({
         <div className="flex-1 overflow-y-auto">
           <SavedPosts refreshKey={postsRefreshKey} activeId={activePostId} onOpen={onOpenPost} jobs={jobs} onRetryJob={onRetryJob} onDeleteJob={onDeleteJob} />
           {draft && checks && (
-            <div className={`mx-3 mt-3 rounded-xl border p-3 ${checks.facts.length + checks.violations.length === 0 ? 'bg-[#10B981]/10 border-[#10B981]/30' : 'bg-[#EF4444]/10 border-[#EF4444]/30'}`}>
-              <div className={`text-xs font-medium mb-1 ${checks.facts.length + checks.violations.length === 0 ? 'text-[#10B981]' : 'text-[#EF4444]'}`}>
+            <div className={`mx-3 mt-3 rounded-xl border p-3 ${checks.facts.length + checks.violations.length === 0 ? 'bg-ok/10 border-ok/30' : 'bg-danger/10 border-danger/30'}`}>
+              <div className={`text-xs font-medium mb-1 ${checks.facts.length + checks.violations.length === 0 ? 'text-ok' : 'text-danger'}`}>
                 {checks.facts.length + checks.violations.length === 0
                   ? '✅ 자동 팩트체크 통과 — 제품·시공 규칙 위반 없음'
                   : `⚠️ 자동 팩트체크 ${checks.facts.length + checks.violations.length}건 확인 필요`}
@@ -258,7 +258,7 @@ export default function PreviewPanel({
                 <button
                   onClick={onRunQA}
                   disabled={qaLoading}
-                  className="bg-[#C8A951]/10 hover:bg-[#C8A951]/20 text-[#C8A951] text-xs py-2.5 rounded-lg transition-colors font-medium disabled:opacity-50"
+                  className="bg-gold/10 hover:bg-gold/20 text-gold text-xs py-2.5 rounded-lg transition-colors font-medium disabled:opacity-50"
                 >
                   {qaLoading ? '채점중...' : '✅ QA 채점'}
                 </button>
@@ -290,7 +290,7 @@ export default function PreviewPanel({
             <div className="text-xs text-[var(--c-text-3)] text-center py-8 space-y-3">
               <div>블로그 글이 완성되면 인스타 버전이 자동으로 생성됩니다</div>
               {draft && (
-                <button onClick={onMakeChannels} className="bg-[#C8A951]/10 hover:bg-[#C8A951]/20 text-[#C8A951] text-xs px-4 py-2 rounded-lg font-medium">
+                <button onClick={onMakeChannels} className="bg-gold/10 hover:bg-gold/20 text-gold text-xs px-4 py-2 rounded-lg font-medium">
                   📸 이 글로 인스타·카페 버전 만들기
                 </button>
               )}
@@ -304,7 +304,7 @@ export default function PreviewPanel({
                 <div className="mt-3 text-xs text-blue-500 leading-relaxed">{channels.instagram.hashtags.join(' ')}</div>
               </div>
               {channels.instagram.coverPhoto && (
-                <div className="bg-[#1a1a1f] border border-[var(--c-border)] rounded-xl p-3 text-[11px] text-[var(--c-text-2)]">📷 첫 장 추천: {channels.instagram.coverPhoto}</div>
+                <div className="bg-[var(--c-page)] border border-[var(--c-border)] rounded-xl p-3 text-[11px] text-[var(--c-text-2)]">📷 첫 장 추천: {channels.instagram.coverPhoto}</div>
               )}
               <div className="grid grid-cols-2 gap-2">
                 <CopyButton label="📋 캡션 복사" getText={() => channels.instagram.caption} />
@@ -323,7 +323,7 @@ export default function PreviewPanel({
             <div className="text-xs text-[var(--c-text-3)] text-center py-8 space-y-3">
               <div>블로그 글이 완성되면 카페 대표이야기 버전이 자동으로 생성됩니다</div>
               {draft && (
-                <button onClick={onMakeChannels} className="bg-[#C8A951]/10 hover:bg-[#C8A951]/20 text-[#C8A951] text-xs px-4 py-2 rounded-lg font-medium">
+                <button onClick={onMakeChannels} className="bg-gold/10 hover:bg-gold/20 text-gold text-xs px-4 py-2 rounded-lg font-medium">
                   ☕ 이 글로 인스타·카페 버전 만들기
                 </button>
               )}
@@ -358,16 +358,16 @@ export default function PreviewPanel({
           {qaScore && (
             <div className="space-y-3">
               {/* 총점 */}
-              <div className="bg-[#1a1a1f] border border-[var(--c-border)] rounded-xl p-4">
+              <div className="bg-[var(--c-page)] border border-[var(--c-border)] rounded-xl p-4">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-xs font-medium text-[var(--c-text-1)]">QA 채점 결과</span>
                   <span
                     className={`text-2xl font-bold ${
                       qaScore.total >= 90
-                        ? 'text-[#10B981]'
+                        ? 'text-ok'
                         : qaScore.total >= 70
-                        ? 'text-[#F59E0B]'
-                        : 'text-[#EF4444]'
+                        ? 'text-warn'
+                        : 'text-danger'
                     }`}
                   >
                     {qaScore.total}<span className="text-sm text-[var(--c-text-3)]">/100</span>
@@ -384,20 +384,20 @@ export default function PreviewPanel({
                   />
                 </div>
                 {qaScore.summary && (
-                  <div className="mt-3 text-xs text-[#C8A951] leading-relaxed">{qaScore.summary}</div>
+                  <div className="mt-3 text-xs text-gold leading-relaxed">{qaScore.summary}</div>
                 )}
               </div>
 
               {/* 위반 사항 */}
               {qaScore.violations && qaScore.violations.length > 0 && (
-                <div className="bg-[#1a1a1f] border border-[#EF4444]/30 rounded-xl p-3">
-                  <div className="text-xs font-medium text-[#EF4444] mb-2">위반 사항</div>
+                <div className="bg-[var(--c-page)] border border-danger/30 rounded-xl p-3">
+                  <div className="text-xs font-medium text-danger mb-2">위반 사항</div>
                   <div className="space-y-2">
                     {qaScore.violations.map((v, i) => (
                       <div key={i} className="flex items-start gap-2">
-                        <span className="text-[#EF4444] text-xs shrink-0 mt-0.5">{v.penalty}점</span>
+                        <span className="text-danger text-xs shrink-0 mt-0.5">{v.penalty}점</span>
                         <div>
-                          <span className="text-xs font-mono text-[#EF4444]/80 bg-[#EF4444]/10 px-1.5 py-0.5 rounded">
+                          <span className="text-xs font-mono text-danger/80 bg-danger/10 px-1.5 py-0.5 rounded">
                             {v.rule}
                           </span>
                           <p className="text-xs text-[var(--c-text-2)] mt-1">{v.detail}</p>
@@ -410,7 +410,7 @@ export default function PreviewPanel({
 
               {/* 품질 점수 항목별 */}
               {qaScore.scores && qaScore.scores.length > 0 && (
-                <div className="bg-[#1a1a1f] border border-[var(--c-border)] rounded-xl p-3">
+                <div className="bg-[var(--c-page)] border border-[var(--c-border)] rounded-xl p-3">
                   <div className="text-xs font-medium text-[var(--c-text-1)] mb-3">품질 점수</div>
                   <div className="space-y-2.5">
                     {qaScore.scores.map((s, i) => (
@@ -418,7 +418,7 @@ export default function PreviewPanel({
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-[10px] font-mono text-[var(--c-text-2)]">{s.item}</span>
                           <span className={`text-xs font-bold ${
-                            s.score >= 8 ? 'text-[#10B981]' : s.score >= 5 ? 'text-[#F59E0B]' : 'text-[#EF4444]'
+                            s.score >= 8 ? 'text-ok' : s.score >= 5 ? 'text-warn' : 'text-danger'
                           }`}>
                             {s.score}/{s.max}
                           </span>
@@ -442,12 +442,12 @@ export default function PreviewPanel({
 
               {/* 개선점 */}
               {qaScore.improvements && qaScore.improvements.length > 0 && (
-                <div className="bg-[#1a1a1f] border border-[#C8A951]/20 rounded-xl p-3">
-                  <div className="text-xs font-medium text-[#C8A951] mb-2">개선점</div>
+                <div className="bg-[var(--c-page)] border border-gold/20 rounded-xl p-3">
+                  <div className="text-xs font-medium text-gold mb-2">개선점</div>
                   <div className="space-y-1.5">
                     {qaScore.improvements.map((imp, i) => (
                       <div key={i} className="text-xs text-[var(--c-text-2)] flex gap-1.5">
-                        <span className="text-[#C8A951] shrink-0">{i + 1}.</span>
+                        <span className="text-gold shrink-0">{i + 1}.</span>
                         {imp}
                       </div>
                     ))}
@@ -461,7 +461,7 @@ export default function PreviewPanel({
           {seoInsight ? (
             <>
               {seoInsight.seoScore !== undefined && (
-                <div className="bg-[#1a1a1f] border border-[var(--c-border)] rounded-xl p-3">
+                <div className="bg-[var(--c-page)] border border-[var(--c-border)] rounded-xl p-3">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-medium text-[var(--c-text-1)]">🔍 SEO 점수</span>
                     <span className="text-lg font-bold text-[#03C75A]">{seoInsight.seoScore}/100</span>
@@ -476,7 +476,7 @@ export default function PreviewPanel({
               )}
 
               {seoInsight.keywords && seoInsight.keywords.length > 0 && (
-                <div className="bg-[#1a1a1f] border border-[var(--c-border)] rounded-xl p-3">
+                <div className="bg-[var(--c-page)] border border-[var(--c-border)] rounded-xl p-3">
                   <div className="text-xs font-medium text-[var(--c-text-1)] mb-2">🏷️ 추천 키워드</div>
                   <div className="flex flex-wrap gap-1.5">
                     {seoInsight.keywords.map((kw, i) => (
@@ -489,19 +489,19 @@ export default function PreviewPanel({
               )}
 
               {seoInsight.bestTime && (
-                <div className="bg-[#1a1a1f] border border-[var(--c-border)] rounded-xl p-3">
+                <div className="bg-[var(--c-page)] border border-[var(--c-border)] rounded-xl p-3">
                   <div className="text-xs font-medium text-[var(--c-text-1)] mb-1">⏰ 최적 발행 시간</div>
-                  <div className="text-sm text-[#C8A951]">{seoInsight.bestTime}</div>
+                  <div className="text-sm text-gold">{seoInsight.bestTime}</div>
                 </div>
               )}
 
               {seoInsight.tips && seoInsight.tips.length > 0 && (
-                <div className="bg-[#1a1a1f] border border-[var(--c-border)] rounded-xl p-3">
+                <div className="bg-[var(--c-page)] border border-[var(--c-border)] rounded-xl p-3">
                   <div className="text-xs font-medium text-[var(--c-text-1)] mb-2">💡 마케팅 팁</div>
                   <div className="space-y-1">
                     {seoInsight.tips.map((tip, i) => (
                       <div key={i} className="text-xs text-[var(--c-text-2)] flex gap-1.5">
-                        <span className="text-[#C8A951] shrink-0">•</span>
+                        <span className="text-gold shrink-0">•</span>
                         {tip}
                       </div>
                     ))}

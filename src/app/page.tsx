@@ -664,17 +664,17 @@ export default function Home() {
       <div className="md:hidden shrink-0 border-t border-[var(--c-border)] bg-[var(--c-card)] grid grid-cols-2 pb-[env(safe-area-inset-bottom)]">
         <button
           onClick={() => setMobileView('chat')}
-          className={`py-3 text-sm font-medium transition-colors ${mobileView === 'chat' ? 'text-[#C8A951] border-t-2 border-[#C8A951] -mt-px' : 'text-[var(--c-text-3)]'}`}
+          className={`py-3 text-sm font-medium transition-colors ${mobileView === 'chat' ? 'text-gold border-t-2 border-gold -mt-px' : 'text-[var(--c-text-3)]'}`}
         >
           💬 대화{loading ? ' …' : ''}
         </button>
         <button
           onClick={() => setMobileView('preview')}
-          className={`py-3 text-sm font-medium transition-colors relative ${mobileView === 'preview' ? 'text-[#C8A951] border-t-2 border-[#C8A951] -mt-px' : 'text-[var(--c-text-3)]'}`}
+          className={`py-3 text-sm font-medium transition-colors relative ${mobileView === 'preview' ? 'text-gold border-t-2 border-gold -mt-px' : 'text-[var(--c-text-3)]'}`}
         >
           📄 미리보기
           {draft && mobileView !== 'preview' && (
-            <span className="absolute top-2.5 ml-1 w-2 h-2 rounded-full bg-[#E4002B]" />
+            <span className="absolute top-2.5 ml-1 w-2 h-2 rounded-full bg-brand" />
           )}
         </button>
       </div>

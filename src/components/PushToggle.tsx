@@ -85,7 +85,7 @@ export default function PushToggle() {
         onClick={state === 'on' ? disable : enable}
         disabled={state === 'busy' || state === 'denied'}
         title={title}
-        className={`text-[11px] rounded-lg px-2 py-1 whitespace-nowrap transition-colors ${state === 'on' ? 'bg-[#C8A951]/15 text-[#C8A951]' : 'bg-[var(--c-subtle)] text-[var(--c-text-3)] hover:text-[var(--c-text-1)]'} disabled:opacity-60`}
+        className={`text-[11px] rounded-lg px-2 py-1 whitespace-nowrap transition-colors ${state === 'on' ? 'bg-gold/15 text-gold' : 'bg-[var(--c-subtle)] text-[var(--c-text-3)] hover:text-[var(--c-text-1)]'} disabled:opacity-60`}
       >
         {label}
       </button>

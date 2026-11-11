@@ -95,7 +95,7 @@ export default function ImageUpload({ images, onImagesChange }: ImageUploadProps
               />
               <button
                 onClick={() => removeImage(i)}
-                className="absolute -top-1 -right-1 w-4 h-4 bg-[#E4002B] rounded-full text-white text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                className="absolute -top-1 -right-1 w-4 h-4 bg-brand rounded-full text-white text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
               >
                 ×
               </button>
@@ -103,7 +103,7 @@ export default function ImageUpload({ images, onImagesChange }: ImageUploadProps
           ))}
           <button
             onClick={() => inputRef.current?.click()}
-            className="w-14 h-14 rounded-lg border border-dashed border-[var(--c-border)] flex items-center justify-center text-[var(--c-text-3)] hover:border-[#C8A951] hover:text-[#C8A951] transition-colors shrink-0"
+            className="w-14 h-14 rounded-lg border border-dashed border-[var(--c-border)] flex items-center justify-center text-[var(--c-text-3)] hover:border-gold hover:text-gold transition-colors shrink-0"
           >
             +
           </button>
@@ -122,12 +122,12 @@ export default function ImageUpload({ images, onImagesChange }: ImageUploadProps
           onClick={() => inputRef.current?.click()}
           className={`mx-4 my-2 border border-dashed rounded-xl p-3 text-center cursor-pointer transition-colors ${
             dragOver
-              ? 'border-[#C8A951] bg-[#C8A951]/5'
-              : 'border-[var(--c-border)] hover:border-[#71717a]'
+              ? 'border-gold bg-gold/5'
+              : 'border-[var(--c-border)] hover:border-[var(--c-text-3)]'
           }`}
         >
           {uploading ? (
-            <div className="text-[#C8A951] text-xs">업로드 중...</div>
+            <div className="text-gold text-xs">업로드 중...</div>
           ) : (
             <div className="text-[var(--c-text-3)] text-xs">
               📷 사진을 드래그하거나 클릭하여 업로드 (여러 장 가능)

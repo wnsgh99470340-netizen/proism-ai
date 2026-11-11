@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     title: '3M 프로이즘',
-    statusBarStyle: 'black-translucent',
+    statusBarStyle: 'default',
   },
   icons: {
     apple: '/icons/apple-touch-icon.png',
@@ -29,7 +29,7 @@ export const viewport: Viewport = {
   themeColor: '#E4002B',
 };
 
-const themeScript = `(function(){try{var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}})()`;
+const themeScript = `(function(){try{var t=localStorage.getItem('theme_v2');document.documentElement.setAttribute('data-theme',t==='dark'?'dark':'light')}catch(e){}})()`;
 
 export default function RootLayout({
   children,

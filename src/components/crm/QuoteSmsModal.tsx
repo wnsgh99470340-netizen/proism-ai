@@ -210,7 +210,7 @@ const normalizeService = (s?: string): ServiceKey => {
   return 'PPF';
 };
 
-const inputCls = 'w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[#C8A951]/50';
+const inputCls = 'w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50';
 const labelCls = 'text-xs text-[var(--c-text-3)] mb-1 block';
 
 export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
@@ -393,7 +393,7 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-center justify-center" onClick={onClose}>
       <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="px-6 py-4 border-b border-[var(--c-border)] flex items-center justify-between">
           <h3 className="text-[var(--c-text-1)] font-semibold text-base">📩 견적 문자</h3>
@@ -417,8 +417,8 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
               <label className={labelCls}>통화에서 들은 것 한 줄 (이 줄이 다른 집 문자와 구분을 만듭니다)</label>
               <input value={summary} onChange={(e) => setSummary(e.target.value)} className={inputCls} placeholder="예: 말씀하신 대로 주말 위주 운행이면" />
             </div>
-            <div className="rounded-lg border border-[#C8A951]/30 bg-[#C8A951]/5 p-3 space-y-2">
-              <div className="text-xs font-medium text-[#C8A951]">추천 하나</div>
+            <div className="rounded-lg border border-gold/30 bg-gold/5 p-3 space-y-2">
+              <div className="text-xs font-medium text-gold">추천 하나</div>
               <select value={recGrade} onChange={(e) => setRecGrade(e.target.value)} className={inputCls}>{presetGrades.map((g) => <option key={g}>{g}</option>)}<option value="">직접 입력</option></select>
               <div className="grid grid-cols-2 gap-2">
                 <div><label className={labelCls}>정상가</label><input value={fmtNum(recPrice)} onChange={(e) => setRecPrice(e.target.value.replace(/[^\d]/g, ''))} inputMode="numeric" className={`${inputCls} text-right`} placeholder="6,000,000" /></div>
@@ -449,7 +449,7 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
                   const on = benefitSel.includes(it);
                   return (
                     <button key={it} type="button" onClick={() => setBenefitSel(on ? benefitSel.filter((x) => x !== it) : [...benefitSel, it])}
-                      className={`text-[11px] px-2.5 py-1 rounded-lg border transition-colors ${on ? 'bg-[#C8A951]/20 border-[#C8A951]/60 text-[#C8A951]' : 'bg-[var(--c-input)] border-[var(--c-border)] text-[var(--c-text-2)] hover:border-[#C8A951]/40'}`}>
+                      className={`text-[11px] px-2.5 py-1 rounded-lg border transition-colors ${on ? 'bg-gold/20 border-gold/60 text-gold' : 'bg-[var(--c-input)] border-[var(--c-border)] text-[var(--c-text-2)] hover:border-gold/40'}`}>
                       {on ? '✓ ' : ''}{it}
                     </button>
                   );
@@ -470,7 +470,7 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
               <button type="button" onClick={() => { setLink(FIRST_LINK[service]); setLink2(NUDGE_LINK[service]); setLink3(CLOSE_LINK[service]); }} className="text-xs text-[var(--c-text-3)] underline">추천 글로 되돌리기</button>
             </div>
             <label className="flex items-center gap-2 text-xs text-[var(--c-text-2)]">
-              <input type="checkbox" checked={withFollowUps} onChange={(e) => setWithFollowUps(e.target.checked)} className="accent-[#E4002B]" />
+              <input type="checkbox" checked={withFollowUps} onChange={(e) => setWithFollowUps(e.target.checked)} className="accent-brand" />
               보내면 사후관리에 재연락(내일)·마무리(3일 뒤) 문자를 자동 등록
             </label>
           </div>
@@ -490,7 +490,7 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
           <button onClick={onClose} className="px-4 py-2 text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-2)]">닫기</button>
           <button onClick={shareCard} disabled={busy} className="bg-[var(--c-subtle)] hover:bg-[var(--c-hover)] text-[var(--c-text-1)] text-sm font-medium rounded-lg px-4 py-2 disabled:opacity-50" title="문자를 보낸 뒤 명함 사진을 같은 번호로 보낼 때">📇 명함 이미지</button>
           <button onClick={() => send('copy')} disabled={busy || !car} className="bg-[var(--c-subtle)] hover:bg-[var(--c-hover)] text-[var(--c-text-1)] text-sm font-medium rounded-lg px-4 py-2 disabled:opacity-50">📋 복사</button>
-          <button onClick={() => send('sms')} disabled={busy || !car || !phone} className="bg-[#E4002B] hover:bg-[#c60026] text-white text-sm font-medium rounded-lg px-4 py-2 disabled:opacity-50">💬 문자 보내기</button>
+          <button onClick={() => send('sms')} disabled={busy || !car || !phone} className="bg-brand hover:bg-brand-dark text-white text-sm font-medium rounded-lg px-4 py-2 disabled:opacity-50">💬 문자 보내기</button>
         </div>
       </div>
     </div>
