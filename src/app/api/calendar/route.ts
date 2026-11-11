@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { toSeoulISO } from '@/lib/local-date';
 
 const CALENDAR_TOKEN = 'proism2026';
 
@@ -28,9 +29,9 @@ export async function GET(request: Request) {
   const events = (appointments || []).map((a) => {
     const start = (a.appointment_date || '').replace(/-/g, '');
     const endDate = a.end_date || a.appointment_date;
-    const endNext = new Date(endDate);
+    const endNext = new Date(endDate + 'T00:00:00+09:00');
     endNext.setDate(endNext.getDate() + 1);
-    const end = endNext.toISOString().split('T')[0].replace(/-/g, '');
+    const end = toSeoulISO(endNext).replace(/-/g, '');
     const name = a.customer?.name || '고객';
     const phone = a.customer?.phone || '';
     const serviceType = a.service_type || '시공';

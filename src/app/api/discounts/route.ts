@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { todaySeoul } from '@/lib/local-date';
 
 export async function GET(request: Request) {
   try {
@@ -27,7 +28,7 @@ export async function POST(request: Request) {
       .from('discounts')
       .insert({
         customer_id: body.customer_id,
-        discount_date: body.discount_date || new Date().toISOString().split('T')[0],
+        discount_date: body.discount_date || todaySeoul(),
         discount_type: body.discount_type || '기타',
         discount_value: body.discount_value || null,
         memo: body.memo || null,

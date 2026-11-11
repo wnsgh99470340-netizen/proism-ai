@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { todaySeoul } from '@/lib/local-date';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -282,7 +283,7 @@ export default function CustomerDetailPage() {
         {activeTab === 'followups' && (
           <div className="space-y-2">
             {followUps.map((f) => {
-              const today = new Date().toISOString().split('T')[0];
+              const today = todaySeoul();
               const isOverdue = !f.is_completed && f.scheduled_date < today;
               return (
                 <div key={f.id} className={`bg-[var(--c-card)] border rounded-xl p-4 ${

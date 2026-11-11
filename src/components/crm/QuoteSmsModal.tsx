@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { todaySeoul, addDaysISO } from '@/lib/local-date';
 import { supabase } from '@/lib/supabase';
 
 /**
@@ -197,7 +198,7 @@ const dayLabel = (iso: string) => {
   const w = ['일', '월', '화', '수', '목', '금', '토'][d.getDay()];
   return `${d.getMonth() + 1}/${d.getDate()}(${w})`;
 };
-const addDays = (iso: string, n: number) => { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + n); return d.toISOString().split('T')[0]; };
+const addDays = addDaysISO;
 const normalizeService = (s?: string): ServiceKey => {
   const t = (s || '').replace(/\s/g, '');
   if (/컬러|PWF/i.test(t)) return '컬러PPF';
@@ -214,7 +215,7 @@ const inputCls = 'w-full bg-[var(--c-input)] border border-[var(--c-border)] rou
 const labelCls = 'text-xs text-[var(--c-text-3)] mb-1 block';
 
 export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
-  const today = new Date().toISOString().split('T')[0];
+  const today = todaySeoul();
   const [mem] = useState<Memory>(() => loadMemory());
   const [name, setName] = useState(initial.name || '');
   const [phone, setPhone] = useState(initial.phone || '');

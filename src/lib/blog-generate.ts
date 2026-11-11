@@ -4,6 +4,7 @@
  * - 흐름: 시스템 프롬프트 구성 → Claude 작성 → 정규식 위반·팩트·형식 검사 → 필요 시 1회 수정 → draft 구성 → DB 저장
  */
 import { readFile, writeFile, readdir, mkdir } from 'fs/promises';
+import { todaySeoul } from '@/lib/local-date';
 import path from 'path';
 import { callClaude } from './claude-client';
 import { resolveTarget } from './blog-research';
@@ -263,7 +264,7 @@ export async function getPreviousDrafts(): Promise<PreviousPost[]> {
 async function saveDraftFile(title: string, body: string): Promise<void> {
   try {
     await mkdir(DRAFTS_DIR, { recursive: true });
-    const date = new Date().toISOString().slice(0, 10);
+    const date = todaySeoul();
     const safeTitle = title.replace(/[/\\?%*:|"<>]/g, '').slice(0, 50);
     const rule = `[유사성 금지] 이 글과 유사한 도입부, 표현, 문장 구조, 비유를 다음 글에서 절대 반복하지 마세요.`;
     await writeFile(path.join(DRAFTS_DIR, `${date}_${safeTitle}.txt`), `${title}\n\n${body}\n\n---\n${rule}`, 'utf-8');

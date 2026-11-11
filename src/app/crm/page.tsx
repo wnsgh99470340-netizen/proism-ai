@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { todaySeoul, toSeoulISO, addDaysISO } from '@/lib/local-date';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -103,7 +104,7 @@ async function createAutoFollowUps(
   serviceType: string,
   completionDate: string
 ) {
-  const base = new Date(completionDate);
+  const base = new Date(completionDate + 'T00:00:00+09:00');
   const followUps: { service_id: string; customer_id: string; follow_up_type: string; scheduled_date: string; memo: string }[] = [];
 
   const needsQC = ['PPF', '컬러PPF', 'PWF'].includes(serviceType);
@@ -115,7 +116,7 @@ async function createAutoFollowUps(
       service_id: serviceId,
       customer_id: customerId,
       follow_up_type: 'QC점검',
-      scheduled_date: qcDate.toISOString().split('T')[0],
+      scheduled_date: toSeoulISO(qcDate),
       memo: `${serviceType} 시공 완료 후 2주 QC점검`,
     });
   }
@@ -126,7 +127,7 @@ async function createAutoFollowUps(
     service_id: serviceId,
     customer_id: customerId,
     follow_up_type: '메인터넌스',
-    scheduled_date: maintDate.toISOString().split('T')[0],
+    scheduled_date: toSeoulISO(maintDate),
     memo: `${serviceType} 시공 완료 후 6개월 메인터넌스`,
   });
 
@@ -137,7 +138,7 @@ async function createAutoFollowUps(
     service_id: serviceId,
     customer_id: customerId,
     follow_up_type: '후기요청',
-    scheduled_date: reviewDate.toISOString().split('T')[0],
+    scheduled_date: toSeoulISO(reviewDate),
     memo: `${serviceType} 시공 완료 후 후기 요청`,
   });
 
@@ -231,7 +232,7 @@ export default function CRMPage() {
   const [quoteSms, setQuoteSms] = useState<QuoteSmsInitial | null>(null);
   // 사후관리 달력·검색 (2026-11-11): 기본은 오늘 보낼 사람만, 검색하면 날짜 무관, 밀린 건은 접어 둠
   const [followSearch, setFollowSearch] = useState('');
-  const [followDate, setFollowDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [followDate, setFollowDate] = useState<string>(() => todaySeoul());
   const [followMonth, setFollowMonth] = useState<{ y: number; m: number }>(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
   const [showOverdue, setShowOverdue] = useState(false);
   const [homeFollowMore, setHomeFollowMore] = useState(false); // 홈 '연락할 사후관리' 더보기
@@ -358,7 +359,7 @@ export default function CRMPage() {
       .order('appointment_date', { ascending: true });
     if (data) {
       // 오늘 기준 가까운 예약이 위로: 오늘/미래 → 날짜 오름차순, 과거 → 날짜 내림차순 (아래로)
-      const todayStr = new Date().toISOString().split('T')[0];
+      const todayStr = todaySeoul();
       const upcoming = (data as Appointment[]).filter((a) => a.appointment_date >= todayStr);
       const past = (data as Appointment[]).filter((a) => a.appointment_date < todayStr).reverse();
       setAppointments([...upcoming, ...past]);
@@ -558,9 +559,9 @@ export default function CRMPage() {
   const generateICS = (appointment: Appointment): string => {
     const start = appointment.appointment_date.replace(/-/g, '');
     const endDate = appointment.end_date || appointment.appointment_date;
-    const endNext = new Date(endDate);
+    const endNext = new Date(endDate + 'T00:00:00+09:00');
     endNext.setDate(endNext.getDate() + 1);
-    const end = endNext.toISOString().split('T')[0].replace(/-/g, '');
+    const end = toSeoulISO(endNext).replace(/-/g, '');
     const name = appointment.customer?.name || '고객';
     const phone = appointment.customer?.phone || '';
     const serviceType = appointment.service_type || '시공';
@@ -774,7 +775,7 @@ export default function CRMPage() {
   const handleWorkOrderSubmit = async () => {
     if (!workOrderAppointment) return;
     const appointment = workOrderAppointment;
-    const completionDate = new Date().toISOString().split('T')[0];
+    const completionDate = todaySeoul();
 
     // 기존 memo에서 warranty 관련 데이터 보존
     let existingExtra: Record<string, unknown> = {};
@@ -830,9 +831,9 @@ export default function CRMPage() {
         console.log('[CRM] Notion 시공 기록:', svcRes.ok ? svcResult.pageId : svcResult);
 
         // QC 알림: +2주
-        const qcDate = new Date(completionDate);
+        const qcDate = new Date(completionDate + 'T00:00:00+09:00');
         qcDate.setDate(qcDate.getDate() + 14);
-        const qcDateStr = qcDate.toISOString().split('T')[0];
+        const qcDateStr = toSeoulISO(qcDate);
         await fetch('/api/notion/appointment', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -845,9 +846,9 @@ export default function CRMPage() {
         console.log('[CRM] Notion QC 알림 등록:', qcDateStr);
 
         // 메인터넌스 알림: +6개월
-        const mtDate = new Date(completionDate);
+        const mtDate = new Date(completionDate + 'T00:00:00+09:00');
         mtDate.setMonth(mtDate.getMonth() + 6);
-        const mtDateStr = mtDate.toISOString().split('T')[0];
+        const mtDateStr = toSeoulISO(mtDate);
         await fetch('/api/notion/appointment', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -982,7 +983,7 @@ export default function CRMPage() {
       });
     } else {
       setWarrantyForm({
-        date: appointment.appointment_date || new Date().toISOString().split('T')[0],
+        date: appointment.appointment_date || todaySeoul(),
         car_type: carType,
         car_number: carNumber,
         customer_name: custName,
@@ -1080,7 +1081,7 @@ export default function CRMPage() {
     } else {
       // 예약이 없으면 고객 정보만으로 모달 열기
       setWarrantyForm({
-        date: new Date().toISOString().split('T')[0],
+        date: todaySeoul(),
         car_type: '',
         car_number: '',
         customer_name: followUp.customer?.name || '',
@@ -1101,13 +1102,13 @@ export default function CRMPage() {
       .from('follow_ups')
       .update({
         is_completed: newCompleted,
-        completed_date: newCompleted ? new Date().toISOString().split('T')[0] : null,
+        completed_date: newCompleted ? todaySeoul() : null,
       })
       .eq('id', followUp.id);
     fetchFollowUps();
   };
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = todaySeoul();
   const filteredFollowUps = followUps
     .filter((f) => {
       if (followUpFilter === 'all') return true;
@@ -1355,7 +1356,7 @@ export default function CRMPage() {
         {/* ─── TAB: 홈 (2026-11-11 하남점 페이지 구조: 인사 → 빠른 실행 → 오늘 예약 / 연락할 사후관리) ─── */}
         {activeTab === 'home' && (() => {
           const fmtDot = (d: string) => d.replace(/-/g, '.');
-          const plus = (n: number) => { const d = new Date(today); d.setDate(d.getDate() + n); return d.toISOString().split('T')[0]; };
+          const plus = (n: number) => addDaysISO(today, n);
           const todayAppts = appointments.filter((a) => a.appointment_date <= today && (a.end_date || a.appointment_date) >= today && a.status !== '취소');
           const weekAppts = appointments.filter((a) => a.appointment_date > today && a.appointment_date <= plus(7) && a.status !== '취소').slice(0, 5);
           // 오늘에 가까운 것부터 (몇 달 지난 미처리는 아래로 밀려 '모두 보기'에서)
@@ -1642,7 +1643,7 @@ export default function CRMPage() {
           const todayCount = appointments.filter((a) => a.appointment_date === today && a.status !== '완료').length;
           const weekEnd = new Date();
           weekEnd.setDate(weekEnd.getDate() + (7 - weekEnd.getDay()));
-          const weekEndStr = weekEnd.toISOString().split('T')[0];
+          const weekEndStr = toSeoulISO(weekEnd);
           const weekCount = appointments.filter((a) => a.appointment_date >= today && a.appointment_date <= weekEndStr && a.status !== '완료').length;
 
           const goToday = () => {
@@ -2617,7 +2618,7 @@ function WorkOrderModal({ appointment, workOrder, setWorkOrder, onSubmit, onSave
     const canvas = await html2canvas(printRef.current, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
     const link = document.createElement('a');
     const customerName = appointment.customer?.name || '고객';
-    const dateStr = new Date().toISOString().split('T')[0];
+    const dateStr = todaySeoul();
     link.download = `프로이즘_작업내역서_${customerName}_${dateStr}.png`;
     link.href = canvas.toDataURL('image/png');
     link.click();
@@ -2995,7 +2996,7 @@ function WarrantyModal({ warrantyForm, setWarrantyForm, onSave, onDownloaded, on
     const html2canvas = (await import('html2canvas')).default;
     const canvas = await html2canvas(printRef.current, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
     const link = document.createElement('a');
-    const dateStr = new Date().toISOString().split('T')[0];
+    const dateStr = todaySeoul();
     link.download = `프로이즘_시공보증서_${warrantyForm.customer_name || '고객'}_${dateStr}.png`;
     link.href = canvas.toDataURL('image/png');
     link.click();

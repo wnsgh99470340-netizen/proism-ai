@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { readFile, writeFile } from 'fs/promises';
+import { todaySeoul, toSeoulISO } from '@/lib/local-date';
 import { join } from 'path';
 
 const NOTION_API_KEY = process.env.NOTION_API_KEY || '';
@@ -436,7 +437,7 @@ export async function createBlogPage(input: {
 
   const properties: Record<string, any> = {
     '제목': { title: [{ text: { content: input.title } }] },
-    '생성일': { date: { start: new Date().toISOString().split('T')[0] } },
+    '생성일': { date: { start: todaySeoul() } },
     '발행여부': { checkbox: input.published ?? false },
   };
   if (input.carModel) properties['차종'] = { rich_text: [{ text: { content: input.carModel } }] };
@@ -518,7 +519,7 @@ export async function queryServiceRecords(filters?: { month?: string; service?: 
     const start = `${filters.month}-01`;
     const nextMonth = new Date(start);
     nextMonth.setMonth(nextMonth.getMonth() + 1);
-    const end = nextMonth.toISOString().split('T')[0];
+    const end = toSeoulISO(nextMonth);
     filterConditions.push({ property: '시공일', date: { on_or_after: start } });
     filterConditions.push({ property: '시공일', date: { before: end } });
   }
@@ -675,7 +676,7 @@ export async function createEstimatePage(input: {
   const config = await getDbConfig();
   if (!config.estimateDbId) throw new Error('견적서 DB가 초기화되지 않았습니다. /api/notion/init을 먼저 호출하세요.');
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = todaySeoul();
 
   const properties: Record<string, any> = {
     '제목': { title: [{ text: { content: `견적서 - ${input.customerName} (${today})` } }] },
