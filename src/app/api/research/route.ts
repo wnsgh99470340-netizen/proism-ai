@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server';
 import { isBlogWriteRequest, resolveTarget, researchForBlogPost } from '@/lib/blog-research';
 import type { BlogRequest } from '@/config/blog-options';
+import { findPhotosUrl } from '@/lib/video';
+import { inspectPhotos } from '@/lib/photo-check';
 
 // 웹 검색 리서치는 수 분 걸릴 수 있어 글 작성(/api/chat)과 분리해 실행시간을 나눈다
 export const maxDuration = 300;
@@ -23,7 +25,17 @@ export async function POST(request: NextRequest) {
       return Response.json({ needed: false, research: null });
     }
 
-    const research = await researchForBlogPost(message, carModel, serviceType);
+    let research = await researchForBlogPost(message, carModel, serviceType);
+    // 사진 폴더 링크가 있으면 글 쓰기 전에 사진부터 확인
+    const photosUrl = findPhotosUrl(message, blogRequest);
+    if (photosUrl) {
+      try {
+        const pf = await inspectPhotos(photosUrl, { carModel, serviceType });
+        research = { context: [research.context, pf.context].filter(Boolean).join('\n\n'), summary: [research.summary, pf.summary].filter(Boolean).join('\n') };
+      } catch (e) {
+        research = { ...research, summary: [research.summary, `⚠️ 사진 확인 실패: ${e instanceof Error ? e.message : String(e)}`].filter(Boolean).join('\n') };
+      }
+    }
 
     return Response.json({ needed: true, carModel, serviceType, research });
   } catch (error) {

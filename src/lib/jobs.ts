@@ -10,6 +10,7 @@ import { generateChannels, type Channels } from './channels';
 import type { BlogRequest } from '@/config/blog-options';
 import { sendPushToAll } from './push';
 import { findPhotosUrl, buildQueuedVideo, dispatchRender, type VideoState } from './video';
+import { inspectPhotos } from './photo-check';
 
 export type JobStatus = 'queued' | 'researching' | 'writing' | 'channels' | 'done' | 'failed';
 
@@ -117,6 +118,17 @@ export async function runNextStep(id: string): Promise<JobStatus> {
       const t = resolveTarget(job.message, job.request);
       let research: BlogJob['research'] = null;
       if (t.carModel) research = await researchForBlogPost(job.message, t.carModel, t.serviceType);
+      // 사진 폴더 링크가 있으면 글 쓰기 전에 사진부터 확인 (차량 색상·보이는 부위)
+      const photosUrl = findPhotosUrl(job.message, job.request);
+      if (photosUrl) {
+        try {
+          const pf = await inspectPhotos(photosUrl, { carModel: t.carModel, serviceType: t.serviceType });
+          research = { context: [research?.context, pf.context].filter(Boolean).join('\n\n'), summary: [research?.summary, pf.summary].filter(Boolean).join('\n') };
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          research = { context: research?.context || '', summary: [research?.summary, `⚠️ 사진 확인 실패: ${msg}`].filter(Boolean).join('\n') };
+        }
+      }
       await updateJob(id, { status: 'writing', research });
       return 'writing';
     }

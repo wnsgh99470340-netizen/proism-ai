@@ -59,6 +59,37 @@ export async function callClaude(
     .join('');
 }
 
+/** 사진 여러 장을 한 번에 보고 답한다 (글 작성 전 사진 확인용, 2026-11-12) */
+export async function analyzeImagesWithClaude(
+  images: { data: string; mediaType: string }[],
+  prompt: string,
+  maxTokens = 1500,
+): Promise<string> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY가 설정되지 않았습니다.');
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: maxTokens,
+      messages: [{
+        role: 'user',
+        content: [
+          ...images.map((im, i) => [
+            { type: 'text', text: `[사진 ${i + 1}]` },
+            { type: 'image', source: { type: 'base64', media_type: im.mediaType, data: im.data } },
+          ]).flat(),
+          { type: 'text', text: prompt },
+        ],
+      }],
+    }),
+  });
+  if (!response.ok) throw new Error(`Claude Vision API 오류: ${response.status} - ${await response.text()}`);
+  const data = await response.json();
+  return data.content?.[0]?.text || '';
+}
+
 export async function analyzeImageWithClaude(
   base64Data: string,
   mediaType: string,

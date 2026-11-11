@@ -10,6 +10,7 @@ import { callClaude } from './claude-client';
 import { resolveTarget } from './blog-research';
 import type { BlogRequest } from '@/config/blog-options';
 import { factCheck, type FactIssue } from './fact-check';
+import { photoColorFromContext } from './photo-check';
 import { buildToneReference, savePost, listPosts } from './posts';
 import { BLOG_SYSTEM_PROMPT } from '@/config/prompts';
 import { extractTagsFromTitle, textToHtml } from './draft-format';
@@ -82,8 +83,25 @@ export function tryBuildDraft(reply: string, userMessage: string): { draft: Draf
  * 결정론적 위반 검사 — 5종만. Claude 채점 없음.
  * 점수를 매기지 않고 "반드시 빼야 하는 표현"만 잡는다.
  */
-export function checkHardViolations(body: string, userInput: string, serviceType: string): Violation[] {
+const COLOR_GROUPS: [RegExp, string][] = [
+  [/블랙|검정|검은/, '블랙'], [/화이트|흰색|흰\s*차|하얀/, '화이트'], [/그레이|회색/, '그레이'], [/실버|은색/, '실버'],
+  [/블루|파란|파랑|네이비/, '블루'], [/레드|빨간|빨강/, '레드'], [/그린|초록/, '그린'], [/옐로|노란|노랑/, '옐로'], [/브라운|갈색|베이지/, '브라운'],
+];
+const colorGroup = (s: string): string | null => { const g = COLOR_GROUPS.find(([re]) => re.test(s)); return g ? g[1] : null; };
+
+export function checkHardViolations(body: string, userInput: string, serviceType: string, knownColor?: string | null): Violation[] {
   const v: Violation[] = [];
+
+  // 0. 작업자 강조 (2026-11-12 사장님: "제가 직접 합니다" 식 노골적 소개 금지)
+  const worker = body.match(/(제가|대표가)\s*직접\s*(합니다|시공|작업)|(작업|시공)은\s*제가\s*직접|1인\s*시공|하루\s*(?:에\s*)?한\s*대/);
+  if (worker) v.push({ rule: 'worker', detail: `작업자 강조 표현 "${worker[0]}" (삭제)` });
+
+  // 0-1. 사진·요청으로 확인된 차량 색상과 다른 색 (필름·트림·휠 색 문장은 제외)
+  const known = knownColor ? colorGroup(knownColor) : null;
+  if (known) {
+    const bad = body.split('\n').find(l => !/2080|글로스|피아노|트림|몰딩|휠|필름|캘리퍼|실내/.test(l) && colorGroup(l) && colorGroup(l) !== known);
+    if (bad) v.push({ rule: 'color', detail: `차량 색상은 ${known}인데 다른 색으로 서술: "${bad.trim().slice(0, 30)}"` });
+  }
 
   // 1. PPF·컬러PPF·PWF 글의 열·오버랩 표현
   if (/PPF|PWF/.test(serviceType)) {
@@ -288,6 +306,8 @@ export async function buildBlogSystemPrompt(researchContext: string, serviceType
 }
 
 export interface RunWriterOptions {
+  /** 사진·요청으로 확인된 차량 색상 (있으면 본문의 다른 색 서술을 잡는다) */
+  knownColor?: string | null;
   systemPrompt: string;
   model: string;
   history?: { role: string; content: string }[];
@@ -303,7 +323,7 @@ export interface RunWriterOptions {
  * 작성 → 검사 → 1회 수정 → draft 구성 → 저장. /api/chat 과 백그라운드 작업이 공유하는 핵심.
  */
 export async function runWriter(opts: RunWriterOptions): Promise<WriterResult> {
-  const { systemPrompt, model, history = [], combinedMessage, target, researchSummary = '', save } = opts;
+  const { systemPrompt, model, history = [], combinedMessage, target, researchSummary = '', save, knownColor = null } = opts;
   const messages = [
     ...history.map(h => ({ role: h.role as 'user' | 'assistant', content: h.content })),
     { role: 'user' as const, content: combinedMessage },
@@ -316,18 +336,21 @@ export async function runWriter(opts: RunWriterOptions): Promise<WriterResult> {
   const serviceType = target.serviceType;
   const first = splitTitleBody(reply);
   const previous = save ? await getPreviousDrafts() : [];
-  let violations = first ? [...checkHardViolations(first.body, combinedMessage, serviceType), ...checkIntroRepeat(first.body, previous)] : [];
+  let violations = first ? [...checkHardViolations(first.body, combinedMessage, serviceType, knownColor), ...checkIntroRepeat(first.body, previous)] : [];
   let factIssues: FactIssue[] = first ? factCheck({ body: first.body, serviceType, product: target.product ?? undefined }) : [];
   let formatIssues = first ? checkFormatIssues(first.title, first.body, target.keyword) : [];
   const pureLen = (b: string) => b.replace(/\[사진\s*\d+\]/g, '').replace(/\s/g, '').length;
 
-  if (first && (violations.length > 0 || factIssues.length > 0 || formatIssues.length > 0)) {
+  // 1회 수정. 팩트·위반이 남으면 한 번 더 (형식만 남았으면 안 함)
+  for (let pass = 0; pass < 2 && first; pass++) {
+    if (violations.length === 0 && factIssues.length === 0 && (pass > 0 || formatIssues.length === 0)) break;
     try {
+      const cur = splitTitleBody(reply) || first;
       const issues = [...violations.map(v => v.detail), ...factIssues.map(f => `팩트 오류 — ${f.detail}`), ...formatIssues];
       const fixed = await fixIssues(systemPrompt, reply, issues, model);
       const f = splitTitleBody(fixed);
-      if (f && pureLen(f.body) >= Math.min(1500, pureLen(first.body))) {
-        const fixedViolations = [...checkHardViolations(f.body, combinedMessage, serviceType), ...checkIntroRepeat(f.body, previous)];
+      if (f && pureLen(f.body) >= Math.min(1500, pureLen(cur.body))) {
+        const fixedViolations = [...checkHardViolations(f.body, combinedMessage, serviceType, knownColor), ...checkIntroRepeat(f.body, previous)];
         const fixedFacts = factCheck({ body: f.body, serviceType, product: target.product ?? undefined });
         const fixedFormat = checkFormatIssues(f.title, f.body, target.keyword);
         // 위반·팩트 오류가 늘지 않고 형식 미달이 줄었거나 같으면 채택
@@ -339,6 +362,20 @@ export async function runWriter(opts: RunWriterOptions): Promise<WriterResult> {
         }
       }
     } catch { /* 수정 실패 시 원본 유지 */ }
+  }
+
+  // 그래도 시리즈50·100 글에 발수코팅이 남아 있으면 그 문단을 통째로 뺀다 (2026-11-12 X5 시리즈50 글에 4문장 남았던 일)
+  if (first && factIssues.some(f => f.rule === 'hydrophobic_50_100')) {
+    const cur = splitTitleBody(reply);
+    if (cur) {
+      const stripped = cur.body.split(/\n\s*\n/).filter(p => !/발수/.test(p)).join('\n\n');
+      if (pureLen(stripped) >= 1500) {
+        reply = `${cur.title}\n${stripped}`;
+        violations = [...checkHardViolations(stripped, combinedMessage, serviceType, knownColor), ...checkIntroRepeat(stripped, previous)];
+        factIssues = factCheck({ body: stripped, serviceType, product: target.product ?? undefined });
+        formatIssues = checkFormatIssues(cur.title, stripped, target.keyword);
+      }
+    }
   }
 
   draftResult = tryBuildDraft(reply, combinedMessage);
@@ -386,6 +423,7 @@ export async function generateBlogPost(input: {
   const keyword = input.request?.keyword?.trim() || extractKeyword(input.message);
   const target: Target = { carModel: t.carModel, serviceType: t.serviceType, product: t.product, region: input.request?.region || null, keyword };
   const systemPrompt = await buildBlogSystemPrompt(input.research?.context || '', target.serviceType, keyword);
+  const knownColor = input.request?.color?.trim() || photoColorFromContext(input.research?.context);
   return runWriter({
     systemPrompt,
     model: BLOG_WRITER_MODEL,
@@ -394,6 +432,7 @@ export async function generateBlogPost(input: {
     target,
     researchSummary: input.research?.summary || '',
     save: true,
+    knownColor,
   });
 }
 
