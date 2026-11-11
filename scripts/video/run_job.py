@@ -228,10 +228,11 @@ def run_one(job: dict, work: Path) -> None:
     if vertical and (out / '영상_세로.mp4').exists():
         vurl = blob_put(out / '영상_세로.mp4', f'{base}/video_vertical.mp4', 'video/mp4')
     sheet = blob_put(out / 'contact_sheet.jpg', f'{base}/contact_sheet.jpg', 'image/jpeg') if (out / 'contact_sheet.jpg').exists() else None
+    thumb = blob_put(out / '영상_썸네일.jpg', f'{base}/thumbnail.jpg', 'image/jpeg') if (out / '영상_썸네일.jpg').exists() else None
     blob_put(plan_path, f'{base}/plan.json', 'application/json')
 
     patch_video(job, {
-        'status': 'done', 'url': url, 'vertical_url': vurl, 'contact_sheet': sheet,
+        'status': 'done', 'url': url, 'vertical_url': vurl, 'contact_sheet': sheet, 'thumbnail': thumb,
         'duration': report.get('duration_sec'), 'photos_used': report.get('photos_used'),
         'excluded': (report.get('excluded') or [])[:20], 'finished_at': now_iso(), 'error': None,
     })

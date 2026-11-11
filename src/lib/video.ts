@@ -30,6 +30,8 @@ export interface VideoState {
   url?: string | null;
   vertical_url?: string | null;
   contact_sheet?: string | null;
+  /** 첫 장면(완성 사진+제목) 이미지. 네이버 대표 이미지·앱 포스터용 */
+  thumbnail?: string | null;
   duration?: number | null;
   photos_used?: number | null;
   excluded?: { name: string; reason: string }[];

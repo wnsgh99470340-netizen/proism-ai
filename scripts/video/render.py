@@ -42,6 +42,8 @@ XF_SEC = 0.45
 TITLE_SEC = 2.0
 CONTACT_SEC = 3.0
 TITLE_FADE_SEC = 0.4
+COVER_SEC = 1.6          # 첫 장면(썸네일용): 완성 사진 + 제목, 인트로 애니메이션 앞에 둔다 (네이버가 첫 프레임을 썸네일로 씀)
+COVER_FADE_OUT_SEC = 0.3
 CAPTION_SEC = 3.0
 CAPTION_FADE_SEC = 0.3
 CAPTION_DELAY_SEC = 0.2
@@ -521,16 +523,37 @@ def _blurred_bg(hero_path):
     return bg
 
 
+def _cover_bg(hero_path):
+    """커버(첫 장면): 완성 사진을 선명하게, 글자가 읽히도록 가운데 띠만 어둡게"""
+    W, H = _CFG["W"], _CFG["H"]
+    if not hero_path:
+        return Image.new("RGB", (W, H), (20, 20, 22))
+    try:
+        im = prepare_photo(hero_path, _CFG["SW"], _CFG["SH"]).resize((W, H), _RS.BICUBIC)
+    except Exception:  # noqa: BLE001
+        return Image.new("RGB", (W, H), (20, 20, 22))
+    im = Image.eval(im, lambda v: int(v * 0.82))
+    # 세로 방향 그라데이션(가운데 60% 구간을 더 어둡게)으로 글자 대비 확보
+    grad = Image.new("L", (1, H))
+    gp = grad.load()
+    for y in range(H):
+        t = abs((y / float(H)) - 0.5) * 2.0  # 0(중앙) ~ 1(가장자리)
+        gp[0, y] = int(255 * max(0.0, min(1.0, 0.55 - t * 0.55)))
+    grad = grad.resize((W, H))
+    dark = Image.new("RGB", (W, H), (0, 0, 0))
+    return Image.composite(dark, im, grad)
+
+
 def _card(idx):
     def build():
         sl = _CFG["slides"][idx]
         W, H = _CFG["W"], _CFG["H"]
         s = _CFG["s"]
-        bg = _blurred_bg(sl.get("hero"))
+        bg = _cover_bg(sl.get("hero")) if sl["kind"] == "cover" else _blurred_bg(sl.get("hero"))
         _apply_logo(bg)
         d = ImageDraw.Draw(bg, "RGBA")
         max_w = int(W * 0.86)
-        if sl["kind"] == "title":
+        if sl["kind"] in ("title", "cover"):
             title = sl.get("title") or ""
             sub = sl.get("subtitle") or ""
             blocks = []
@@ -685,6 +708,8 @@ def render_segment(idx):
     xf_in = sl["xf_in"]
     fade_in = sl["fade_in"]
     own_count = n - tail
+    fade_out = int(sl.get("fade_out", 0) or 0)
+    black = Image.new("RGB", (_CFG["W"], _CFG["H"]), (0, 0, 0)) if fade_out else None
     prev_iter = None
     base = None
     try:
@@ -707,6 +732,9 @@ def render_segment(idx):
                         fr = Image.blend(pf, fr, (j + 1) / float(xf_in + 1))
                     if base is not None and j < fade_in:
                         fr = Image.blend(base, fr, (j + 1) / float(fade_in + 1))
+                    if fade_out and j >= own_count - fade_out:
+                        k = j - (own_count - fade_out) + 1
+                        fr = Image.blend(fr, black, k / float(fade_out + 1))
                     enc.stdin.write(fr.tobytes())
                     written += 1
             finally:
@@ -745,17 +773,20 @@ def build_slides(items, plan, intro, outro, vertical):
     """items: 사용 가능한 사진/클립 (path 포함). 반환 (slides, total_frames)."""
     xf = int(round(XF_SEC * FPS))
     slides = []
-    if intro:
-        n = max(1, int(round(intro["duration"] * FPS)))
-        slides.append(dict(kind="intro", path=intro["path"], n=n, xf_in=0, fade_in=0, name="intro"))
     heroes = [it for it in items if it.get("role") == "hero" and it["kind"] == "photo"]
     photos = [it for it in items if it["kind"] == "photo"]
     hero_first = (heroes[0] if heroes else (photos[0] if photos else None))
     hero_last = (heroes[-1] if heroes else (photos[-1] if photos else None))
-    slides.append(dict(kind="title", n=int(round(TITLE_SEC * FPS)), xf_in=0,
-                       fade_in=int(round(TITLE_FADE_SEC * FPS)),
+    # 첫 프레임 = 완성 사진 + 제목 (썸네일). 끝에서 검정으로 잠깐 내려가 인트로의 검은 시작과 이어진다
+    slides.append(dict(kind="cover", n=int(round(COVER_SEC * FPS)), xf_in=0, fade_in=0,
+                       fade_out=int(round(COVER_FADE_OUT_SEC * FPS)),
                        title=plan.get("title") or "", subtitle=plan.get("subtitle") or "",
-                       hero=hero_first["path"] if hero_first else None, name="title"))
+                       hero=hero_first["path"] if hero_first else None, name="cover"))
+    if intro:
+        n = max(1, int(round(intro["duration"] * FPS)))
+        slides.append(dict(kind="intro", path=intro["path"], n=n, xf_in=0, fade_in=0, name="intro"))
+    # 제목은 커버(첫 장면)에서 이미 보여줬으므로 블러 제목 카드는 두지 않고, 인트로 뒤 첫 사진으로 페이드인한다
+    first_content = len(slides)
     pat = 0
     for it in items:
         if it["kind"] == "photo":
@@ -767,6 +798,9 @@ def build_slides(items, plan, intro, outro, vertical):
             n = int(round(it["clip_dur"] * FPS))
             slides.append(dict(kind="clip", path=it["path"], n=n, xf_in=xf, fade_in=0,
                                trim_start=it["trim_start"], caption=it.get("chapter"), name=it["name"]))
+    if len(slides) > first_content:
+        slides[first_content]["xf_in"] = 0
+        slides[first_content]["fade_in"] = int(round(TITLE_FADE_SEC * FPS))
     slides.append(dict(kind="contact", n=int(round(CONTACT_SEC * FPS)), xf_in=xf, fade_in=0,
                        contact=plan.get("contact") or DEFAULT_CONTACT,
                        hero=hero_last["path"] if hero_last else None, name="contact"))
@@ -1045,6 +1079,16 @@ def render_variant(plan, items, assets, font, tmp, out_mp4, vertical, workers, f
     info = probe_summary(out_mp4)
     if not info:
         raise RenderError("출력 파일 확인 실패: %s" % out_mp4)
+    # 썸네일(첫 장면) 이미지도 따로 저장 — 네이버 대표 이미지로 쓰거나 앱 미리보기 포스터로 사용
+    thumb_path = None
+    try:
+        if slides and slides[0]["kind"] == "cover":
+            _init_worker(cfg)
+            thumb_path = os.path.splitext(out_mp4)[0] + "_썸네일.jpg"
+            _card(0).save(thumb_path, "JPEG", quality=90)
+    except Exception as e:  # noqa: BLE001
+        warnings.append("썸네일 저장 실패: %s" % e)
+        thumb_path = None
     chapters = []
     for sl in slides:
         if sl.get("caption"):
@@ -1053,7 +1097,7 @@ def render_variant(plan, items, assets, font, tmp, out_mp4, vertical, workers, f
     return dict(
         file=out_mp4, duration_sec=round(info["duration"], 3), width=info.get("width"), height=info.get("height"),
         fps=info.get("fps"), vcodec=info.get("vcodec"), acodec=info.get("acodec"),
-        planned_duration_sec=round(dur, 3), frames=got, chapters=chapters,
+        planned_duration_sec=round(dur, 3), frames=got, chapters=chapters, thumbnail=thumb_path,
         render_sec=round(time.time() - t0, 1),
         intro_sec=round(intro["duration"], 3) if intro else 0.0, outro_sec=round(outro["duration"], 3) if outro else 0.0,
         slides=[{"kind": s["kind"], "name": s.get("name"), "sec": round(s["n"] / FPS, 2), "start_sec": round(s["pos"] / FPS, 2)} for s in slides],

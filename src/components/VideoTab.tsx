@@ -104,14 +104,17 @@ export default function VideoTab({ jobs, draft, activePostId, target, onJobsChan
 
       {video?.status === 'done' && video.url && (
         <div className="space-y-2">
-          <video controls preload="metadata" src={video.url} poster={video.contact_sheet || undefined} className="w-full rounded-xl bg-black" />
+          <video controls preload="metadata" src={video.url} poster={video.thumbnail || video.contact_sheet || undefined} className="w-full rounded-xl bg-black" />
           <div className={`grid ${video.vertical_url ? 'grid-cols-2' : 'grid-cols-1'} gap-2`}>
             <a href={dl(video.url)} download className="block text-center bg-[#E4002B] hover:bg-[#c60026] text-white text-xs font-semibold py-2.5 rounded-lg">⬇️ 영상 내려받기 (가로)</a>
             {video.vertical_url && (
               <a href={dl(video.vertical_url)} download className="block text-center bg-[#C8A951] hover:bg-[#b3953f] text-black text-xs font-semibold py-2.5 rounded-lg">⬇️ 세로 영상 (릴스·클립)</a>
             )}
           </div>
-          <div className="text-[10px] text-[var(--c-text-3)]">내려받은 뒤 네이버 글 맨 아래(마무리 문장 앞)에 올리면 됩니다. 영상은 최근 12편까지만 보관됩니다.</div>
+          <div className="text-[10px] text-[var(--c-text-3)]">내려받은 뒤 네이버 글 맨 아래(마무리 문장 앞)에 올리면 됩니다. 첫 장면이 완성 사진+제목이라 썸네일이 자동으로 그 장면이 됩니다. 영상은 최근 12편까지만 보관됩니다.</div>
+          {video.thumbnail && (
+            <a href={dl(video.thumbnail)} download className="block text-center bg-[var(--c-subtle)] hover:bg-[var(--c-border)] text-[var(--c-text-1)] text-[11px] py-2 rounded-lg">🖼️ 썸네일 이미지 내려받기 (대표 이미지 직접 지정용)</a>
+          )}
           {video.contact_sheet && (
             <details className="text-[11px] text-[var(--c-text-2)]">
               <summary className="cursor-pointer">장면 모아보기</summary>
