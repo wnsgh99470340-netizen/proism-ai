@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { quoteForDate } from '@/config/daily-quotes';
 import { BLOG_PREFILL_KEY, CRM_SERVICE_TO_KEY, type BlogPrefill } from '@/config/blog-options';
 import { useTheme } from '@/components/ThemeProvider';
 import QuoteSmsModal, { type QuoteSmsInitial } from '@/components/crm/QuoteSmsModal';
@@ -1328,6 +1329,7 @@ export default function CRMPage() {
             { icon: '✍️', label: '시공기 쓰기', desc: '블로그 AI로 이동', onClick: () => router.push('/') },
           ];
           const card = 'bg-[var(--c-card)] border border-[var(--c-border)] rounded-2xl';
+          const quote = quoteForDate(today);
           return (
             <div className="space-y-6 md:space-y-8">
               {/* 홈 상단: 배너 사진이 있으면 사진 위에 인사말, 없으면 글자만 (2026-11-11 사장님: 배너용 사진 나중에 보내줌 → HOME_BANNER_IMAGE 에 경로만 넣으면 됨) */}
@@ -1342,6 +1344,7 @@ export default function CRMPage() {
                     <p className="text-sm md:text-[15px] text-white/85 mt-2">
                       오늘은 {fmtDot(today)} · 등록 고객 {allCustomers.length}명 · 미처리 사후관리 <span className={pendingCount > 0 ? 'text-white font-bold underline decoration-brand decoration-2 underline-offset-4' : ''}>{pendingCount}건</span>
                     </p>
+                    <p className="mt-4 text-[15px] md:text-base text-white/95 font-medium leading-relaxed">“{quote.text}”{quote.by && <span className="text-white/60 text-sm font-normal ml-2">— {quote.by}</span>}</p>
                   </div>
                 </div>
               ) : (
@@ -1350,6 +1353,10 @@ export default function CRMPage() {
                   <p className="text-sm md:text-[15px] text-[var(--c-text-3)] mt-1.5">
                     오늘은 {fmtDot(today)} · 등록 고객 {allCustomers.length}명 · 미처리 사후관리 <span className={pendingCount > 0 ? 'text-brand font-semibold' : ''}>{pendingCount}건</span>
                   </p>
+                  <div className="mt-4 inline-flex items-start gap-3 rounded-2xl border border-[var(--c-border)] bg-[var(--c-card)] px-4 py-3 max-w-full">
+                    <span className="text-[11px] font-bold tracking-wide text-brand mt-0.5 shrink-0">오늘의 한 줄</span>
+                    <span className="text-[15px] text-[var(--c-text-1)] font-medium leading-relaxed">“{quote.text}”{quote.by && <span className="text-[var(--c-text-3)] text-sm font-normal ml-2">— {quote.by}</span>}</span>
+                  </div>
                 </div>
               )}
 
