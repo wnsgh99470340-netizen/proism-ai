@@ -397,7 +397,6 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
       <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="px-6 py-4 border-b border-[var(--c-border)] flex items-center justify-between">
           <h3 className="text-[var(--c-text-1)] font-semibold text-base">📩 견적 문자</h3>
-          <span className="text-[11px] text-[var(--c-text-3)]">통화 한 줄 · 추천 하나 · 날짜 두 개 · 링크 하나</span>
         </div>
         <div className="flex-1 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-0">
           {/* 입력 */}
