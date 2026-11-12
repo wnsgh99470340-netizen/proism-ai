@@ -8,6 +8,7 @@ import { quoteForDate } from '@/config/daily-quotes';
 import { BLOG_PREFILL_KEY, CRM_SERVICE_TO_KEY, type BlogPrefill } from '@/config/blog-options';
 import { useTheme } from '@/components/ThemeProvider';
 import QuoteSmsModal, { type QuoteSmsInitial } from '@/components/crm/QuoteSmsModal';
+import InquiryReplyModal from '@/components/crm/InquiryReplyModal';
 import { QC_SMS, MAINT_SMS, REVIEW_SMS } from '@/config/sms-templates';
 import type { DailyBrief, TeamItem, WorkerLine } from '@/lib/team';
 import BlogWorkspace from '@/components/BlogWorkspace';
@@ -239,6 +240,8 @@ export default function CRMPage() {
   const [followUpFilter, setFollowUpFilter] = useState<'all' | 'QC점검' | '메인터넌스' | '후기요청' | '견적재연락' | '견적마무리'>('all');
   // 견적 문자 생성 창 (2026-11-11): 전화 상담 뒤 보내는 문자 + 재연락 2회 자동 등록
   const [quoteSms, setQuoteSms] = useState<QuoteSmsInitial | null>(null);
+  // 문의 답변 창 (2026-11-12): 카페·문자 문의 글 → 시장 평균가 기준 답장
+  const [showInquiry, setShowInquiry] = useState(false);
   // 사후관리 달력·검색 (2026-11-11): 기본은 오늘 보낼 사람만, 검색하면 날짜 무관, 밀린 건은 접어 둠
   const [followSearch, setFollowSearch] = useState('');
   const [followDate, setFollowDate] = useState<string>(() => todaySeoul());
@@ -1402,6 +1405,7 @@ export default function CRMPage() {
             { icon: '👤', label: '고객 등록', desc: '새 고객 추가', onClick: () => setShowAddCustomer(true) },
             { icon: '📅', label: '예약 등록', desc: '입고 일정 잡기', onClick: () => setShowAddAppointment(true) },
             { icon: '📩', label: '견적 문자', desc: '통화 직후 견적 보내기', onClick: () => setQuoteSms({}) },
+            { icon: '💬', label: '문의 답변', desc: '카페·문자 문의 답장 만들기', onClick: () => setShowInquiry(true) },
             { icon: '✍️', label: '시공기 쓰기', desc: '블로그 탭에서 작성', onClick: () => setActiveTab('blog') },
           ];
           const card = 'bg-[var(--c-card)] border border-[var(--c-border)] rounded-2xl';
@@ -1446,7 +1450,7 @@ export default function CRMPage() {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+              <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
                 {quick.map((q) => (
                   <button key={q.label} onClick={q.onClick} className={`${card} py-6 md:py-8 px-4 flex flex-col items-center gap-2 hover:border-[var(--c-text-1)] hover:shadow-sm transition-all group`}>
                     <span className="text-3xl md:text-[34px] leading-none">{q.icon}</span>
@@ -2313,6 +2317,13 @@ export default function CRMPage() {
               <h2 className="text-sm text-[var(--c-text-3)]">{consultations.length}건의 상담</h2>
               <div className="flex items-center gap-2">
                 <button
+                  onClick={() => setShowInquiry(true)}
+                  className="border border-[var(--c-border)] hover:bg-[var(--c-hover)] text-[var(--c-text-1)] text-sm font-medium rounded-lg px-4 py-2 transition-colors"
+                  title="카페·문자로 온 문의 글을 붙여 넣으면 시장 평균가 기준 답장을 만듭니다"
+                >
+                  💬 문의 답변
+                </button>
+                <button
                   onClick={() => setQuoteSms({})}
                   className="bg-gold/15 hover:bg-gold/25 text-gold text-sm font-medium rounded-lg px-4 py-2 transition-colors"
                   title="전화 끊고 바로 보내는 견적 문자 (재연락 2회 자동 등록)"
@@ -2355,7 +2366,7 @@ export default function CRMPage() {
                       <span className="text-xs text-[var(--c-text-3)]">{formatDate(c.consultation_date)}</span>
                     </div>
                   </div>
-                  {c.content && (c.content.startsWith('[견적 문자 발송]')
+                  {c.content && (/^\[(견적 문자 발송|문의 답변)\]/.test(c.content)
                     ? <details className="mb-2 text-sm text-[var(--c-text-2)]"><summary className="cursor-pointer">{c.content.split('\n')[0]} — 보낸 문자 보기</summary><pre className="whitespace-pre-wrap font-sans mt-2 text-xs text-[var(--c-text-2)] bg-[var(--c-input)] rounded-lg p-3">{c.content.split('\n').slice(1).join('\n')}</pre></details>
                     : <p className="text-sm text-[var(--c-text-2)] mb-2">{c.content}</p>)}
                   <div className="flex items-center gap-3 text-xs text-[var(--c-text-3)]">
@@ -2618,6 +2629,9 @@ export default function CRMPage() {
       )}
       {quoteSms && (
         <QuoteSmsModal initial={quoteSms} onClose={() => setQuoteSms(null)} onDone={() => { fetchFollowUps(); if (activeTab === 'consultations') fetchConsultations(); }} />
+      )}
+      {showInquiry && (
+        <InquiryReplyModal onClose={() => setShowInquiry(false)} onDone={() => { fetchFollowUps(); if (activeTab === 'consultations') fetchConsultations(); }} />
       )}
       {showWarranty && warrantyAppointment && (
         <WarrantyModal
