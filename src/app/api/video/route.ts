@@ -50,7 +50,8 @@ export async function PATCH(request: NextRequest) {
   const job = await getJob(id);
   const video = job?.result?.video;
   if (!job || !video) return Response.json({ error: '영상 작업을 찾을 수 없습니다.' }, { status: 404 });
-  const next = { ...video, status: 'queued' as const, error: null, url: null, vertical_url: null, contact_sheet: null, queued_at: new Date().toISOString(), dispatched: false };
+  // force: 같은 폴더 영상이 있어도 재사용하지 않고 새로 만든다('다시 만들기'는 사장님이 일부러 누른 것)
+  const next = { ...video, status: 'queued' as const, force: true, reused_from: undefined, error: null, url: null, vertical_url: null, contact_sheet: null, queued_at: new Date().toISOString(), dispatched: false };
   await updateJob(id, { result: { ...job.result!, video: next } });
   const dispatched = await dispatchRender(id);
   if (dispatched) await updateJob(id, { result: { ...job.result!, video: { ...next, dispatched: true } } }).catch(() => {});

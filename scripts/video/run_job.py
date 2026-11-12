@@ -67,6 +67,24 @@ def count_done_videos() -> int:
     return int(m.group(1)) if m else 0
 
 
+def find_done_same_folder(folder: str, exclude_id: str, vertical: bool) -> dict | None:
+    """같은 드라이브 폴더로 이미 완성된 영상(2026-11-12: 글만 다시 만든 작업은 재렌더하지 않는다)"""
+    if not folder:
+        return None
+    r = requests.get(f'{SUPABASE_URL}/rest/v1/blog_jobs', params={
+        'result->video->>folder': f'eq.{folder}', 'result->video->>status': 'eq.done', 'id': f'neq.{exclude_id}',
+        'select': 'id,result', 'order': 'updated_at.desc', 'limit': '5'}, headers=sb_headers(), timeout=30)
+    r.raise_for_status()
+    for row in r.json():
+        v = ((row.get('result') or {}).get('video') or {})
+        if not v.get('url'):
+            continue
+        if vertical and not v.get('vertical_url'):
+            continue
+        return {'job_id': row['id'], 'video': v}
+    return None
+
+
 def patch_video(job: dict, video_patch: dict):
     """result.video 만 갱신 (읽기-수정-쓰기)"""
     r = requests.get(f'{SUPABASE_URL}/rest/v1/blog_jobs', params={'id': f"eq.{job['id']}", 'select': 'result'}, headers=sb_headers(), timeout=30)
@@ -268,6 +286,19 @@ def main():
         work = Path(args.workdir) / job['id']
         log(f"=== 작업 {job['id']} — {((job.get('result') or {}).get('draft') or {}).get('title', '')}")
         try:
+            v0 = (job.get('result') or {}).get('video') or {}
+            same = None
+            if not v0.get('force'):
+                try:
+                    same = find_done_same_folder(v0.get('folder') or '', job['id'], bool(v0.get('vertical')))
+                except Exception as e:  # noqa: BLE001
+                    log(f'재사용 확인 건너뜀: {e}')
+            if same:
+                src = same['video']
+                patch_video(job, {k: src.get(k) for k in ('url', 'vertical_url', 'contact_sheet', 'thumbnail', 'duration', 'photos_used', 'excluded', 'bgm', 'plan')}
+                            | {'status': 'done', 'reused_from': src.get('reused_from') or same['job_id'], 'finished_at': now_iso(), 'error': None})
+                log(f"같은 폴더 영상 재사용: {same['job_id']}")
+                continue
             run_one(job, work)
         except Exception as e:  # noqa: BLE001
             failures += 1

@@ -24,7 +24,7 @@ function describe(v: VideoState): string {
   switch (v.status) {
     case 'queued': return v.dispatched ? '⏳ 영상 제작 대기 중 — 곧 시작합니다' : '⏳ 영상 제작 대기 중 — 10분 안에 시작합니다';
     case 'rendering': return '🎬 영상 만드는 중 — 보통 3~6분 걸립니다';
-    case 'done': return `✅ 영상 완성${v.duration ? ` · ${Math.round(v.duration)}초` : ''}${v.photos_used ? ` · 사진 ${v.photos_used}장` : ''}`;
+    case 'done': return `✅ 영상 완성${v.duration ? ` · ${Math.round(v.duration)}초` : ''}${v.photos_used ? ` · 사진 ${v.photos_used}장` : ''}${v.reused_from ? ' · 같은 사진 폴더로 만든 영상 재사용' : ''}`;
     case 'failed': return `⚠️ 영상 제작 실패 — ${v.error || '원인 미상'}`;
     default: return '';
   }

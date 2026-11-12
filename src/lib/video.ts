@@ -5,6 +5,7 @@
  *   없으면 10분 주기 스케줄이 집어간다
  * - 결과(mp4 주소·자막 계획·제외 사진)는 액션이 같은 자리에 적고, 화면은 /api/jobs 폴링으로 본다
  */
+import { supabase } from './supabase';
 import { listDriveFolder, type DriveFile } from './drive';
 import { extractDriveUrl } from './blog-generate';
 import type { BlogRequest } from '@/config/blog-options';
@@ -41,6 +42,10 @@ export interface VideoState {
   finished_at?: string;
   /** 바로 깨우기(디스패치)가 됐는지. false 면 10분 주기 스케줄을 기다림 */
   dispatched?: boolean;
+  /** 같은 사진 폴더로 이미 만든 영상을 그대로 쓴 경우 원본 작업 id (2026-11-12 사장님: 글만 고친 건 영상 또 안 만들어도 됨) */
+  reused_from?: string;
+  /** '다시 만들기'로 넣은 작업: 같은 폴더 영상이 있어도 새로 렌더 */
+  force?: boolean;
 }
 
 /** 정보 릴스(인스타용 세로 20~30초) — 글 한 편에서 대본 2~3개를 뽑아 전부 렌더 */
@@ -96,6 +101,24 @@ export function findPhotosUrl(message: string, request: BlogRequest | null): str
 }
 
 /** 드라이브 폴더를 읽어 queued 상태의 video 객체를 만든다. 사진이 없으면 에러를 던진다 */
+/** 같은 드라이브 폴더로 이미 완성된 영상이 있으면 그 상태를 돌려준다(글만 다시 만든 경우 재렌더 안 함). 없으면 null */
+export async function findReusableVideo(folderId: string, vertical: boolean, excludeJobId?: string): Promise<VideoState | null> {
+  if (!folderId) return null;
+  let q = supabase.from('blog_jobs').select('id, result, updated_at')
+    .eq('result->video->>folder', folderId).eq('result->video->>status', 'done')
+    .order('updated_at', { ascending: false }).limit(5);
+  if (excludeJobId) q = q.neq('id', excludeJobId);
+  const { data, error } = await q;
+  if (error || !data) return null;
+  for (const row of data as { id: string; result: { video?: VideoState } | null }[]) {
+    const v = row.result?.video;
+    if (!v?.url) continue;
+    if (vertical && !v.vertical_url) continue;
+    return { ...v, reused_from: v.reused_from || row.id, dispatched: true };
+  }
+  return null;
+}
+
 export async function buildQueuedVideo(photosUrl: string, vertical: boolean): Promise<VideoState> {
   const { folderId, files } = await listDriveFolder(photosUrl);
   const photos = files.map((f: DriveFile) => ({ id: f.id, name: f.name, url: f.url, kind: f.kind === 'video' ? 'video' as const : 'photo' as const }));

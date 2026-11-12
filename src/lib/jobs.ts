@@ -9,7 +9,7 @@ import { generateBlogPost, type WriterResult } from './blog-generate';
 import { generateChannels, type Channels } from './channels';
 import type { BlogRequest } from '@/config/blog-options';
 import { sendPushToAll } from './push';
-import { findPhotosUrl, buildQueuedVideo, dispatchRender, type VideoState } from './video';
+import { findPhotosUrl, buildQueuedVideo, dispatchRender, findReusableVideo, type VideoState } from './video';
 import { inspectPhotos } from './photo-check';
 
 export type JobStatus = 'queued' | 'researching' | 'writing' | 'channels' | 'done' | 'failed';
@@ -158,7 +158,14 @@ export async function runNextStep(id: string): Promise<JobStatus> {
         let video: VideoState;
         try {
           video = await buildQueuedVideo(photosUrl, Boolean(job.request?.vertical));
-          videoNote = `\n🎬 사진 ${video.photos?.length ?? 0}장으로 영상을 만듭니다.`;
+          // 같은 폴더로 이미 만든 영상이 있으면 그대로 쓴다(글만 다시 만든 경우). 새로 만들려면 영상 탭 '다시 만들기'
+          const reusable = video.folder ? await findReusableVideo(video.folder, Boolean(job.request?.vertical), id).catch(() => null) : null;
+          if (reusable) {
+            video = { ...reusable, photos: video.photos, vertical: Boolean(job.request?.vertical) };
+            videoNote = '\n🎬 같은 사진 폴더로 만든 영상을 그대로 씁니다.';
+          } else {
+            videoNote = `\n🎬 사진 ${video.photos?.length ?? 0}장으로 영상을 만듭니다.`;
+          }
         } catch (e) {
           video = { status: 'failed', error: e instanceof Error ? e.message : String(e), queued_at: new Date().toISOString() };
           videoNote = `\n⚠️ 영상: ${video.error}`;
