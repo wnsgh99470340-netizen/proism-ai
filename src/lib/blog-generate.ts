@@ -109,6 +109,20 @@ export function checkHardViolations(body: string, userInput: string, serviceType
   const jargon = body.match(JARGON_RE);
   if (jargon) v.push({ rule: 'jargon', detail: `사장님이 쓰지 않는 부품 용어 "${jargon[0]}" (쉬운 말로 바꾸거나 삭제: 휠아치 → 휀다 안쪽, 카울 → 본넷 뒤쪽 등)` });
 
+  // 0-2. 요청에 없는 고객 사정·보증 기간 (2026-11-12 X5 글: "신차로 들어오셨고요", "3~4년 타실 계획", "5년 보증" 전부 지어낸 것)
+  if (!/신차|출고/.test(userInput)) {
+    const m = body.match(/신차로|신차여서|신차라서|출고\s*직후|출고된\s*지|출고한\s*지/);
+    if (m) v.push({ rule: 'unprovided', detail: `요청에 없는 고객 사정 "${m[0]}" (신차 여부를 모르면 쓰지 않는다)` });
+  }
+  if (!/보증/.test(userInput)) {
+    const m = body.match(/\d+\s*년\s*보증|보증\s*기간|보증이?\s*\d+\s*년/);
+    if (m) v.push({ rule: 'unprovided', detail: `알려주지 않은 보증 기간 "${m[0]}" (삭제)` });
+  }
+  {
+    const m = body.match(/\d+\s*~?\s*\d*\s*년\s*(?:정도\s*)?(?:타실|타시고|타신다|탈\s*계획|보유)/);
+    if (m && !/년/.test(userInput)) v.push({ rule: 'unprovided', detail: `요청에 없는 고객 계획 "${m[0]}" (삭제)` });
+  }
+
   // 0-1. 사진·요청으로 확인된 차량 색상과 다른 색 (필름·트림·휠 색 문장은 제외)
   const known = knownColor ? colorGroup(knownColor) : null;
   if (known) {
