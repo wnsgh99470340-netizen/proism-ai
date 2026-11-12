@@ -74,13 +74,32 @@ function buildFacts(a: Omit<InquiryAnswer, 'reply' | 'warnings'>): string {
   return [`차종: ${a.car || '언급 없음'}`, '항목별 가격(이 숫자만 사용):', ...lines, total, dur].join('\n');
 }
 
-const REPLY_SYSTEM = `너는 3M 프로이즘 강남서초점에서 고객 문의에 답하는 사람이다. 아래 [사실]만으로 답장을 쓴다.
+const REPLY_SYSTEM = `너는 3M 프로이즘 강남서초점 대표 진준호다. 고객 문의에 네가 직접 보내는 답장을 아래 [사실]만으로 쓴다.
 
-말투: 존댓말, 짧은 문장, 한 줄 10~18자 안팎으로 줄바꿈, 마침표 생략. 친절하지만 과장 없이
-구조: 1) "안녕하세요 3M 프로이즘 강남서초점입니다" 2) 문의 항목별 가격을 "항목 약 N만 원 선" 식으로 한 줄씩(같은 어미를 매 줄 반복하지 않는다) 3) 합계가 있으면 "다 하시면 대략 N만 원 안팎" 한 줄 4) 시공 시간 5) 실차를 보면 범위에 따라 조정될 수 있다는 한 줄 6) 어디까지 할지 정하지 않고 오셔도 된다는 한 줄 7) 입고 편하신 날짜 두 개 알려 달라는 한 줄 8) 마지막 줄은 "010-7287-7140" 연락처 한 줄(앞에 군더더기 문장 없이)
-숫자: [사실]에 적힌 금액·시간만 쓴다. 다른 숫자(경력·보증 기간·두께·겹수·고객 수)는 절대 쓰지 않는다. 가격은 "약 N만 원 선"처럼 '선'을 붙인다
-쓰지 않는 것: 작업자·경력·직접 시공 소개, 제품 스펙, 다른 매장 비교, 이모지 남발, 링크, 해시태그, 고객 이름 호칭(이름이 없으면)
-길이: 300~550자. 답장 본문만 출력`;
+말투(대표가 실제 보내는 문자 그대로): 존댓말, 한 줄에 한 문장, 문장 끝 마침표. 꾸미는 말 없이 바로 본론. 숫자는 "30만원"처럼 붙여 쓴다
+쓰지 않는 말: "만 원 선", "안팎", "정도입니다"의 반복, "진행됩니다"의 반복, "저렴", "합리적", "프리미엄", 느낌표, 이모지, 링크, 해시태그, 작업자·경력·직접 시공 소개, 제품 스펙, 다른 매장 비교
+구조:
+1) "안녕하세요 3M 프로이즘 대표 진준호입니다."
+2) "문의하신 (차종) 기준으로 대략 말씀드리면" 한 줄 (차종이 없으면 "문의하신 내용 기준으로")
+3) 항목마다 한 줄: "실내 하이그로시 PPF 30만원" 식으로 이름과 금액만
+4) 합계가 있으면 "전부 하시면 90만원입니다." 한 줄
+5) 시공 시간 한 줄: "작업은 6시간이면 되고 당일 출고 가능합니다." 식. 기준이 없으면 "작업 시간은 차량 보고 말씀드리겠습니다."
+6) "차량 상태와 범위에 따라 금액은 조금 달라질 수 있습니다." 한 줄
+7) "어디까지 하실지 정하지 않고 오셔도 됩니다. 보고 같이 정하면 됩니다." 한 줄
+8) "입고 가능한 날짜 두 개 정도 알려주시면 일정 잡아드리겠습니다." 한 줄
+9) "궁금한 점 있으시면 편하게 물어봐 주세요." 한 줄
+10) 마지막 줄 "3M 프로이즘 강남서초점 010-7287-7140"
+빈 줄은 2)와 3) 사이, 4)와 5) 사이, 7)과 8) 사이에만 넣는다
+숫자: [사실]에 적힌 금액·시간만 쓴다. 다른 숫자(경력·보증 기간·두께·겹수·고객 수)는 절대 쓰지 않는다
+길이: 250~450자. 답장 본문만 출력`;
+
+/** 사장님이 안 쓰는 표현 (2026-11-12 "만 원 선·안팎 이런 말 안 써") */
+const BANNED_WORDS = /만\s*원\s*선|안팎|저렴|합리적|프리미엄|!/g;
+
+/** 사장님 문자 형식으로 정리: "30만 원" → "30만원", 연속 빈 줄 정리 */
+function normalizeReply(t: string): string {
+  return t.replace(/(\d)\s*만\s*원/g, '$1만원').replace(/\n{3,}/g, '\n\n').trim();
+}
 
 function numbersIn(text: string): number[] {
   return Array.from(text.matchAll(/(\d[\d,]*)\s*만/g)).map(m => Number(m[1].replace(/,/g, ''))).filter(n => !Number.isNaN(n));
@@ -103,8 +122,9 @@ export async function answerInquiry(text: string): Promise<InquiryAnswer> {
   const priced = items.filter(i => i.typical > 0);
   // 합계는 5만 단위로 둥글게(92만 → 90만). 평균값을 더한 숫자라 자릿수까지 정확한 척하지 않는다
   const round5 = (n: number) => Math.round(n / 5) * 5;
+  const rawSum = priced.reduce((s, i) => s + i.typical, 0);
   const total = priced.length
-    ? { min: round5(priced.reduce((s, i) => s + i.min, 0)), max: round5(priced.reduce((s, i) => s + i.max, 0)), typical: round5(priced.reduce((s, i) => s + i.typical, 0)) }
+    ? { min: round5(priced.reduce((s, i) => s + i.min, 0)), max: round5(priced.reduce((s, i) => s + i.max, 0)), typical: round5(rawSum) }
     : null;
   const base: Omit<InquiryAnswer, 'reply' | 'warnings'> = {
     car: (ex.car || '').trim(),
@@ -125,11 +145,17 @@ export async function answerInquiry(text: string): Promise<InquiryAnswer> {
   const warnings: string[] = [];
   let reply = '';
   for (let pass = 0; pass < 2; pass++) {
-    const user = `[문의 글]\n${src}\n\n[사실]\n${facts}${pass === 1 ? `\n\n앞 답장에 [사실]에 없는 금액이 있었다. 금액은 [사실]의 숫자만 쓰고 다시 써라.` : ''}`;
-    reply = (await callClaude(REPLY_SYSTEM, [{ role: 'user', content: user }], 1200)).trim();
+    const user = `[문의 글]\n${src}\n\n[사실]\n${facts}${pass === 1 ? `\n\n앞 답장에 [사실]에 없는 금액이나 "만 원 선·안팎" 같은 쓰지 않는 말이 있었다. 규칙대로 다시 써라.` : ''}`;
+    reply = normalizeReply((await callClaude(REPLY_SYSTEM, [{ role: 'user', content: user }], 1200)).trim());
+    // 모델이 항목을 직접 더해 92만원처럼 쓰면 둥글린 합계(90만원)로 바꾼다
+    if (total && rawSum !== total.typical) reply = reply.replace(new RegExp(`${rawSum}만원`, 'g'), `${total.typical}만원`);
     const bad = numbersIn(reply).filter(n => !allowed.has(n));
-    if (bad.length === 0) break;
-    if (pass === 1) warnings.push(`답변에 기준 밖 금액이 남아 있습니다: ${bad.map(n => `${n}만`).join(', ')} — 보내기 전에 확인하세요`);
+    const badWords = reply.match(BANNED_WORDS) || [];
+    if (bad.length === 0 && badWords.length === 0) break;
+    if (pass === 1) {
+      if (bad.length) warnings.push(`답변에 기준 밖 금액이 남아 있습니다: ${bad.map(n => `${n}만`).join(', ')} — 보내기 전에 확인하세요`);
+      if (badWords.length) warnings.push(`사장님이 안 쓰는 말이 남아 있습니다: ${Array.from(new Set(badWords)).join(', ')}`);
+    }
   }
   if (!base.car) warnings.push('차종을 읽지 못했습니다. 답변의 차종 표현을 확인하세요');
   for (const i of items) if (i.confidence === 'low') warnings.push(`${i.label}은(는) 시장 자료가 적어 평균값(${fmtMan(i.typical)})으로 적었습니다`);

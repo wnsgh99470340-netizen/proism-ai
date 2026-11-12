@@ -93,13 +93,12 @@ export function estimateDuration(items: MarketItem[]): string {
   return '6시간 안팎(당일 출고)';
 }
 
-export const fmtMan = (n: number) => `${n.toLocaleString()}만 원`;
+export const fmtMan = (n: number) => `${n.toLocaleString()}만원`;
 
-/** 한 항목의 가격 문장 조각 */
+/** 한 항목의 가격 표기. 사장님 문자 형식대로 "30만원"(2026-11-12 사장님: "만 원 선·안팎" 같은 말 안 씀) */
 export function priceText(it: MarketItem): string {
   if (it.typical <= 0) return '상담 때 안내';
-  if (it.min === it.max) return `약 ${fmtMan(it.typical)}`;
-  return `약 ${fmtMan(it.typical)} 선`;
+  return fmtMan(it.typical);
 }
 
 export const CONFIDENCE_LABEL: Record<Confidence, string> = {
