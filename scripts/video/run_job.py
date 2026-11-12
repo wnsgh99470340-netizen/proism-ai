@@ -85,6 +85,33 @@ def find_done_same_folder(folder: str, exclude_id: str, vertical: bool) -> dict 
     return None
 
 
+def find_active_same_folder(folder: str, exclude_id: str, created_before: str) -> str | None:
+    """같은 폴더로 먼저 접수된 작업이 아직 queued/rendering 이면 그 id (폴더당 영상은 한 번만: 먼저 것이 끝나면 뒤 것은 복사)"""
+    if not folder or not created_before:
+        return None
+    for st in ('rendering', 'queued'):
+        r = requests.get(f'{SUPABASE_URL}/rest/v1/blog_jobs', params={
+            'result->video->>folder': f'eq.{folder}', 'result->video->>status': f'eq.{st}', 'id': f'neq.{exclude_id}',
+            'created_at': f'lt.{created_before}', 'select': 'id', 'order': 'created_at.asc', 'limit': '1'}, headers=sb_headers(), timeout=30)
+        r.raise_for_status()
+        rows = r.json()
+        if rows:
+            return rows[0]['id']
+    return None
+
+
+def reused_source_ids() -> set[str]:
+    """다른 작업이 재사용 중인 원본 작업 id (Blob 정리 때 지우면 안 됨)"""
+    try:
+        r = requests.get(f'{SUPABASE_URL}/rest/v1/blog_jobs', params={
+            'result->video->>reused_from': 'not.is.null', 'select': 'result->video->>reused_from'}, headers=sb_headers(), timeout=30)
+        r.raise_for_status()
+        return {row.get('reused_from') for row in r.json() if row.get('reused_from')}
+    except Exception as e:  # noqa: BLE001
+        log(f'재사용 원본 조회 건너뜀: {e}')
+        return set()
+
+
 def patch_video(job: dict, video_patch: dict):
     """result.video 만 갱신 (읽기-수정-쓰기)"""
     r = requests.get(f'{SUPABASE_URL}/rest/v1/blog_jobs', params={'id': f"eq.{job['id']}", 'select': 'result'}, headers=sb_headers(), timeout=30)
@@ -162,7 +189,8 @@ def blob_cleanup(keep: int):
             g['urls'].append(b['url'])
             g['t'] = max(g['t'], b.get('uploadedAt', ''))
         ordered = sorted(groups.items(), key=lambda kv: kv[1]['t'], reverse=True)
-        old = [u for _, g in ordered[keep:] for u in g['urls']]
+        protected = reused_source_ids()
+        old = [u for jid, g in ordered[keep:] if jid not in protected for u in g['urls']]
         if old:
             requests.post('https://blob.vercel-storage.com/delete', json={'urls': old},
                           headers={'authorization': f'Bearer {BLOB_TOKEN}', 'x-api-version': '7', 'content-type': 'application/json'}, timeout=60)
@@ -293,6 +321,15 @@ def main():
                     same = find_done_same_folder(v0.get('folder') or '', job['id'], bool(v0.get('vertical')))
                 except Exception as e:  # noqa: BLE001
                     log(f'재사용 확인 건너뜀: {e}')
+            if not same and not v0.get('force'):
+                active = None
+                try:
+                    active = find_active_same_folder(v0.get('folder') or '', job['id'], job.get('created_at') or '')
+                except Exception as e:  # noqa: BLE001
+                    log(f'같은 폴더 대기 확인 건너뜀: {e}')
+                if active:
+                    log(f'같은 폴더 작업 {active} 이 먼저 만드는 중 → 이번엔 건너뜀 (끝나면 복사)')
+                    continue
             if same:
                 src = same['video']
                 patch_video(job, {k: src.get(k) for k in ('url', 'vertical_url', 'contact_sheet', 'thumbnail', 'duration', 'photos_used', 'excluded', 'bgm', 'plan')}
