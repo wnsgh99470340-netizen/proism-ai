@@ -83,6 +83,14 @@ export function tryBuildDraft(reply: string, userMessage: string): { draft: Draf
  * 결정론적 위반 검사 — 5종만. Claude 채점 없음.
  * 점수를 매기지 않고 "반드시 빼야 하는 표현"만 잡는다.
  */
+/** 사장님 표기로 통일 (2026-11-12): 보닛 → 본넷, 휀더 → 휀다 */
+export function normalizeTerms(text: string): string {
+  return text.replace(/보닛|본닛|보넷|본네트/g, '본넷').replace(/휀더|펜더|팬더/g, '휀다');
+}
+
+/** 사장님이 쓰지 않는 부품 용어 (2026-11-12 "카울·휠아치 같은 말은 쓴 적 없다") */
+const JARGON_RE = /카울|휠\s*아치|에어\s*브리더|벨트\s*라인|쇼울더|숄더\s*라인|스플리터|범퍼\s*립|하단\s*립/;
+
 const COLOR_GROUPS: [RegExp, string][] = [
   [/블랙|검정|검은/, '블랙'], [/화이트|흰색|흰\s*차|하얀/, '화이트'], [/그레이|회색/, '그레이'], [/실버|은색/, '실버'],
   [/블루|파란|파랑|네이비/, '블루'], [/레드|빨간|빨강/, '레드'], [/그린|초록/, '그린'], [/옐로|노란|노랑/, '옐로'], [/브라운|갈색|베이지/, '브라운'],
@@ -95,6 +103,10 @@ export function checkHardViolations(body: string, userInput: string, serviceType
   // 0. 작업자 강조 (2026-11-12 사장님: "제가 직접 합니다" 식 노골적 소개 금지)
   const worker = body.match(/(제가|대표가)\s*직접\s*(합니다|시공|작업)|(작업|시공)은\s*제가\s*직접|1인\s*시공|하루\s*(?:에\s*)?한\s*대/);
   if (worker) v.push({ rule: 'worker', detail: `작업자 강조 표현 "${worker[0]}" (삭제)` });
+
+  // 0-0. 부품 용어
+  const jargon = body.match(JARGON_RE);
+  if (jargon) v.push({ rule: 'jargon', detail: `사장님이 쓰지 않는 부품 용어 "${jargon[0]}" (쉬운 말로 바꾸거나 삭제: 휠아치 → 휀다 안쪽, 카울 → 본넷 뒤쪽 등)` });
 
   // 0-1. 사진·요청으로 확인된 차량 색상과 다른 색 (필름·트림·휠 색 문장은 제외)
   const known = knownColor ? colorGroup(knownColor) : null;
@@ -378,6 +390,7 @@ export async function runWriter(opts: RunWriterOptions): Promise<WriterResult> {
     }
   }
 
+  reply = normalizeTerms(reply);
   draftResult = tryBuildDraft(reply, combinedMessage);
   if (!draftResult) return { reply, draft: null, checks: null, draftId: null, target: null };
 
@@ -473,7 +486,7 @@ ${plain}`;
     changeNote = lines[firstIdx].trim().replace(/^변경\s*:\s*/, '');
     bodyStart = firstIdx + 1;
   }
-  const text = lines.slice(bodyStart).join('\n').trim();
+  const text = normalizeTerms(lines.slice(bodyStart).join('\n').trim());
   const tb = splitTitleBody(text);
   if (!tb || tb.body.replace(/\s/g, '').length < 500) {
     throw new Error('수정 결과가 글 형식이 아닙니다. 지시를 조금 더 구체적으로 적어주세요.');
