@@ -11,6 +11,7 @@ import { resolveTarget } from './blog-research';
 import type { BlogRequest } from '@/config/blog-options';
 import { factCheck, type FactIssue } from './fact-check';
 import { photoColorFromContext } from './photo-check';
+import { getOwnerStyle, styleToPrompt } from './owner-style';
 import { buildToneReference, savePost, listPosts } from './posts';
 import { BLOG_SYSTEM_PROMPT } from '@/config/prompts';
 import { extractTagsFromTitle, textToHtml } from './draft-format';
@@ -303,7 +304,8 @@ async function saveDraftFile(title: string, body: string): Promise<void> {
 
 /** 블로그 작성용 시스템 프롬프트: 규칙 + 사장님 문체 + 사전 조사 + 이전 글 목록 */
 export async function buildBlogSystemPrompt(researchContext: string, serviceType?: string, keyword?: string | null): Promise<string> {
-  const toneReference = await buildToneReference(serviceType);
+  const [toneReference, ownerStyle] = await Promise.all([buildToneReference(serviceType), getOwnerStyle()]);
+  const styleContext = ownerStyle ? styleToPrompt(ownerStyle) : '';
   const keywordContext = keyword
     ? `\n\n[이번 글 제목 키워드 — 필수]\n"${keyword}"를 제목 앞부분에 그대로 넣고(띄어쓰기·순서 유지), 본문에도 3~5회 자연스럽게 넣는다. 억지로 반복하지 말고 문장 안에 녹인다. 해시태그에도 한 번 넣는다.`
     : '';
@@ -314,7 +316,7 @@ export async function buildBlogSystemPrompt(researchContext: string, serviceType
     const list = previousDrafts.map((d, i) => `${i + 1}. ${d.title}${d.intro ? `\n   도입: ${d.intro}` : ''}${d.closing ? `\n   마무리: ${d.closing}` : ''}`).join('\n');
     previousContext = `\n\n[이전에 작성한 글 — 겹침 금지]\n아래 글들의 도입 순서·첫 문장·마무리 문장을 그대로 쓰지 마세요. 특히 "완성된 모습부터 보여드립니다 → 자기소개 → 자격 → 신차 출고 직후" 순서가 이미 여러 번 쓰였으니 이번 글은 다른 방식으로 엽니다. 마무리도 아래와 다른 문장으로 끝냅니다.\n${list}`;
   }
-  return `${BLOG_SYSTEM_PROMPT}${keywordContext}${toneReference}${vehicleContext}${previousContext}`;
+  return `${BLOG_SYSTEM_PROMPT}${keywordContext}${styleContext}${toneReference}${vehicleContext}${previousContext}`;
 }
 
 export interface RunWriterOptions {

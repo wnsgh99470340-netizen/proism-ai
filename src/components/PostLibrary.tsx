@@ -29,25 +29,48 @@ export default function PostLibrary({ draftTitle, draftBody, onSaveFinal, onSave
   const [busy, setBusy] = useState(false);
   const [importing, setImporting] = useState(false);
 
+  const [building, setBuilding] = useState(false);
+
+  /** 블로그 전체 글을 남는 게 없을 때까지 이어서 가져온다 (2026-11-12) */
   const importBlog = async () => {
     setImporting(true);
-    setStatus('블로그에서 새 글을 찾는 중… (글당 몇 초, 최대 1~2분)');
+    setStatus('블로그 전체 글 목록을 읽는 중…');
+    let total = 0, failed = 0, skipped = 0, all = 0;
     try {
-      const res = await fetch('/api/posts/import-blog', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ limit: 20 }) });
-      const d = await res.json();
-      if (!res.ok) { setStatus(`불러오기 실패: ${d.error}`); return; }
-      const n = d.imported?.length ?? 0;
-      const f = d.failed?.length ?? 0;
+      for (let round = 0; round < 12; round++) {
+        const res = await fetch('/api/posts/import-blog', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ limit: 40 }) });
+        const d = await res.json();
+        if (!res.ok) { setStatus(`불러오기 실패: ${d.error}`); return; }
+        total += d.imported?.length ?? 0; failed += d.failed?.length ?? 0; skipped = d.skippedExisting ?? 0; all = d.total ?? 0;
+        if (d.imported?.length) onImported?.();
+        if (!d.remaining) break;
+        setStatus(`${total}편 가져옴 · 남은 ${d.remaining}편 이어서 가져오는 중… (블로그 전체 ${all}편)`);
+      }
       setStatus(
-        n === 0 && f === 0
-          ? `새 글이 없습니다. 블로그 최근 ${d.total}편은 이미 모두 들어와 있습니다.`
-          : `${n}편 가져왔습니다 (이미 있던 ${d.skippedExisting}편 건너뜀${f ? `, ${f}편 본문 읽기 실패` : ''}${d.remaining ? `, 남은 ${d.remaining}편은 한 번 더 누르면 이어서 가져옵니다` : ''}). 다음 글부터 말투 참고에 들어갑니다.`
+        total === 0 && failed === 0
+          ? `새 글이 없습니다. 블로그 전체 ${all}편이 이미 모두 들어와 있습니다.`
+          : `${total}편 가져왔습니다 (이미 있던 ${skipped}편 건너뜀${failed ? `, ${failed}편 본문 읽기 실패` : ''}). 이제 "사장님 글 기준 만들기"를 눌러 주세요.`
       );
-      if (n > 0) onImported?.();
     } catch (e) {
       setStatus(`불러오기 실패: ${e instanceof Error ? e.message : '네트워크 오류'}`);
     } finally {
       setImporting(false);
+    }
+  };
+
+  /** 사장님 글 전체에서 어휘·문체 기준을 다시 만든다 (2026-11-12) */
+  const buildStyle = async () => {
+    setBuilding(true);
+    setStatus('사장님 글 전체를 읽고 기준을 정리하는 중… (1~2분)');
+    try {
+      const res = await fetch('/api/style', { method: 'POST' });
+      const d = await res.json();
+      if (!res.ok) { setStatus(`기준 만들기 실패: ${d.error}`); return; }
+      setStatus(`기준을 만들었습니다 — 글 ${d.postCount}편, 쓰는 말 ${d.usedCount}개, 안 쓰는 말 ${d.unusedCount}개. 다음 글부터 이 기준으로 씁니다.`);
+    } catch (e) {
+      setStatus(`기준 만들기 실패: ${e instanceof Error ? e.message : '네트워크 오류'}`);
+    } finally {
+      setBuilding(false);
     }
   };
 
@@ -81,10 +104,18 @@ export default function PostLibrary({ draftTitle, draftBody, onSaveFinal, onSave
         <div className="grid grid-cols-2 gap-2">
           <button
             onClick={importBlog}
-            disabled={importing}
-            className="col-span-2 bg-[#03C75A]/10 hover:bg-[#03C75A]/20 text-[#03C75A] text-xs py-2.5 rounded-lg font-medium disabled:opacity-50"
+            disabled={importing || building}
+            className="bg-[#03C75A]/10 hover:bg-[#03C75A]/20 text-[#03C75A] text-xs py-2.5 rounded-lg font-medium disabled:opacity-50"
           >
-            {importing ? '⬇️ 가져오는 중…' : '⬇️ 내 블로그(roice_) 최근 글 불러오기'}
+            {importing ? '⬇️ 가져오는 중…' : '⬇️ 내 블로그 전체 글 불러오기'}
+          </button>
+          <button
+            onClick={buildStyle}
+            disabled={importing || building}
+            className="bg-[var(--c-text-1)] text-[var(--c-card)] hover:opacity-90 text-xs py-2.5 rounded-lg font-medium disabled:opacity-50"
+            title="불러온 글 전체에서 쓰는 말·문체 기준을 다시 정리합니다"
+          >
+            {building ? '📚 정리하는 중…' : '📚 사장님 글 기준 만들기'}
           </button>
           <button
             onClick={() => open('final')}

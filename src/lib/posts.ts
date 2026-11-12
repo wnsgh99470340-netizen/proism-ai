@@ -75,12 +75,12 @@ export async function buildToneReference(serviceType?: string): Promise<string> 
   const [owners, finals] = await Promise.all([listPosts('owner', 40), listPosts('final', 20)]);
   if (owners.length === 0 && finals.length === 0) return '';
 
-  // 참고 글: 같은 시공 종류의 사장님 글 → 나머지 사장님 글 → 최종본 순으로 최대 3편
+  // 참고 글 (2026-11-12): 같은 시공 종류의 사장님 글 2편은 거의 전문(4000자), 나머지 1편은 앞부분만
   const same = serviceType ? owners.filter((o) => o.service_type === serviceType) : [];
   const rest = owners.filter((o) => !same.includes(o));
   const samples = [...same, ...rest, ...finals].slice(0, 3);
   const sampleText = samples
-    .map((p, i) => `[참고 글 ${i + 1}] ${p.title}\n${excerpt(p.body.replace(/\[사진\s*\d+\]/g, '').trim(), 700)}`)
+    .map((p, i) => `[참고 글 ${i + 1}] ${p.title}\n${excerpt(p.body.replace(/\[사진\s*\d+\]/g, '').trim(), i < 2 && same.includes(p) ? 4000 : 700)}`)
     .join('\n\n');
 
   const feedbacks = Array.from(new Set(

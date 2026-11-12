@@ -35,6 +35,50 @@ export function cleanBody(raw: string): string {
     .trim();
 }
 
+/** 전체 글 목록 (2026-11-12): 데스크톱 목록 API를 페이지 단위로 읽는다. RSS 는 최근 50편뿐이라 221편 전체는 여기로 */
+export async function fetchOwnerPostList(): Promise<RssItem[]> {
+  const out: RssItem[] = [];
+  const seen = new Set<string>();
+  for (let page = 1; page <= 30; page++) {
+    const url = `https://blog.naver.com/PostTitleListAsync.naver?blogId=${OWNER_BLOG_ID}&viewdate=&currentPage=${page}&categoryNo=0&parentCategoryNo=&countPerPage=30`;
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/124 Safari/537.36', 'Referer': `https://blog.naver.com/${OWNER_BLOG_ID}` },
+      cache: 'no-store',
+    });
+    if (!res.ok) throw new Error(`블로그 목록 읽기 실패 (${res.status})`);
+    const text = await res.text();
+    // 네이버 JSON 은 \' 같은 잘못된 이스케이프가 섞여 있어 정규식으로 읽는다
+    const re = /"logNo":"(\d+)","title":"([^"]*)"[^{}]*?"addDate":"([^"]*)"/g;
+    let added = 0;
+    for (const m of text.matchAll(re)) {
+      const logNo = m[1];
+      if (seen.has(logNo)) continue;
+      seen.add(logNo); added++;
+      let title = m[2];
+      try { title = decodeURIComponent(title.replace(/\+/g, ' ')); } catch { /* 그대로 */ }
+      out.push({ title: decode(title), url: `https://m.blog.naver.com/${OWNER_BLOG_ID}/${logNo}`, logNo, pubDate: parseAddDate(m[3]), description: '' });
+    }
+    if (added === 0) break;
+  }
+  if (out.length === 0) throw new Error('블로그 목록을 읽지 못했습니다');
+  return out;
+}
+
+/** "2026. 9. 22." / "21시간 전" / "3일 전" → ISO */
+function parseAddDate(s: string): string {
+  const abs = s.match(/(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})/);
+  if (abs) return new Date(Number(abs[1]), Number(abs[2]) - 1, Number(abs[3]), 12).toISOString();
+  const rel = s.match(/(\d+)\s*(분|시간|일)\s*전/);
+  const d = new Date();
+  if (rel) {
+    const n = Number(rel[1]);
+    if (rel[2] === '분') d.setMinutes(d.getMinutes() - n);
+    else if (rel[2] === '시간') d.setHours(d.getHours() - n);
+    else d.setDate(d.getDate() - n);
+  }
+  return d.toISOString();
+}
+
 export async function fetchOwnerRss(): Promise<RssItem[]> {
   const res = await fetch(RSS_URL, {
     headers: { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1' },
@@ -69,12 +113,14 @@ export interface ImportResult {
 }
 
 export async function importOwnerBlog(limit = 20): Promise<ImportResult> {
-  const items = await fetchOwnerRss();
-  const { data: existing, error } = await supabase.from('blog_posts').select('title').eq('kind', 'owner');
+  let items: RssItem[];
+  try { items = await fetchOwnerPostList(); } catch (e) { console.warn('[import] 전체 목록 실패, RSS 로 대체:', e); items = await fetchOwnerRss(); }
+  const { data: existing, error } = await supabase.from('blog_posts').select('title, feedback').eq('kind', 'owner');
   if (error) throw new Error(`DB 조회 실패: ${error.message}`);
   const have = new Set((existing || []).map((r) => (r.title as string).trim()));
+  const haveLog = new Set((existing || []).map((r) => ((r.feedback as string | null) || '').match(/\/(\d{8,})\s*$/)?.[1]).filter(Boolean) as string[]);
 
-  const fresh = items.filter((it) => !have.has(it.title.trim()));
+  const fresh = items.filter((it) => !haveLog.has(it.logNo) && !have.has(it.title.trim()));
   const todo = fresh.slice(0, limit);
   const result: ImportResult = { imported: [], skippedExisting: items.length - fresh.length, remaining: fresh.length - todo.length, failed: [], total: items.length };
 
