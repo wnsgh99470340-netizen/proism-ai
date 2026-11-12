@@ -1,11 +1,11 @@
 /**
- * AI 팀 하루 브리핑 (2026-11-12)
+ * 마케팅팀 하루 브리핑 (2026-11-12)
  * - buildDailyBrief: 오늘 기준으로 각 직원이 "준비한 것"을 계산한다 (DB 조회, Claude 호출 없음)
  *   · 사후관리 담당: 오늘·14일 안에 밀린 QC·메인터넌스·후기요청 → 고객별 문자
  *   · 상담 담당: 견적재연락(D+1)·견적마무리(D+3) → 등록 때 저장된 문자
  *   · 시공기 작가: 오늘 완성·진행 중인 글
  * - 매일 07:00 크론(/api/cron/daily)이 이걸 만들어 Blob team/날짜.json 에 남기고 푸시를 보낸다
- * - 홈 "오늘 AI가 한 일"은 /api/team/today 로 실시간 계산본을 본다 (보냈는지는 DB 가 기준)
+ * - 홈 "마케팅팀 오늘 한 일"은 /api/team/today 로 실시간 계산본을 본다 (보냈는지는 DB 가 기준)
  */
 import { list, put } from '@vercel/blob';
 import { supabase } from './supabase';

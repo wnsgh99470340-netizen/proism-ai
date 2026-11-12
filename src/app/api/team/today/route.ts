@@ -3,7 +3,7 @@ import { buildDailyBrief, listTeamLogs } from '@/lib/team';
 
 export const maxDuration = 30;
 
-/** GET /api/team/today[?date=YYYY-MM-DD] — 홈 "오늘 AI가 한 일" 실시간 계산본 (로그인 쿠키는 미들웨어가 확인) */
+/** GET /api/team/today[?date=YYYY-MM-DD] — 홈 "마케팅팀 오늘 한 일" 실시간 계산본 (로그인 쿠키는 미들웨어가 확인) */
 export async function GET(request: NextRequest) {
   try {
     const date = request.nextUrl.searchParams.get('date') || undefined;

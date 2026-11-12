@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
       consult && consult.status === 'ready' ? consult.summary : '',
     ].filter(Boolean);
     const body = parts.length ? parts.join('\n') : '오늘 보낼 문자가 없습니다. 좋은 하루 되세요';
-    const push = await sendPushToAll({ title: '☀️ 오늘 AI가 준비한 일', body, url: '/crm', tag: `team-${brief.date}` }).catch(() => ({ sent: 0, removed: 0 }));
+    const push = await sendPushToAll({ title: '☀️ 마케팅팀이 오늘 준비한 일', body, url: '/crm', tag: `team-${brief.date}` }).catch(() => ({ sent: 0, removed: 0 }));
     return Response.json({ ok: true, date: brief.date, totals: brief.totals, lines: brief.lines.map(l => ({ key: l.key, status: l.status, summary: l.summary })), logUrl, push });
   } catch (e) {
     return Response.json({ ok: false, error: e instanceof Error ? e.message : String(e) }, { status: 500 });

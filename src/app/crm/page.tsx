@@ -1494,17 +1494,17 @@ export default function CRMPage() {
                   )}
                 </section>
 
-                {/* 오늘 AI가 한 일 (2026-11-12 AI 팀 1주차: 사후관리·상담 담당이 07시에 준비, 사장님은 건마다 보내기) */}
+                {/* 마케팅팀 오늘 한 일 (2026-11-12 마케팅팀 1주차: 사후관리·상담 담당이 07시에 준비, 사장님은 건마다 보내기) */}
                 <section className={`${card} p-5 md:p-6`}>
                   <div className="flex items-center justify-between mb-4 gap-3">
-                    <h2 className="text-lg font-bold text-[var(--c-text-1)]">오늘 AI가 한 일 <span className="text-[var(--c-text-3)] text-sm font-medium ml-1">{fmtDot(today).slice(5)}</span></h2>
+                    <h2 className="text-lg font-bold text-[var(--c-text-1)]">마케팅팀 오늘 한 일 <span className="text-[var(--c-text-3)] text-sm font-medium ml-1">{fmtDot(today).slice(5)}</span></h2>
                     <div className="flex items-center gap-2 shrink-0">
                       {teamBrief && teamBrief.totals.toSend > 0 && <span className="text-xs font-semibold text-brand">보낼 문자 {teamBrief.totals.toSend}건</span>}
                       <button onClick={fetchTeamBrief} className="text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-1)] transition-colors">↻ 새로고침</button>
                     </div>
                   </div>
                   {!teamBrief ? (
-                    <div className="py-10 text-center text-sm text-[var(--c-text-3)]">준비한 일을 읽는 중…</div>
+                    <div className="py-10 text-center text-sm text-[var(--c-text-3)]">마케팅팀이 준비한 일을 읽는 중…</div>
                   ) : (
                     <ul className="divide-y divide-[var(--c-border)]">
                       {teamBrief.lines.map((l) => {
