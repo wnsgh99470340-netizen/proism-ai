@@ -8,7 +8,7 @@
  * 가격은 "많은 업체들 평균가"(사장님 결정), 시간은 사장님 기준.
  */
 import { callClaude } from './claude-client';
-import { MARKET_ITEMS, matchItems, estimateDuration, priceText, fmtMan, CONFIDENCE_LABEL, type MarketItem } from '@/config/inquiry-pricing';
+import { MARKET_ITEMS, matchItems, estimateDuration, priceText, fmtMan, CONFIDENCE_LABEL, serviceKeyFor, type MarketItem } from '@/config/inquiry-pricing';
 
 export interface InquiryItem {
   key: string;
@@ -33,6 +33,8 @@ export interface InquiryAnswer {
   unmatched: string[];
   total: { min: number; max: number; typical: number } | null;
   duration: string;
+  /** 링크 고르기용 시공 종류(PPF·랩핑·크롬죽이기·썬팅·실내PPF…) */
+  serviceKey: string;
   reply: string;
   warnings: string[];
 }
@@ -87,8 +89,7 @@ const REPLY_SYSTEM = `너는 3M 프로이즘 강남서초점 대표 진준호다
 6) "차량 상태와 범위에 따라 금액은 조금 달라질 수 있습니다." 한 줄
 7) "어디까지 하실지 정하지 않고 오셔도 됩니다. 보고 같이 정하면 됩니다." 한 줄
 8) "입고 가능한 날짜 두 개 정도 알려주시면 일정 잡아드리겠습니다." 한 줄
-9) "궁금한 점 있으시면 편하게 물어봐 주세요." 한 줄
-10) 마지막 줄 "3M 프로이즘 강남서초점 010-7287-7140"
+9) 마지막 줄 "궁금한 점 있으시면 편하게 물어봐 주세요." (연락처·링크는 쓰지 않는다. 뒤에 따로 붙는다)
 빈 줄은 2)와 3) 사이, 4)와 5) 사이, 7)과 8) 사이에만 넣는다
 숫자: [사실]에 적힌 금액·시간만 쓴다. 다른 숫자(경력·보증 기간·두께·겹수·고객 수)는 절대 쓰지 않는다
 길이: 250~450자. 답장 본문만 출력`;
@@ -98,7 +99,9 @@ const BANNED_WORDS = /만\s*원\s*선|안팎|저렴|합리적|프리미엄|!/g;
 
 /** 사장님 문자 형식으로 정리: "30만 원" → "30만원", 연속 빈 줄 정리 */
 function normalizeReply(t: string): string {
-  return t.replace(/(\d)\s*만\s*원/g, '$1만원').replace(/\n{3,}/g, '\n\n').trim();
+  return t
+    .split('\n').filter(l => !/010-7287-7140|https?:\/\//.test(l)).join('\n') // 연락처·링크 줄은 화면에서 붙인다
+    .replace(/(\d)\s*만\s*원/g, '$1만원').replace(/(만원)\.$/gm, '$1').replace(/\n{3,}/g, '\n\n').trim(); // 항목 줄 "30만원." 의 마침표 제거
 }
 
 function numbersIn(text: string): number[] {
@@ -135,6 +138,7 @@ export async function answerInquiry(text: string): Promise<InquiryAnswer> {
     unmatched: (ex.extra_items || []).map(s => s.trim()).filter(Boolean).slice(0, 5),
     total,
     duration: estimateDuration(matched),
+    serviceKey: serviceKeyFor(matched),
   };
 
   const facts = buildFacts(base);

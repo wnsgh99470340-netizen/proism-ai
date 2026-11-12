@@ -25,7 +25,7 @@ interface Props {
 }
 
 const SERVICES = ['PPF', '컬러PPF', '랩핑', '크롬죽이기', '신차패키지', '썬팅', '유리막코팅', '실내PPF'] as const;
-type ServiceKey = typeof SERVICES[number];
+export type ServiceKey = typeof SERVICES[number];
 
 /** 서비스(무상) 항목 — 처음엔 아무것도 선택 안 됨. 필요한 것만 체크해서 "포함:" 줄을 만든다 */
 const SERVICE_ITEMS = [
@@ -161,7 +161,7 @@ const L = {
   cheapPpf: 'https://blog.naver.com/roice_/224286484844',    // 최저 PPF 가격 검색은 그만
 };
 /** 첫 문자(실력·과정 한 편) */
-const FIRST_LINK: Record<ServiceKey, string> = {
+export const FIRST_LINK: Record<ServiceKey, string> = {
   PPF: L.installer, 컬러PPF: L.installer, 랩핑: L.whyProism, 크롬죽이기: L.whyProism,
   신차패키지: L.newcarModel3, 썬팅: L.tintApproach, 유리막코팅: L.installer, 실내PPF: L.installer,
 };
@@ -176,8 +176,8 @@ const CLOSE_LINK: Record<ServiceKey, string> = {
   신차패키지: L.ppfCheck, 썬팅: L.youtube, 유리막코팅: L.why3mPpf, 실내PPF: L.ppfCheck,
 };
 const DEFAULT_LINK = L.installer;
-const CARD_URL = 'https://proism-ai.vercel.app/card';
-const STORE_KEY = 'crm_quote_sms_memory_v1';
+export const CARD_URL = 'https://proism-ai.vercel.app/card';
+export const STORE_KEY = 'crm_quote_sms_memory_v1';
 
 type Memory = { prices: Record<string, string>; link: string; links: Record<string, string>; benefits: Record<string, string> };
 function loadMemory(): Memory {

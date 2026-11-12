@@ -107,3 +107,17 @@ export const CONFIDENCE_LABEL: Record<Confidence, string> = {
   low: '자료 적음(차량마다 다름)',
   ours: '시장 자료 없음 · 우리 견적표',
 };
+
+/** 답장에 붙일 글 링크를 고르기 위한 시공 종류(견적 문자 FIRST_LINK 의 키와 같음). PPF 가 섞이면 PPF 우선 */
+export function serviceKeyFor(items: MarketItem[]): string {
+  const g = new Set(items.map(i => i.group));
+  const k = new Set(items.map(i => i.key));
+  if (k.has('color_ppf_full')) return '컬러PPF';
+  if (g.has('ppf-full') || g.has('ppf-front') || g.has('ppf-part')) return 'PPF';
+  if (g.has('wrap')) return '랩핑';
+  if (g.has('chrome')) return '크롬죽이기';
+  if (g.has('tint')) return '썬팅';
+  if (g.has('interior')) return '실내PPF';
+  if (k.has('glass_coating')) return '유리막코팅';
+  return 'PPF';
+}

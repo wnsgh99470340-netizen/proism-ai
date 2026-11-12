@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { todaySeoul, addDaysISO } from '@/lib/local-date';
 import { supabase } from '@/lib/supabase';
 import type { InquiryAnswer } from '@/lib/inquiry';
+import { FIRST_LINK, CARD_URL, STORE_KEY, type ServiceKey } from '@/components/crm/QuoteSmsModal';
 
 /**
  * 문의 답변 만들기 (2026-11-12)
@@ -11,6 +12,16 @@ import type { InquiryAnswer } from '@/lib/inquiry';
  * 사장님이 고쳐서 복사·문자 → 상담 기록 한 줄 + (전화 있으면) 다음 날 견적 재연락 등록.
  */
 const REVIEWS_LINK = 'https://blog.naver.com/roice_/224472736789';
+
+/** 시공별 첫 링크(견적 문자와 같은 표). 사장님이 견적 문자 창에서 바꿔 둔 링크가 있으면 그걸 우선 */
+function pickLink(serviceKey: string): string {
+  const key = (serviceKey in FIRST_LINK ? serviceKey : 'PPF') as ServiceKey;
+  try {
+    const m = JSON.parse(localStorage.getItem(STORE_KEY) || '{}') as { links?: Record<string, string> };
+    if (m.links?.[`${key}|1`]) return m.links[`${key}|1`];
+  } catch { /* ignore */ }
+  return FIRST_LINK[key];
+}
 
 export default function InquiryReplyModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
   const today = todaySeoul();
@@ -23,6 +34,9 @@ export default function InquiryReplyModal({ onClose, onDone }: { onClose: () => 
   const [phone, setPhone] = useState('');
   const [car, setCar] = useState('');
   const [withFollowUp, setWithFollowUp] = useState(true);
+  // 링크 전송(2026-11-12 사장님): 글 링크 하나 + 명함 링크, 견적 문자와 같은 형식으로 답장 끝에 붙인다
+  const [link, setLink] = useState('');
+  const [withCard, setWithCard] = useState(true);
   const [note, setNote] = useState<string | null>(null);
 
   const generate = async () => {
@@ -37,6 +51,7 @@ export default function InquiryReplyModal({ onClose, onDone }: { onClose: () => 
       if (a.name && !name) setName(a.name);
       if (a.phone && !phone) setPhone(a.phone);
       if (a.car) setCar(a.car);
+      setLink(pickLink(a.serviceKey));
     } catch (e) {
       setNote(`⚠️ ${e instanceof Error ? e.message : '실패'}`);
     }
@@ -44,6 +59,12 @@ export default function InquiryReplyModal({ onClose, onDone }: { onClose: () => 
   };
 
   const summary = ans ? ans.items.map(i => i.label).concat(ans.unmatched).join(', ') : '';
+  const tail = [
+    link.trim() ? `시공 사진·과정은 여기 한 편만 보시면 됩니다\n${link.trim()}` : '',
+    withCard ? `명함·연락처 저장: ${CARD_URL}` : '',
+    '3M 프로이즘 강남서초점 010-7287-7140',
+  ].filter(Boolean).join('\n\n');
+  const fullText = reply.trim() ? `${reply.trim()}\n\n${tail}` : '';
   const who = `${name.trim() || '미등록'} ${phone.trim()}`.trim();
 
   const findCustomer = async (): Promise<string | null> => {
@@ -58,17 +79,17 @@ export default function InquiryReplyModal({ onClose, onDone }: { onClose: () => 
     if (!reply.trim()) return;
     setSaving(true); setNote(null);
     try {
-      if (how === 'copy') await navigator.clipboard.writeText(reply);
+      if (how === 'copy') await navigator.clipboard.writeText(fullText);
       if (how === 'sms') {
         const p = phone.replace(/[^\d]/g, '');
         const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-        window.open(isIOS ? `sms:${p}&body=${encodeURIComponent(reply)}` : `sms:${p}?body=${encodeURIComponent(reply)}`);
+        window.open(isIOS ? `sms:${p}&body=${encodeURIComponent(fullText)}` : `sms:${p}?body=${encodeURIComponent(fullText)}`);
       }
       const customerId = await findCustomer();
       const { error } = await supabase.from('consultations').insert({
         customer_id: customerId,
         consultation_date: today,
-        content: `[문의 답변]${customerId ? '' : ` ${who}`}\n${reply}`,
+        content: `[문의 답변]${customerId ? '' : ` ${who}`}\n${fullText}`,
         estimate: ans?.total ? `대략 ${ans.total.typical.toLocaleString()}만원 안팎` : null,
         interested_services: summary || null,
         memo: [customerId ? '' : who, car, '문의 답변'].filter(Boolean).join(' · '),
@@ -169,8 +190,17 @@ export default function InquiryReplyModal({ onClose, onDone }: { onClose: () => 
             </div>
             <label className="block text-xs text-[var(--c-text-3)]">답장 (고쳐도 됩니다)</label>
             <textarea value={reply} onChange={(e) => setReply(e.target.value)} rows={16} placeholder="왼쪽에서 답변을 만들면 여기 나옵니다" className={`${input} leading-relaxed`} />
+            <div className="rounded-lg border border-[var(--c-border)] p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-[var(--c-text-3)] shrink-0">글 링크</span>
+                <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="붙일 글 주소 (비우면 링크 없이)" className={`${input} !py-1.5`} />
+                {ans && <button onClick={() => setLink(FIRST_LINK[(ans.serviceKey in FIRST_LINK ? ans.serviceKey : 'PPF') as ServiceKey])} className="text-[11px] text-[var(--c-text-3)] underline shrink-0">추천 글</button>}
+              </div>
+              <label className="flex items-center gap-1.5 text-xs text-[var(--c-text-3)] cursor-pointer"><input type="checkbox" checked={withCard} onChange={(e) => setWithCard(e.target.checked)} className="accent-[var(--c-brand)]" />명함·연락처 저장 링크 붙이기</label>
+              <pre className="whitespace-pre-wrap font-sans text-[11px] text-[var(--c-text-3)] leading-relaxed">{tail}</pre>
+            </div>
             <div className="flex items-center justify-between text-xs text-[var(--c-text-3)]">
-              <span>{reply.replace(/\s/g, '').length}자</span>
+              <span>{fullText.replace(/\s/g, '').length}자</span>
               <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked={withFollowUp} onChange={(e) => setWithFollowUp(e.target.checked)} className="accent-[var(--c-brand)]" />내일 견적 재연락 등록(전화 있을 때)</label>
             </div>
             <div className="flex flex-wrap gap-2">
