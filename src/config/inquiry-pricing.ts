@@ -6,7 +6,7 @@
  * - confidence: high=여러 업체·브랜드 표에서 확인 / mid=2~3곳 / low=자료 적음(차량마다 다름) / ours=시장 자료 없어 우리 견적표 값
  * - 출처(2026-11 조사): GSWF 표준 시공가, XPEL 코리아 가격표, 오늘의카 가격 모음·후기, 대전 공업사 부위별 표(2026.08),
  *   테슬라 샵 PPF, 올댓오토모빌(필러), 벤츠 E200 실내 PPF 후기. 네이버 블로그 본문은 서버에서 못 읽어 제외.
- * - 시공 시간(사장님 2026-11-12): 전체 크롬죽이기 1박 2일, 부분 PPF·실내는 6시간 안팎(당일 출고). 전체 PPF 는 3박 4일(시공 규칙).
+ * - 시공 시간(사장님 2026-11-12): 전체 PPF 3박 4일(시공 규칙), 전체 랩핑 2박 3일, 전체 크롬죽이기·썬팅 1박 2일, 부분 PPF·실내는 6시간 안팎(당일 출고).
  */
 
 export type Confidence = 'high' | 'mid' | 'low' | 'ours';
@@ -80,16 +80,16 @@ export function matchItems(text: string): MarketItem[] {
   });
 }
 
-/** 시공 시간 안내(사장님 기준 2026-11-12). 모르는 조합은 빈 문자열 → 답변에서 "차량 보고 안내" */
+/** 시공 시간 안내(사장님 기준 2026-11-12). 긴 작업 순으로 하나만 고른다. 모르는 조합은 빈 문자열 → 답변에서 "차량 보고 안내" */
 export function estimateDuration(items: MarketItem[]): string {
   const groups = new Set(items.map(i => i.group));
   const keys = new Set(items.map(i => i.key));
-  if (keys.has('ppf_full') || keys.has('color_ppf_full')) return '3박 4일';
-  if (groups.has('wrap')) return '';
-  if (keys.has('chrome_full')) return '1박 2일';
-  if (groups.has('ppf-front')) return '';
-  if (groups.has('tint') && items.length === 1) return '';
   if (items.length === 0) return '';
+  if (keys.has('ppf_full') || keys.has('color_ppf_full')) return '3박 4일';
+  if (keys.has('wrap_full')) return '2박 3일';
+  if (groups.has('ppf-front')) return '';
+  if (keys.has('chrome_full') || groups.has('tint')) return '1박 2일';
+  if (keys.has('two_tone_wrap')) return '';
   return '6시간 안팎(당일 출고)';
 }
 
