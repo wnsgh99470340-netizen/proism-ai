@@ -77,6 +77,13 @@
 - QC 2주, 메인터넌스 6개월
 - 신차패키지 순서: 검수→썬팅→PPF/크롬죽이기→코팅
 
+## AI 팀 (2026-11-12, 제안서 docs/프로이즘-AI팀-구성안.pptx · 사장님 결정: 문자는 건마다 개별 전송, 리서치 자료는 나중에 맥에서, 인스타 보류)
+- 직원 정의: src/config/ai-team.ts TEAM (active: 사후관리·상담·시공기 작가 / prepared: 검수·리서치·채널). RESEARCH_TARGETS(키워드·경쟁 매장)는 사장님이 채워 주면 리서치 시작. **src/config/team.ts 는 예전 '팀원 15명'(TopBar 아바타·채팅 담당자 배정)이라 다른 파일임 — 섞지 말 것**
+- 하루 브리핑: src/lib/team.ts buildDailyBrief — follow_ups 미완료·오늘 이하(14일 안 밀린 것)를 사후관리(QC·메인터넌스·후기요청)/상담(견적재연락·견적마무리)으로 나눠 고객별 문자(문구는 src/config/sms-templates.ts, 견적은 memo 둘째 줄부터)와 보냄 여부(sms_sent)를 계산. 시공기 작가 줄은 blog_jobs 오늘 완성·진행 중. Claude 호출 없음
+- 크론: vercel.json `/api/cron/daily` 매일 22:00 UTC(=07:00 KST), CRON_SECRET Bearer 검증 → 브리핑 계산 → Blob team/YYYY-MM-DD.json 기록(문자 본문 제외) → 푸시 "☀️ 오늘 AI가 준비한 일". Hobby 플랜 크론 2개 한도(keepalive + daily)라 상담 담당도 07시에 같이 돈다
+- 홈 카드 "오늘 AI가 한 일"(예전 '연락할 사후관리' 자리): GET /api/team/today 실시간 계산본. 직원 줄(상태 점: 빨강 준비됨/초록 완료/회색 대기) → 펼치면 건별 [💬 보내기](openSmsApp → 확인 → sms_sent 표시). 2주 넘게 밀린 건은 건수만 보여 주고 사후관리 탭으로
+- 다음 단계(미구현): 2주차 검수·리서치(월요일 보고), 3주차 채널·발행 글 자동 학습, 주간 전환표(문의→견적→입고), 답 없는 분 목록
+
 ## CRM 구조
 - **블로그 AI는 CRM 안의 탭**(2026-11-12 사장님: 페이지 둘로 나뉜 게 지저분함). 블로그 화면은 src/components/BlogWorkspace.tsx(embedded·prefillNonce props), src/app/page.tsx(/)는 /crm 으로 redirect, PWA start_url=/crm. 탭 순서: 홈 · ✍️ 블로그 · 고객 목록 · 예약/일정 · 사후관리 · 상담 기록. 블로그 탭은 한 번 열면 다른 탭을 봐도 hidden 으로만 숨겨 대화·초안 유지. ✍️ 시공기 버튼은 sessionStorage 프리필 + prefillNonce 증가 + 탭 전환(페이지 이동 없음). 주소 /crm?tab=blog 로 바로 열림. 블로그 탭일 때 헤더에 ? 가이드 버튼, 하단 고정 푸터 숨김. 알림 토글(PushToggle)은 CRM 헤더로 이동
 - **날짜는 전부 서울 시간**(2026-11-12 오전 8시에 홈이 전날로 보인 문제): src/lib/local-date.ts 의 todaySeoul/toSeoulISO/addDaysISO 만 쓸 것. new Date().toISOString() 으로 날짜 문자열 만들지 말 것(UTC라 오전 9시 전 전날)

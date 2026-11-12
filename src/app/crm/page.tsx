@@ -8,6 +8,8 @@ import { quoteForDate } from '@/config/daily-quotes';
 import { BLOG_PREFILL_KEY, CRM_SERVICE_TO_KEY, type BlogPrefill } from '@/config/blog-options';
 import { useTheme } from '@/components/ThemeProvider';
 import QuoteSmsModal, { type QuoteSmsInitial } from '@/components/crm/QuoteSmsModal';
+import { QC_SMS, MAINT_SMS, REVIEW_SMS } from '@/config/sms-templates';
+import type { DailyBrief, TeamItem, WorkerLine } from '@/lib/team';
 import BlogWorkspace from '@/components/BlogWorkspace';
 import HelpModal from '@/components/HelpModal';
 import PushToggle from '@/components/PushToggle';
@@ -80,14 +82,6 @@ const FOLLOW_UP_TYPES = ['QC점검', '메인터넌스', '후기요청'];
 /** 홈 상단 배너 사진 경로(public 기준, 예: '/img/home-banner.jpg'). 비우면 글자만 표시. 사장님이 배너용 사진 주면 넣는다 */
 const HOME_BANNER_IMAGE = '';
 /** QC(2주)·메인터넌스(6개월) 안내 문자 */
-const QC_SMS = `안녕하세요, 3M프로이즘입니다 ^^\n시공해드린 차량, 잘 타고 계신가요?\n\n시공 후 2주가 지나 QC 점검 시기가 되어 연락드렸습니다.\n필름이 완전히 안착되는 시기이기도 하고, 혹시 생활하시면서 불편하셨던 부분이 있으시다면 이번에 같이 확인해드리려고 합니다.\n\n편하신 날짜 말씀해주시면 점검 일정 잡아드리겠습니다.\n늘 감사합니다!`;
-const MAINT_SMS = `안녕하세요, 3M프로이즘입니다 ^^\n시공 후 6개월이 되어 메인터넌스 안내드립니다.\n\n필름 상태 점검과 함께 가벼운 외부 세척, 마감 재점검까지 진행해드리고 있습니다.\n오래오래 깔끔하게 유지하실 수 있도록 저희가 꾸준히 관리해드릴게요.\n\n편하신 날짜 말씀해주시면 일정 잡아드리겠습니다.\n항상 감사합니다!`;
-/** 후기 요청 문자 3종(후기 게시판 링크만 다름). 사후관리 탭과 예약/일정 상세 줄에서 같이 쓴다 */
-const REVIEW_SMS = {
-  proism: `안녕하세요, 3M프로이즘입니다.\n멋지게 작업이 완료된 차량 사진을 보내드리오니, 소중한 후기 작성 잘 부탁드리겠습니다.\n➊ 아래의 링크 클릭\n➋ 첨부드린 사진으로 후기 작성\n[ 🚩 후기 게시판 링크 ]\nhttps://m.site.naver.com/1S6dj\n고객님의 솔직한 리뷰는 저희에게 아주 큰 힘이 됩니다. 정말 감사드리며, 이후에 이어질 메인터넌스 시기(약 6개월 후)에도 차별화 된 서비스로 다시 또 찾아뵐게요!`,
-  bmw: `안녕하세요, 3M프로이즘입니다.\n멋지게 작업이 완료된 차량 사진을 보내드리오니, 소중한 후기 작성 잘 부탁드리겠습니다.\n➊ 아래의 링크 클릭\n➋ 첨부드린 사진으로 후기 작성\n[ 🚩 후기 게시판 링크 ]\nhttps://m.site.naver.com/1S6e3\n고객님의 솔직한 리뷰는 저희에게 아주 큰 힘이 됩니다. 정말 감사드리며, 이후에 이어질 메인터넌스 시기(약 6개월 후)에도 차별화 된 서비스로 다시 또 찾아뵈겠습니다!`,
-  audi: `안녕하세요, 3M프로이즘입니다.\n멋지게 작업이 완료된 차량 사진을 보내드리오니, 소중한 후기 작성 잘 부탁드리겠습니다.\n➊ 아래의 링크 클릭\n➋ 첨부드린 사진으로 후기 작성\n[ 🚩 후기 게시판 링크 ]\nhttps://m.site.naver.com/1S6ej\n고객님의 솔직한 리뷰는 저희에게 아주 큰 힘이 됩니다. 정말 감사드리며, 이후에 이어질 메인터넌스 시기(약 6개월 후)에도 차별화 된 서비스로 다시 또 찾아뵈겠습니다!`,
-};
 /** 폰 문자 앱 열기 (iOS는 &body=, Android는 ?body=) */
 function openSmsApp(phone: string, msg: string) {
   const p = phone.replace(/[^\d]/g, '');
@@ -250,7 +244,19 @@ export default function CRMPage() {
   const [followDate, setFollowDate] = useState<string>(() => todaySeoul());
   const [followMonth, setFollowMonth] = useState<{ y: number; m: number }>(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
   const [showOverdue, setShowOverdue] = useState(false);
-  const [homeFollowMore, setHomeFollowMore] = useState(false); // 홈 '연락할 사후관리' 더보기
+  // 홈 "오늘 AI가 한 일" (2026-11-12): 사후관리·상담 담당이 준비한 문자를 건마다 보낸다
+  const [teamBrief, setTeamBrief] = useState<DailyBrief | null>(null);
+  const [teamOpen, setTeamOpen] = useState<string | null>(null);
+  const fetchTeamBrief = useCallback(async () => {
+    try {
+      const res = await fetch('/api/team/today', { cache: 'no-store' });
+      const d = await res.json();
+      if (res.ok && d.brief) {
+        setTeamBrief(d.brief as DailyBrief);
+        setTeamOpen((cur) => cur ?? ((d.brief as DailyBrief).lines.find((l) => l.status === 'ready')?.key ?? null));
+      }
+    } catch { /* 홈 카드만 비움 */ }
+  }, []);
 
   // Consultation state
   const [consultations, setConsultations] = useState<Consultation[]>([]);
@@ -402,7 +408,7 @@ export default function CRMPage() {
   }, [fetchAllCustomers]);
 
   useEffect(() => {
-    if (activeTab === 'home') { fetchAppointments(); fetchFollowUps(); }
+    if (activeTab === 'home') { fetchAppointments(); fetchFollowUps(); fetchTeamBrief(); }
     else if (activeTab === 'customers') fetchCustomers();
     else if (activeTab === 'appointments') fetchAppointments();
     else if (activeTab === 'followups') fetchFollowUps();
@@ -604,6 +610,15 @@ export default function CRMPage() {
     if (!confirm('문자를 전송하셨나요?')) return;
     await supabase.from('follow_ups').update({ sms_sent: { ...(f.sms_sent || {}), [key]: true } }).eq('id', f.id);
     fetchFollowUps();
+  };
+  // 홈 "오늘 AI가 한 일"에서 준비된 문자 보내기 (건마다 개별 전송, 2026-11-12 사장님 결정)
+  const handleTeamSms = async (item: TeamItem) => {
+    openSmsApp(item.phone, item.message);
+    if (!confirm('문자를 전송하셨나요?')) return;
+    const { data } = await supabase.from('follow_ups').select('sms_sent').eq('id', item.followUpId).single();
+    await supabase.from('follow_ups').update({ sms_sent: { ...((data?.sms_sent as Record<string, boolean> | null) || {}), [item.smsKey]: true } }).eq('id', item.followUpId);
+    fetchFollowUps();
+    fetchTeamBrief();
   };
   // 예약/일정 상세 줄에서 후기 요청 문자 (프로이즘·아우디·BMW). 보냈다고 하면 그 고객의 후기요청 사후관리에도 보낸 표시
   const handleReviewSmsFromAppointment = async (a: Appointment, key: 'proism' | 'bmw' | 'audi') => {
@@ -1380,13 +1395,9 @@ export default function CRMPage() {
           const plus = (n: number) => addDaysISO(today, n);
           const todayAppts = appointments.filter((a) => a.appointment_date <= today && (a.end_date || a.appointment_date) >= today && a.status !== '취소');
           const weekAppts = appointments.filter((a) => a.appointment_date > today && a.appointment_date <= plus(7) && a.status !== '취소').slice(0, 5);
-          // 오늘에 가까운 것부터 (몇 달 지난 미처리는 아래로 밀려 '모두 보기'에서)
-          const dueAll = followUps.filter((f) => !f.is_completed && f.scheduled_date <= plus(3)).sort((a, b) => b.scheduled_date.localeCompare(a.scheduled_date));
-          const dueFollow = dueAll.slice(0, homeFollowMore ? 10 : 3);
           const pendingCount = followUps.filter((f) => !f.is_completed).length;
-          const followName = (f: FollowUp) => f.customer?.name || (f.memo || '').split('\n')[0].split(' ')[0] || '-';
-          const followLabel = (f: FollowUp) => f.follow_up_type === 'QC점검' ? 'QC 점검' : f.follow_up_type === '견적재연락' ? '견적 재연락' : f.follow_up_type === '견적마무리' ? '견적 마무리' : f.follow_up_type;
-          const sentAny = (f: FollowUp) => Object.values(f.sms_sent || {}).some(Boolean);
+          const upcoming3 = followUps.filter((f) => !f.is_completed && f.scheduled_date > today && f.scheduled_date <= plus(3)).length;
+          const statusDot = (st: WorkerLine['status']) => st === 'ready' ? 'bg-brand' : st === 'done' ? 'bg-ok' : st === 'prepared' ? 'bg-[var(--c-border)]' : 'bg-[var(--c-text-4)]';
           const quick: { icon: string; label: string; desc: string; onClick: () => void }[] = [
             { icon: '👤', label: '고객 등록', desc: '새 고객 추가', onClick: () => setShowAddCustomer(true) },
             { icon: '📅', label: '예약 등록', desc: '입고 일정 잡기', onClick: () => setShowAddAppointment(true) },
@@ -1483,40 +1494,68 @@ export default function CRMPage() {
                   )}
                 </section>
 
-                {/* 연락할 사후관리 */}
+                {/* 오늘 AI가 한 일 (2026-11-12 AI 팀 1주차: 사후관리·상담 담당이 07시에 준비, 사장님은 건마다 보내기) */}
                 <section className={`${card} p-5 md:p-6`}>
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-bold text-[var(--c-text-1)]">연락할 사후관리 <span className="text-[var(--c-text-3)] text-sm font-medium ml-1">(3일 이내·지난 것)</span></h2>
-                    <button onClick={() => setActiveTab('followups')} className="text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-1)] transition-colors">전체 보기 →</button>
+                  <div className="flex items-center justify-between mb-4 gap-3">
+                    <h2 className="text-lg font-bold text-[var(--c-text-1)]">오늘 AI가 한 일 <span className="text-[var(--c-text-3)] text-sm font-medium ml-1">{fmtDot(today).slice(5)}</span></h2>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {teamBrief && teamBrief.totals.toSend > 0 && <span className="text-xs font-semibold text-brand">보낼 문자 {teamBrief.totals.toSend}건</span>}
+                      <button onClick={fetchTeamBrief} className="text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-1)] transition-colors">↻ 새로고침</button>
+                    </div>
                   </div>
-                  {dueFollow.length === 0 ? (
-                    <div className="py-12 text-center text-sm text-[var(--c-text-3)]">연락할 사후관리가 없습니다.</div>
+                  {!teamBrief ? (
+                    <div className="py-10 text-center text-sm text-[var(--c-text-3)]">준비한 일을 읽는 중…</div>
                   ) : (
                     <ul className="divide-y divide-[var(--c-border)]">
-                      {dueFollow.map((f) => (
-                        <li key={f.id} className="py-3 flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <span className={`font-bold tabular-nums shrink-0 ${f.scheduled_date < today ? 'text-brand' : 'text-[var(--c-text-1)]'}`}>{fmtDot(f.scheduled_date)}</span>
-                            <span className="font-semibold text-[15px] text-[var(--c-text-1)] truncate">{followName(f)}</span>
-                            <span className="text-sm text-[var(--c-text-3)] truncate">{followLabel(f)}</span>
-                          </div>
-                          <button onClick={() => handleHomeFollowSms(f)} className={`shrink-0 text-xs font-semibold px-3.5 py-1.5 rounded-full transition-colors ${sentAny(f) ? 'bg-[var(--c-subtle)] text-[var(--c-text-3)] hover:bg-[var(--c-hover)]' : 'bg-brand hover:bg-brand-dark text-white'}`}>
-                            {sentAny(f) ? '✓ 보냄 · 다시' : '💬 문자 보내기'}
-                          </button>
-                        </li>
-                      ))}
+                      {teamBrief.lines.map((l) => {
+                        const open = teamOpen === l.key && (l.items?.length ?? 0) > 0;
+                        const unsent = (l.items || []).filter((i) => !i.sent).length;
+                        return (
+                          <li key={l.key} className="py-3">
+                            <button
+                              onClick={() => setTeamOpen(open ? null : l.key)}
+                              disabled={!(l.items && l.items.length > 0)}
+                              className="w-full flex items-center gap-3 text-left disabled:cursor-default"
+                            >
+                              <span className={`w-2 h-2 rounded-full shrink-0 ${statusDot(l.status)}`} />
+                              <span className="text-xs text-[var(--c-text-4)] tabular-nums w-14 shrink-0">{l.time}</span>
+                              <span className={`font-semibold text-[15px] shrink-0 ${l.status === 'prepared' ? 'text-[var(--c-text-3)]' : 'text-[var(--c-text-1)]'}`}>{l.name}</span>
+                              <span className={`text-sm truncate ${l.status === 'prepared' ? 'text-[var(--c-text-4)]' : 'text-[var(--c-text-2)]'}`}>{l.status === 'prepared' ? `대기 · ${l.waitingFor || ''}` : l.summary}</span>
+                              {l.items && l.items.length > 0 && (
+                                <span className={`ml-auto shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full ${unsent > 0 ? 'bg-brand text-white' : 'bg-ok/10 text-ok'}`}>{unsent > 0 ? `${unsent}건 ${open ? '접기' : '보기'}` : '✓ 완료'}</span>
+                              )}
+                              {l.key === 'writer' && l.status !== 'idle' && (
+                                <span onClick={(e) => { e.stopPropagation(); setActiveTab('blog'); }} className="ml-auto shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full border border-[var(--c-border)] text-[var(--c-text-1)] hover:bg-[var(--c-subtle)]">열기</span>
+                              )}
+                            </button>
+                            {open && (
+                              <ul className="mt-2 ml-5 md:ml-[4.5rem] divide-y divide-[var(--c-border)] border-t border-[var(--c-border)]">
+                                {l.items!.map((it) => (
+                                  <li key={it.followUpId} className="py-2.5 flex items-center justify-between gap-3">
+                                    <div className="flex items-center gap-3 min-w-0">
+                                      <span className={`text-sm font-bold tabular-nums shrink-0 ${it.overdueDays > 0 ? 'text-brand' : 'text-[var(--c-text-1)]'}`}>{it.overdueDays > 0 ? `${it.overdueDays}일 지남` : '오늘'}</span>
+                                      <span className="font-semibold text-[15px] text-[var(--c-text-1)] truncate">{it.name}</span>
+                                      <span className="text-sm text-[var(--c-text-3)] truncate">{it.label}{it.car ? ` · ${it.car}` : ''}</span>
+                                    </div>
+                                    <button onClick={() => handleTeamSms(it)} className={`shrink-0 text-xs font-semibold px-3.5 py-1.5 rounded-full transition-colors ${it.sent ? 'bg-[var(--c-subtle)] text-[var(--c-text-3)] hover:bg-[var(--c-hover)]' : 'bg-brand hover:bg-brand-dark text-white'}`}>
+                                      {it.sent ? '✓ 보냄 · 다시' : '💬 보내기'}
+                                    </button>
+                                  </li>
+                                ))}
+                                {(l.olderCount ?? 0) > 0 && (
+                                  <li className="py-2 text-xs text-[var(--c-text-4)]">2주 넘게 밀린 {l.olderCount}건은 사후관리 탭에서 정리하세요</li>
+                                )}
+                              </ul>
+                            )}
+                          </li>
+                        );
+                      })}
                     </ul>
                   )}
-                  {dueAll.length > 3 && !homeFollowMore && (
-                    <button onClick={() => setHomeFollowMore(true)} className="mt-3 w-full text-sm font-semibold text-[var(--c-text-2)] hover:text-[var(--c-text-1)] py-2.5 rounded-xl bg-[var(--c-subtle)] hover:bg-[var(--c-hover)] transition-colors">
-                      + 더보기 ({dueAll.length - 3}건 더)
-                    </button>
-                  )}
-                  {homeFollowMore && pendingCount > dueFollow.length && (
-                    <button onClick={() => setActiveTab('followups')} className="mt-3 w-full text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-1)] py-2 rounded-xl border border-dashed border-[var(--c-border)] transition-colors">
-                      미처리 {pendingCount}건 모두 보기 →
-                    </button>
-                  )}
+                  <div className="mt-3 pt-3 border-t border-[var(--c-border)] flex items-center justify-between text-xs text-[var(--c-text-4)]">
+                    <span>다가오는 3일 {upcoming3}건 · 미처리 전체 {pendingCount}건</span>
+                    <button onClick={() => setActiveTab('followups')} className="hover:text-[var(--c-text-1)] transition-colors">사후관리 탭 →</button>
+                  </div>
                 </section>
               </div>
             </div>

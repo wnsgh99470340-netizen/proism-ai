@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/keepalive",
       "schedule": "0 18 * * *"
+    },
+    {
+      "path": "/api/cron/daily",
+      "schedule": "0 22 * * *"
     }
   ]
 }

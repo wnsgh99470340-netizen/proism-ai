@@ -35,3 +35,4 @@ npm-debug.log*
 
 # 영상 렌더 임시 작업 폴더
 .video-work/
+docs/*.pptx
