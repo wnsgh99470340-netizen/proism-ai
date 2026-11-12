@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useRef, useState } from 'react';
+import { INSTAGRAM_VIDEO_PAUSED, INSTAGRAM_PAUSED_NOTE } from '@/config/features';
 import { upload } from '@vercel/blob/client';
 import type { BlogJob } from '@/lib/jobs';
 import type { VideoState, ReelsState, TalkState, TalkCue } from '@/lib/video';
@@ -154,6 +155,9 @@ export default function VideoTab({ jobs, draft, activePostId, target, onJobsChan
         )}
       </section>
 
+      {INSTAGRAM_VIDEO_PAUSED ? (
+        <section className="rounded-xl border border-[var(--c-border)] p-3 text-[11px] text-[var(--c-text-3)]">⏸ {INSTAGRAM_PAUSED_NOTE}</section>
+      ) : (<>
       {/* ── 정보 릴스 ── */}
       <section className="space-y-2">
         <h4 className="text-xs font-semibold text-[var(--c-text-1)]">🎞️ 정보 릴스 <span className="font-normal text-[var(--c-text-3)]">(인스타용 세로 20~30초, 글에서 대본 3개 자동)</span></h4>
@@ -176,6 +180,8 @@ export default function VideoTab({ jobs, draft, activePostId, target, onJobsChan
         <TalkUpload onCreated={() => { setMsg('📥 올렸습니다. 음성을 받아 적고 자막을 붙이는 데 5~8분 걸립니다.'); onJobsChanged(); }} onError={(m) => setMsg(`⚠️ ${m}`)} />
         {talkJobs.map((j) => <TalkBlock key={j.id} job={j} onChanged={onJobsChanged} />)}
       </section>
+
+      </>)}
 
       {msg && <div className="text-[11px] text-[var(--c-text-2)]">{msg}</div>}
     </div>

@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { INSTAGRAM_VIDEO_PAUSED, INSTAGRAM_PAUSED_NOTE } from '@/config/features';
 import { supabase } from '@/lib/supabase';
 import { getJob, updateJob } from '@/lib/jobs';
 import { dispatchRender, type TalkState, type TalkCue } from '@/lib/video';
@@ -10,6 +11,7 @@ import { dispatchRender, type TalkState, type TalkCue } from '@/lib/video';
  * GET /api/talk                          — 최근 말하기 작업 목록
  */
 export async function POST(request: NextRequest) {
+  if (INSTAGRAM_VIDEO_PAUSED) return Response.json({ error: INSTAGRAM_PAUSED_NOTE }, { status: 423 });
   try {
     const body = await request.json() as { url?: string; name?: string };
     const url = (body.url || '').trim();
@@ -38,6 +40,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
+  if (INSTAGRAM_VIDEO_PAUSED) return Response.json({ error: INSTAGRAM_PAUSED_NOTE }, { status: 423 });
   const id = request.nextUrl.searchParams.get('id');
   if (!id) return Response.json({ error: 'id가 필요합니다.' }, { status: 400 });
   const job = await getJob(id);

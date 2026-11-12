@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { INSTAGRAM_VIDEO_PAUSED, INSTAGRAM_PAUSED_NOTE } from '@/config/features';
 import { getJob, updateJob } from '@/lib/jobs';
 import { dispatchRender, buildQueuedVideo, type ReelsState } from '@/lib/video';
 
@@ -9,6 +10,7 @@ import { dispatchRender, buildQueuedVideo, type ReelsState } from '@/lib/video';
  *     사진이 아직 없으면 photosUrl(구글 드라이브 폴더)로 사진 목록을 먼저 만든다.
  */
 export async function POST(request: NextRequest) {
+  if (INSTAGRAM_VIDEO_PAUSED) return Response.json({ error: INSTAGRAM_PAUSED_NOTE }, { status: 423 });
   try {
     const body = await request.json() as { jobId?: string; count?: number; photosUrl?: string };
     if (!body.jobId) return Response.json({ error: 'jobId가 필요합니다.' }, { status: 400 });
