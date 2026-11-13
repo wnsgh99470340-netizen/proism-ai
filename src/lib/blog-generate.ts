@@ -14,6 +14,7 @@ import { photoColorFromContext } from './photo-check';
 import { getOwnerStyle, styleToPrompt } from './owner-style';
 import { buildToneReference, savePost, listPosts } from './posts';
 import { BLOG_SYSTEM_PROMPT } from '@/config/prompts';
+import { BLOG_FORMATS, detectFormat, pickFormat, stockPhrasesIn, STOCK_PHRASES, type BlogFormat } from '@/config/blog-formats';
 import { extractTagsFromTitle, textToHtml } from './draft-format';
 
 /** 블로그 작성 모델 (담당 직원 설정과 무관하게 고정) */
@@ -229,8 +230,8 @@ ${original}
 
 const DRAFTS_DIR = path.join(process.cwd(), 'public', 'drafts');
 
-/** 이전에 저장된 글의 제목 + 도입부 첫 2줄 (최근 20개). DB 우선, 로컬 파일 폴백 */
-export type PreviousPost = { title: string; intro: string; closing: string };
+/** 이전에 저장된 글의 제목 + 도입 6줄 + 마무리 4줄 + 짐작한 형식 + 몸통 관용구 (최근 20개). DB 우선, 로컬 파일 폴백 */
+export type PreviousPost = { title: string; intro: string; closing: string; formatKey?: string | null; phrases?: string[] };
 
 /** 본문을 실제 문장 줄만으로 (HTML 태그·[사진 N]·해시태그·빈 줄 제거) */
 function textLines(body: string): string[] {
@@ -242,12 +243,13 @@ function textLines(body: string): string[] {
 
 const CONTACT_RE = /010-7287|서초중앙로|blog\.naver|^감사합니다/;
 
-/** 겹침 비교용: 도입 6줄 + 마무리 4줄(연락처 제외) */
-function summarizeForRepeat(body: string): { intro: string; closing: string } {
+/** 겹침 비교용: 도입 6줄 + 마무리 4줄(연락처 제외) + 형식·관용구 */
+function summarizeForRepeat(body: string): { intro: string; closing: string; formatKey: string | null; phrases: string[] } {
   const lines = textLines(body);
   const intro = lines.slice(0, 6).join(' / ');
   const closing = lines.filter(l => !CONTACT_RE.test(l)).slice(-4).join(' / ');
-  return { intro, closing };
+  const plain = lines.join('\n');
+  return { intro, closing, formatKey: detectFormat(plain)?.key ?? null, phrases: stockPhrasesIn(plain) };
 }
 
 const normLine = (s: string) => s.replace(/[\s.,!?~…·'"“”‘’()\-]/g, '');
@@ -261,7 +263,8 @@ export function checkIntroRepeat(body: string, previous: PreviousPost[]): Violat
   const prevClosing = new Set(previous.flatMap(p => p.closing.split(' / ')).map(normLine).filter(x => x.length >= 12));
 
   const opening = lines.slice(0, 4);
-  const stock = opening.find(l => /완성된?\s*모습|완성\s*사진부터|완성\s*컷부터/.test(l));
+  // "완성된 모습부터"의 변형("바뀐 뒤의 모습을 먼저 보시고", "먼저 보여드리고 시작")까지 잡는다 (2026-11-13 4시리즈 PWF 글)
+  const stock = opening.find(l => /완성된?\s*모습|완성\s*(사진|컷|모습)?\s*부터|먼저\s*보(시|여)|뒤의\s*모습|바뀐\s*모습/.test(l));
   const hit = stock || opening.find(l => normLine(l).length >= 10 && prevIntro.has(normLine(l)));
   if (hit) {
     v.push({ rule: 'intro', detail: `도입 "${hit}"이(가) 이전 글과 같음 → 도입 첫 3~4줄을 다른 방식(고객이 처음 고민하던 것·이 차의 구조 한 가지·흔한 오해·이 제품을 고른 이유·상담 때 자주 받는 질문 중 하나)으로 새로 쓰고, 자기소개는 도입 뒤로 옮기기` });
@@ -272,6 +275,25 @@ export function checkIntroRepeat(body: string, previous: PreviousPost[]): Violat
     v.push({ rule: 'intro', detail: `마무리 "${hitC}"이(가) 이전 글과 같음 → 마무리 문장을 다르게 다시 쓰기(연락처·주소는 유지)` });
   }
   return v;
+}
+
+/**
+ * 몸통 관용구 겹침 검사 (2026-11-13): 이번 글에 있는 관용구가 최근 6편 안에도 있으면 1회 수정 대상.
+ * 사실(QC·메인터넌스·끝단 마감)은 두고 말버릇만 바꾸게 한다
+ */
+export function checkBodyRepeat(body: string, previous: PreviousPost[]): Violation[] {
+  const mine = stockPhrasesIn(textLines(body).join('\n'));
+  if (mine.length === 0) return [];
+  const recent = new Set(previous.slice(0, 6).flatMap(p => p.phrases || []));
+  const hits = mine.filter(k => recent.has(k));
+  if (hits.length === 0) return [];
+  const labels = hits.map(k => STOCK_PHRASES.find(p => p.key === k)?.label || k);
+  return [{ rule: 'body', detail: `이전 글과 같은 말버릇: ${labels.join(', ')} → 그 문장을 다른 말로 바꾸거나 빼기(부위는 번호 매기지 말고 글 흐름 안에서 소개, 감상은 "개인적으로" 없이 한 줄, 작업 사실은 유지)` }];
+}
+
+/** 이전 글들이 쓴 형식 키(최신순) — 이번 글 형식 고르기용 */
+export function recentFormatKeys(previous: PreviousPost[]): (string | null)[] {
+  return previous.map(p => p.formatKey ?? null);
 }
 
 /** 이전 AI 글(초안·최종본) 목록 — 겹침 방지용. 사장님 글은 문체 참고이므로 제외 */
@@ -296,7 +318,7 @@ export async function getPreviousDrafts(): Promise<PreviousPost[]> {
         } catch {
           const nameWithoutExt = f.replace(/\.txt$/, '');
           const idx = nameWithoutExt.indexOf('_');
-          return { title: idx >= 0 ? nameWithoutExt.slice(idx + 1) : nameWithoutExt, intro: '', closing: '' };
+          return { title: idx >= 0 ? nameWithoutExt.slice(idx + 1) : nameWithoutExt, intro: '', closing: '', formatKey: null, phrases: [] };
         }
       })
     );
@@ -316,8 +338,14 @@ async function saveDraftFile(title: string, body: string): Promise<void> {
   } catch { /* 저장 실패해도 응답에는 영향 없음 */ }
 }
 
-/** 블로그 작성용 시스템 프롬프트: 규칙 + 사장님 문체 + 사전 조사 + 이전 글 목록 */
-export async function buildBlogSystemPrompt(researchContext: string, serviceType?: string, keyword?: string | null): Promise<string> {
+/** 이번 글 형식 고르기: 이전 글 목록을 보고 최근에 안 쓴 형식 */
+export async function chooseFormat(previous?: PreviousPost[]): Promise<BlogFormat> {
+  const prev = previous ?? await getPreviousDrafts();
+  return pickFormat(recentFormatKeys(prev));
+}
+
+/** 블로그 작성용 시스템 프롬프트: 규칙 + 이번 글 형식 + 사장님 문체 + 사전 조사 + 이전 글 목록 */
+export async function buildBlogSystemPrompt(researchContext: string, serviceType?: string, keyword?: string | null, format?: BlogFormat | null): Promise<string> {
   const [toneReference, ownerStyle] = await Promise.all([buildToneReference(serviceType), getOwnerStyle()]);
   const styleContext = ownerStyle ? styleToPrompt(ownerStyle) : '';
   const keywordContext = keyword
@@ -325,12 +353,19 @@ export async function buildBlogSystemPrompt(researchContext: string, serviceType
     : '';
   const vehicleContext = researchContext ? '\n\n' + researchContext : '';
   const previousDrafts = await getPreviousDrafts();
+  const fmt = format ?? pickFormat(recentFormatKeys(previousDrafts));
+  const formatContext = `\n\n[이번 글의 형식 — 필수: ${fmt.name}]\n${fmt.brief}\n이 형식이 글의 뼈대다. 아래 "구조"의 공통 요소(자기소개 한 줄·차량 2~3줄·관리 2~3줄·상담 문턱 한 줄·연락처)는 이 뼈대 안에 자리를 찾아 넣고, 부위를 "가장 이야기하고 싶은 → 두 번째 → 세 번째"로 번호 매겨 훑지 않는다.`;
   let previousContext = '';
   if (previousDrafts.length > 0) {
-    const list = previousDrafts.map((d, i) => `${i + 1}. ${d.title}${d.intro ? `\n   도입: ${d.intro}` : ''}${d.closing ? `\n   마무리: ${d.closing}` : ''}`).join('\n');
-    previousContext = `\n\n[이전에 작성한 글 — 겹침 금지]\n아래 글들의 도입 순서·첫 문장·마무리 문장을 그대로 쓰지 마세요. 특히 "완성된 모습부터 보여드립니다 → 자기소개 → 자격 → 신차 출고 직후" 순서가 이미 여러 번 쓰였으니 이번 글은 다른 방식으로 엽니다. 마무리도 아래와 다른 문장으로 끝냅니다.\n${list}`;
+    const fmtName = (k?: string | null) => BLOG_FORMATS.find(f => f.key === k)?.name;
+    const phraseLabel = (k: string) => STOCK_PHRASES.find(p => p.key === k)?.label;
+    const list = previousDrafts.map((d, i) => {
+      const extra = [fmtName(d.formatKey) ? `형식: ${fmtName(d.formatKey)}` : '', d.phrases?.length ? `말버릇: ${d.phrases.map(phraseLabel).filter(Boolean).join(' · ')}` : ''].filter(Boolean).join(' / ');
+      return `${i + 1}. ${d.title}${d.intro ? `\n   도입: ${d.intro}` : ''}${d.closing ? `\n   마무리: ${d.closing}` : ''}${extra ? `\n   ${extra}` : ''}`;
+    }).join('\n');
+    previousContext = `\n\n[이전에 작성한 글 — 겹침 금지]\n아래 글들의 도입 첫 문장·마무리 문장·"말버릇"에 적힌 표현을 이번 글에 쓰지 않는다. "완성된 모습부터 보여드립니다"와 그 변형(바뀐 뒤의 모습을 먼저 보시고 등)으로 열지 않는다. 몸통도 전처리 → 부위 1·2·3 → 루프 → 전체 → 감상 → QC → 메인터넌스 순서를 되풀이하지 말고 [이번 글의 형식]을 따른다.\n${list}`;
   }
-  return `${BLOG_SYSTEM_PROMPT}${keywordContext}${styleContext}${toneReference}${vehicleContext}${previousContext}`;
+  return `${BLOG_SYSTEM_PROMPT}${formatContext}${keywordContext}${styleContext}${toneReference}${vehicleContext}${previousContext}`;
 }
 
 export interface RunWriterOptions {
@@ -345,13 +380,15 @@ export interface RunWriterOptions {
   researchSummary?: string;
   /** 초안을 DB에 저장할지 (블로그 요청일 때만) */
   save: boolean;
+  /** 이번 글에 지정한 형식 이름 (접수 요약에 표시) */
+  formatName?: string;
 }
 
 /**
  * 작성 → 검사 → 1회 수정 → draft 구성 → 저장. /api/chat 과 백그라운드 작업이 공유하는 핵심.
  */
 export async function runWriter(opts: RunWriterOptions): Promise<WriterResult> {
-  const { systemPrompt, model, history = [], combinedMessage, target, researchSummary = '', save, knownColor = null } = opts;
+  const { systemPrompt, model, history = [], combinedMessage, target, researchSummary = '', save, knownColor = null, formatName } = opts;
   const messages = [
     ...history.map(h => ({ role: h.role as 'user' | 'assistant', content: h.content })),
     { role: 'user' as const, content: combinedMessage },
@@ -364,7 +401,7 @@ export async function runWriter(opts: RunWriterOptions): Promise<WriterResult> {
   const serviceType = target.serviceType;
   const first = splitTitleBody(reply);
   const previous = save ? await getPreviousDrafts() : [];
-  let violations = first ? [...checkHardViolations(first.body, combinedMessage, serviceType, knownColor), ...checkIntroRepeat(first.body, previous)] : [];
+  let violations = first ? [...checkHardViolations(first.body, combinedMessage, serviceType, knownColor), ...checkIntroRepeat(first.body, previous), ...checkBodyRepeat(first.body, previous)] : [];
   let factIssues: FactIssue[] = first ? factCheck({ body: first.body, serviceType, product: target.product ?? undefined }) : [];
   let formatIssues = first ? checkFormatIssues(first.title, first.body, target.keyword) : [];
   const pureLen = (b: string) => b.replace(/\[사진\s*\d+\]/g, '').replace(/\s/g, '').length;
@@ -378,7 +415,7 @@ export async function runWriter(opts: RunWriterOptions): Promise<WriterResult> {
       const fixed = await fixIssues(systemPrompt, reply, issues, model);
       const f = splitTitleBody(fixed);
       if (f && pureLen(f.body) >= Math.min(1500, pureLen(cur.body))) {
-        const fixedViolations = [...checkHardViolations(f.body, combinedMessage, serviceType, knownColor), ...checkIntroRepeat(f.body, previous)];
+        const fixedViolations = [...checkHardViolations(f.body, combinedMessage, serviceType, knownColor), ...checkIntroRepeat(f.body, previous), ...checkBodyRepeat(f.body, previous)];
         const fixedFacts = factCheck({ body: f.body, serviceType, product: target.product ?? undefined });
         const fixedFormat = checkFormatIssues(f.title, f.body, target.keyword);
         // 위반·팩트 오류가 늘지 않고 형식 미달이 줄었거나 같으면 채택
@@ -399,7 +436,7 @@ export async function runWriter(opts: RunWriterOptions): Promise<WriterResult> {
       const stripped = cur.body.split(/\n\s*\n/).filter(p => !/발수/.test(p)).join('\n\n');
       if (pureLen(stripped) >= 1500) {
         reply = `${cur.title}\n${stripped}`;
-        violations = [...checkHardViolations(stripped, combinedMessage, serviceType, knownColor), ...checkIntroRepeat(stripped, previous)];
+        violations = [...checkHardViolations(stripped, combinedMessage, serviceType, knownColor), ...checkIntroRepeat(stripped, previous), ...checkBodyRepeat(stripped, previous)];
         factIssues = factCheck({ body: stripped, serviceType, product: target.product ?? undefined });
         formatIssues = checkFormatIssues(cur.title, stripped, target.keyword);
       }
@@ -411,6 +448,7 @@ export async function runWriter(opts: RunWriterOptions): Promise<WriterResult> {
   if (!draftResult) return { reply, draft: null, checks: null, draftId: null, target: null };
 
   const notes: string[] = ['블로그 글이 완성되었습니다.'];
+  if (formatName) notes.push(`이번 글 형식: ${formatName} (최근 글과 다른 형식을 자동으로 골랐습니다)`);
   if (violations.length > 0) notes.push(`확인 필요: ${violations.map(v => v.detail).join(' / ')}`);
   notes.push(factIssues.length > 0 ? `팩트체크 ${factIssues.length}건 확인 필요: ${factIssues.map(f => f.detail).join(' / ')}` : '팩트체크 통과 (제품·시공 규칙 위반 없음)');
   if (formatIssues.length > 0) notes.push(`형식: ${formatIssues.join(' / ')}`);
@@ -451,7 +489,8 @@ export async function generateBlogPost(input: {
   const t = resolveTarget(input.message, input.request);
   const keyword = input.request?.keyword?.trim() || extractKeyword(input.message);
   const target: Target = { carModel: t.carModel, serviceType: t.serviceType, product: t.product, region: input.request?.region || null, keyword };
-  const systemPrompt = await buildBlogSystemPrompt(input.research?.context || '', target.serviceType, keyword);
+  const format = await chooseFormat();
+  const systemPrompt = await buildBlogSystemPrompt(input.research?.context || '', target.serviceType, keyword, format);
   const knownColor = input.request?.color?.trim() || photoColorFromContext(input.research?.context);
   return runWriter({
     systemPrompt,
@@ -462,6 +501,7 @@ export async function generateBlogPost(input: {
     researchSummary: input.research?.summary || '',
     save: true,
     knownColor,
+    formatName: format.name,
   });
 }
 
