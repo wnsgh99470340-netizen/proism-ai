@@ -15,6 +15,11 @@ export interface BlogFormat {
 
 export const BLOG_FORMATS: BlogFormat[] = [
   {
+    key: 'standard',
+    name: '기본 시공기',
+    brief: '평범한 시공기. 도입 한 가지(고객 고민·차의 구조·제품을 고른 이유 중 하나) → 자기소개 → 차량·의뢰 → 작업을 실제 순서대로(전처리 → 사장님이 알려준 까다로운 부위 1~2곳을 깊게 → 나머지는 한 문단) → 완성 → 관리 2~3줄 → 상담 문턱 한 줄 → 연락처. 부위에 번호를 매기지 않고, 완성 사진 설명으로 열지 않는다.',
+  },
+  {
     key: 'one_part',
     name: '한 부위만 끝까지',
     brief: '이 차에서 가장 중요한 부위 하나(뒷범퍼·도어·루프 중 사장님이 알려준 것)를 글 전체의 축으로 삼는다. 그 부위의 구조 → 왜 어려운지 → 어떤 순서로 붙였는지 → 완성 뒤 어떻게 보이는지를 길게 쓴다. 다른 부위는 마지막에 한 문단으로만.',
@@ -76,6 +81,18 @@ export function pickFormat(recentKeys: (string | null)[]): BlogFormat {
 
 export function formatByKey(key: string | null | undefined): BlogFormat | null {
   return BLOG_FORMATS.find(f => f.key === key) || null;
+}
+
+/** 채팅·메모에서 사장님이 형식을 지정했으면 찾는다: "형식: 기본", "평범한 시공기로", "작업 일지로 써줘" */
+export function formatFromMessage(text: string): BlogFormat | null {
+  const t = text || '';
+  if (/평범한 시공기|기본 시공기|보통 시공기|형식\s*[:：]\s*(기본|평범|보통)/.test(t)) return formatByKey('standard');
+  const m = t.match(/형식\s*[:：]\s*([^\n.。,]+)/);
+  const want = m ? m[1].trim() : '';
+  const byName = (s: string) => BLOG_FORMATS.find(f => s.includes(f.name) || f.name.includes(s));
+  if (want) { const f = byName(want); if (f) return f; }
+  for (const f of BLOG_FORMATS) if (f.key !== 'standard' && new RegExp(f.name + '(으)?로').test(t)) return f;
+  return null;
 }
 
 /**

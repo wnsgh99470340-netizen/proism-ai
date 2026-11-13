@@ -14,7 +14,7 @@ import { photoColorFromContext } from './photo-check';
 import { getOwnerStyle, styleToPrompt } from './owner-style';
 import { buildToneReference, savePost, listPosts } from './posts';
 import { BLOG_SYSTEM_PROMPT } from '@/config/prompts';
-import { BLOG_FORMATS, detectFormat, pickFormat, stockPhrasesIn, STOCK_PHRASES, type BlogFormat } from '@/config/blog-formats';
+import { BLOG_FORMATS, detectFormat, pickFormat, stockPhrasesIn, STOCK_PHRASES, formatByKey, formatFromMessage, type BlogFormat } from '@/config/blog-formats';
 import { extractTagsFromTitle, textToHtml } from './draft-format';
 
 /** 블로그 작성 모델 (담당 직원 설정과 무관하게 고정) */
@@ -448,7 +448,7 @@ export async function runWriter(opts: RunWriterOptions): Promise<WriterResult> {
   if (!draftResult) return { reply, draft: null, checks: null, draftId: null, target: null };
 
   const notes: string[] = ['블로그 글이 완성되었습니다.'];
-  if (formatName) notes.push(`이번 글 형식: ${formatName} (최근 글과 다른 형식을 자동으로 골랐습니다)`);
+  if (formatName) notes.push(`이번 글 형식: ${formatName}`);
   if (violations.length > 0) notes.push(`확인 필요: ${violations.map(v => v.detail).join(' / ')}`);
   notes.push(factIssues.length > 0 ? `팩트체크 ${factIssues.length}건 확인 필요: ${factIssues.map(f => f.detail).join(' / ')}` : '팩트체크 통과 (제품·시공 규칙 위반 없음)');
   if (formatIssues.length > 0) notes.push(`형식: ${formatIssues.join(' / ')}`);
@@ -489,7 +489,8 @@ export async function generateBlogPost(input: {
   const t = resolveTarget(input.message, input.request);
   const keyword = input.request?.keyword?.trim() || extractKeyword(input.message);
   const target: Target = { carModel: t.carModel, serviceType: t.serviceType, product: t.product, region: input.request?.region || null, keyword };
-  const format = await chooseFormat();
+  // 사장님이 폼·채팅으로 형식을 지정했으면 그것, 아니면 최근 글에 안 쓴 형식
+  const format = formatByKey(input.request?.format) || formatFromMessage(`${input.request?.notes || ''}\n${input.message}`) || await chooseFormat();
   const systemPrompt = await buildBlogSystemPrompt(input.research?.context || '', target.serviceType, keyword, format);
   const knownColor = input.request?.color?.trim() || photoColorFromContext(input.research?.context);
   return runWriter({

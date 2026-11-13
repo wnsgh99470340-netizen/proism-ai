@@ -100,6 +100,8 @@ export interface BlogRequest {
   notes?: string;
   /** 이번 글 제목에 반드시 넣을 키워드 (사장님이 요청 때마다 지정, 2026-11-11) */
   keyword?: string;
+  /** 글 형식 키(src/config/blog-formats.ts). 비우면 최근 글에 안 쓴 형식을 자동 선택 (2026-11-13) */
+  format?: string;
   /** 시공 사진이 들어 있는 구글 드라이브 공유 폴더 링크. 있으면 글 완성 뒤 영상을 자동 제작 */
   photosUrl?: string;
   /** 세로(9:16) 영상도 함께 만들기 */
