@@ -1,5 +1,6 @@
 import { NextRequest, after } from 'next/server';
 import { createJob, listJobs, deleteJob, getJob, updateJob, kickJob, reviveStalledJobs } from '@/lib/jobs';
+import { dispatchRender } from '@/lib/video';
 import type { BlogRequest } from '@/config/blog-options';
 import { resolveTarget, isAutoBlogService } from '@/lib/blog-research';
 
@@ -39,13 +40,21 @@ export async function POST(request: NextRequest) {
   }
 }
 
-/** PATCH /api/jobs?id=...&action=retry — 실패한 작업 다시 시작 (조사 결과가 있으면 작성부터) */
+/**
+ * PATCH /api/jobs?id=...&action=retry — 실패한 작업 다시 시작 (조사 결과가 있으면 작성부터)
+ * PATCH /api/jobs?id=...&action=dispatch — 대기 중인 영상 작업의 깃허브 액션만 바로 깨운다 (렌더 설정은 그대로, 2026-11-13 토큰 연결 확인용)
+ */
 export async function PATCH(request: NextRequest) {
   const id = request.nextUrl.searchParams.get('id');
   const action = request.nextUrl.searchParams.get('action');
-  if (!id || action !== 'retry') return Response.json({ error: 'id와 action=retry가 필요합니다.' }, { status: 400 });
+  if (!id || (action !== 'retry' && action !== 'dispatch')) return Response.json({ error: 'id와 action=retry|dispatch가 필요합니다.' }, { status: 400 });
   const job = await getJob(id);
   if (!job) return Response.json({ error: '작업을 찾을 수 없습니다.' }, { status: 404 });
+  if (action === 'dispatch') {
+    const hasToken = Boolean(process.env.GITHUB_DISPATCH_TOKEN);
+    const dispatched = hasToken ? await dispatchRender(id) : false;
+    return Response.json({ ok: dispatched, hasToken, dispatched, note: dispatched ? '깃허브 액션을 깨웠습니다' : hasToken ? '토큰은 있지만 깃허브가 거부했습니다 (권한 확인)' : 'GITHUB_DISPATCH_TOKEN 이 없습니다' });
+  }
   const status = job.research ? 'writing' : 'queued';
   await updateJob(id, { status, error: null, attempts: 0 });
   const origin = request.nextUrl.origin;
