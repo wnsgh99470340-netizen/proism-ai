@@ -91,7 +91,7 @@ export function normalizeTerms(text: string): string {
 }
 
 /** 사장님이 쓰지 않는 부품 용어 (2026-11-12 "카울·휠아치 같은 말은 쓴 적 없다") */
-const JARGON_RE = /카울|휠\s*아치|에어\s*브리더|벨트\s*라인|쇼울더|숄더\s*라인|스플리터|범퍼\s*립|하단\s*립/;
+const JARGON_RE = /카울|휠\s*아치|에어\s*브리더|에어\s*커튼|인테이크|벨트\s*라인|쇼울더|숄더\s*라인|스플리터|범퍼\s*립|하단\s*립/;
 
 const COLOR_GROUPS: [RegExp, string][] = [
   [/블랙|검정|검은/, '블랙'], [/화이트|흰색|흰\s*차|하얀/, '화이트'], [/그레이|회색/, '그레이'], [/실버|은색/, '실버'],
@@ -112,7 +112,7 @@ export function checkHardViolations(body: string, userInput: string, serviceType
 
   // 0-2. 요청에 없는 고객 사정·보증 기간 (2026-11-12 X5 글: "신차로 들어오셨고요", "3~4년 타실 계획", "5년 보증" 전부 지어낸 것)
   if (!/신차|출고/.test(userInput)) {
-    const m = body.match(/신차로|신차여서|신차라서|출고\s*직후|출고된\s*지|출고한\s*지/);
+    const m = body.match(/신차로|신차여서|신차라서|출고\s*직후|출고된\s*지|출고한\s*지|출고\s*후\s*바로|출고하고\s*바로|새\s*차(?:로|라서|여서)/);
     if (m) v.push({ rule: 'unprovided', detail: `요청에 없는 고객 사정 "${m[0]}" (신차 여부를 모르면 쓰지 않는다)` });
   }
   if (!/보증/.test(userInput)) {
@@ -127,8 +127,16 @@ export function checkHardViolations(body: string, userInput: string, serviceType
   // 0-1. 사진·요청으로 확인된 차량 색상과 다른 색 (필름·트림·휠 색 문장은 제외)
   const known = knownColor ? colorGroup(knownColor) : null;
   if (known) {
-    const bad = body.split('\n').find(l => !/2080|글로스|피아노|트림|몰딩|휠|필름|캘리퍼|실내/.test(l) && colorGroup(l) && colorGroup(l) !== known);
+    // 2026-11-13: 컬러PPF·랩핑은 "블루 도장 위에 매트블랙"처럼 원색과 필름색이 한 줄에 같이 나오므로, 원색이 함께 적힌 줄은 잡지 않는다
+    const knownRe = COLOR_GROUPS.find(([, name]) => name === known)?.[0];
+    const bad = body.split('\n').find(l => !/2080|글로스|피아노|트림|몰딩|휠|필름|캘리퍼|실내/.test(l) && !(knownRe && knownRe.test(l)) && colorGroup(l) && colorGroup(l) !== known);
     if (bad) v.push({ rule: 'color', detail: `차량 색상은 ${known}인데 다른 색으로 서술: "${bad.trim().slice(0, 30)}"` });
+  }
+
+  // 0-3. 요청에 없는 탈거 서술 (2026-11-13 4시리즈 PWF 글 "손잡이는 탈거한 뒤" 지어낸 것). 크롬죽이기의 손잡이 탈거는 시공 규칙이라 허용
+  if (!/탈거|분해|떼어/.test(userInput)) {
+    const m = body.match(/[^\n]{0,12}탈거[^\n]{0,8}/);
+    if (m && !(/크롬/.test(serviceType) && /손잡이/.test(m[0]))) v.push({ rule: 'unprovided', detail: `요청에 없는 탈거 서술 "${m[0].trim()}" (탈거 여부를 모르면 쓰지 않는다. 그 문장은 끝단 마감 서술로 바꾸기)` });
   }
 
   // 1. PPF·컬러PPF·PWF 글의 열·오버랩 표현

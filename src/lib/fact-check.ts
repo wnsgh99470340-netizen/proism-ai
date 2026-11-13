@@ -120,6 +120,11 @@ export function factCheck({ body, serviceType, product = '' }: FactInput): FactI
     const m = firstMatch(body, /PWF[^\n]{0,10}(?:랩핑\s*필름|2080)/);
     if (m) issues.push({ rule: 'pwf_vs_wrap', detail: `PWF는 컬러PPF(랩핑 아님): "${m}"` });
   }
+  // F13. PWF 스펙은 "건식·색변경+도장보호" 외에 확인된 것 없음 — 셀프힐링·두께·발수 서술 금지 (2026-11-13)
+  if (isPWF) {
+    const m = firstMatch(body, /셀프\s*힐링|자가\s*복원|발수\s*코팅|\d{3}\s*μm|\d{3}\s*마이크/);
+    if (m) issues.push({ rule: 'pwf_spec', detail: `PWF 스펙으로 확인된 건 건식·색변경+도장보호만. 지어낸 스펙 삭제: "${m}"` });
+  }
   if (isWrap || isChrome) {
     const m = firstMatch(body, /PWF/);
     if (m && !/PWF[^\n]{0,20}(?:달리|다르|아닌|와는)/.test(body)) issues.push({ rule: 'pwf_vs_wrap', detail: `${svc} 글에 PWF 언급(제품은 3M 2080)` });
