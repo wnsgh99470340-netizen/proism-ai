@@ -70,13 +70,14 @@ export function detectFormat(body: string): BlogFormat | null {
 }
 
 /** 최근 글에 쓰인 형식을 피해 하나 고른다. 전부 쓰였으면 가장 오래전에 쓰인 것 */
-export function pickFormat(recentKeys: (string | null)[]): BlogFormat {
+export function pickFormat(recentKeys: (string | null)[], exclude: string[] = []): BlogFormat {
+  const pool = BLOG_FORMATS.filter(f => !exclude.includes(f.key));
   const used = recentKeys.filter((k): k is string => Boolean(k));
-  const unused = BLOG_FORMATS.filter(f => !used.includes(f.key));
+  const unused = pool.filter(f => !used.includes(f.key));
   if (unused.length > 0) return unused[Math.floor(Math.random() * unused.length)];
   // recentKeys 는 최신순 → 뒤에 있을수록 오래전
   const lastIndex = (key: string) => recentKeys.indexOf(key);
-  return [...BLOG_FORMATS].sort((a, b) => lastIndex(b.key) - lastIndex(a.key))[0];
+  return [...pool].sort((a, b) => lastIndex(b.key) - lastIndex(a.key))[0];
 }
 
 export function formatByKey(key: string | null | undefined): BlogFormat | null {

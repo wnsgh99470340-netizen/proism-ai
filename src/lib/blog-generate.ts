@@ -139,6 +139,19 @@ export function checkHardViolations(body: string, userInput: string, serviceType
     if (m && !(/크롬/.test(serviceType) && /손잡이/.test(m[0]))) v.push({ rule: 'unprovided', detail: `요청에 없는 탈거 서술 "${m[0].trim()}" (탈거 여부를 모르면 쓰지 않는다. 그 문장은 끝단 마감 서술로 바꾸기)` });
   }
 
+  // 0-4. 차량 구조 지어내기 (2026-11-14 5시리즈 글에 "프레임리스 도어" — 4시리즈 자료가 섞인 것). 요청에 없으면 쓰지 않는다
+  if (!/프레임리스/.test(userInput)) {
+    const m = body.match(/프레임리스[^\n]{0,10}/);
+    if (m) v.push({ rule: 'unprovided', detail: `요청에 없는 차량 구조 "${m[0].trim()}" (이 차가 프레임리스인지 확인 안 됨 → 그 문장 삭제)` });
+  }
+  // 0-5. 썬팅 농도 숫자는 요청에 있는 것만 (2026-11-14 "전면을 40이나 50으로", "측후면을 5까지" 권유 수치 지어냄)
+  if (/썬팅|신차패키지/.test(serviceType)) {
+    const given = new Set(Array.from(userInput.matchAll(/(\d{1,2})\s*%/g)).map(m => m[1]));
+    const used = Array.from(body.matchAll(/(\d{1,2})\s*(?:%|퍼센트|프로)|(\d{1,2})(?=\s*(?:이나\s*\d|으로\s*올리|로\s*올리|까지\s*내리|로\s*내리))/g)).map(m => m[1] || m[2]);
+    const bad = Array.from(new Set(used.filter(n => !given.has(n))));
+    if (bad.length) v.push({ rule: 'unprovided', detail: `요청에 없는 썬팅 농도 ${bad.map(n => `${n}%`).join(', ')} (다른 농도 권유·비교 문장 삭제. 이 차의 농도만 쓴다)` });
+  }
+
   // 1. PPF·컬러PPF·PWF 글의 열·오버랩 표현
   if (/PPF|PWF/.test(serviceType)) {
     const m = body.match(/열\s*성형|히팅\s*건|열을\s*가[해하]|열로\s*(?:늘|당|잡|펴)|포스트\s*히팅|오버랩/);
@@ -347,9 +360,9 @@ async function saveDraftFile(title: string, body: string): Promise<void> {
 }
 
 /** 이번 글 형식 고르기: 이전 글 목록을 보고 최근에 안 쓴 형식 */
-export async function chooseFormat(previous?: PreviousPost[]): Promise<BlogFormat> {
+export async function chooseFormat(previous?: PreviousPost[], exclude: string[] = []): Promise<BlogFormat> {
   const prev = previous ?? await getPreviousDrafts();
-  return pickFormat(recentFormatKeys(prev));
+  return pickFormat(recentFormatKeys(prev), exclude);
 }
 
 /** 블로그 작성용 시스템 프롬프트: 규칙 + 이번 글 형식 + 사장님 문체 + 사전 조사 + 이전 글 목록 */
@@ -498,7 +511,9 @@ export async function generateBlogPost(input: {
   const keyword = input.request?.keyword?.trim() || extractKeyword(input.message);
   const target: Target = { carModel: t.carModel, serviceType: t.serviceType, product: t.product, region: input.request?.region || null, keyword };
   // 사장님이 폼·채팅으로 형식을 지정했으면 그것, 아니면 최근 글에 안 쓴 형식
-  const format = formatByKey(input.request?.format) || formatFromMessage(`${input.request?.notes || ''}\n${input.message}`) || await chooseFormat();
+  // 신차패키지는 여러 시공을 다루므로 한 부위·QC 시점 형식은 피한다 (2026-11-14 5시리즈 글이 앞유리 하나로 흘렀던 일)
+  const exclude = /신차패키지/.test(target.serviceType) ? ['one_part', 'care'] : [];
+  const format = formatByKey(input.request?.format) || formatFromMessage(`${input.request?.notes || ''}\n${input.message}`) || await chooseFormat(undefined, exclude);
   const systemPrompt = await buildBlogSystemPrompt(input.research?.context || '', target.serviceType, keyword, format);
   const knownColor = input.request?.color?.trim() || photoColorFromContext(input.research?.context);
   return runWriter({
