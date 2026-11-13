@@ -129,7 +129,7 @@ export function checkHardViolations(body: string, userInput: string, serviceType
   if (known) {
     // 2026-11-13: 컬러PPF·랩핑은 "블루 도장 위에 매트블랙"처럼 원색과 필름색이 한 줄에 같이 나오므로, 원색이 함께 적힌 줄은 잡지 않는다
     const knownRe = COLOR_GROUPS.find(([, name]) => name === known)?.[0];
-    const bad = body.split('\n').find(l => !/2080|글로스|피아노|트림|몰딩|휠|필름|캘리퍼|실내/.test(l) && !(knownRe && knownRe.test(l)) && colorGroup(l) && colorGroup(l) !== known);
+    const bad = body.split('\n').find(l => !/2080|글로스|피아노|트림|몰딩|휠|필름|캘리퍼|실내|그릴|랩핑|크롬/.test(l) && !(knownRe && knownRe.test(l)) && colorGroup(l) && colorGroup(l) !== known);
     if (bad) v.push({ rule: 'color', detail: `차량 색상은 ${known}인데 다른 색으로 서술: "${bad.trim().slice(0, 30)}"` });
   }
 

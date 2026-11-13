@@ -120,6 +120,17 @@ export function factCheck({ body, serviceType, product = '' }: FactInput): FactI
     const m = firstMatch(body, /PWF[^\n]{0,10}(?:랩핑\s*필름|2080)/);
     if (m) issues.push({ rule: 'pwf_vs_wrap', detail: `PWF는 컬러PPF(랩핑 아님): "${m}"` });
   }
+  // F14. 썬팅 필름 스펙 지어내기 (2026-11-14 산타나 "비금속이라 전파 간섭 없음") — 필름 스펙은 알려준 것만(크리스탈라인 겹수 외 금지)
+  if (/썬팅|신차패키지/.test(svc)) {
+    const m = firstMatch(body, /비금속|금속\s*성분|전파\s*간섭|열\s*차단율?\s*\d|적외선\s*차단\s*\d|IR\s*\d{2}|자외선\s*차단\s*\d/);
+    if (m) issues.push({ rule: 'tint_spec', detail: `썬팅 필름 스펙은 알려준 것만. 지어낸 스펙 삭제: "${m}"` });
+  }
+  // F15. 메인터넌스 내용 지어내기 (2026-11-14 "필름 위에 전용 코팅제를 도포") — 메인터넌스는 점검으로만, 작업 내용 서술 금지
+  {
+    const m = firstMatch(body, /(?:전용\s*)?코팅제를?\s*(?:도포|발라|올려)|메인터넌스[^\n]{0,30}(?:코팅제|왁스|광택\s*작업)/);
+    if (m) issues.push({ rule: 'maintenance_detail', detail: `메인터넌스는 필름 상태·끝단 점검으로만 쓴다. 지어낸 작업 삭제: "${m}"` });
+  }
+
   // F13. PWF 스펙은 "건식·색변경+도장보호" 외에 확인된 것 없음 — 셀프힐링·두께·발수 서술 금지 (2026-11-13)
   if (isPWF) {
     const m = firstMatch(body, /셀프\s*힐링|자가\s*복원|발수\s*코팅|\d{3}\s*μm|\d{3}\s*마이크/);
