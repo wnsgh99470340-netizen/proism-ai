@@ -313,6 +313,64 @@ export function checkBodyRepeat(body: string, previous: PreviousPost[]): Violati
   return [{ rule: 'body', detail: `이전 글과 같은 말버릇: ${labels.join(', ')} → 그 문장을 다른 말로 바꾸거나 빼기(부위는 번호 매기지 말고 글 흐름 안에서 소개, 감상은 "개인적으로" 없이 한 줄, 작업 사실은 유지)` }];
 }
 
+/**
+ * 문단 안 키워드 몰아 쓰기 검사 (2026-11-16 김민우실장: 좁은 공간에 같은 키워드를 여러 번 반복하면 광고로 인식돼 질이 낮아진다는 뇌피셜 룰,
+ * 기둥 글 한 문단에 "3M" 4~5회가 몰려 있었음). 문단(빈 줄 기준) 하나에 같은 말이 3회 이상이면 1회 수정 대상.
+ * 서명 줄("3M 프리퍼드 인스톨러 매장, 3M 프로이즘 …진준호입니다")의 2회는 세지 않는다. 해시태그·사진 태그·연락처 줄 제외.
+ * 글 전체로는 "3M"만 따로 본다(브랜드명이 서른 번 넘게 나오던 일). 지역명 3~5회 규칙과 충돌하지 않게 전체 횟수는 브랜드만.
+ */
+const DENSITY_TERMS = ['3M', '프로이즘', '프리퍼드 인스톨러', 'PPF', '컬러PPF', 'PWF', '랩핑', '크롬죽이기', '썬팅', '유리막코팅', '신차패키지', '신차검수',
+  '강남', '서초', '역삼', '청담', '양재', '반포', '잠원', '논현', '방배', '삼성동', '대치', '송파', '분당', '판교', '하남'];
+const PARA_MAX = 2;        // 문단당 같은 말 최대 2회(브랜드·지역·제목 키워드)
+const SERVICE_TERMS = new Set(['PPF', '컬러PPF', 'PWF', '랩핑', '크롬죽이기', '썬팅', '유리막코팅', '신차패키지', '신차검수']);
+const SERVICE_PARA_MAX = 3; // 시공 종류는 의뢰 목록 문단에서 3회까지 자연스러움(5시리즈 신차패키지 글)
+const BRAND_TOTAL_MAX = 12; // 글 전체 "3M" 최대
+const SIGNATURE_LINE_RE = /진준호(입니다|였습니다)/;
+
+function countTerm(text: string, term: string): number {
+  const re = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), term === '3M' ? 'gi' : 'g');
+  return (text.match(re) || []).length;
+}
+
+export function checkKeywordDensity(body: string, keyword?: string | null): Violation[] {
+  const plain = body.replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n').replace(/<[^>]+>/g, '');
+  const paras = plain.split(/\n\s*\n/).map(p =>
+    p.split('\n').map(l => l.trim()).filter(l => l && !/^\[사진\s*\d+\]$/.test(l) && !l.startsWith('#') && !CONTACT_RE.test(l))
+  ).filter(p => p.length > 0);
+  const terms = [...DENSITY_TERMS];
+  if (keyword) for (const t of keyword.split(/\s+/).filter(t => t.length >= 2 && !terms.includes(t))) terms.push(t);
+  // 용어별 가장 심한 문단만 보고한다
+  const worst = new Map<string, { n: number; first: string; paras: number }>();
+  for (const lines of paras) {
+    const text = lines.join('\n');
+    for (const term of terms) {
+      const max = SERVICE_TERMS.has(term) ? SERVICE_PARA_MAX : PARA_MAX;
+      let n = countTerm(text, term);
+      if (term === '3M' || term === '프로이즘' || term === '프리퍼드 인스톨러') {
+        // 서명 줄의 횟수는 빼 준다
+        for (const l of lines) if (SIGNATURE_LINE_RE.test(l)) n -= countTerm(l, term);
+      }
+      // "컬러PPF"는 "PPF"에도 잡히므로, PPF 는 컬러PPF 를 뺀 나머지만
+      if (term === 'PPF') n -= countTerm(text, '컬러PPF');
+      if (n > max) {
+        const w = worst.get(term);
+        if (!w) worst.set(term, { n, first: lines[0].slice(0, 18), paras: 1 });
+        else { w.paras += 1; if (n > w.n) { w.n = n; w.first = lines[0].slice(0, 18); } }
+      }
+    }
+  }
+  const hits = [...worst.entries()].map(([term, w]) => `"${term}" ${w.n}회(문단 "${w.first}…"${w.paras > 1 ? ` 외 ${w.paras - 1}곳` : ''})`);
+  const out: Violation[] = [];
+  if (hits.length > 0) {
+    out.push({ rule: 'density', detail: `한 문단에 같은 말이 몰려 있음: ${hits.join(', ')} → 문단당 2회 이하로. 두 번째부터는 받아 쓰기(그 교육·본사·거기서 정한 기준·이 필름·그 작업 등)로 바꾸고 사실·순서는 그대로` });
+  }
+  const brandTotal = paras.reduce((a, lines) => a + countTerm(lines.filter(l => !SIGNATURE_LINE_RE.test(l)).join('\n'), '3M'), 0);
+  if (brandTotal > BRAND_TOTAL_MAX) {
+    out.push({ rule: 'density', detail: `글 전체에 "3M"이 ${brandTotal}회 → ${BRAND_TOTAL_MAX}회 이하로. 제품명(시리즈150·2080·크리스탈라인)만 남기고 나머지 "3M"은 빼거나 받아 쓰기로` });
+  }
+  return out;
+}
+
 /** 이전 글들이 쓴 형식 키(최신순) — 이번 글 형식 고르기용 */
 export function recentFormatKeys(previous: PreviousPost[]): (string | null)[] {
   return previous.map(p => p.formatKey ?? null);
@@ -427,7 +485,7 @@ export async function runWriter(opts: RunWriterOptions): Promise<WriterResult> {
   const serviceType = target.serviceType;
   const first = splitTitleBody(reply);
   const previous = save ? await getPreviousDrafts() : [];
-  let violations = first ? [...checkHardViolations(first.body, combinedMessage, serviceType, knownColor), ...checkIntroRepeat(first.body, previous), ...checkBodyRepeat(first.body, previous)] : [];
+  let violations = first ? [...checkHardViolations(first.body, combinedMessage, serviceType, knownColor), ...checkIntroRepeat(first.body, previous), ...checkBodyRepeat(first.body, previous), ...checkKeywordDensity(first.body, target.keyword)] : [];
   let factIssues: FactIssue[] = first ? factCheck({ body: first.body, serviceType, product: target.product ?? undefined }) : [];
   let formatIssues = first ? checkFormatIssues(first.title, first.body, target.keyword) : [];
   const pureLen = (b: string) => b.replace(/\[사진\s*\d+\]/g, '').replace(/\s/g, '').length;
@@ -441,7 +499,7 @@ export async function runWriter(opts: RunWriterOptions): Promise<WriterResult> {
       const fixed = await fixIssues(systemPrompt, reply, issues, model);
       const f = splitTitleBody(fixed);
       if (f && pureLen(f.body) >= Math.min(1500, pureLen(cur.body))) {
-        const fixedViolations = [...checkHardViolations(f.body, combinedMessage, serviceType, knownColor), ...checkIntroRepeat(f.body, previous), ...checkBodyRepeat(f.body, previous)];
+        const fixedViolations = [...checkHardViolations(f.body, combinedMessage, serviceType, knownColor), ...checkIntroRepeat(f.body, previous), ...checkBodyRepeat(f.body, previous), ...checkKeywordDensity(f.body, target.keyword)];
         const fixedFacts = factCheck({ body: f.body, serviceType, product: target.product ?? undefined });
         const fixedFormat = checkFormatIssues(f.title, f.body, target.keyword);
         // 위반·팩트 오류가 늘지 않고 형식 미달이 줄었거나 같으면 채택
@@ -462,7 +520,7 @@ export async function runWriter(opts: RunWriterOptions): Promise<WriterResult> {
       const stripped = cur.body.split(/\n\s*\n/).filter(p => !/발수/.test(p)).join('\n\n');
       if (pureLen(stripped) >= 1500) {
         reply = `${cur.title}\n${stripped}`;
-        violations = [...checkHardViolations(stripped, combinedMessage, serviceType, knownColor), ...checkIntroRepeat(stripped, previous), ...checkBodyRepeat(stripped, previous)];
+        violations = [...checkHardViolations(stripped, combinedMessage, serviceType, knownColor), ...checkIntroRepeat(stripped, previous), ...checkBodyRepeat(stripped, previous), ...checkKeywordDensity(stripped, target.keyword)];
         factIssues = factCheck({ body: stripped, serviceType, product: target.product ?? undefined });
         formatIssues = checkFormatIssues(cur.title, stripped, target.keyword);
       }
@@ -581,7 +639,7 @@ ${plain}`;
   }
 
   const serviceType = input.target.serviceType;
-  const violations = checkHardViolations(tb.body, input.instruction, serviceType);
+  const violations = [...checkHardViolations(tb.body, input.instruction, serviceType), ...checkKeywordDensity(tb.body, input.target.keyword)];
   const factIssues = factCheck({ body: tb.body, serviceType, product: input.target.product ?? undefined });
   const formatIssues = checkFormatIssues(tb.title, tb.body);
 
