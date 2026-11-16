@@ -9,7 +9,8 @@
  * - 글마다 1~2개만 골라 작업 설명 안에 녹인다(선언·나열 금지). 자격 줄·경력 연수·"제가 직접 합니다"는 여전히 금지
  * - 숫자·고유명사는 fact 문장 그대로만 쓴다
  */
-export type DiffStatus = 'confirmed' | 'check';
+/** confirmed = 글에 자동 주입 / check = 사장님 확인 전 / reference = 사실이지만 참고만(사장님 지시 없이는 글에 안 씀) */
+export type DiffStatus = 'confirmed' | 'check' | 'reference';
 
 export interface Differentiator {
   key: string;
@@ -122,6 +123,23 @@ export const DIFFERENTIATORS: Differentiator[] = [
     fitsIn: '제품 이야기, 관리 안내 (보증 "기간" 숫자는 사장님이 알려준 것만, 3M 고객센터 번호는 쓰지 않음)',
     status: 'confirmed',
     source: '3M 코리아 FAQ·시리즈150 제품 페이지 / 2026-11-16 사장님 "발급해줘"',
+  },
+  // ---- 참고만 (2026-11-16 사장님 "이건 참고만 해"): 기둥 글이나 사장님 지시가 있을 때만 쓴다 ----
+  {
+    key: 'wrapmaster_network',
+    label: '3M 랩마스터 네트워크',
+    fact: '3M과 진행하는 협업 중 하나로 전국에서 3M 랩마스터를 선발해 "3M 프로이즘" 이름을 쓰게 하는 네트워크가 있다',
+    fitsIn: '기둥 글(왜 3M 프로이즘인가)에서만',
+    status: 'reference',
+    source: '2026-11-16 사장님',
+  },
+  {
+    key: 'first_store',
+    label: '강남서초점이 3M 프로이즘의 첫 매장',
+    fact: '본점은 하남이지만, 3M 프로이즘은 류하솜·진준호 공동대표가 강남서초점에서 제일 처음 시작했다',
+    fitsIn: '기둥 글, 매장 소개 글에서만',
+    status: 'reference',
+    source: '2026-11-16 사장님',
   },
 ];
 
