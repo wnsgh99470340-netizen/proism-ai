@@ -78,9 +78,9 @@ export const DIFFERENTIATORS: Differentiator[] = [
   },
   {
     key: 'trainer_coowner',
-    label: '공동대표가 3M 공인 트레이너',
-    fact: '강남서초점 공동대표 류하솜은 3M 공인 트레이너(3M Authorized Trainer)로, 3M 프리퍼드 인스톨러의 교육과 인증 시험 감독 자격을 갖고 있다',
-    fitsIn: '작업 기준·교육 이야기. 한 줄만, 경력 연수·"직접 시공" 표현 없이',
+    label: '3M 공인 트레이너가 운영하는 교육(이름 없이)',
+    fact: '3M 프로이즘의 교육 과정은 3M 공인 트레이너(3M Authorized Trainer, 3M 프리퍼드 인스톨러 교육·인증 시험 감독 자격)가 운영한다',
+    fitsIn: '작업 기준·교육 이야기. 한 줄만, 사람 이름·경력 연수·"직접 시공" 표현 없이(글은 진준호 1인칭, 2026-11-16 사장님)',
     status: 'confirmed',
     source: '2025-11-03 이넷뉴스 / 2026-11-16 사장님(공동대표 확인)',
   },
