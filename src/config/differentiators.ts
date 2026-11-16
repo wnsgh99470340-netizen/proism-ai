@@ -102,11 +102,11 @@ export const DIFFERENTIATORS: Differentiator[] = [
   },
   {
     key: 'membership',
-    label: '3M PROIZM 멤버십',
-    fact: '멤버십 고객은 소모성 시공 항목을 할인된 비용으로 이용한다',
-    fitsIn: '관리 안내 뒤',
-    status: 'confirmed',
-    source: '2025-08 개점 기사 / 2026-11-16 사장님 확인',
+    label: '3M PROIZM 멤버십 (운영 안 함 — 글에 쓰지 않음)',
+    fact: '(2026-11-16 사장님: 멤버십은 두 대표 모두 생각해 본 적이 없음. 보도자료에만 있던 문구. 실제로 만들기 전까지 글에 쓰지 않는다)',
+    fitsIn: '사용 안 함',
+    status: 'check',
+    source: '2025-08 개점 기사에만 있음 / 2026-11-16 사장님 "한 번도 생각해 본 적 없어"',
   },
   {
     key: 'logistics',
