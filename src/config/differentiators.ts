@@ -30,7 +30,7 @@ export const DIFFERENTIATORS: Differentiator[] = [
   {
     key: 'preferred',
     label: '3M 공인 프리퍼드 인스톨러 매장',
-    fact: '3M 프로이즘 강남서초점은 3M이 공인한 프리퍼드 인스톨러 매장이고, 3M 랩마스터 인증도 갖고 있다',
+    fact: '3M 프로이즘 강남서초점은 3M이 공인한 프리퍼드 인스톨러 매장이다 (자격은 "3M 프리퍼드 인스톨러"로만 쓰고 랩핑·PPF·썬팅 어느 트랙인지, 랩마스터 같은 랩핑 전용 인증은 쓰지 않는다)',
     fitsIn: '제품(3M 필름) 이야기가 나오는 자리, 왜 3M 정품·3M 기준으로 작업하는지 설명할 때',
     status: 'confirmed',
     source: 'CLAUDE.md 대표 자격 / 2025-08 개점 기사',
