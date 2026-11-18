@@ -425,7 +425,7 @@ export default function CRMPage() {
   useEffect(() => {
     if (activeTab === 'home') { fetchAppointments(); fetchFollowUps(); fetchTeamBrief(); fetchStats(statsMonth); }
     else if (activeTab === 'customers') fetchCustomers();
-    else if (activeTab === 'appointments') fetchAppointments();
+    else if (activeTab === 'appointments') { fetchAppointments(); fetchFollowUps(); } // 후기 보낸 표시(sms_sent)를 예약 줄에도 보여 주려고 같이 읽음
     else if (activeTab === 'followups') fetchFollowUps();
     else if (activeTab === 'consultations') fetchConsultations();
   }, [activeTab, fetchCustomers, fetchAppointments, fetchFollowUps, fetchConsultations]);
@@ -645,7 +645,17 @@ export default function CRMPage() {
     for (const f of data || []) {
       await supabase.from('follow_ups').update({ sms_sent: { ...((f.sms_sent as Record<string, boolean> | null) || {}), [key]: true } }).eq('id', f.id);
     }
-    if (data && data.length > 0) fetchFollowUps();
+    // 후기요청 사후관리가 없으면(완료 전에 보낸 경우 등) 하나 만들어 보낸 표시를 남긴다 (2026-11-18 사장님: 보낸 뒤 표시가 없어 헷갈림)
+    if (!data || data.length === 0) {
+      await supabase.from('follow_ups').insert({ customer_id: a.customer_id, follow_up_type: '후기요청', scheduled_date: todaySeoul(), memo: `${a.service_type || '시공'} 후기 요청 (예약 줄에서 보냄)`, sms_sent: { [key]: true } });
+    }
+    fetchFollowUps();
+  };
+  /** 이 예약 고객의 후기요청 사후관리에서 보낸 문자 종류를 모은다 (예약 줄 후기 버튼의 ✓ 표시용) */
+  const reviewSentFor = (customerId: string): Record<string, boolean> => {
+    const out: Record<string, boolean> = {};
+    for (const f of followUps) if (f.customer_id === customerId && f.follow_up_type === '후기요청') Object.assign(out, f.sms_sent || {});
+    return out;
   };
   const handleDownloadICS = (appointment: Appointment) => {
     const ics = generateICS(appointment);
@@ -1948,16 +1958,20 @@ export default function CRMPage() {
                             )}
                             <button onClick={() => handleOpenWorkOrder(a)} className={pill}>작업 내역서</button>
                             <button onClick={() => handleOpenWarranty(a)} className={hasWarrantyIssued(a.memo) ? 'text-xs font-semibold rounded-full px-3 py-1.5 bg-ok text-white whitespace-nowrap' : pill}>{hasWarrantyIssued(a.memo) ? '✓ 보증서 발급' : '보증서'}</button>
-                            {a.customer?.phone && (
-                              <div className="flex items-center rounded-full border border-[var(--c-border)] bg-[var(--c-card)] overflow-hidden" title="후기 요청 문자 보내기">
-                                <span className="text-[11px] font-semibold text-[var(--c-text-3)] pl-3 pr-2 py-1.5">후기</span>
-                                {(['proism', 'audi', 'bmw'] as const).map((k) => (
-                                  <button key={k} onClick={(e) => { e.stopPropagation(); handleReviewSmsFromAppointment(a, k); }} className="text-xs font-semibold px-2.5 py-1.5 text-[var(--c-text-1)] hover:bg-[var(--c-subtle)] transition-colors border-l border-[var(--c-border)]">
-                                    {k === 'proism' ? '프로이즘' : k === 'audi' ? '아우디' : 'BMW'}
-                                  </button>
-                                ))}
-                              </div>
-                            )}
+                            {a.customer?.phone && (() => {
+                              const sent = reviewSentFor(a.customer_id);
+                              const anySent = Object.values(sent).some(Boolean);
+                              return (
+                                <div className={`flex items-center rounded-full border overflow-hidden ${anySent ? 'border-ok/40 bg-ok/10' : 'border-[var(--c-border)] bg-[var(--c-card)]'}`} title={anySent ? '후기 요청 문자를 보냈습니다' : '후기 요청 문자 보내기'}>
+                                  <span className={`text-[11px] font-semibold pl-3 pr-2 py-1.5 ${anySent ? 'text-ok' : 'text-[var(--c-text-3)]'}`}>{anySent ? '후기 보냄' : '후기'}</span>
+                                  {(['proism', 'audi', 'bmw'] as const).map((k) => (
+                                    <button key={k} onClick={(e) => { e.stopPropagation(); handleReviewSmsFromAppointment(a, k); }} className={`text-xs font-semibold px-2.5 py-1.5 transition-colors border-l ${sent[k] ? 'bg-ok/15 text-ok border-ok/30' : 'text-[var(--c-text-1)] hover:bg-[var(--c-subtle)] border-[var(--c-border)]'}`}>
+                                      {sent[k] ? '✓ ' : ''}{k === 'proism' ? '프로이즘' : k === 'audi' ? '아우디' : 'BMW'}
+                                    </button>
+                                  ))}
+                                </div>
+                              );
+                            })()}
                             {a.status !== '완료' && (
                               <select value="" onChange={(e) => { if (e.target.value) handleStatusChange(a, e.target.value); }} className={`${pill} appearance-none pr-3 cursor-pointer outline-none`}>
                                 <option value="">상태 변경</option>
