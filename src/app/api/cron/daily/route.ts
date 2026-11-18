@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
     const parts = [
       after && after.status === 'ready' ? after.summary : '',
       consult && consult.status === 'ready' ? consult.summary : '',
+      brief.weeklyLine || '',
     ].filter(Boolean);
     const body = parts.length ? parts.join('\n') : '오늘 보낼 문자가 없습니다. 좋은 하루 되세요';
     const push = await sendPushToAll({ title: '☀️ 마케팅팀이 오늘 준비한 일', body, url: '/crm', tag: `team-${brief.date}` }).catch(() => ({ sent: 0, removed: 0 }));

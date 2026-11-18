@@ -11,6 +11,7 @@ import QuoteSmsModal, { type QuoteSmsInitial } from '@/components/crm/QuoteSmsMo
 import InquiryReplyModal from '@/components/crm/InquiryReplyModal';
 import { QC_SMS, MAINT_SMS, REVIEW_SMS } from '@/config/sms-templates';
 import type { DailyBrief, TeamItem, WorkerLine } from '@/lib/team';
+import type { WeeklyStats, SourceTable } from '@/lib/weekly-stats';
 import BlogWorkspace from '@/components/BlogWorkspace';
 import HelpModal from '@/components/HelpModal';
 import PushToggle from '@/components/PushToggle';
@@ -250,6 +251,17 @@ export default function CRMPage() {
   // 홈 "오늘 AI가 한 일" (2026-11-12): 사후관리·상담 담당이 준비한 문자를 건마다 보낸다
   const [teamBrief, setTeamBrief] = useState<DailyBrief | null>(null);
   const [teamOpen, setTeamOpen] = useState<string | null>(null);
+  // 홈 "이번 주 숫자"·유입경로 표 (2026-11-18): 시트에 손으로 적던 집계를 CRM 기록으로 자동 계산
+  const [stats, setStats] = useState<{ weekly: WeeklyStats; table: SourceTable } | null>(null);
+  const [statsMonth, setStatsMonth] = useState<string>(() => todaySeoul().slice(0, 7));
+  const [statsDays, setStatsDays] = useState(false);
+  const fetchStats = useCallback(async (month: string) => {
+    try {
+      const res = await fetch(`/api/stats?month=${month}`, { cache: 'no-store' });
+      const d = await res.json();
+      if (res.ok && d.weekly) setStats({ weekly: d.weekly as WeeklyStats, table: d.table as SourceTable });
+    } catch { /* 카드만 비움 */ }
+  }, []);
   const fetchTeamBrief = useCallback(async () => {
     try {
       const res = await fetch('/api/team/today', { cache: 'no-store' });
@@ -411,7 +423,7 @@ export default function CRMPage() {
   }, [fetchAllCustomers]);
 
   useEffect(() => {
-    if (activeTab === 'home') { fetchAppointments(); fetchFollowUps(); fetchTeamBrief(); }
+    if (activeTab === 'home') { fetchAppointments(); fetchFollowUps(); fetchTeamBrief(); fetchStats(statsMonth); }
     else if (activeTab === 'customers') fetchCustomers();
     else if (activeTab === 'appointments') fetchAppointments();
     else if (activeTab === 'followups') fetchFollowUps();
@@ -1129,6 +1141,16 @@ export default function CRMPage() {
   };
 
   // ─── Follow-up Actions ──────────────────────────────────
+  // 후기 받음 (2026-11-18): 후기요청을 완료 처리하면서 memo 에 "후기 받음 날짜 링크"를 남긴다 → 주간 집계 "후기 받음 N / 요청 N"
+  const handleReviewReceived = async (f: FollowUp) => {
+    const url = window.prompt('후기 링크가 있으면 붙여 넣어 주세요 (없으면 그냥 확인)', '');
+    if (url === null) return;
+    const line = `후기 받음 ${todaySeoul()}${url.trim() ? ` ${url.trim()}` : ''}`;
+    await supabase.from('follow_ups').update({ is_completed: true, completed_date: todaySeoul(), memo: `${f.memo || ''}\n${line}`.trim() }).eq('id', f.id);
+    fetchFollowUps();
+    fetchStats(statsMonth);
+  };
+
   const handleToggleFollowUp = async (followUp: FollowUp) => {
     const newCompleted = !followUp.is_completed;
     await supabase
@@ -1562,6 +1584,82 @@ export default function CRMPage() {
                   </div>
                 </section>
               </div>
+
+              {/* 이번 주 숫자 · 유입경로 표 (2026-11-18): 구글 시트에 손으로 적던 집계를 CRM 기록으로 자동 계산, 표 복사로 시트에 붙이기 */}
+              <section className={`${card} p-5 md:p-6`}>
+                <div className="flex items-center justify-between mb-4 gap-3">
+                  <h2 className="text-lg font-bold text-[var(--c-text-1)]">이번 주 숫자 <span className="text-[var(--c-text-3)] text-sm font-medium ml-1">{stats ? `${stats.weekly.from.slice(5).replace('-', '.')}~${stats.weekly.to.slice(5).replace('-', '.')}` : ''}</span></h2>
+                  <button onClick={() => fetchStats(statsMonth)} className="text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-1)] transition-colors">↻ 새로고침</button>
+                </div>
+                {!stats ? (
+                  <div className="py-8 text-center text-sm text-[var(--c-text-3)]">지난 7일 기록을 세는 중…</div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-3 md:grid-cols-6 gap-2.5">
+                      {[
+                        { k: '블로그 발행', v: stats.weekly.blogPublished, sub: stats.weekly.blogGenerated ? `생성 ${stats.weekly.blogGenerated}` : '' },
+                        { k: '상담 기록', v: stats.weekly.consultations, sub: `문의 답변 ${stats.weekly.inquiryReplies}` },
+                        { k: '견적 문자', v: stats.weekly.quoteSms, sub: '' },
+                        { k: '새 고객', v: stats.weekly.newCustomers, sub: stats.weekly.sources.slice(0, 2).map((x) => `${x.label} ${x.count}`).join(' · ') },
+                        { k: '후기 받음', v: stats.weekly.reviewReceived, sub: `요청 ${stats.weekly.reviewRequested}건` },
+                        { k: 'QC · 메인터넌스', v: stats.weekly.qcDone + stats.weekly.maintenanceDone, sub: `입고 ${stats.weekly.appointments}` },
+                      ].map((t) => (
+                        <div key={t.k} className="rounded-xl bg-[var(--c-subtle)] px-3 py-3">
+                          <div className="text-[11px] text-[var(--c-text-3)]">{t.k}</div>
+                          <div className="text-2xl font-bold text-[var(--c-text-1)] tabular-nums leading-tight mt-0.5">{t.v}</div>
+                          {t.sub && <div className="text-[11px] text-[var(--c-text-4)] truncate mt-0.5">{t.sub}</div>}
+                        </div>
+                      ))}
+                    </div>
+                    {stats.weekly.errors.length > 0 && <div className="mt-2 text-xs text-warn">읽지 못한 항목: {stats.weekly.errors.join(', ')}</div>}
+                    <div className="mt-5 pt-4 border-t border-[var(--c-border)]">
+                      <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => { const [y, m] = statsMonth.split('-').map(Number); const d = new Date(y, m - 2, 1); const mm = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; setStatsMonth(mm); fetchStats(mm); }} className="w-7 h-7 rounded-full border border-[var(--c-border)] text-[var(--c-text-2)] hover:bg-[var(--c-subtle)]">‹</button>
+                          <span className="font-semibold text-[15px] text-[var(--c-text-1)]">{Number(statsMonth.slice(5))}월 유입경로 <span className="text-[var(--c-text-3)] text-sm font-medium">{stats.table.total}명</span></span>
+                          <button onClick={() => { const [y, m] = statsMonth.split('-').map(Number); const d = new Date(y, m, 1); const mm = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; if (mm <= today.slice(0, 7)) { setStatsMonth(mm); fetchStats(mm); } }} className="w-7 h-7 rounded-full border border-[var(--c-border)] text-[var(--c-text-2)] hover:bg-[var(--c-subtle)]">›</button>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => setStatsDays((v) => !v)} className="text-xs font-medium px-3 py-1.5 rounded-full border border-[var(--c-border)] text-[var(--c-text-2)] hover:bg-[var(--c-subtle)]">{statsDays ? '합계만' : '일별 보기'}</button>
+                          <button onClick={async () => { try { const r = await fetch(`/api/stats?month=${statsMonth}`, { cache: 'no-store' }); const d = await r.json(); await navigator.clipboard.writeText(d.tsv || ''); alert('표를 복사했습니다. 구글 시트에 붙여 넣으면 됩니다.'); } catch { alert('복사하지 못했습니다'); } }} className="text-xs font-medium px-3 py-1.5 rounded-full bg-[var(--c-text-1)] text-[var(--c-page)] hover:opacity-90">표 복사</button>
+                        </div>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm tabular-nums whitespace-nowrap">
+                          <thead>
+                            <tr className="text-[11px] text-[var(--c-text-3)]">
+                              <th className="text-left py-1.5 pr-2 font-medium w-10">{statsDays ? '일' : ''}</th>
+                              {stats.table.labels.map((l) => <th key={l} className="text-right py-1.5 px-2 font-medium">{l}</th>)}
+                              <th className="text-right py-1.5 pl-2 font-medium">합계</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {statsDays && stats.table.rows.filter((r) => r.total > 0).map((r) => (
+                              <tr key={r.day} className="border-t border-[var(--c-border)]">
+                                <td className="py-1.5 pr-2 text-[var(--c-text-3)]">{r.day}</td>
+                                {r.counts.map((c, i) => <td key={i} className={`text-right py-1.5 px-2 ${c ? 'text-[var(--c-text-1)] font-semibold' : 'text-[var(--c-text-4)]'}`}>{c || ''}</td>)}
+                                <td className="text-right py-1.5 pl-2 font-semibold text-[var(--c-text-1)]">{r.total}</td>
+                              </tr>
+                            ))}
+                            <tr className="border-t border-[var(--c-border)] font-bold text-[var(--c-text-1)]">
+                              <td className="py-2 pr-2">합계</td>
+                              {stats.table.totals.map((c, i) => <td key={i} className="text-right py-2 px-2">{c}</td>)}
+                              <td className="text-right py-2 pl-2">{stats.table.total}</td>
+                            </tr>
+                            <tr className="text-xs text-[var(--c-text-3)]">
+                              <td className="py-1 pr-2">비율</td>
+                              {stats.table.ratios.map((c, i) => <td key={i} className="text-right py-1 px-2">{c}%</td>)}
+                              <td></td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      {stats.table.blankSource > 0 && <div className="mt-2 text-xs text-[var(--c-text-4)]">유입경로가 비어 있는 고객 {stats.table.blankSource}명은 기타로 셌습니다. 고객 카드에서 채워 주세요.</div>}
+                      {statsDays && stats.table.rows.every((r) => r.total === 0) && <div className="py-3 text-center text-xs text-[var(--c-text-4)]">이 달에 등록된 고객이 없습니다</div>}
+                    </div>
+                  </>
+                )}
+              </section>
             </div>
           );
         })()}
@@ -2077,6 +2175,7 @@ export default function CRMPage() {
                         <button onClick={() => sendSms(smsReviewBMW, 'bmw')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${reviewBtn('bmw')}`}>{sent.bmw ? '✓ BMW 문자' : 'BMW 문자'}</button>
                         <button onClick={() => sendKakao(smsReviewAudi, 'audi')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${sent.audi ? sentBtn : 'bg-[#FEE500] text-[#191919] hover:bg-[#FDD835]'}`}>{sent.audi ? '✓ 아우디 카톡' : '아우디 카톡'}</button>
                         <button onClick={() => sendSms(smsReviewAudi, 'audi')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${reviewBtn('audi')}`}>{sent.audi ? '✓ 아우디 문자' : '아우디 문자'}</button>
+                        <button onClick={() => handleReviewReceived(f)} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${/후기 받음/.test(f.memo || '') ? 'bg-ok/15 text-ok' : 'bg-violet/15 text-violet hover:bg-violet/25'}`}>{/후기 받음/.test(f.memo || '') ? '✓ 후기 받음' : '후기 받음'}</button>
                         </>
                       )}
                       {isQuote && !f.customer_id && (

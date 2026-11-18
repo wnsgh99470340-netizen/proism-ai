@@ -13,6 +13,7 @@ import { listJobs } from './jobs';
 import { followUpMessage, followUpSmsKey, followUpLabel } from '@/config/sms-templates';
 import { TEAM, type WorkerKey } from '@/config/ai-team';
 import { todaySeoul, addDaysISO, toSeoulISO } from './local-date';
+import { buildWeeklyStats, weeklySummaryLine, type WeeklyStats } from './weekly-stats';
 
 export interface TeamItem {
   followUpId: string;
@@ -46,6 +47,9 @@ export interface DailyBrief {
   generatedAt: string;
   lines: WorkerLine[];
   totals: { toSend: number; sent: number };
+  /** 월요일에만: 지난주(월~일) 숫자 한 묶음 (2026-11-18 주간 집계) */
+  weekly?: WeeklyStats;
+  weeklyLine?: string;
 }
 
 const OVERDUE_WINDOW_DAYS = 14;
@@ -160,12 +164,24 @@ export async function buildDailyBrief(date = todaySeoul()): Promise<DailyBrief> 
     lines.push({ key: t.key, name: t.name, time: t.time, status: 'prepared', summary: t.role, waitingFor: t.waitingFor });
   }
 
+  // 월요일 아침이면 지난주(월~일) 숫자를 같이 준비한다 (실장님 주간 미팅 표의 서초 칸)
+  let weekly: WeeklyStats | undefined;
+  let weeklyLine: string | undefined;
+  if (new Date(`${date}T12:00:00+09:00`).getUTCDay() === 1) {
+    try {
+      weekly = await buildWeeklyStats(addDaysISO(date, -1), 7);
+      weeklyLine = weeklySummaryLine(weekly);
+    } catch { /* 집계 실패해도 브리핑은 나간다 */ }
+  }
+
   const all = [...aftercareItems, ...consultItems];
   return {
     date,
     generatedAt: new Date().toISOString(),
     lines,
     totals: { toSend: all.filter(i => !i.sent).length, sent: all.filter(i => i.sent).length },
+    weekly,
+    weeklyLine,
   };
 }
 

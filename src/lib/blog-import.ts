@@ -36,10 +36,10 @@ export function cleanBody(raw: string): string {
 }
 
 /** 전체 글 목록 (2026-11-12): 데스크톱 목록 API를 페이지 단위로 읽는다. RSS 는 최근 50편뿐이라 221편 전체는 여기로 */
-export async function fetchOwnerPostList(): Promise<RssItem[]> {
+export async function fetchOwnerPostList(maxPages = 30): Promise<RssItem[]> {
   const out: RssItem[] = [];
   const seen = new Set<string>();
-  for (let page = 1; page <= 30; page++) {
+  for (let page = 1; page <= maxPages; page++) {
     const url = `https://blog.naver.com/PostTitleListAsync.naver?blogId=${OWNER_BLOG_ID}&viewdate=&currentPage=${page}&categoryNo=0&parentCategoryNo=&countPerPage=30`;
     const res = await fetch(url, {
       headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/124 Safari/537.36', 'Referer': `https://blog.naver.com/${OWNER_BLOG_ID}` },

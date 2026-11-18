@@ -92,6 +92,7 @@
 - 하루 브리핑: src/lib/team.ts buildDailyBrief — follow_ups 미완료·오늘 이하(14일 안 밀린 것)를 사후관리(QC·메인터넌스·후기요청)/상담(견적재연락·견적마무리)으로 나눠 고객별 문자(문구는 src/config/sms-templates.ts, 견적은 memo 둘째 줄부터)와 보냄 여부(sms_sent)를 계산. 시공기 작가 줄은 blog_jobs 오늘 완성·진행 중. Claude 호출 없음
 - 크론: vercel.json `/api/cron/daily` 매일 22:00 UTC(=07:00 KST), CRON_SECRET Bearer 검증 → 브리핑 계산 → Blob team/YYYY-MM-DD.json 기록(문자 본문 제외) → 푸시 "☀️ 마케팅팀이 오늘 준비한 일". Hobby 플랜 크론 2개 한도(keepalive + daily)라 상담 담당도 07시에 같이 돈다
 - 홈 카드 "마케팅팀 오늘 한 일"(예전 '연락할 사후관리' 자리): GET /api/team/today 실시간 계산본. 직원 줄(상태 점: 빨강 준비됨/초록 완료/회색 대기) → 펼치면 건별 [💬 보내기](openSmsApp → 확인 → sms_sent 표시). 2주 넘게 밀린 건은 건수만 보여 주고 사후관리 탭으로
+- **주간 숫자·유입경로 표**(2026-11-18, 사장님 구글 시트 "유입경로 분석"을 손으로 적던 일 대체): src/lib/weekly-stats.ts buildWeeklyStats(지난 7일: 블로그 발행=네이버 목록 1페이지 실시간(실패 시 blog_posts owner)·시공기 생성·상담 기록·견적 문자([견적 문자 발송] 접두)·문의 답변([문의 답변])·새 고객·유입경로 분포·후기 요청(sms_sent 있음)→받음(완료일)·QC/메인터넌스 완료일·입고) + buildSourceTable(그 달 날짜×유입경로 7열, 고객 created_at 서울 날짜 기준, 빈 유입경로는 기타) + sourceTableTsv(시트 붙여넣기용). GET /api/stats?month=. 홈 카드 "이번 주 숫자"(6칸 타일 + 월 이동 ‹ › + 일별 보기 + **표 복사** → 실장님 시트에 붙이기). 월요일 07시 브리핑은 buildDailyBrief 가 weekly/weeklyLine 을 채워 푸시 본문에 한 줄 추가. **후기 받음**: 사후관리 탭 후기요청 줄 "후기 받음" 버튼 → 링크 prompt → is_completed·completed_date 오늘 + memo 끝 "후기 받음 날짜 링크"(스키마 변경 없음). 노션·시트 자동 기입은 하지 않음(사장님: 노션은 여러 사람이 써서 연동 안 함)
 - 다음 단계(미구현): 2주차 검수·리서치(월요일 보고), 3주차 채널·발행 글 자동 학습, 주간 전환표(문의→견적→입고), 답 없는 분 목록
 
 ## CRM 구조
