@@ -8,13 +8,14 @@ export const runtime = 'nodejs';
 export const maxDuration = 30;
 
 /**
- * GET /api/member/<token>?pin=1234 — 손님용 회원 페이지 데이터 (2026-11-18)
+ * GET /api/member/<token> (헤더 x-member-pin: 1234) — 손님용 회원 페이지 데이터 (2026-11-18)
  * - 로그인 없이 열리는 경로(미들웨어 예외). token 이 맞고 pin 이 그 고객 전화 뒷자리 4개와 같을 때만 돌려준다
  * - 다른 사람 이름은 가리고, 전화번호·금액은 내려보내지 않는다
  */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const pin = (request.nextUrl.searchParams.get('pin') || '').replace(/\D/g, '');
+  // 뒷자리는 헤더로만 받는다 (주소창·서버 로그에 안 남게). 2026-11-19
+  const pin = (request.headers.get('x-member-pin') || '').replace(/\D/g, '').slice(0, 4);
   if (!token || token.length < 12) return Response.json({ error: '잘못된 주소입니다' }, { status: 404 });
 
   const { data: link, error: e1 } = await supabase.from('member_links').select('customer_id').eq('token', token).maybeSingle();
@@ -58,7 +59,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const upcoming = (appts || []).filter((a) => a.status !== '완료').map((a) => ({ date: a.appointment_date, end: a.end_date, service: a.service_type, status: a.status }));
   const memberSince = (services || []).map((s) => s.service_date || s.completion_date || '').filter(Boolean).sort()[0] || null;
 
-  await supabase.from('member_links').update({ last_seen_at: new Date().toISOString() }).eq('token', token);
+  // 방문 기록 (실패해도 페이지는 그대로)
+  const { data: cur } = await supabase.from('member_links').select('visits').eq('token', token).maybeSingle();
+  await supabase.from('member_links').update({ last_seen_at: new Date().toISOString(), visits: ((cur?.visits as number | null) || 0) + 1 }).eq('token', token);
 
   return Response.json({
     customer: { name: c.name, car: [c.car_brand, c.car_model].filter(Boolean).join(' '), color: c.car_color, memberSince, registered: c.created_at },

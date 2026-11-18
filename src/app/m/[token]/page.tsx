@@ -21,10 +21,12 @@ interface Data {
   referrals: { gave: { name: string; date: string; state: string; reward: string | null; rewardAt: string | null }[]; received: { from: string; date: string; reward: string | null; rewardAt: string | null } | null };
   shop: { name: string; phone: string; address: string; card: string; map: string; talk: string };
 }
-const fmt = (d: string | null | undefined) => (d ? new Date(d).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' }) : '-');
+const toDate = (d: string | null | undefined) => { if (!d) return null; const x = new Date(d); return Number.isNaN(x.getTime()) ? null : x; };
+const fmt = (d: string | null | undefined) => { const x = toDate(d); return x ? x.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' }) : '-'; };
+const daysUntil = (d: string | null | undefined) => { const x = toDate(d); if (!x) return null; const now = new Date(); now.setHours(0, 0, 0, 0); x.setHours(0, 0, 0, 0); return Math.round((x.getTime() - now.getTime()) / 86400000); };
 const fmtDot = (d: string | null | undefined) => {
-  if (!d) return '-';
-  const x = new Date(d);
+  const x = toDate(d);
+  if (!x) return '-';
   return `${x.getFullYear()}.${String(x.getMonth() + 1).padStart(2, '0')}.${String(x.getDate()).padStart(2, '0')}`;
 };
 const box = 'rounded-2xl bg-white/[0.04] border border-white/10 p-4';
@@ -63,7 +65,7 @@ export default function MemberPage() {
   const load = useCallback(async (p: string) => {
     setBusy(true); setErr('');
     try {
-      const res = await fetch(`/api/member/${token}${p ? `?pin=${p}` : ''}`, { cache: 'no-store' });
+      const res = await fetch(`/api/member/${token}`, { cache: 'no-store', headers: p ? { 'x-member-pin': p } : undefined });
       const j = await res.json();
       if (!res.ok) { setErr(j.error || '불러오지 못했습니다'); if (res.status === 401) sessionStorage.removeItem(`m_pin_${token}`); return; }
       if (j.needPin) { setMaskedName(j.name || ''); return; }
@@ -105,6 +107,10 @@ export default function MemberPage() {
 
   const c = data.customer;
   const nextCare = data.care.find((f) => !f.done);
+  const doneCare = data.care.filter((f) => f.done);
+  const nextDays = nextCare ? daysUntil(nextCare.date) : null;
+  // 최근 것이 위로: 완료는 완료일, 예정은 예정일 기준
+  const careSorted = [...data.care].sort((a, b) => ((b.done ? b.doneAt || b.date : b.date) || '').localeCompare((a.done ? a.doneAt || a.date : a.date) || ''));
   const cert = data.warranties[0] || null; // 가장 최근 발급분이 맨 위 증명서
   const latestService = data.services[0] || null;
   const tabs = [['cert', '증명서'], ['care', '관리'], ['benefit', '혜택'], ['referral', '소개'], ['history', '기록·보증']] as const;
@@ -220,19 +226,33 @@ export default function MemberPage() {
         </>)}
 
         {tab === 'care' && (
-          <div className={box}>
-            <div className="text-sm font-bold mb-3">관리 일정</div>
-            {data.care.length === 0 ? <div className="text-sm text-white/60">시공이 끝나면 6개월 메인터넌스(PPF·컬러PPF는 2주 QC도) 일정이 여기에 잡힙니다.</div> : (
-              <ul className="space-y-2.5">
-                {data.care.map((f, i) => (
-                  <li key={i} className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-2.5"><span className={`inline-block w-1.5 h-1.5 rounded-full ${f.done ? 'bg-[#22c55e]' : 'bg-[#E4002B]'}`} />{careName(f.type)}</div>
-                    <div className="text-white/70 tabular-nums">{f.done ? `완료 ${fmt(f.doneAt || f.date)}` : fmt(f.date)}</div>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <div className="text-[11px] text-white/40 mt-3 leading-relaxed">QC 점검은 끝단·표면·물기포를 보고, 메인터넌스는 필름 전용 코팅과 끝단 점검을 합니다. 날짜가 가까워지면 연락드립니다.</div>
+          <div className="space-y-3">
+            {/* 받은 관리 한눈에 (2026-11-19 사장님: 손님이 몇 번 관리 받았는지 보이게) */}
+            <div className="grid grid-cols-3 gap-2">
+              <div className={`${box} text-center`}><div className="text-[22px] font-bold leading-none tabular-nums pt-0.5">{doneCare.length}<span className="text-sm font-medium text-white/60 ml-0.5">회</span></div><div className={`${micro} mt-2`}>받으신 관리</div></div>
+              <div className={`${box} text-center`}><div className="text-[22px] font-bold leading-none tabular-nums whitespace-nowrap pt-0.5">{nextDays === null ? '-' : nextDays <= 0 ? '지금' : <>D-{nextDays}</>}</div><div className={`${micro} mt-2`}>다음 관리</div></div>
+              <div className={`${box} text-center`}><div className="text-[22px] font-bold leading-none tabular-nums pt-0.5">{data.services.length}<span className="text-sm font-medium text-white/60 ml-0.5">건</span></div><div className={`${micro} mt-2`}>시공</div></div>
+            </div>
+            <div className={box}>
+              <div className="text-sm font-bold mb-3">관리 기록</div>
+              {data.care.length === 0 ? <div className="text-sm text-white/60">시공이 끝나면 6개월 메인터넌스(PPF·컬러PPF는 2주 QC도) 일정이 여기에 잡힙니다.</div> : (
+                <ul className="space-y-3">
+                  {careSorted.map((f, i) => (
+                    <li key={i} className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2.5">
+                        <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[11px] ${f.done ? 'bg-[#22c55e]/15 text-[#22c55e]' : 'border border-white/20 text-white/40'}`}>{f.done ? '✓' : careSorted.length - i}</span>
+                        <span className={f.done ? '' : 'text-white/80'}>{careName(f.type)}</span>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-white/75 tabular-nums">{fmt(f.done ? f.doneAt || f.date : f.date)}</div>
+                        <div className={`text-[10px] ${f.done ? 'text-[#22c55e]' : 'text-white/40'}`}>{f.done ? '받으셨습니다' : '예정'}</div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div className="text-[11px] text-white/40 mt-3 leading-relaxed">QC 점검은 끝단·표면·물기포를 보고, 메인터넌스는 필름 전용 코팅과 끝단 점검을 합니다. 날짜가 가까워지면 연락드립니다.</div>
+            </div>
           </div>
         )}
 
