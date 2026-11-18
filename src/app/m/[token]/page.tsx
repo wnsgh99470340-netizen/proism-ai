@@ -12,6 +12,8 @@ import { LINKS } from '@/config/links';
  * - 공개 페이지라 명함 페이지처럼 어두운 톤 고정. 프리퍼드 인스톨러 인증서 이미지는 트랙(랩핑)이 적혀 있어 쓰지 않음
  */
 interface Data {
+  /** CRM 로그인 기기(사장님)가 열어 본 경우 — 뒷자리 없이 열리고 방문 수에 안 들어감 */
+  owner?: boolean;
   customer: { name: string; car: string; color: string | null; memberSince: string | null; registered: string };
   membership: { name: string; common: string[]; referrerReward: string; referredRewardOptions: string[]; referredCondition: string };
   services: { type: string; date: string | null; done: string | null; area: string | null; film: string | null }[];
@@ -118,6 +120,11 @@ export default function MemberPage() {
   return (
     <main className="h-dvh overflow-y-auto overscroll-contain bg-[#0b0c0f] text-white">
       <div className="max-w-md mx-auto px-4 pt-5 pb-10 space-y-4">
+        {data.owner && (
+          <div className="-mx-4 -mt-5 mb-1 px-4 py-1.5 bg-[#E4002B]/15 border-b border-[#E4002B]/40 text-[11px] text-white/85 text-center">
+            사장님 보기 · {c.name} 고객님이 보는 화면 그대로입니다 (방문 수에 넣지 않음)
+          </div>
+        )}
         {/* 상단 서명 */}
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-2.5">

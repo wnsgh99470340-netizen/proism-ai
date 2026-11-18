@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { maskName } from '@/lib/member-links';
 import { MEMBERSHIP } from '@/config/membership';
 import { parseWorkOrder, workItems, type WorkOrderJson } from '@/lib/work-order';
+import { AUTH_COOKIE_NAME, isAuthCookieValid } from '@/lib/auth-cookie';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -16,6 +17,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { token } = await params;
   // 뒷자리는 헤더로만 받는다 (주소창·서버 로그에 안 남게). 2026-11-19
   const pin = (request.headers.get('x-member-pin') || '').replace(/\D/g, '').slice(0, 4);
+  // CRM 에 로그인된 기기(사장님)는 뒷자리 없이 손님 화면 그대로 본다 (2026-11-19 사장님 "고객 상세에서 나도 들어갈 수 있게")
+  const owner = await isAuthCookieValid(request.cookies.get(AUTH_COOKIE_NAME)?.value);
   if (!token || token.length < 12) return Response.json({ error: '잘못된 주소입니다' }, { status: 404 });
 
   const { data: link, error: e1 } = await supabase.from('member_links').select('customer_id').eq('token', token).maybeSingle();
@@ -25,8 +28,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { data: c } = await supabase.from('customers').select('id, name, phone, car_brand, car_model, car_color, created_at').eq('id', link.customer_id).single();
   if (!c) return Response.json({ error: '고객 정보를 찾을 수 없습니다' }, { status: 404 });
   const last4 = (c.phone || '').replace(/\D/g, '').slice(-4);
-  if (!pin) return Response.json({ needPin: true, name: maskName(c.name) });
-  if (!last4 || pin !== last4) return Response.json({ error: '전화번호 뒷자리가 맞지 않습니다' }, { status: 401 });
+  if (!owner) {
+    if (!pin) return Response.json({ needPin: true, name: maskName(c.name) });
+    if (!last4 || pin !== last4) return Response.json({ error: '전화번호 뒷자리가 맞지 않습니다' }, { status: 401 });
+  }
 
   const [{ data: services }, { data: followUps }, { data: appts }, { data: gave }, { data: received }] = await Promise.all([
     supabase.from('services').select('id, service_type, service_date, completion_date, service_area, film_used').eq('customer_id', c.id).order('service_date', { ascending: false }),
@@ -59,11 +64,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const upcoming = (appts || []).filter((a) => a.status !== '완료').map((a) => ({ date: a.appointment_date, end: a.end_date, service: a.service_type, status: a.status }));
   const memberSince = (services || []).map((s) => s.service_date || s.completion_date || '').filter(Boolean).sort()[0] || null;
 
-  // 방문 기록 (실패해도 페이지는 그대로)
-  const { data: cur } = await supabase.from('member_links').select('visits').eq('token', token).maybeSingle();
-  await supabase.from('member_links').update({ last_seen_at: new Date().toISOString(), visits: ((cur?.visits as number | null) || 0) + 1 }).eq('token', token);
+  // 방문 기록 (실패해도 페이지는 그대로). 사장님이 열어 본 것은 손님 방문 수에 넣지 않는다
+  if (!owner) {
+    const { data: cur } = await supabase.from('member_links').select('visits').eq('token', token).maybeSingle();
+    await supabase.from('member_links').update({ last_seen_at: new Date().toISOString(), visits: ((cur?.visits as number | null) || 0) + 1 }).eq('token', token);
+  }
 
   return Response.json({
+    owner,
     customer: { name: c.name, car: [c.car_brand, c.car_model].filter(Boolean).join(' '), color: c.car_color, memberSince, registered: c.created_at },
     membership: { name: MEMBERSHIP.name, common: MEMBERSHIP.common, referrerReward: MEMBERSHIP.referrerReward, referredRewardOptions: MEMBERSHIP.referredRewardOptions, referredCondition: MEMBERSHIP.referredCondition },
     services: (services || []).map((s) => ({ type: s.service_type, date: s.service_date, done: s.completion_date, area: s.service_area, film: s.film_used })),

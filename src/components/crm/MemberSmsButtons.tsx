@@ -47,10 +47,19 @@ export default function MemberSmsButtons({ customerId, name, phone, size = 'sm',
     await supabase.from('consultations').insert({ customer_id: customerId, consultation_date: todaySeoul(), content: `[회원 문자] 회원 페이지 링크\n${r.url}`, memo: '회원 문자' });
     onSent?.();
   };
+  // 사장님이 손님 화면을 그대로 열어 보기 (2026-11-19): 로그인된 기기는 뒷자리 없이 열린다 (API 가 crm_auth 쿠키로 확인)
+  const openPage = async () => {
+    setBusy('open');
+    const r = await getOrCreateMemberLink(customerId);
+    setBusy(null);
+    if ('error' in r) { alert(r.error); return; }
+    window.open(`/m/${r.token}`, '_blank', 'noopener');
+  };
   return (
     <span className="inline-flex items-center gap-1.5 flex-wrap">
+      <button disabled={!!busy} onClick={openPage} className={cls} title="손님이 보는 회원 페이지를 그대로 엽니다 (로그인된 기기는 뒷자리 없이 열림)">{busy === 'open' ? '…' : '👁 회원 페이지 보기'}</button>
       {TEMPLATES.map((t) => <button key={t.key} disabled={!!busy} onClick={() => send(t)} className={cls} title={t.build(name)}>{busy === t.key ? '…' : `💬 ${t.label}`}</button>)}
-      <button disabled={!!busy} onClick={sendLink} className={cls} title="손님이 직접 보는 회원 페이지 주소를 문자로 보냅니다 (전화 뒷자리 4개로 확인)">{busy === 'link' ? '…' : '🔗 회원 페이지'}</button>
+      <button disabled={!!busy} onClick={sendLink} className={cls} title="손님이 직접 보는 회원 페이지 주소를 문자로 보냅니다 (전화 뒷자리 4개로 확인)">{busy === 'link' ? '…' : '🔗 링크 문자'}</button>
     </span>
   );
 }
