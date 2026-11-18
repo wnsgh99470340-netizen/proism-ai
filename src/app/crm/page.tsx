@@ -18,6 +18,7 @@ import { LINKS } from '@/config/links';
 import BlogWorkspace from '@/components/BlogWorkspace';
 import HelpModal from '@/components/HelpModal';
 import PushToggle from '@/components/PushToggle';
+import Link from 'next/link';
 import CustomerFormModal, { EMPTY_CUSTOMER_FORM, loadCustomerForm, saveCustomerEdit } from '@/components/crm/CustomerFormModal';
 import { linkReferral, loadReferralsFor, markThanksSent } from '@/lib/referrals';
 import { MEMBERSHIP } from '@/config/membership';
@@ -1483,6 +1484,8 @@ export default function CRMPage() {
                 {tab.label}
               </button>
             ))}
+            {/* 회원 한눈에 보기는 별도 페이지 (2026-11-18 멤버십) */}
+            <Link href="/crm/membership" className="px-3.5 py-2 rounded-lg text-sm font-semibold whitespace-nowrap shrink-0 transition-colors text-[var(--c-text-2)] hover:bg-[var(--c-subtle)]">회원</Link>
           </nav>
         </div>
       </header>
