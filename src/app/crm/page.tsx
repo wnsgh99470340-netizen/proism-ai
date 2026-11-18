@@ -18,6 +18,7 @@ import { LINKS } from '@/config/links';
 import BlogWorkspace from '@/components/BlogWorkspace';
 import HelpModal from '@/components/HelpModal';
 import PushToggle from '@/components/PushToggle';
+import CustomerFormModal, { EMPTY_CUSTOMER_FORM, loadCustomerForm, saveCustomerEdit } from '@/components/crm/CustomerFormModal';
 
 // ─── Types ───────────────────────────────────────────────
 interface Customer {
@@ -34,6 +35,9 @@ interface Customer {
   updated_at: string;
   latest_service: string | null;
   latest_service_date: string | null;
+  /** 완료된 시공이 없고 예약만 있을 때 true → 목록에 "PPF 예약 (날짜)" 로 보임 */
+  latest_is_booking?: boolean;
+  latest_status?: string | null;
   service_count: number;
 }
 
@@ -375,24 +379,22 @@ export default function CRMPage() {
       .order('created_at', { ascending: false });
 
     if (data) {
-      // 각 고객의 최근 시공 정보 가져오기
-      const customersWithService = await Promise.all(
-        data.map(async (c) => {
-          const { data: services } = await supabase
-            .from('services')
-            .select('service_type, service_date')
-            .eq('customer_id', c.id)
-            .order('service_date', { ascending: false });
-
-          return {
-            ...c,
-            latest_service: services?.[0]?.service_type ?? null,
-            latest_service_date: services?.[0]?.service_date ?? null,
-            service_count: services?.length ?? 0,
-          };
-        })
-      );
-      setCustomers(customersWithService);
+      // 최근 시공: 완료된 시공(services)이 있으면 그것, 없으면 예약(appointments, 취소 제외)을 "예약"으로 표시
+      // (2026-11-18 사장님: 예약에 PPF 를 넣었는데 목록 최근 시공이 비어 있던 문제. 고객마다 따로 묻던 쿼리도 두 번으로 줄임)
+      const [{ data: services }, { data: appts }] = await Promise.all([
+        supabase.from('services').select('customer_id, service_type, service_date').order('service_date', { ascending: false }),
+        supabase.from('appointments').select('customer_id, service_type, appointment_date, status').neq('status', '취소').order('appointment_date', { ascending: false }),
+      ]);
+      const svcBy = new Map<string, { service_type: string; service_date: string }[]>();
+      for (const sv of services || []) { const k = sv.customer_id as string; if (!svcBy.has(k)) svcBy.set(k, []); svcBy.get(k)!.push(sv as { service_type: string; service_date: string }); }
+      const apptBy = new Map<string, { service_type: string | null; appointment_date: string; status: string }>();
+      for (const a of appts || []) { const k = a.customer_id as string; if (k && !apptBy.has(k)) apptBy.set(k, a as { service_type: string | null; appointment_date: string; status: string }); }
+      setCustomers(data.map((c) => {
+        const sv = svcBy.get(c.id) || [];
+        const ap = apptBy.get(c.id);
+        if (sv.length > 0) return { ...c, latest_service: sv[0].service_type, latest_service_date: sv[0].service_date, latest_is_booking: false, latest_status: null, service_count: sv.length };
+        return { ...c, latest_service: ap ? (ap.service_type || '시공 미정') : null, latest_service_date: ap?.appointment_date ?? null, latest_is_booking: !!ap, latest_status: ap?.status ?? null, service_count: 0 };
+      }));
     }
   }, []);
 
@@ -707,33 +709,11 @@ export default function CRMPage() {
   };
 
   const handleEditCustomer = async (customer: Customer) => {
-    // 최근 예약의 금액 불러오기
-    const { data: latestAppt } = await supabase
-      .from('appointments')
-      .select('id, appointment_date, end_date, service_type, amount, memo')
-      .eq('customer_id', customer.id)
-      .order('appointment_date', { ascending: false })
-      .limit(1)
-      .single();
-    setEditLatestApptId(latestAppt?.id || null);
-    let apptMemo = '';
-    if (latestAppt?.memo) { try { JSON.parse(latestAppt.memo); } catch { apptMemo = latestAppt.memo; } } // 작업 내역서(JSON)는 건드리지 않음
-
-    setCustomerForm({
-      name: customer.name || '',
-      phone: customer.phone || '',
-      car_brand: customer.car_brand || '',
-      car_model: customer.car_model || '',
-      car_year: customer.car_year || '',
-      car_color: customer.car_color || '',
-      source: customer.source || '',
-      memo: customer.memo || '',
-      appointment_start_date: latestAppt?.appointment_date || '',
-      appointment_end_date: latestAppt?.end_date || '',
-      appointment_service_type: latestAppt?.service_type || '',
-      appointment_amount: latestAppt?.amount ? String(latestAppt.amount) : '',
-      appointment_memo: apptMemo,
-    });
+    // 공용 창: 고객 + 최근 예약을 한 번에 읽는다 (CustomerFormModal)
+    const loaded = await loadCustomerForm(customer.id);
+    if (!loaded) { alert('고객 정보를 불러오지 못했습니다'); return; }
+    setCustomerForm(loaded.form);
+    setEditLatestApptId(loaded.latestApptId);
     setEditCustomerId(customer.id);
     setShowAddCustomer(true);
   };
@@ -747,47 +727,10 @@ export default function CRMPage() {
   };
 
   const handleUpdateCustomer = async () => {
-    if (!editCustomerId || !customerForm.name.trim()) return;
-    const { error } = await supabase
-      .from('customers')
-      .update({
-        name: customerForm.name,
-        phone: customerForm.phone || null,
-        car_brand: customerForm.car_brand || null,
-        car_model: customerForm.car_model || null,
-        car_year: customerForm.car_year || null,
-        car_color: customerForm.car_color || null,
-        source: customerForm.source || null,
-        memo: customerForm.memo || null,
-      })
-      .eq('id', editCustomerId);
-    if (error) {
-      alert('수정 실패: ' + error.message);
-      return;
-    }
-
-    // 최근 예약의 시공·시작·종료·금액(·메모)을 같이 저장. 예약이 없는데 시작일을 넣었으면 새 예약을 만든다
-    const amount = customerForm.appointment_amount ? Number(customerForm.appointment_amount) : null;
-    if (editLatestApptId) {
-      const patch: Record<string, unknown> = { amount, service_type: customerForm.appointment_service_type || null };
-      if (customerForm.appointment_start_date) { patch.appointment_date = customerForm.appointment_start_date; patch.end_date = customerForm.appointment_end_date || null; }
-      const { data: cur } = await supabase.from('appointments').select('memo').eq('id', editLatestApptId).single();
-      let curIsJson = false; try { if (cur?.memo) { JSON.parse(cur.memo); curIsJson = true; } } catch { /* 글 메모 */ }
-      if (!curIsJson) patch.memo = customerForm.appointment_memo || null;
-      await supabase.from('appointments').update(patch).eq('id', editLatestApptId);
-    } else if (customerForm.appointment_start_date) {
-      await supabase.from('appointments').insert({
-        customer_id: editCustomerId,
-        appointment_date: customerForm.appointment_start_date,
-        end_date: customerForm.appointment_end_date || null,
-        service_type: customerForm.appointment_service_type || null,
-        status: customerForm.appointment_service_type ? '예약확정' : '상담중',
-        amount,
-        memo: customerForm.appointment_memo || null,
-      });
-    }
-
-    setCustomerForm({ name: '', phone: '', car_brand: '', car_model: '', car_year: '', car_color: '', source: '', memo: '', appointment_start_date: '', appointment_end_date: '', appointment_service_type: '', appointment_amount: '', appointment_memo: '' });
+    if (!editCustomerId) return;
+    const err = await saveCustomerEdit(editCustomerId, customerForm, editLatestApptId);
+    if (err) { alert(err); return; }
+    setCustomerForm({ ...EMPTY_CUSTOMER_FORM });
     setEditCustomerId(null);
     setEditLatestApptId(null);
     setShowAddCustomer(false);
@@ -1810,7 +1753,7 @@ export default function CRMPage() {
                       </td>
                       <td className="px-4 py-3 text-sm text-[var(--c-text-2)]">
                         {c.latest_service
-                          ? `${c.latest_service} (${formatDate(c.latest_service_date)})`
+                          ? <>{c.latest_service}{c.latest_is_booking && <span className="ml-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-info/10 text-info align-middle">{c.latest_status || '예약'}</span>} <span className="text-[var(--c-text-3)]">({formatDate(c.latest_service_date)})</span></>
                           : '-'}
                       </td>
                       <td className="px-4 py-3 text-sm text-[var(--c-text-3)]">{formatDate(c.created_at)}</td>
@@ -2604,78 +2547,14 @@ export default function CRMPage() {
 
       {/* ─── Modal: 고객 추가 ────────────────────────────────── */}
       {showAddCustomer && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-center justify-center p-4" onClick={() => { setShowAddCustomer(false); setEditCustomerId(null); setEditLatestApptId(null); }}>
-          <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl w-full max-w-lg p-6 shadow-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-[var(--c-text-1)] font-semibold text-base mb-4">{editCustomerId ? '고객 수정' : '고객 추가'}</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="col-span-2">
-                <label className="text-xs text-[var(--c-text-3)] mb-1 block">이름 *</label>
-                <input type="text" value={customerForm.name} onChange={(e) => setCustomerForm({ ...customerForm, name: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder="고객 이름" />
-              </div>
-              <div>
-                <label className="text-xs text-[var(--c-text-3)] mb-1 block">연락처</label>
-                <input type="text" value={customerForm.phone} onChange={(e) => setCustomerForm({ ...customerForm, phone: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder="010-0000-0000" />
-              </div>
-              <div>
-                <label className="text-xs text-[var(--c-text-3)] mb-1 block">유입경로</label>
-                <select value={customerForm.source} onChange={(e) => setCustomerForm({ ...customerForm, source: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50">
-                  <option value="">선택...</option>
-                  {['카페', '블로그', '소개/재방문', '유튜브', '고정', '경로X', '기타'].map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs text-[var(--c-text-3)] mb-1 block">차량 브랜드</label>
-                <input type="text" value={customerForm.car_brand} onChange={(e) => setCustomerForm({ ...customerForm, car_brand: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder="BMW, 벤츠, 포르쉐 등" />
-              </div>
-              <div>
-                <label className="text-xs text-[var(--c-text-3)] mb-1 block">차량 모델</label>
-                <input type="text" value={customerForm.car_model} onChange={(e) => setCustomerForm({ ...customerForm, car_model: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder="X5, GLE, 카이엔 등" />
-              </div>
-              <div>
-                <label className="text-xs text-[var(--c-text-3)] mb-1 block">연식</label>
-                <input type="text" value={customerForm.car_year} onChange={(e) => setCustomerForm({ ...customerForm, car_year: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder="2024" />
-              </div>
-              <div>
-                <label className="text-xs text-[var(--c-text-3)] mb-1 block">색상</label>
-                <input type="text" value={customerForm.car_color} onChange={(e) => setCustomerForm({ ...customerForm, car_color: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder="블랙, 화이트 등" />
-              </div>
-              <div className="col-span-2">
-                <label className="text-xs text-[var(--c-text-3)] mb-1 block">메모</label>
-                <textarea value={customerForm.memo} onChange={(e) => setCustomerForm({ ...customerForm, memo: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50 resize-none h-20" placeholder="특이사항" />
-              </div>
-              <div className="col-span-2 border-t border-[var(--c-border)] pt-3 mt-1">
-                <div className="text-xs text-gold font-medium mb-2">{editCustomerId ? (editLatestApptId ? '최근 예약 (고치면 그 예약이 바뀝니다)' : '예약 정보 (시작일을 넣으면 새 예약이 생깁니다)') : '예약 정보 (선택)'}</div>
-              </div>
-              <div>
-                <label className="text-xs text-[var(--c-text-3)] mb-1 block">시공 시작일</label>
-                <input type="date" value={customerForm.appointment_start_date} onChange={(e) => setCustomerForm({ ...customerForm, appointment_start_date: e.target.value })} onInput={(e) => setCustomerForm({ ...customerForm, appointment_start_date: (e.target as HTMLInputElement).value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" />
-              </div>
-              <div>
-                <label className="text-xs text-[var(--c-text-3)] mb-1 block">시공 종료일</label>
-                <input type="date" value={customerForm.appointment_end_date} onChange={(e) => setCustomerForm({ ...customerForm, appointment_end_date: e.target.value })} onInput={(e) => setCustomerForm({ ...customerForm, appointment_end_date: (e.target as HTMLInputElement).value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" />
-              </div>
-              <div className="col-span-2">
-                <label className="text-xs text-[var(--c-text-3)] mb-1 block">시공 종류</label>
-                <select value={customerForm.appointment_service_type} onChange={(e) => setCustomerForm({ ...customerForm, appointment_service_type: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50">
-                  <option value="">선택...</option>
-                  {SERVICE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </div>
-              <div className="col-span-2">
-                <label className="text-xs text-[var(--c-text-3)] mb-1 block">예상 금액</label>
-                <input type="text" inputMode="numeric" value={customerForm.appointment_amount ? Number(customerForm.appointment_amount).toLocaleString() : ''} onChange={(e) => { const raw = e.target.value.replace(/[^0-9]/g, ''); setCustomerForm({ ...customerForm, appointment_amount: raw }); }} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder="2,500,000" />
-              </div>
-              <div className="col-span-2">
-                <label className="text-xs text-[var(--c-text-3)] mb-1 block">예약 메모</label>
-                <textarea value={customerForm.appointment_memo} onChange={(e) => setCustomerForm({ ...customerForm, appointment_memo: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50 resize-none h-16" placeholder="예약 관련 메모" />
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => { setShowAddCustomer(false); setEditCustomerId(null); }} className="px-4 py-2 text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-2)] transition-colors">취소</button>
-              <button onClick={editCustomerId ? handleUpdateCustomer : handleAddCustomer} className="bg-brand hover:bg-brand-dark text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors">{editCustomerId ? '수정' : '추가'}</button>
-            </div>
-          </div>
-        </div>
+        <CustomerFormModal
+          mode={editCustomerId ? 'edit' : 'add'}
+          form={customerForm}
+          setForm={setCustomerForm}
+          latestApptId={editLatestApptId}
+          onSubmit={editCustomerId ? handleUpdateCustomer : handleAddCustomer}
+          onClose={() => { setShowAddCustomer(false); setEditCustomerId(null); setEditLatestApptId(null); }}
+        />
       )}
 
       {/* ─── Modal: 예약 추가 ────────────────────────────────── */}
