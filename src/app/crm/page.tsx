@@ -1802,11 +1802,12 @@ export default function CRMPage() {
             : baseAppointments.filter((a) => getManager(a) === managerFilter);
 
           // 일별/주별 건수
-          const todayCount = appointments.filter((a) => a.appointment_date === today && a.status !== '완료').length;
+          // 기간 예약(end_date)은 진행 중인 날도 센다 (2026-11-18: 3박 4일 PPF 두 대가 있는데 "오늘 0건"으로 보이던 문제)
+          const todayCount = appointments.filter((a) => a.appointment_date <= today && (a.end_date || a.appointment_date) >= today && a.status !== '완료' && a.status !== '취소').length;
           const weekEnd = new Date();
           weekEnd.setDate(weekEnd.getDate() + (7 - weekEnd.getDay()));
           const weekEndStr = toSeoulISO(weekEnd);
-          const weekCount = appointments.filter((a) => a.appointment_date >= today && a.appointment_date <= weekEndStr && a.status !== '완료').length;
+          const weekCount = appointments.filter((a) => a.appointment_date <= weekEndStr && (a.end_date || a.appointment_date) >= today && a.status !== '완료' && a.status !== '취소').length;
 
           const goToday = () => {
             const now = new Date();
