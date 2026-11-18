@@ -5,6 +5,7 @@ import CustomerFormModal, { EMPTY_CUSTOMER_FORM, loadCustomerForm, saveCustomerE
 import { todaySeoul } from '@/lib/local-date';
 import { linkReferral, loadReferralsFor, markThanksSent, updateReferral, unlinkReferral, type Referral } from '@/lib/referrals';
 import { MEMBERSHIP } from '@/config/membership';
+import MemberSmsButtons from '@/components/crm/MemberSmsButtons';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -266,10 +267,13 @@ export default function CustomerDetailPage() {
         {/* 멤버십 카드 (2026-11-18): 회원 여부(시공 완료면 자동), 소개받음·소개함과 혜택 사용 */}
         <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-5 mb-6">
           <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
-            <div className="text-xs font-semibold text-[var(--c-text-3)]">{MEMBERSHIP.name}</div>
-            {services.length > 0
-              ? <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-ok/10 text-ok">회원 · 가입 {formatDate(services[services.length - 1].service_date)}</span>
-              : <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[var(--c-subtle)] text-[var(--c-text-3)]">비회원 · 시공 완료 시 자동 가입</span>}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="text-xs font-semibold text-[var(--c-text-3)]">{MEMBERSHIP.name}</div>
+              {services.length > 0
+                ? <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-ok/10 text-ok">회원 · 가입 {formatDate(services[services.length - 1].service_date)}</span>
+                : <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[var(--c-subtle)] text-[var(--c-text-3)]">비회원 · 시공 완료 시 자동 가입</span>}
+            </div>
+            <MemberSmsButtons customerId={customer.id} name={customer.name} phone={customer.phone} onSent={fetchData} />
           </div>
           {refs.tableMissing ? (
             <div className="text-xs text-warn">소개 기록 표(referrals)가 아직 없습니다. supabase-schema.sql 9번 블록을 Supabase SQL Editor 에서 한 번 실행하면 켜집니다.</div>

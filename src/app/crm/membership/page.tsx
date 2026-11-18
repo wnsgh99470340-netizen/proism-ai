@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { todaySeoul } from '@/lib/local-date';
 import { MEMBERSHIP } from '@/config/membership';
 import { markThanksSent, updateReferral, type Referral } from '@/lib/referrals';
+import MemberSmsButtons from '@/components/crm/MemberSmsButtons';
 
 /**
  * 회원 한눈에 보기 (2026-11-18 사장님 "멤버십 한눈에 보이게, 페이지 하나 따로")
@@ -185,7 +186,7 @@ export default function MembershipPage() {
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm whitespace-nowrap">
-                    <thead><tr className="text-[11px] text-[var(--c-text-3)] text-left"><th className="py-1.5 pr-3 font-medium">이름</th><th className="py-1.5 pr-3 font-medium">차량</th><th className="py-1.5 pr-3 font-medium">가입일</th><th className="py-1.5 pr-3 font-medium text-right">시공</th><th className="py-1.5 pr-3 font-medium text-right">소개</th><th className="py-1.5 font-medium">최근 시공</th></tr></thead>
+                    <thead><tr className="text-[11px] text-[var(--c-text-3)] text-left"><th className="py-1.5 pr-3 font-medium">이름</th><th className="py-1.5 pr-3 font-medium">차량</th><th className="py-1.5 pr-3 font-medium">가입일</th><th className="py-1.5 pr-3 font-medium text-right">시공</th><th className="py-1.5 pr-3 font-medium text-right">소개</th><th className="py-1.5 pr-3 font-medium">최근 시공</th><th className="py-1.5 font-medium">문자</th></tr></thead>
                     <tbody>
                       {filteredMembers.map((c) => {
                         const list = [...(byCust.svc.get(c.id) || [])].sort((a, b) => (b.service_date || '').localeCompare(a.service_date || ''));
@@ -196,7 +197,8 @@ export default function MembershipPage() {
                             <td className="py-2 pr-3 text-[var(--c-text-3)]">{fmt(joinedAt(c.id))}</td>
                             <td className="py-2 pr-3 text-right tabular-nums text-[var(--c-text-1)]">{list.length}회</td>
                             <td className="py-2 pr-3 text-right tabular-nums">{byCust.gave.get(c.id) ? <span className="font-semibold text-[var(--c-text-1)]">{byCust.gave.get(c.id)}건</span> : <span className="text-[var(--c-text-4)]">-</span>}</td>
-                            <td className="py-2 text-[var(--c-text-2)]">{list[0] ? `${list[0].service_type} (${fmt(list[0].service_date)})` : '-'}</td>
+                            <td className="py-2 pr-3 text-[var(--c-text-2)]">{list[0] ? `${list[0].service_type} (${fmt(list[0].service_date)})` : '-'}</td>
+                            <td className="py-2"><MemberSmsButtons customerId={c.id} name={c.name} phone={c.phone} size="xs" /></td>
                           </tr>
                         );
                       })}
