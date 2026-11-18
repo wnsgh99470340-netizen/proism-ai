@@ -46,11 +46,38 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     bookedSet = new Set((a2 || []).map((x) => x.customer_id as string));
   }
 
-  // 보증서: 예약 메모(JSON) 속 warranty / warranty_url
-  type W = { warranty_issued?: boolean; warranty?: { date?: string; work_details?: string; warranty_period?: string }; warranty_url?: string };
+  // 보증서: 예약 메모(JSON) 속 warranty / warranty_url + 작업 내역서 항목(PPF·썬팅·코팅…)을 증명서 줄로
+  type Tint = { selected?: string[]; density?: string };
+  type W = {
+    warranty_issued?: boolean; warranty?: { date?: string; work_details?: string; warranty_period?: string }; warranty_url?: string;
+    ppf?: string[]; ppf_etc?: string; wrapping?: string[]; wrapping_etc?: string; coating?: string[]; electrical?: string[]; electrical_etc?: string;
+    polish?: string[]; polish_etc?: string; package_options?: string[]; tinting?: Record<string, Tint>;
+  };
+  const TINT_LABEL: Record<string, string> = { vertex: '루마 버텍스', rainbow: '레인보우', glasstint: '글라스틴트', tinain: '티나인' };
+  const PPF_LABEL: Record<string, string> = { '전체PPF': '전체 PPF', '프론트패키지': '프론트 패키지', '생활보호패키지': '생활보호 패키지' };
+  const workItems = (w: W) => {
+    const items: { group: string; text: string }[] = [];
+    const push = (group: string, arr?: string[], etc?: string) => {
+      const list = [...(arr || []), ...(etc?.trim() ? [etc.trim()] : [])];
+      if (list.length) items.push({ group, text: list.join(' · ') });
+    };
+    push('PPF', (w.ppf || []).map((p) => PPF_LABEL[p] || p), w.ppf_etc);
+    const tints = Object.entries(w.tinting || {}).filter(([, t]) => (t?.selected || []).length > 0)
+      .map(([b, t]) => `${TINT_LABEL[b] || b} ${(t.selected || []).join('·')}${t.density?.trim() ? ` (${t.density.trim()})` : ''}`);
+    push('썬팅', tints);
+    push('랩핑', w.wrapping, w.wrapping_etc);
+    push('코팅', w.coating);
+    push('전장', w.electrical, w.electrical_etc);
+    push('광택', w.polish, w.polish_etc);
+    push('패키지', w.package_options);
+    return items;
+  };
   const warranties = (appts || []).map((a) => { try { return { a, w: JSON.parse(a.memo || '') as W }; } catch { return null; } })
     .filter((v): v is { a: NonNullable<typeof appts>[number]; w: W } => !!v && !!(v.w.warranty_issued || v.w.warranty))
-    .map(({ a, w }) => ({ date: w.warranty?.date || a.appointment_date, work: w.warranty?.work_details || a.service_type || '', period: w.warranty?.warranty_period || '', url: (w.warranty_url || '').replace(/\s+/g, '') || null }));
+    .map(({ a, w }) => ({
+      date: w.warranty?.date || a.appointment_date, end: a.end_date, work: w.warranty?.work_details || a.service_type || '', period: w.warranty?.warranty_period || '',
+      url: (w.warranty_url || '').replace(/\s+/g, '') || null, items: workItems(w), certNo: `PZ-${String(a.id).replace(/-/g, '').slice(0, 8).toUpperCase()}`,
+    }));
 
   const upcoming = (appts || []).filter((a) => a.status !== '완료').map((a) => ({ date: a.appointment_date, end: a.end_date, service: a.service_type, status: a.status }));
   const memberSince = (services || []).map((s) => s.service_date || s.completion_date || '').filter(Boolean).sort()[0] || null;
