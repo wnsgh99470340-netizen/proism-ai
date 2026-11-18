@@ -13,6 +13,24 @@ function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
   return out;
 }
 
+/** 단계마다 시간 제한. 갤럭시에서 "…" 상태로 영영 멈추던 일(2026-11-18) → 어느 단계가 멈췄는지 알려 준다 */
+function withTimeout<T>(p: Promise<T>, ms: number, step: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`STEP_TIMEOUT:${step}`)), ms);
+    p.then((v) => { clearTimeout(t); resolve(v); }, (e) => { clearTimeout(t); reject(e); });
+  });
+}
+
+/** 권한 요청: 일부 안드로이드 브라우저는 Promise 형이 안 돌아와서 콜백 형과 같이 건다 */
+function askPermission(): Promise<NotificationPermission> {
+  return new Promise((resolve) => {
+    try {
+      const r = Notification.requestPermission((p) => resolve(p));
+      if (r && typeof (r as Promise<NotificationPermission>).then === 'function') (r as Promise<NotificationPermission>).then(resolve).catch(() => resolve(Notification.permission));
+    } catch { resolve(Notification.permission); }
+  });
+}
+
 /**
  * 🔔 글 완성 알림 켜기/끄기 (웹 푸시). 홈 화면에 설치한 앱·브라우저 모두 가능
  */
@@ -83,14 +101,14 @@ export default function PushToggle() {
     setState('busy');
     setMsg('');
     try {
-      const perm = await Notification.requestPermission();
+      const perm = await withTimeout(askPermission(), 60000, '권한 요청');
       if (perm === 'denied') { setState('denied'); setMsg(`이 사이트의 알림이 차단돼 있습니다. ${isAndroid ? androidHelp : '브라우저 설정 → 사이트 설정 → 알림에서 허용으로 바꾼 뒤 다시 눌러 주세요.'} ${diag()}`); return; }
       if (perm !== 'granted') { setState('off'); setMsg(`알림 허용 창이 뜨지 않았습니다. 전에 창을 닫은 적이 있으면 브라우저가 조용히 막습니다. ${isAndroid ? androidHelp : '주소창의 자물쇠 → 알림 → 허용으로 바꾼 뒤 다시 눌러 주세요.'} ${diag()}`); return; }
-      await navigator.serviceWorker.register('/sw.js');
-      const reg = await navigator.serviceWorker.ready;
+      await withTimeout(navigator.serviceWorker.register('/sw.js'), 15000, '서비스워커 등록');
+      const reg = await withTimeout(navigator.serviceWorker.ready, 15000, '서비스워커 준비');
       let sub: PushSubscription;
       try {
-        sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicKey) });
+        sub = await withTimeout(reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicKey) }), 20000, '구독 만들기');
       } catch (err) {
         // 안드로이드에서 흔한 실패: 폰 설정에서 브라우저 알림 자체가 꺼져 있거나, 푸시 서비스 연결이 막힘
         const name = err instanceof Error ? err.name : '';
@@ -99,14 +117,26 @@ export default function PushToggle() {
         setState('off');
         return;
       }
-      try { await register(sub); } catch (err) { setMsg(err instanceof Error ? err.message : '등록 실패'); await sub.unsubscribe(); setState('off'); return; }
+      try { await withTimeout(register(sub), 20000, '서버 등록'); } catch (err) { setMsg(`${err instanceof Error ? err.message : '등록 실패'} ${diag()}`); await sub.unsubscribe().catch(() => {}); setState('off'); return; }
       synced.current = true;
       setState('on');
       setMsg('알림이 켜졌습니다. 글이 완성되면 이 기기로 알려드립니다.');
       // 연결 확인용 테스트 알림
       fetch('/api/push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ test: true }) }).catch(() => {});
     } catch (e) {
-      setMsg(`${e instanceof Error ? e.message : '알림 설정 실패'} ${diag()}`);
+      const text = e instanceof Error ? e.message : '알림 설정 실패';
+      const m = text.match(/^STEP_TIMEOUT:(.+)$/);
+      if (m) {
+        const step = m[1];
+        const hint = step === '권한 요청'
+          ? '알림 허용 창이 뜨지 않고 멈췄습니다. 브라우저가 조용히 막는 상태입니다. 주소창 자물쇠(또는 ⋮ → 설정 → 사이트 설정 → 알림)에서 이 사이트를 허용으로 바꾼 뒤 다시 눌러 주세요.'
+          : step === '구독 만들기'
+          ? `푸시 서비스와 연결이 안 됩니다. 갤럭시에서는 폰 설정 → 애플리케이션 → ${browserName} → 알림이 꺼져 있을 때 이렇게 멈춥니다. 켠 뒤 ${browserName}을 완전히 닫고 다시 열어 눌러 주세요. 그래도 같으면 다른 브라우저(${isSamsung ? 'Chrome' : '삼성 인터넷'})로 열어 보세요.`
+          : `${step} 단계에서 응답이 없습니다. 앱을 완전히 닫았다가 다시 열어 한 번 더 눌러 주세요.`;
+        setMsg(`${hint} ${diag()}`);
+      } else {
+        setMsg(`${text} ${diag()}`);
+      }
       setState('off');
     }
   };
