@@ -712,6 +712,14 @@ export default function CRMPage() {
     setShowAddCustomer(true);
   };
 
+  // 예약 줄에서 바로 고객 정보 수정 (2026-11-18 사장님: 타임트리에서 가져온 임시 고객의 이름·전화를 달력에서 채우려고)
+  const handleEditCustomerFromAppointment = async (a: Appointment) => {
+    if (!a.customer_id) return;
+    const { data, error } = await supabase.from('customers').select('*').eq('id', a.customer_id).single();
+    if (error || !data) { alert('고객 정보를 불러오지 못했습니다'); return; }
+    await handleEditCustomer(data as Customer);
+  };
+
   const handleUpdateCustomer = async () => {
     if (!editCustomerId || !customerForm.name.trim()) return;
     const { error } = await supabase
@@ -1932,6 +1940,9 @@ export default function CRMPage() {
                           </div>
                           <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
                             <span className={`text-xs font-semibold px-2.5 py-1.5 rounded-full ${chip(a.status)}`}>{a.status}</span>
+                            {a.customer_id && (
+                              <button onClick={() => handleEditCustomerFromAppointment(a)} className={pill} title="이름·전화·차량·유입경로 수정">👤 고객 정보</button>
+                            )}
                             {a.service_type && CRM_SERVICE_TO_KEY[a.service_type] && (
                               <button onClick={() => handleWriteBlogFromAppointment(a)} className={pill} title="이 시공으로 블로그 시공기 폼 채우기">✍️ 시공기</button>
                             )}
