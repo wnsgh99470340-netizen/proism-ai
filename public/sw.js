@@ -3,7 +3,7 @@
  * - 페이지 이동: 네트워크 우선, 오프라인일 때만 캐시 사용
  * - /api 요청: 캐시하지 않음 (글 생성·CRM 데이터는 항상 최신)
  */
-const VERSION = 'proism-v2';
+const VERSION = 'proism-v3';
 const STATIC_CACHE = `${VERSION}-static`;
 const PAGE_CACHE = `${VERSION}-pages`;
 
@@ -71,6 +71,16 @@ self.addEventListener('push', (event) => {
       data: { url: data.url || '/' },
       vibrate: [100, 50, 100],
     })
+  );
+});
+
+// 브라우저·아이폰이 구독을 갈아끼우면(만료·키 교체) 새 구독을 만들어 서버에 다시 등록 (2026-11-18 "알림이 지혼자 꺼짐" 대책)
+self.addEventListener('pushsubscriptionchange', (event) => {
+  const key = event.oldSubscription && event.oldSubscription.options && event.oldSubscription.options.applicationServerKey;
+  event.waitUntil(
+    self.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key })
+      .then((sub) => fetch('/api/push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subscription: sub.toJSON() }) }))
+      .catch(() => {})
   );
 });
 

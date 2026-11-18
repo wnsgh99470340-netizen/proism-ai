@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 type State = 'unsupported' | 'checking' | 'off' | 'on' | 'denied' | 'busy';
 
@@ -21,6 +21,15 @@ export default function PushToggle() {
   const [msg, setMsg] = useState('');
   const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '';
 
+  const synced = useRef(false);
+
+  /** 구독을 서버에 (다시) 등록. 아이폰이 구독을 바꾸거나 서버가 만료로 지운 뒤에도 알림이 계속 오게 */
+  const register = useCallback(async (sub: PushSubscription) => {
+    const res = await fetch('/api/push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subscription: sub.toJSON() }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || '등록 실패');
+  }, []);
+
   const refresh = useCallback(async () => {
     if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window) || !publicKey) {
       setState('unsupported');
@@ -28,15 +37,35 @@ export default function PushToggle() {
     }
     if (Notification.permission === 'denied') { setState('denied'); return; }
     try {
-      const reg = await navigator.serviceWorker.getRegistration();
-      const sub = await reg?.pushManager.getSubscription();
+      // 서비스워커가 아직 안 올라온 첫 화면에서도 기다렸다가 본다 (getRegistration 이 undefined 라 "꺼짐"으로 보이던 틈)
+      let reg = await navigator.serviceWorker.getRegistration();
+      if (!reg) { await navigator.serviceWorker.register('/sw.js').catch(() => {}); reg = await navigator.serviceWorker.getRegistration(); }
+      if (!reg) { setState('off'); return; }
+      let sub = await reg.pushManager.getSubscription();
+      // 2026-11-18 사장님 "알림이 지혼자 꺼짐": 권한은 허용인데 구독만 사라진 경우(아이폰이 구독을 지우거나 바꿈) → 묻지 않고 다시 구독
+      if (!sub && Notification.permission === 'granted') {
+        try {
+          const ready = await navigator.serviceWorker.ready;
+          sub = await ready.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicKey) });
+        } catch { /* 자동 재구독이 안 되면 버튼으로 */ }
+      }
+      if (sub && !synced.current) {
+        synced.current = true;
+        register(sub).catch(() => {}); // 서버 쪽 기록을 매번 맞춰 둔다 (upsert)
+      }
       setState(sub ? 'on' : 'off');
     } catch {
       setState('off');
     }
-  }, [publicKey]);
+  }, [publicKey, register]);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    refresh();
+    // 앱을 다시 앞으로 가져올 때마다 확인 (홈 화면 앱은 새로고침이 없어서)
+    const onVis = () => { if (document.visibilityState === 'visible') { synced.current = false; refresh(); } };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, [refresh]);
 
   const enable = async () => {
     setState('busy');
@@ -47,9 +76,8 @@ export default function PushToggle() {
       await navigator.serviceWorker.register('/sw.js');
       const reg = await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicKey) });
-      const res = await fetch('/api/push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subscription: sub.toJSON() }) });
-      const data = await res.json();
-      if (!res.ok) { setMsg(data.error || '등록 실패'); await sub.unsubscribe(); setState('off'); return; }
+      try { await register(sub); } catch (err) { setMsg(err instanceof Error ? err.message : '등록 실패'); await sub.unsubscribe(); setState('off'); return; }
+      synced.current = true;
       setState('on');
       setMsg('알림이 켜졌습니다. 글이 완성되면 이 기기로 알려드립니다.');
       // 연결 확인용 테스트 알림
