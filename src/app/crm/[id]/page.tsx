@@ -220,7 +220,16 @@ export default function CustomerDetailPage() {
               // 보증서: 예약 메모(JSON)에 warranty_issued / warranty 가 있으면 발급된 것. 매장 보증서 페이지 링크(warranty_url)가 있으면 열기
               type W = { warranty_issued?: boolean; warranty?: { date?: string; work_details?: string }; warranty_url?: string };
               const issued = appts.map((x) => { try { return { a: x, w: JSON.parse(x.memo || '') as W }; } catch { return null; } }).filter((v): v is { a: typeof appts[number]; w: W } => !!v && !!(v.w.warranty_issued || v.w.warranty));
-              if (issued.length === 0) return <InfoItem label="보증서" value={appts.some((x) => x.status === '완료') ? '미발급' : '-'} />;
+              const done = appts.find((x) => x.status === '완료');
+              const makeLink = (apptId: string, text: string) => <Link href={`/crm?tab=appointments&warranty=${apptId}`} className="text-xs font-semibold px-2 py-0.5 rounded-full border border-[var(--c-border)] hover:bg-[var(--c-subtle)]">{text}</Link>;
+              if (issued.length === 0) {
+                return (
+                  <div>
+                    <div className="text-xs text-[var(--c-text-3)] mb-0.5">보증서</div>
+                    <div className="text-sm text-[var(--c-text-1)] flex items-center gap-2 flex-wrap">{done ? <><span>미발급</span>{makeLink(done.id, '발급하기')}</> : '-'}</div>
+                  </div>
+                );
+              }
               const { a, w } = issued[0];
               const url = (w.warranty_url || '').replace(/\s+/g, '');
               return (
@@ -229,7 +238,7 @@ export default function CustomerDetailPage() {
                   <div className="text-sm text-[var(--c-text-1)] flex items-center gap-2 flex-wrap">
                     <span className="inline-flex items-center gap-1 text-ok font-semibold">✓ 발급</span>
                     <span className="text-[var(--c-text-3)]">{formatDate(w.warranty?.date || a.appointment_date)}{w.warranty?.work_details ? ` · ${w.warranty.work_details}` : a.service_type ? ` · ${a.service_type}` : ''}</span>
-                    {url && <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold px-2 py-0.5 rounded-full border border-[var(--c-border)] hover:bg-[var(--c-subtle)]">보기</a>}
+                    {url ? <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold px-2 py-0.5 rounded-full border border-[var(--c-border)] hover:bg-[var(--c-subtle)]">보기</a> : makeLink(a.id, '보증서 페이지 만들기')}
                     {issued.length > 1 && <span className="text-xs text-[var(--c-text-4)]">외 {issued.length - 1}건</span>}
                   </div>
                 </div>

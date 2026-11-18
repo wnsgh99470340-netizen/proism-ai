@@ -196,13 +196,26 @@ export default function CRMPage() {
   const [prefillNonce, setPrefillNonce] = useState(0);
   const [helpOpen, setHelpOpen] = useState(false);
   useEffect(() => { if (activeTab === 'blog') setBlogVisited(true); }, [activeTab]);
-  // 주소 ?tab=blog 로 바로 열기
+  // 주소 ?tab=blog 로 바로 열기, ?warranty=<예약 id> 면 그 예약의 보증서 창까지 (고객 상세 화면 "보증서 만들기" 링크, 2026-11-18)
+  const pendingWarrantyId = useRef<string | null>(null);
   useEffect(() => {
     try {
-      const t = new URLSearchParams(window.location.search).get('tab');
+      const q = new URLSearchParams(window.location.search);
+      const t = q.get('tab');
       if (t && (TAB_KEYS as string[]).includes(t)) setActiveTab(t as Tab);
+      pendingWarrantyId.current = q.get('warranty');
     } catch { /* ignore */ }
   }, []);
+  useEffect(() => {
+    const id = pendingWarrantyId.current;
+    if (!id || appointments.length === 0) return;
+    const a = appointments.find((x) => x.id === id);
+    if (!a) return;
+    pendingWarrantyId.current = null;
+    window.history.replaceState(null, '', '/crm?tab=appointments');
+    handleOpenWarranty(a);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appointments]);
 
   // 카카오 SDK 동적 로드 + 초기화
   useEffect(() => {
