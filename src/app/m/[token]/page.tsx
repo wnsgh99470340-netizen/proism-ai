@@ -78,11 +78,12 @@ export default function MemberPage() {
 
   useEffect(() => { const saved = sessionStorage.getItem(`m_pin_${token}`) || ''; load(saved); }, [load, token]);
 
-  const share = () => {
+  // 매장 연락처 전달 (2026-11-19 사장님: 정해진 소개 문구를 보낼 일은 거의 없어 버튼을 빼고, 실제로 쓰는 전화·명함만 넘기게)
+  const shareShop = () => {
     if (!data) return;
-    const text = `${data.customer.name}님 소개로 연락드립니다.\n3M 프로이즘 강남서초점 ${data.shop.phone}\n${data.shop.card}`;
-    if (navigator.share) navigator.share({ text }).catch(() => {});
-    else { navigator.clipboard?.writeText(text); alert('소개 문구를 복사했습니다. 지인에게 붙여 넣어 보내 주세요.'); }
+    const text = `3M 프로이즘 강남서초점 ${data.shop.phone}\n${data.shop.card}`;
+    if (navigator.share) navigator.share({ title: '3M 프로이즘 강남서초점', text }).catch(() => {});
+    else { navigator.clipboard?.writeText(text); alert('매장 연락처를 복사했습니다.'); }
   };
 
   if (!data) {
@@ -288,8 +289,8 @@ export default function MemberPage() {
           <div className="space-y-3">
             <div className={box}>
               <div className="text-sm font-bold mb-1">지인 소개하기</div>
-              <div className="text-sm text-white/70 leading-relaxed">아래 버튼을 누르면 "{c.name}님 소개로 연락드립니다"가 적힌 문구가 열립니다. 지인에게 보내 주시면, 그분이 연락하실 때 소개하신 분으로 기록됩니다.</div>
-              <button onClick={share} className={`${btn} w-full mt-3 bg-[#E4002B] hover:bg-[#c60026]`}>소개 문구 보내기</button>
+              <div className="text-sm text-white/70 leading-relaxed break-keep">지인이 연락하실 때 <span className="text-white font-semibold">{c.name}</span> 고객님 성함만 말씀해 주시면 됩니다. 그분과 고객님 모두에게 소개 혜택이 적용됩니다.</div>
+              <button onClick={shareShop} className={`${btn} w-full mt-3 bg-white/10 hover:bg-white/15`}>매장 연락처 전달하기</button>
             </div>
             <div className={box}>
               <div className="text-sm font-bold mb-2">내가 소개한 분 {data.referrals.gave.length > 0 && <span className="text-white/60 font-medium">{data.referrals.gave.length}명</span>}</div>
