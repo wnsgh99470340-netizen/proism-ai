@@ -206,16 +206,6 @@ export default function CRMPage() {
       pendingWarrantyId.current = q.get('warranty');
     } catch { /* ignore */ }
   }, []);
-  useEffect(() => {
-    const id = pendingWarrantyId.current;
-    if (!id || appointments.length === 0) return;
-    const a = appointments.find((x) => x.id === id);
-    if (!a) return;
-    pendingWarrantyId.current = null;
-    window.history.replaceState(null, '', '/crm?tab=appointments');
-    handleOpenWarranty(a);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appointments]);
 
   // 카카오 SDK 동적 로드 + 초기화
   useEffect(() => {
@@ -1096,6 +1086,18 @@ export default function CRMPage() {
     setWarrantyAppointment(appointment);
     setShowWarranty(true);
   };
+
+  // ?warranty=<예약 id> 로 들어왔으면 예약을 읽은 뒤 그 보증서 창을 연다
+  useEffect(() => {
+    const id = pendingWarrantyId.current;
+    if (!id || appointments.length === 0) return;
+    const a = appointments.find((x) => x.id === id);
+    if (!a) return;
+    pendingWarrantyId.current = null;
+    window.history.replaceState(null, '', '/crm?tab=appointments');
+    handleOpenWarranty(a);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appointments]);
 
   const handleSaveWarranty = async () => {
     if (!warrantyAppointment) return;
