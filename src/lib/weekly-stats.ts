@@ -178,12 +178,15 @@ export async function buildSourceTable(month = todaySeoul().slice(0, 7)): Promis
 /** 시트에 그대로 붙일 수 있는 탭 구분 텍스트 (제목 줄 + 머리글 + 31일 + 합계 + 비율) */
 export function sourceTableTsv(t: SourceTable): string {
   const [y, m] = t.month.split('-');
+  // 시트 모양(2026-11-18 사장님): 위에 합계·머리글·비율 블록, 아래에 일별 표
   const lines = [
     `${Number(m)}월 유입경로 분석 (${y})`,
-    ['', ...t.labels, '합계'].join('\t'),
-    ...t.rows.map(r => [String(r.day), ...r.counts.map(c => (c ? String(c) : '')), String(r.total)].join('\t')),
     ['합계', ...t.totals.map(String), String(t.total)].join('\t'),
+    ['', ...t.labels, '합계'].join('\t'),
     ['비율', ...t.ratios.map(r => `${r.toFixed(2)}%`), ''].join('\t'),
+    '',
+    ['일', ...t.labels, '합계'].join('\t'),
+    ...t.rows.map(r => [String(r.day), ...r.counts.map(c => (c ? String(c) : '')), String(r.total)].join('\t')),
   ];
   return lines.join('\n');
 }

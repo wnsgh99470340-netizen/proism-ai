@@ -13,6 +13,7 @@ import { QC_SMS, MAINT_SMS, REVIEW_SMS } from '@/config/sms-templates';
 import type { DailyBrief, TeamItem, WorkerLine } from '@/lib/team';
 import type { WeeklyStats, SourceTable } from '@/lib/weekly-stats';
 import type { ImportCandidate } from '@/lib/appointment-import';
+import SourceChart from '@/components/crm/SourceChart';
 import BlogWorkspace from '@/components/BlogWorkspace';
 import HelpModal from '@/components/HelpModal';
 import PushToggle from '@/components/PushToggle';
@@ -1704,40 +1705,34 @@ export default function CRMPage() {
                           <button onClick={() => { const [y, m] = statsMonth.split('-').map(Number); const d = new Date(y, m, 1); const mm = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; if (mm <= today.slice(0, 7)) { setStatsMonth(mm); fetchStats(mm); } }} className="w-7 h-7 rounded-full border border-[var(--c-border)] text-[var(--c-text-2)] hover:bg-[var(--c-subtle)]">›</button>
                         </div>
                         <div className="flex items-center gap-2">
-                          <button onClick={() => setStatsDays((v) => !v)} className="text-xs font-medium px-3 py-1.5 rounded-full border border-[var(--c-border)] text-[var(--c-text-2)] hover:bg-[var(--c-subtle)]">{statsDays ? '합계만' : '일별 보기'}</button>
+                          <button onClick={() => setStatsDays((v) => !v)} className="text-xs font-medium px-3 py-1.5 rounded-full border border-[var(--c-border)] text-[var(--c-text-2)] hover:bg-[var(--c-subtle)]">{statsDays ? '일별 닫기' : '일별 보기'}</button>
                           <button onClick={async () => { try { const r = await fetch(`/api/stats?month=${statsMonth}`, { cache: 'no-store' }); const d = await r.json(); await navigator.clipboard.writeText(d.tsv || ''); alert('표를 복사했습니다. 구글 시트에 붙여 넣으면 됩니다.'); } catch { alert('복사하지 못했습니다'); } }} className="text-xs font-medium px-3 py-1.5 rounded-full bg-[var(--c-text-1)] text-[var(--c-page)] hover:opacity-90">표 복사</button>
                         </div>
                       </div>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm tabular-nums whitespace-nowrap">
-                          <thead>
-                            <tr className="text-[11px] text-[var(--c-text-3)]">
-                              <th className="text-left py-1.5 pr-2 font-medium w-10">{statsDays ? '일' : ''}</th>
-                              {stats.table.labels.map((l) => <th key={l} className="text-right py-1.5 px-2 font-medium">{l}</th>)}
-                              <th className="text-right py-1.5 pl-2 font-medium">합계</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {statsDays && stats.table.rows.filter((r) => r.total > 0).map((r) => (
-                              <tr key={r.day} className="border-t border-[var(--c-border)]">
-                                <td className="py-1.5 pr-2 text-[var(--c-text-3)]">{r.day}</td>
-                                {r.counts.map((c, i) => <td key={i} className={`text-right py-1.5 px-2 ${c ? 'text-[var(--c-text-1)] font-semibold' : 'text-[var(--c-text-4)]'}`}>{c || ''}</td>)}
-                                <td className="text-right py-1.5 pl-2 font-semibold text-[var(--c-text-1)]">{r.total}</td>
+                      {/* 시트의 "유입경로 분석"처럼: 도넛 + 건수·비율 요약, 일별 표는 펼쳤을 때만 (2026-11-18) */}
+                      <SourceChart table={stats.table} />
+                      {statsDays && (
+                        <div className="overflow-x-auto mt-4 pt-3 border-t border-dashed border-[var(--c-border)]">
+                          <table className="w-full text-sm tabular-nums whitespace-nowrap">
+                            <thead>
+                              <tr className="text-[11px] text-[var(--c-text-3)]">
+                                <th className="text-left py-1.5 pr-2 font-medium w-10">일</th>
+                                {stats.table.labels.map((l) => <th key={l} className="text-right py-1.5 px-2 font-medium">{l}</th>)}
+                                <th className="text-right py-1.5 pl-2 font-medium">합계</th>
                               </tr>
-                            ))}
-                            <tr className="border-t border-[var(--c-border)] font-bold text-[var(--c-text-1)]">
-                              <td className="py-2 pr-2">합계</td>
-                              {stats.table.totals.map((c, i) => <td key={i} className="text-right py-2 px-2">{c}</td>)}
-                              <td className="text-right py-2 pl-2">{stats.table.total}</td>
-                            </tr>
-                            <tr className="text-xs text-[var(--c-text-3)]">
-                              <td className="py-1 pr-2">비율</td>
-                              {stats.table.ratios.map((c, i) => <td key={i} className="text-right py-1 px-2">{c}%</td>)}
-                              <td></td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
+                            </thead>
+                            <tbody>
+                              {stats.table.rows.filter((r) => r.total > 0).map((r) => (
+                                <tr key={r.day} className="border-t border-[var(--c-border)]">
+                                  <td className="py-1.5 pr-2 text-[var(--c-text-3)]">{r.day}</td>
+                                  {r.counts.map((c, i) => <td key={i} className={`text-right py-1.5 px-2 ${c ? 'text-[var(--c-text-1)] font-semibold' : 'text-[var(--c-text-4)]'}`}>{c || ''}</td>)}
+                                  <td className="text-right py-1.5 pl-2 font-semibold text-[var(--c-text-1)]">{r.total}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
                       {stats.table.blankSource > 0 && <div className="mt-2 text-xs text-[var(--c-text-4)]">유입경로가 비어 있는 고객 {stats.table.blankSource}명은 기타로 셌습니다. 고객 카드에서 채워 주세요.</div>}
                       {statsDays && stats.table.rows.every((r) => r.total === 0) && <div className="py-3 text-center text-xs text-[var(--c-text-4)]">이 달에 등록된 고객이 없습니다</div>}
                     </div>
