@@ -16,6 +16,7 @@ import { buildToneReference, savePost, listPosts } from './posts';
 import { BLOG_SYSTEM_PROMPT } from '@/config/prompts';
 import { BLOG_FORMATS, detectFormat, pickFormat, stockPhrasesIn, STOCK_PHRASES, formatByKey, formatFromMessage, type BlogFormat } from '@/config/blog-formats';
 import { pickDifferentiators, differentiatorPrompt, type Differentiator } from '@/config/differentiators';
+import { pickWorkStandards, workStandardsPrompt, standardServiceOf, type WorkStandard } from '@/config/work-standards';
 import { extractTagsFromTitle, textToHtml } from './draft-format';
 
 /** 블로그 작성 모델 (담당 직원 설정과 무관하게 고정) */
@@ -106,6 +107,10 @@ export function checkHardViolations(body: string, userInput: string, serviceType
   // 0. 작업자 강조 (2026-11-12 사장님: "제가 직접 합니다" 식 노골적 소개 금지)
   const worker = body.match(/(제가|대표가)\s*직접\s*(합니다|시공|작업)|(작업|시공)은\s*제가\s*직접|1인\s*시공|하루\s*(?:에\s*)?한\s*대/);
   if (worker) v.push({ rule: 'worker', detail: `작업자 강조 표현 "${worker[0]}" (삭제)` });
+
+  // 0-0-1. 선언형 표현 (2026-11-18 사장님 "뭐든 너무 노골적으로 표현하지 않았으면"): 기준 사전을 옮겨 적은 티가 나는 문장
+  const declare = body.match(/[^\n]{0,14}(?:원칙(?:으로|입니다|이라서|이기)|노하우|저희만|우리만|어디서도\s*못)[^\n]{0,8}/);
+  if (declare) v.push({ rule: 'declare', detail: `선언형 표현 "${declare[0].trim()}" → 그 문장은 빼거나, 그 자리에서 실제로 한 일(장면)로 바꾸기` });
 
   // 0-0. 부품 용어
   const jargon = body.match(JARGON_RE);
@@ -425,7 +430,7 @@ export async function chooseFormat(previous?: PreviousPost[], exclude: string[] 
 }
 
 /** 블로그 작성용 시스템 프롬프트: 규칙 + 이번 글 형식 + 사장님 문체 + 사전 조사 + 이전 글 목록 */
-export async function buildBlogSystemPrompt(researchContext: string, serviceType?: string, keyword?: string | null, format?: BlogFormat | null, differentiators?: Differentiator[]): Promise<string> {
+export async function buildBlogSystemPrompt(researchContext: string, serviceType?: string, keyword?: string | null, format?: BlogFormat | null, differentiators?: Differentiator[], standards?: WorkStandard[]): Promise<string> {
   const [toneReference, ownerStyle] = await Promise.all([buildToneReference(serviceType), getOwnerStyle()]);
   const styleContext = ownerStyle ? styleToPrompt(ownerStyle) : '';
   const keywordContext = keyword
@@ -436,6 +441,8 @@ export async function buildBlogSystemPrompt(researchContext: string, serviceType
   const fmt = format ?? pickFormat(recentFormatKeys(previousDrafts));
   // 차별점 사실표(2026-11-16): 확인된 사실 1~2개를 글마다 골라 작업 설명 안에 녹이게 한다
   const diffContext = differentiatorPrompt(differentiators ?? pickDifferentiators(serviceType || ''));
+  // 부위별 시공 기준 사전(2026-11-18): 랩핑·크롬죽이기(컬러PPF는 안전 항목만)의 부위 기준을 장면의 근거로만 넣는다
+  const standardsContext = workStandardsPrompt(standardServiceOf(serviceType || ''), standards ?? []);
   const formatContext = `\n\n[이번 글의 형식 — 필수: ${fmt.name}]\n${fmt.brief}\n이 형식이 글의 뼈대다. 아래 "구조"의 공통 요소(자기소개 한 줄·차량 2~3줄·관리 2~3줄·상담 문턱 한 줄·연락처)는 이 뼈대 안에 자리를 찾아 넣고, 부위를 "가장 이야기하고 싶은 → 두 번째 → 세 번째"로 번호 매겨 훑지 않는다.`;
   let previousContext = '';
   if (previousDrafts.length > 0) {
@@ -447,7 +454,7 @@ export async function buildBlogSystemPrompt(researchContext: string, serviceType
     }).join('\n');
     previousContext = `\n\n[이전에 작성한 글 — 겹침 금지]\n아래 글들의 도입 첫 문장·마무리 문장·"말버릇"에 적힌 표현을 이번 글에 쓰지 않는다. "완성된 모습부터 보여드립니다"와 그 변형(바뀐 뒤의 모습을 먼저 보시고 등)으로 열지 않는다. 몸통도 전처리 → 부위 1·2·3 → 루프 → 전체 → 감상 → QC → 메인터넌스 순서를 되풀이하지 말고 [이번 글의 형식]을 따른다.\n${list}`;
   }
-  return `${BLOG_SYSTEM_PROMPT}${formatContext}${diffContext}${keywordContext}${styleContext}${toneReference}${vehicleContext}${previousContext}`;
+  return `${BLOG_SYSTEM_PROMPT}${formatContext}${diffContext}${standardsContext}${keywordContext}${styleContext}${toneReference}${vehicleContext}${previousContext}`;
 }
 
 export interface RunWriterOptions {
@@ -466,13 +473,15 @@ export interface RunWriterOptions {
   formatName?: string;
   /** 이번 글에 녹인 차별점 이름들 (접수 요약에 표시) */
   differentiatorNames?: string[];
+  /** 이번 글에 넣은 부위별 시공 기준 (접수 요약에 표시) */
+  standardNames?: string[];
 }
 
 /**
  * 작성 → 검사 → 1회 수정 → draft 구성 → 저장. /api/chat 과 백그라운드 작업이 공유하는 핵심.
  */
 export async function runWriter(opts: RunWriterOptions): Promise<WriterResult> {
-  const { systemPrompt, model, history = [], combinedMessage, target, researchSummary = '', save, knownColor = null, formatName, differentiatorNames = [] } = opts;
+  const { systemPrompt, model, history = [], combinedMessage, target, researchSummary = '', save, knownColor = null, formatName, differentiatorNames = [], standardNames = [] } = opts;
   const messages = [
     ...history.map(h => ({ role: h.role as 'user' | 'assistant', content: h.content })),
     { role: 'user' as const, content: combinedMessage },
@@ -534,6 +543,7 @@ export async function runWriter(opts: RunWriterOptions): Promise<WriterResult> {
   const notes: string[] = ['블로그 글이 완성되었습니다.'];
   if (formatName) notes.push(`이번 글 형식: ${formatName}`);
   if (differentiatorNames.length) notes.push(`녹인 차별점: ${differentiatorNames.join(' · ')}`);
+  if (standardNames.length) notes.push(`부위 기준 참고: ${standardNames.join(' · ')}`);
   if (violations.length > 0) notes.push(`확인 필요: ${violations.map(v => v.detail).join(' / ')}`);
   notes.push(factIssues.length > 0 ? `팩트체크 ${factIssues.length}건 확인 필요: ${factIssues.map(f => f.detail).join(' / ')}` : '팩트체크 통과 (제품·시공 규칙 위반 없음)');
   if (formatIssues.length > 0) notes.push(`형식: ${formatIssues.join(' / ')}`);
@@ -579,7 +589,8 @@ export async function generateBlogPost(input: {
   const exclude = /신차패키지/.test(target.serviceType) ? ['one_part', 'care'] : [];
   const format = formatByKey(input.request?.format) || formatFromMessage(`${input.request?.notes || ''}\n${input.message}`) || await chooseFormat(undefined, exclude);
   const diffs = pickDifferentiators(target.serviceType);
-  const systemPrompt = await buildBlogSystemPrompt(input.research?.context || '', target.serviceType, keyword, format, diffs);
+  const standards = pickWorkStandards(target.serviceType, `${input.request?.range || ''} ${input.request?.notes || ''} ${input.message}`, input.research?.context || '');
+  const systemPrompt = await buildBlogSystemPrompt(input.research?.context || '', target.serviceType, keyword, format, diffs, standards);
   const knownColor = input.request?.color?.trim() || photoColorFromContext(input.research?.context);
   return runWriter({
     systemPrompt,
@@ -592,6 +603,7 @@ export async function generateBlogPost(input: {
     knownColor,
     formatName: format.name,
     differentiatorNames: diffs.map(d => d.label),
+    standardNames: standards.map(st => st.part),
   });
 }
 
