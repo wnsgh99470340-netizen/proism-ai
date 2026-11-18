@@ -34,5 +34,5 @@ export function maskName(name: string | null | undefined): string {
 
 /** 회원 페이지 링크 안내 문자 (사장님 말투) */
 export function memberLinkSms(name: string, url: string): string {
-  return `안녕하세요 3M 프로이즘 대표 진준호입니다.\n${name} 고객님의 회원 페이지입니다.\n${url}\n관리 일정과 혜택, 소개하신 분 현황을 보실 수 있습니다. 들어가실 때 전화번호 뒷자리 4개를 넣어 주세요.`;
+  return `안녕하세요 3M 프로이즘 대표 진준호입니다.\n${name} 고객님, 시공하신 내용을 회원으로 등록해 드렸습니다.\n아래 주소에서 시공 증명서와 보증, 관리 일정을 보실 수 있습니다.\n${url}\n들어가실 때 전화번호 뒷자리 4개를 넣어 주세요.`;
 }

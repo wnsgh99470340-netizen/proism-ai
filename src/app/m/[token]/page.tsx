@@ -17,7 +17,7 @@ interface Data {
   services: { type: string; date: string | null; done: string | null; area: string | null; film: string | null }[];
   care: { type: string; date: string; done: boolean; doneAt: string | null }[];
   upcoming: { date: string; end: string | null; service: string | null; status: string }[];
-  warranties: { date: string; end: string | null; work: string; period: string; url: string | null; items: { group: string; text: string }[]; certNo: string }[];
+  warranties: { date: string; end: string | null; work: string; period: string; url: string | null; items: { group: string; text: string; product?: string }[]; certNo: string }[];
   referrals: { gave: { name: string; date: string; state: string; reward: string | null; rewardAt: string | null }[]; received: { from: string; date: string; reward: string | null; rewardAt: string | null } | null };
   shop: { name: string; phone: string; address: string; card: string; map: string; talk: string };
 }
@@ -33,12 +33,9 @@ const micro = 'text-[10px] tracking-[0.22em] uppercase text-white/40';
 const careName = (t: string) => (t === 'QC점검' ? 'QC 점검' : t);
 
 /** 시공 증명서 아래 "이 시공의 기준" — 확인된 사실만, 짧게 (differentiators.ts confirmed 항목 기준) */
-function standardsFor(items: { group: string }[]) {
-  const lines = ['3M 공인 프리퍼드 인스톨러 매장에서 시공했습니다'];
-  if (items.some((i) => i.group === 'PPF')) lines.push('PPF 외부 패널은 판시공 핸드커팅, 끝단 안쪽 마감입니다');
-  lines.push('2주 뒤 QC 점검, 6개월마다 메인터넌스로 관리합니다');
-  lines.push('시공 기록과 보증서는 매장에서 보관합니다');
-  return lines;
+function standardsFor() {
+  // 2026-11-19 사장님: "안쪽 마감 진행" 같은 말보다 어떤 제품으로 시공했는지 → 제품은 증명서 항목 아래 줄로, 여기는 매장 약속만
+  return ['3M 공인 프리퍼드 인스톨러 매장에서 시공했습니다', '2주 뒤 QC 점검, 6개월마다 메인터넌스로 관리합니다', '시공 기록과 보증서는 매장에서 보관합니다'];
 }
 
 function Seal() {
@@ -61,7 +58,7 @@ export default function MemberPage() {
   const [maskedName, setMaskedName] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState<'care' | 'benefit' | 'referral' | 'history'>('care');
+  const [tab, setTab] = useState<'cert' | 'care' | 'benefit' | 'referral' | 'history'>('cert');
 
   const load = useCallback(async (p: string) => {
     setBusy(true); setErr('');
@@ -86,7 +83,7 @@ export default function MemberPage() {
 
   if (!data) {
     return (
-      <main className="min-h-dvh bg-[#0b0c0f] text-white flex items-center justify-center p-6">
+      <main className="h-dvh overflow-y-auto bg-[#0b0c0f] text-white flex items-center justify-center p-6">
         <div className="w-full max-w-sm">
           <div className="text-center mb-7">
             <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-[#E4002B] font-black text-lg mb-4 shadow-[0_0_30px_rgba(228,0,43,0.3)]">3M</div>
@@ -110,10 +107,10 @@ export default function MemberPage() {
   const nextCare = data.care.find((f) => !f.done);
   const cert = data.warranties[0] || null; // 가장 최근 발급분이 맨 위 증명서
   const latestService = data.services[0] || null;
-  const tabs = [['care', '관리 일정'], ['benefit', '내 혜택'], ['referral', '소개'], ['history', '기록·보증']] as const;
+  const tabs = [['cert', '증명서'], ['care', '관리'], ['benefit', '혜택'], ['referral', '소개'], ['history', '기록·보증']] as const;
 
   return (
-    <main className="min-h-dvh bg-[#0b0c0f] text-white">
+    <main className="h-dvh overflow-y-auto overscroll-contain bg-[#0b0c0f] text-white">
       <div className="max-w-md mx-auto px-4 pt-5 pb-10 space-y-4">
         {/* 상단 서명 */}
         <div className="flex items-center justify-between px-1">
@@ -130,6 +127,14 @@ export default function MemberPage() {
           </div>
         </div>
 
+        {/* 탭 — 상단 고정. 2026-11-19 사장님 "모바일에서 잘림 → 스크롤되게, 탭도 각각 보이게": 증명서도 탭 하나 */}
+        <div className="sticky top-0 z-10 -mx-4 px-4 pt-1 pb-2 bg-[#0b0c0f]/90 backdrop-blur">
+          <div className="grid grid-cols-5 gap-1 rounded-xl bg-white/[0.06] p-1">
+            {tabs.map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={`rounded-lg py-2 text-xs font-semibold transition-colors ${tab === k ? 'bg-white text-black' : 'text-white/65 hover:text-white'}`}>{l}</button>)}
+          </div>
+        </div>
+
+        {tab === 'cert' && (<>
         {/* 시공 증명서 */}
         <section className="relative rounded-[28px] p-[1px] bg-gradient-to-b from-white/20 via-white/5 to-white/10">
           <div className="relative rounded-[27px] bg-[radial-gradient(120%_80%_at_0%_0%,#23262d_0%,#121317_55%,#0e0f12_100%)] overflow-hidden">
@@ -159,7 +164,7 @@ export default function MemberPage() {
                       {cert.items.map((it, i) => (
                         <li key={i} className="flex gap-3 items-baseline">
                           <span className="shrink-0 w-11 text-[11px] font-semibold tracking-wide text-[#ff5c78]">{it.group}</span>
-                          <span className="text-[15px] font-medium leading-snug">{it.text}</span>
+                          <span className="min-w-0"><span className="block text-[15px] font-medium leading-snug">{it.text}</span>{it.product && <span className="block text-[12px] text-white/55 mt-0.5 leading-snug break-keep">{it.product}</span>}</span>
                         </li>
                       ))}
                     </ul>
@@ -200,7 +205,7 @@ export default function MemberPage() {
 
         {/* 이 시공의 기준 */}
         <ul className="px-2 space-y-1.5">
-          {standardsFor(cert?.items || []).map((t) => (
+          {standardsFor().map((t) => (
             <li key={t} className="flex gap-2.5 text-[12.5px] text-white/65 leading-snug break-keep"><span className="text-[#E4002B] mt-[1px]">—</span><span>{t}</span></li>
           ))}
         </ul>
@@ -212,11 +217,7 @@ export default function MemberPage() {
             {data.upcoming.length > 0 && <div className="rounded-2xl bg-white/[0.04] border border-white/10 px-4 py-3 flex items-center justify-between"><div><div className={micro}>예약</div><div className="text-sm font-semibold mt-0.5">{data.upcoming[0].service || '시공'}</div></div><div className="text-sm text-white/75 tabular-nums">{fmt(data.upcoming[0].date)} · {data.upcoming[0].status}</div></div>}
           </div>
         )}
-
-        {/* 탭 */}
-        <div className="grid grid-cols-4 gap-1 rounded-xl bg-white/[0.05] p-1">
-          {tabs.map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={`rounded-lg py-2 text-xs font-semibold transition-colors ${tab === k ? 'bg-white text-black' : 'text-white/65 hover:text-white'}`}>{l}</button>)}
-        </div>
+        </>)}
 
         {tab === 'care' && (
           <div className={box}>
@@ -298,6 +299,7 @@ export default function MemberPage() {
                     <li key={i} className="text-sm">
                       <div className="flex items-center justify-between"><div className="font-medium">{w.work || '시공 보증서'}</div><div className="text-white/70 tabular-nums">{fmt(w.date)}</div></div>
                       <div className="text-[11px] text-white/45 mt-0.5 tabular-nums">No. {w.certNo}{w.period ? ` · 매장 보증 ${w.period}` : ''}</div>
+                      {w.items.length > 0 && <ul className="mt-1.5 space-y-0.5">{w.items.map((it, k) => <li key={k} className="text-[12px] text-white/60 break-keep"><span className="text-[#ff5c78] font-semibold mr-1.5">{it.group}</span>{it.text}{it.product ? <span className="text-white/40"> · {it.product}</span> : null}</li>)}</ul>}
                     </li>
                   ))}
                 </ul>

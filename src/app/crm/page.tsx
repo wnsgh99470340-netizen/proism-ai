@@ -22,6 +22,8 @@ import Link from 'next/link';
 import CustomerFormModal, { EMPTY_CUSTOMER_FORM, loadCustomerForm, saveCustomerEdit } from '@/components/crm/CustomerFormModal';
 import { linkReferral, loadReferralsFor, markThanksSent } from '@/lib/referrals';
 import { MEMBERSHIP } from '@/config/membership';
+import { getOrCreateMemberLink, memberLinkSms } from '@/lib/member-links';
+import { workDetailsText, type WorkOrderJson } from '@/lib/work-order';
 
 // ─── Types ───────────────────────────────────────────────
 interface Customer {
@@ -895,10 +897,24 @@ export default function CRMPage() {
         if (parsed?.warranty_issued) existingExtra.warranty_issued = parsed.warranty_issued;
       } catch { /* ignore */ }
     }
-    const mergedMemo = JSON.stringify({ ...workOrder, ...existingExtra });
+    const finalAmount = workOrder.amount ? Number(workOrder.amount) : (appointment.amount || null);
+
+    // 회원 등록 = 보증서 발급 (2026-11-19 사장님 "멤버십 따로 보증서 따로가 아니라, 등록하면 자연스럽게 보증서까지")
+    // 완료 저장과 동시에 warranty 를 작업 내역서에서 채우고 warranty_issued 로 표시 → 회원 페이지 시공 증명서에 바로 뜬다. 보증서 창(PNG)은 그대로 쓸 수 있음
+    const { data: cust } = await supabase.from('customers').select('name, phone, car_brand, car_model').eq('id', appointment.customer_id).single();
+    const memoObj: Record<string, unknown> = { ...workOrder, ...existingExtra };
+    if (!memoObj.warranty) {
+      memoObj.warranty = {
+        date: appointment.appointment_date, customer_name: cust?.name || appointment.customer?.name || '', phone: cust?.phone || appointment.customer?.phone || '',
+        car_type: [cust?.car_brand, cust?.car_model].filter(Boolean).join(' '), car_number: workOrder.car_number || '',
+        work_details: workDetailsText(workOrder as WorkOrderJson, appointment.service_type || '시공'), warranty_period: '시공일로부터 1년',
+        price: finalAmount ? `₩${Number(finalAmount).toLocaleString()}` : '',
+      };
+    }
+    memoObj.warranty_issued = true;
+    const mergedMemo = JSON.stringify(memoObj);
 
     // 시공 이력 생성 (작업 내역서 데이터를 memo에 JSON으로 저장)
-    const finalAmount = workOrder.amount ? Number(workOrder.amount) : (appointment.amount || null);
     const { data: service } = await supabase
       .from('services')
       .insert({
@@ -919,6 +935,15 @@ export default function CRMPage() {
 
     // 예약 상태 완료로 변경 + memo 보존
     await supabase.from('appointments').update({ status: '완료', memo: mergedMemo }).eq('id', appointment.id);
+
+    // 회원 페이지 링크(시공 증명서·보증·관리 일정) 문자 — 보증서 전달을 이 문자 하나로
+    const custName = cust?.name || appointment.customer?.name || '고객';
+    const custPhone = cust?.phone || appointment.customer?.phone || '';
+    const link = await getOrCreateMemberLink(appointment.customer_id);
+    if ('url' in link && custPhone && confirm(`${custName} 고객님을 회원으로 등록하고 보증서를 발급했습니다.\n시공 증명서·보증·관리 일정이 담긴 회원 페이지 링크를 문자로 보낼까요?`)) {
+      openSmsApp(custPhone, memberLinkSms(custName, link.url));
+      await supabase.from('consultations').insert({ customer_id: appointment.customer_id, consultation_date: todaySeoul(), content: `[회원 문자] 회원 등록·보증서 발급 링크\n${link.url}`, memo: '회원 문자' });
+    }
 
     // Notion 시공 기록 + QC/메인터넌스 리마인더 동기화 (fire-and-forget)
     const customerName = appointment.customer?.name || '고객';
