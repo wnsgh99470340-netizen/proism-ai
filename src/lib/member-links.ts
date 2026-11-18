@@ -1,0 +1,38 @@
+/**
+ * 손님용 회원 페이지 개인 링크 (2026-11-18)
+ * - 고객당 token 하나. /m/<token> 으로 들어와 전화 뒷자리 4개로 확인
+ * - 표(member_links)가 없으면 오류 문구를 돌려준다
+ */
+import { supabase } from './supabase';
+
+export const MEMBER_PAGE_BASE = 'https://proism-ai.vercel.app/m/';
+
+function randomToken(): string {
+  const bytes = new Uint8Array(18);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes).map((b) => b.toString(36).padStart(2, '0')).join('').slice(0, 24);
+}
+
+/** 고객의 개인 링크(없으면 만들어서) */
+export async function getOrCreateMemberLink(customerId: string): Promise<{ url: string; token: string } | { error: string }> {
+  const { data: cur, error: e1 } = await supabase.from('member_links').select('token').eq('customer_id', customerId).maybeSingle();
+  if (e1) return { error: /relation .* does not exist|schema cache/i.test(e1.message) ? 'member_links 표가 아직 없습니다. docs/회원페이지-member_links-표-만들기.sql 을 Supabase SQL Editor 에서 실행해 주세요' : e1.message };
+  if (cur?.token) return { url: MEMBER_PAGE_BASE + cur.token, token: cur.token };
+  const token = randomToken();
+  const { error: e2 } = await supabase.from('member_links').insert({ customer_id: customerId, token });
+  if (e2) return { error: e2.message };
+  return { url: MEMBER_PAGE_BASE + token, token };
+}
+
+/** 이름 가리기: 김민수 → 김*수, 이름 두 글자 → 김* */
+export function maskName(name: string | null | undefined): string {
+  const n = (name || '').trim();
+  if (n.length <= 1) return n || '고객';
+  if (n.length === 2) return n[0] + '*';
+  return n[0] + '*'.repeat(n.length - 2) + n[n.length - 1];
+}
+
+/** 회원 페이지 링크 안내 문자 (사장님 말투) */
+export function memberLinkSms(name: string, url: string): string {
+  return `안녕하세요 3M 프로이즘 대표 진준호입니다.\n${name} 고객님의 회원 페이지입니다.\n${url}\n관리 일정과 혜택, 소개하신 분 현황을 보실 수 있습니다. 들어가실 때 전화번호 뒷자리 4개를 넣어 주세요.`;
+}

@@ -165,3 +165,16 @@ CREATE TABLE IF NOT EXISTS referrals (
 );
 CREATE INDEX IF NOT EXISTS referrals_referrer_idx ON referrals (referrer_id);
 CREATE UNIQUE INDEX IF NOT EXISTS referrals_referred_uniq ON referrals (referred_id);
+
+-- ============================================
+-- 10. member_links (손님용 회원 페이지 개인 링크 — 2026-11-18 추가)
+-- 손님은 /m/<token> 으로 들어와 전화번호 뒷자리 4개로 본인 확인(사장님 결정). token 은 고객당 하나, 추측 불가능한 긴 문자열
+-- Supabase SQL Editor에서 이 블록만 실행
+-- ============================================
+CREATE TABLE IF NOT EXISTS member_links (
+  customer_id uuid PRIMARY KEY REFERENCES customers(id) ON DELETE CASCADE,
+  token text UNIQUE NOT NULL,
+  created_at timestamptz DEFAULT now(),
+  last_seen_at timestamptz,
+  visits int NOT NULL DEFAULT 0
+);

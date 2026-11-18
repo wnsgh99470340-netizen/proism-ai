@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { todaySeoul } from '@/lib/local-date';
 import { MEMBERSHIP } from '@/config/membership';
+import { getOrCreateMemberLink, memberLinkSms } from '@/lib/member-links';
 
 /**
  * 회원 문자 버튼 (2026-11-18): 회원 페이지 목록과 고객 상세 멤버십 카드에서 같은 버튼
@@ -34,9 +35,22 @@ export default function MemberSmsButtons({ customerId, name, phone, size = 'sm',
     setBusy(null);
     onSent?.();
   };
+  // 손님용 회원 페이지 링크 (2026-11-18): 개인 링크를 만들어(없으면) 문자로 보내고 주소도 복사
+  const sendLink = async () => {
+    setBusy('link');
+    const r = await getOrCreateMemberLink(customerId);
+    setBusy(null);
+    if ('error' in r) { alert(r.error); return; }
+    try { await navigator.clipboard?.writeText(r.url); } catch { /* 복사 실패는 무시 */ }
+    openSmsApp(phone, memberLinkSms(name, r.url));
+    if (!confirm('회원 페이지 링크 문자를 전송하셨나요? (기록으로 남깁니다. 주소는 복사해 두었습니다)')) return;
+    await supabase.from('consultations').insert({ customer_id: customerId, consultation_date: todaySeoul(), content: `[회원 문자] 회원 페이지 링크\n${r.url}`, memo: '회원 문자' });
+    onSent?.();
+  };
   return (
-    <span className="inline-flex items-center gap-1.5">
+    <span className="inline-flex items-center gap-1.5 flex-wrap">
       {TEMPLATES.map((t) => <button key={t.key} disabled={!!busy} onClick={() => send(t)} className={cls} title={t.build(name)}>{busy === t.key ? '…' : `💬 ${t.label}`}</button>)}
+      <button disabled={!!busy} onClick={sendLink} className={cls} title="손님이 직접 보는 회원 페이지 주소를 문자로 보냅니다 (전화 뒷자리 4개로 확인)">{busy === 'link' ? '…' : '🔗 회원 페이지'}</button>
     </span>
   );
 }
