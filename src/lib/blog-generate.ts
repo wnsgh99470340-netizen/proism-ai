@@ -12,7 +12,7 @@ import type { BlogRequest } from '@/config/blog-options';
 import { factCheck, type FactIssue } from './fact-check';
 import { photoColorFromContext } from './photo-check';
 import { getOwnerStyle, styleToPrompt } from './owner-style';
-import { buildToneReference, savePost, listPosts } from './posts';
+import { buildToneReference, savePost, listPosts, getPost, updatePost } from './posts';
 import { BLOG_SYSTEM_PROMPT } from '@/config/prompts';
 import { BLOG_FORMATS, detectFormat, pickFormat, stockPhrasesIn, STOCK_PHRASES, formatByKey, formatFromMessage, type BlogFormat } from '@/config/blog-formats';
 import { pickDifferentiators, differentiatorPrompt, type Differentiator } from '@/config/differentiators';
@@ -609,8 +609,9 @@ export async function generateBlogPost(input: {
 }
 
 /**
- * 열린 글 수정: 사장님 지시에 해당하는 부분만 고쳐 전체를 다시 출력 → 검사 → 새 초안 버전으로 저장
- * (원래 초안은 그대로 두고 draft_id 로 연결)
+ * 열린 글 수정: 사장님 지시에 해당하는 부분만 고쳐 전체를 다시 출력 → 검사 → 저장
+ * 2026-11-18 사장님 "초안에서 수정하면 하나 더 만들지 말고 초안을 덮어쓰자": 열린 글이 초안(draft)이면 그 행을 덮어쓰고
+ * feedback 에 수정 지시를 쌓는다. 열린 글이 최종본(final)·사장님 글이면 예전처럼 새 초안(draft_id=원본)으로 만든다
  */
 export async function reviseBlogPost(input: {
   title: string;
@@ -657,14 +658,23 @@ ${plain}`;
   const formatIssues = checkFormatIssues(tb.title, tb.body);
 
   let draftId: string | null = null;
-  const saved = await savePost({
-    kind: 'draft', title: tb.title, body: tb.body,
-    car_model: input.target.carModel, service_type: serviceType, product: input.target.product || null,
-    region: input.target.region || null,
-    draft_id: input.parentDraftId || null,
-    feedback: `수정: ${input.instruction.slice(0, 200)}`,
-  });
-  draftId = saved?.id ?? null;
+  const parent = input.parentDraftId ? await getPost(input.parentDraftId) : null;
+  const note = `수정: ${input.instruction.slice(0, 200)}`;
+  if (parent && parent.kind === 'draft') {
+    // 같은 초안 덮어쓰기. 수정 이력은 feedback 에 줄로 쌓는다(최근 10줄)
+    const history = [...(parent.feedback || '').split('\n').filter(Boolean), note].slice(-10).join('\n');
+    const updated = await updatePost(parent.id, { title: tb.title, body: tb.body, feedback: history });
+    draftId = updated?.id ?? parent.id;
+  } else {
+    const saved = await savePost({
+      kind: 'draft', title: tb.title, body: tb.body,
+      car_model: input.target.carModel, service_type: serviceType, product: input.target.product || null,
+      region: input.target.region || null,
+      draft_id: input.parentDraftId || null,
+      feedback: note,
+    });
+    draftId = saved?.id ?? null;
+  }
 
   const notes: string[] = [changeNote ? `✏️ ${changeNote}` : '✏️ 요청하신 대로 고쳤습니다.'];
   if (violations.length > 0) notes.push(`확인 필요: ${violations.map(v => v.detail).join(' / ')}`);

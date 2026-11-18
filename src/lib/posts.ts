@@ -36,6 +36,28 @@ export async function savePost(input: NewBlogPost): Promise<BlogPost | null> {
   }
 }
 
+/** 같은 초안을 덮어쓰기 (2026-11-18 사장님: 수정할 때마다 글이 하나씩 늘지 않게). 없으면 null */
+export async function updatePost(id: string, patch: Partial<NewBlogPost>): Promise<BlogPost | null> {
+  try {
+    const { data, error } = await supabase.from('blog_posts').update(patch).eq('id', id).select().single();
+    if (error) { console.warn('[posts] update failed:', error.message); return null; }
+    return data as BlogPost;
+  } catch (e) {
+    console.warn('[posts] update error:', e);
+    return null;
+  }
+}
+
+export async function getPost(id: string): Promise<BlogPost | null> {
+  try {
+    const { data, error } = await supabase.from('blog_posts').select('*').eq('id', id).single();
+    if (error || !data) return null;
+    return data as BlogPost;
+  } catch {
+    return null;
+  }
+}
+
 export async function listPosts(kind?: PostKind, limit = 20): Promise<BlogPost[]> {
   try {
     let q = supabase.from('blog_posts').select('*').order('created_at', { ascending: false }).limit(limit);
