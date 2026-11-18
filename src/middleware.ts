@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { AUTH_COOKIE_MAX_AGE } from '@/lib/auth-cookie';
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -31,7 +32,12 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  return NextResponse.next();
+  // 인증된 기기: 방문할 때마다 쿠키 기간을 1년으로 다시 늘린다 (예전 세션 쿠키도 이 한 번으로 오래 가는 쿠키로 바뀜)
+  const res = NextResponse.next();
+  if (!pathname.startsWith('/api/')) {
+    res.cookies.set('crm_auth', 'authenticated', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: AUTH_COOKIE_MAX_AGE });
+  }
+  return res;
 }
 
 export const config = {
