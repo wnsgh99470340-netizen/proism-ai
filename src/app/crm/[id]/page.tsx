@@ -79,6 +79,27 @@ export default function CustomerDetailPage() {
   const [discountForm, setDiscountForm] = useState({ discount_date: '', discount_type: '재방문', discount_value: '', memo: '' });
 
   // Service edit modal state
+  // 고객 정보 바로 수정 (2026-11-18 사장님: 상세 화면에서도 고객 수정이 되게)
+  const [editingInfo, setEditingInfo] = useState(false);
+  const [infoForm, setInfoForm] = useState({ name: '', phone: '', car_brand: '', car_model: '', car_year: '', car_color: '', source: '', memo: '' });
+  const [infoSaving, setInfoSaving] = useState(false);
+  const startEditInfo = () => {
+    if (!customer) return;
+    setInfoForm({ name: customer.name || '', phone: customer.phone || '', car_brand: customer.car_brand || '', car_model: customer.car_model || '', car_year: customer.car_year || '', car_color: customer.car_color || '', source: customer.source || '', memo: customer.memo || '' });
+    setEditingInfo(true);
+  };
+  const saveInfo = async () => {
+    if (!customer || !infoForm.name.trim()) { alert('이름은 비울 수 없습니다'); return; }
+    setInfoSaving(true);
+    const { error } = await supabase.from('customers').update({
+      name: infoForm.name.trim(), phone: infoForm.phone.trim() || null, car_brand: infoForm.car_brand.trim() || null, car_model: infoForm.car_model.trim() || null,
+      car_year: infoForm.car_year.trim() || null, car_color: infoForm.car_color.trim() || null, source: infoForm.source || null, memo: infoForm.memo.trim() || null,
+    }).eq('id', customer.id);
+    setInfoSaving(false);
+    if (error) { alert('저장 실패: ' + error.message); return; }
+    setEditingInfo(false);
+    fetchData();
+  };
   const [editService, setEditService] = useState<Service | null>(null);
   const [serviceForm, setServiceForm] = useState({
     service_type: '', service_date: '', completion_date: '', amount: '', memo: '',
@@ -170,6 +191,38 @@ export default function CustomerDetailPage() {
       <div className="flex-1 overflow-y-auto p-6">
         {/* Customer Info Card */}
         <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-5 mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-xs font-semibold text-[var(--c-text-3)]">고객 정보</div>
+            {!editingInfo ? (
+              <button onClick={startEditInfo} className="text-xs font-semibold rounded-full px-3 py-1.5 border border-[var(--c-border)] bg-[var(--c-card)] hover:bg-[var(--c-subtle)] text-[var(--c-text-1)] transition-colors">✎ 수정</button>
+            ) : (
+              <div className="flex items-center gap-2">
+                <button onClick={() => setEditingInfo(false)} disabled={infoSaving} className="text-xs text-[var(--c-text-3)] hover:text-[var(--c-text-1)] px-3 py-1.5">취소</button>
+                <button onClick={saveInfo} disabled={infoSaving} className="text-xs font-semibold rounded-full px-3.5 py-1.5 bg-brand text-white hover:bg-brand-dark disabled:opacity-50">{infoSaving ? '저장 중…' : '저장'}</button>
+              </div>
+            )}
+          </div>
+          {editingInfo ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {([
+                ['name', '이름 *', 'text'], ['phone', '연락처', 'tel'], ['car_brand', '차량 브랜드', 'text'], ['car_model', '차량 모델', 'text'],
+                ['car_year', '연식', 'text'], ['car_color', '색상', 'text'],
+              ] as const).map(([k, label, type]) => (
+                <label key={k} className="text-[11px] text-[var(--c-text-3)]">{label}
+                  <input type={type} value={infoForm[k]} onChange={(e) => setInfoForm({ ...infoForm, [k]: e.target.value })} className="mt-1 w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" />
+                </label>
+              ))}
+              <label className="text-[11px] text-[var(--c-text-3)]">유입경로
+                <select value={infoForm.source} onChange={(e) => setInfoForm({ ...infoForm, source: e.target.value })} className="mt-1 w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50">
+                  <option value="">선택...</option>
+                  {['카페', '블로그', '소개/재방문', '유튜브', '고정', '경로X', '기타'].map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </label>
+              <label className="text-[11px] text-[var(--c-text-3)] col-span-2 md:col-span-4">메모
+                <textarea value={infoForm.memo} onChange={(e) => setInfoForm({ ...infoForm, memo: e.target.value })} className="mt-1 w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50 resize-none h-20" placeholder="특이사항" />
+              </label>
+            </div>
+          ) : (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <InfoItem label="차량" value={
               [customer.car_brand, customer.car_model].filter(Boolean).join(' ') || '-'
@@ -186,6 +239,7 @@ export default function CustomerDetailPage() {
             } />
             {customer.memo && <InfoItem label="메모" value={customer.memo} />}
           </div>
+          )}
         </div>
 
         {/* Detail Tabs */}
