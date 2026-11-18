@@ -142,7 +142,9 @@ export function matchCandidates(events: ExtractedEvent[], customers: KnownCustom
     if (!customerId && e.car && normCar(e.car).length >= 2) {
       // 차종은 같은 차가 여럿일 수 있다: 하나뿐이면 그 사람, 여럿이면 그 날짜에 예약이 겹치는 사람만. 이름이 차 이름인 임시 고객("X7 고객")도 포함
       const key = normCar(e.car);
-      let hits = customers.filter((c) => normCar(c.car_model) === key || normCar(c.name).startsWith(key));
+      // "테슬라 YL" ↔ "모델YL" 처럼 한쪽이 끝말로 포함돼도 같은 차로 본다
+      const sameCar = (m: string | null | undefined) => { const k = normCar(m); return !!k && k.length >= 2 && (k === key || k.endsWith(key) || key.endsWith(k)); };
+      let hits = customers.filter((c) => sameCar(c.car_model) || normCar(c.name).startsWith(key));
       if (hits.length > 1) hits = hits.filter((c) => appointments.some((a) => a.customer_id === c.id && overlaps(a)));
       if (hits.length === 1) { customerId = hits[0].id; customerName = hits[0].name; matchBy = 'car'; }
     }
