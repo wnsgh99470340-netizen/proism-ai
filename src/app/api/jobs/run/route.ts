@@ -1,3 +1,4 @@
+import { isAuthCookieValid } from '@/lib/auth-cookie';
 import { NextRequest, after } from 'next/server';
 import { runNextStep, kickJob } from '@/lib/jobs';
 
@@ -12,7 +13,7 @@ export const maxDuration = 300;
 export async function POST(request: NextRequest) {
   const secret = process.env.CRON_SECRET;
   const secretOk = Boolean(secret) && request.headers.get('x-job-secret') === secret;
-  const cookieOk = request.cookies.get('crm_auth')?.value === 'authenticated';
+  const cookieOk = await isAuthCookieValid(request.cookies.get('crm_auth')?.value);
   if (!secretOk && !cookieOk) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
   let id = '';

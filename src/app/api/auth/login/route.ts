@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { AUTH_COOKIE_MAX_AGE } from '@/lib/auth-cookie';
+import { AUTH_COOKIE_NAME, authCookieValue, authCookieOptions } from '@/lib/auth-cookie';
 
 export async function POST(request: NextRequest) {
   const { password } = await request.json();
@@ -21,14 +21,8 @@ export async function POST(request: NextRequest) {
 
   const response = NextResponse.json({ success: true });
 
-  response.cookies.set('crm_auth', 'authenticated', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    // 2026-11-18 사장님 "인증된 기기는 비밀번호 다시 안 넣게": 1년 유지. 미들웨어가 방문할 때마다 기간을 다시 늘려 쓰는 동안은 안 풀림
-    maxAge: AUTH_COOKIE_MAX_AGE,
-  });
+  // 2026-11-18: 1년 유지(미들웨어가 방문 때마다 연장) + 값은 비밀번호 해시 → 비밀번호를 바꾸면 모든 기기 로그아웃
+  response.cookies.set(AUTH_COOKIE_NAME, await authCookieValue(), authCookieOptions());
 
   return response;
 }
