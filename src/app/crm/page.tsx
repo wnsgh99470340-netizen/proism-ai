@@ -14,6 +14,7 @@ import type { DailyBrief, TeamItem, WorkerLine } from '@/lib/team';
 import type { WeeklyStats, SourceTable } from '@/lib/weekly-stats';
 import type { ImportCandidate } from '@/lib/appointment-import';
 import SourceChart from '@/components/crm/SourceChart';
+import { LINKS } from '@/config/links';
 import BlogWorkspace from '@/components/BlogWorkspace';
 import HelpModal from '@/components/HelpModal';
 import PushToggle from '@/components/PushToggle';
@@ -2020,6 +2021,7 @@ export default function CRMPage() {
                             )}
                             <button onClick={() => handleOpenWorkOrder(a)} className={pill}>작업 내역서</button>
                             <button onClick={() => handleOpenWarranty(a)} className={hasWarrantyIssued(a.memo) ? 'text-xs font-semibold rounded-full px-3 py-1.5 bg-ok text-white whitespace-nowrap' : pill}>{hasWarrantyIssued(a.memo) ? '✓ 보증서 발급' : '보증서'}</button>
+                            <a href={LINKS.threeMWarrantyCheck} target="_blank" rel="noopener noreferrer" className={pill} title="한국쓰리엠 소비자 보증서 확인 페이지 새 창으로">3M 보증서 ↗</a>
                             {a.customer?.phone && (() => {
                               const sent = reviewSentFor(a.customer_id);
                               const anySent = Object.values(sent).some(Boolean);

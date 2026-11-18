@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { LINKS } from '@/config/links';
 import { useParams } from 'next/navigation';
 
 interface WarrantyData {
@@ -175,6 +176,15 @@ export default function WarrantyPage() {
               <strong>보증 안내</strong><br />
               본 보증서는 위 시공에 대해 보증 기간 내 시공 하자 발생 시 무상 재시공을 보장합니다.
               외부 충격, 사고, 고객 부주의로 인한 손상은 보증 대상에서 제외됩니다.
+            </div>
+            {/* 3M 정품 보증 안내 (2026-11-18): 3M 전자 보증서는 별도 발급, 청구는 시공점 먼저 — 3M 코리아 FAQ 그대로 */}
+            <div className="notice-text" style={{ fontSize: '12px', color: '#166534', lineHeight: 1.7, marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #bbf7d0' }}>
+              <strong>3M 정품 보증</strong><br />
+              3M 필름의 제품 보증은 한국쓰리엠 전자 보증서로 별도 발급됩니다. 발급받으신 일련번호로 정품 시공 여부를 직접 확인하실 수 있고, 보증 청구는 시공점인 저희 매장으로 먼저 연락 주시면 3M 절차에 따라 진행해 드립니다.
+              {' '}
+              <a href={LINKS.threeMWarrantyCheck} target="_blank" rel="noopener noreferrer" style={{ color: '#15803d', fontWeight: 600, textDecoration: 'underline' }}>3M 소비자 보증서 확인</a>
+              {' · '}
+              <a href={LINKS.threeMWarrantyFaq} target="_blank" rel="noopener noreferrer" style={{ color: '#15803d', fontWeight: 600, textDecoration: 'underline' }}>보증 안내</a>
             </div>
           </div>
 
