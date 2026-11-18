@@ -6,13 +6,13 @@
  *
  * 규칙
  * - 랩핑·크롬죽이기 글에서만 전부 쓴다. 컬러PPF(PWF)는 pwfSafe 항목만(열·오버랩·늘림 서술 금지 규칙 유지).
- * - PPF(투명)는 이 사전을 쓰지 않는다. 노션 PPF 항목은 랩핑 글을 복사한 것이라 틀림 → 사장님 인터뷰로 따로 만든다.
+ * - PPF(투명)는 노션 항목을 쓰지 않고(랩핑 글 복사본이라 틀림) 2026-11-18 사장님 답변으로 만든 ppf_* 항목만 쓴다.
  * - 탈거·분해 서술은 넣지 않는다(요청에 없는 탈거는 자동 검사가 잡음).
  * - 문장은 선언("원칙입니다")이 아니라 장면의 근거가 되도록 쓴다. 프롬프트에서도 옮겨 적지 말라고 지시한다.
  * - 어휘: 본넷·휀다·앞범퍼·뒷범퍼·도어·루프·트렁크 (사장님 어휘). 휠아치·카울 같은 금지 용어 쓰지 않음.
  */
 
-export type StandardService = '랩핑' | '크롬죽이기' | '컬러PPF';
+export type StandardService = '랩핑' | '크롬죽이기' | '컬러PPF' | 'PPF';
 
 export interface StandardFact {
   text: string;
@@ -133,6 +133,45 @@ export const WORK_STANDARDS: WorkStandard[] = [
       { text: '의뢰한 부위만 다룬다. 윈도우몰딩 의뢰면 그릴·범퍼 이야기는 섞지 않는다', pwfSafe: false },
     ],
   },
+  // ───── 투명 PPF (2026-11-18 사장님 답변) ─────
+  {
+    key: 'ppf_general', part: 'PPF 공통', match: /PPF/i, services: ['PPF'],
+    facts: [
+      { text: '거의 모든 판이 한 장 시공이 기본이다. 앞범퍼도 한 장으로 간다', pwfSafe: true },
+      { text: '타협의 기준이 높다. "이 정도면 괜찮겠지"가 아니라 "누가 봐도 작업 잘 됐다"가 기준이다(선언이 아니라 어느 자리에서 다시 손을 댔는지로 보여 준다)', pwfSafe: true },
+    ],
+  },
+  {
+    key: 'ppf_bumper', part: '앞범퍼', match: /앞\s*범퍼|범퍼|프론트|전체/, services: ['PPF'],
+    facts: [
+      { text: '한 장으로 간다. 하단이 안쪽으로 깊게 들어가 있어서, 윗부분을 주름 없이 감으려면 하단은 길게 넣지 못한다. 그래서 앞범퍼 하단 마감은 굳이 길게 쓰지 않는다. 윗부분과 그릴 주변을 주름 없이 한 장으로 넘긴 것이 이야기거리다', pwfSafe: true },
+    ],
+  },
+  {
+    key: 'ppf_hood', part: '본넷', match: /본넷|보닛|후드|프론트|전체/, services: ['PPF'],
+    facts: [
+      { text: '본넷은 마감보다 필름 면이 얼마나 깨끗하게 붙었는지가 제일 중요하다. 면적이 커서 먼지가 들어갔는지 확인해야 한다', pwfSafe: true },
+      { text: '주름 없이 붙이려고 필름을 양쪽으로 늘려 고정한 뒤 밀착해 가는데, 늘린 상태 때문에 접착제 자국이 남을 수 있다. 먼지 관리와 필름 자국 없이 표면이 깨끗한 것이 본넷의 기준이다', pwfSafe: true },
+    ],
+  },
+  {
+    key: 'ppf_edges', part: '휀다·A필러·헤드라이트 경계', match: /휀[다더]|펜더|A\s*필러|헤드라이트|사이드\s*미러|전체|프론트/, services: ['PPF'],
+    facts: [
+      { text: '휀다는 안쪽 마감이 당연하다. 반대로 A필러·헤드라이트·사이드미러와 만나는 경계는 안으로 넣을 수 없어 겉에서 필름을 따는데, 그 선을 차의 하이라이트 선에 맞춰 커팅해야 이질감이 가장 적다', pwfSafe: true },
+    ],
+  },
+  {
+    key: 'ppf_rear', part: '뒷범퍼·트렁크', match: /뒷\s*범퍼|트렁크|테일\s*램프|번호판|전체/, services: ['PPF'],
+    facts: [
+      { text: '테일램프 안쪽으로 필름을 넣어 마감한다. 번호판은 떼고 작업해서 그 자리까지 다 덮는다', pwfSafe: true },
+    ],
+  },
+  {
+    key: 'ppf_water', part: '물기포와 QC', match: /PPF/i, services: ['PPF'],
+    facts: [
+      { text: '습식 작업이라 미끄러운 물을 쓰는 만큼 아무리 잘 밀어도 물기포가 조금씩 남을 수 있다. 그래서 출고 2주 뒤 QC 때 덜 빠진 기포를 다시 봐 드린다(없는 척하지 않고 미리 말해 둔다)', pwfSafe: true },
+    ],
+  },
 ];
 
 /** 시공 종류 문자열 → 사전을 쓰는 서비스. PPF(투명)·썬팅·신차패키지는 null */
@@ -141,11 +180,12 @@ export function standardServiceOf(serviceType: string): StandardService | null {
   if (/크롬/.test(s)) return '크롬죽이기';
   if (/컬러\s*PPF|PWF/i.test(s)) return '컬러PPF';
   if (/랩핑/.test(s)) return '랩핑';
+  if (/PPF/i.test(s) && !/실내|신차패키지/.test(s)) return 'PPF';
   return null;
 }
 
 const DEFAULT_FULL = ['bumper', 'hood', 'front_fender', 'door'];
-const MAX_PARTS = 5;
+const MAX_PARTS = 6;
 
 /**
  * 이번 글에 넣을 부위 기준 고르기.
@@ -162,7 +202,12 @@ export function pickWorkStandards(serviceType: string, userText: string, researc
     return facts.length ? { ...s, facts } : null;
   };
   let picked = usable.filter(s => s.match.test(hint));
-  if (service === '크롬죽이기') {
+  if (service === 'PPF') {
+    // 공통·물기포는 항상, 부위는 요청·사진에서 찾은 것(전체·프론트면 범퍼·본넷·경계까지)
+    const always = ['ppf_general', 'ppf_water'].map(k => usable.find(x => x.key === k)!).filter(Boolean);
+    const parts = picked.filter(s => !always.some(a => a.key === s.key));
+    picked = [...always, ...parts];
+  } else if (service === '크롬죽이기') {
     const chrome = usable.find(s => s.key === 'chrome');
     if (chrome && !picked.some(s => s.key === 'chrome')) picked.unshift(chrome);
     // 크롬죽이기는 몰딩 기준이 핵심. 손잡이·미러가 요청에 있을 때만 그것도
@@ -180,6 +225,6 @@ export function pickWorkStandards(serviceType: string, userText: string, researc
 export function workStandardsPrompt(service: StandardService | null, picked: WorkStandard[]): string {
   if (!service || picked.length === 0) return '';
   const lines = picked.map(s => `- ${s.part}: ${s.facts.map(f => f.text).join(' / ')}`);
-  const pwfNote = service === '컬러PPF' ? ' PWF는 건식이라는 것 외에 열·늘림·겹침 서술은 쓰지 않는다.' : '';
+  const pwfNote = service === '컬러PPF' ? ' PWF는 건식이라는 것 외에 열·늘림·겹침 서술은 쓰지 않는다.' : service === 'PPF' ? ' PPF는 습식·판시공 핸드커팅·안쪽 마감·겹침 없음이 기본이고, 앞범퍼 하단 마감은 길게 쓰지 않는다. "기준이 높다"는 말 대신 어느 자리를 다시 봤는지로 보여 준다.' : '';
   return `\n\n[부위별 작업 기준 — 장면의 근거로만]\n아래는 이 글에서 다룰 부위의 작업 기준이다. 목록을 옮겨 적거나 부위마다 전부 설명하지 말고, 그 부위를 쓰는 문단에서 "왜 그렇게 하는지"의 근거로 한두 문장만 녹인다(2~3곳이면 충분). "원칙입니다·저희는 ~합니다·노하우·우리만" 같은 선언과 다른 매장 비교는 쓰지 않는다. 적힌 것 밖의 숫자·탈거·분해 서술은 만들지 않는다.${pwfNote}\n${lines.join('\n')}`;
 }

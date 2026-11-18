@@ -142,7 +142,8 @@ export function checkHardViolations(body: string, userInput: string, serviceType
   // 0-3. 요청에 없는 탈거 서술 (2026-11-13 4시리즈 PWF 글 "손잡이는 탈거한 뒤" 지어낸 것). 크롬죽이기의 손잡이 탈거는 시공 규칙이라 허용
   if (!/탈거|분해|떼어/.test(userInput)) {
     const m = body.match(/[^\n]{0,12}탈거[^\n]{0,8}/);
-    if (m && !(/크롬/.test(serviceType) && /손잡이/.test(m[0]))) v.push({ rule: 'unprovided', detail: `요청에 없는 탈거 서술 "${m[0].trim()}" (탈거 여부를 모르면 쓰지 않는다. 그 문장은 끝단 마감 서술로 바꾸기)` });
+    // 크롬죽이기의 손잡이 탈거, PPF의 번호판 탈거는 시공 규칙이라 허용 (2026-11-18 사장님: 번호판은 탈거하고 작업)
+    if (m && !(/크롬/.test(serviceType) && /손잡이/.test(m[0])) && !(/PPF/i.test(serviceType) && /번호판/.test(m[0]))) v.push({ rule: 'unprovided', detail: `요청에 없는 탈거 서술 "${m[0].trim()}" (탈거 여부를 모르면 쓰지 않는다. 그 문장은 끝단 마감 서술로 바꾸기)` });
   }
 
   // 0-4. 차량 구조 지어내기 (2026-11-14 5시리즈 글에 "프레임리스 도어" — 4시리즈 자료가 섞인 것). 요청에 없으면 쓰지 않는다
