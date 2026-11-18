@@ -35,7 +35,7 @@ const careName = (t: string) => (t === 'QC점검' ? 'QC 점검' : t);
 /** 시공 증명서 아래 "이 시공의 기준" — 확인된 사실만, 짧게 (differentiators.ts confirmed 항목 기준) */
 function standardsFor() {
   // 2026-11-19 사장님: "안쪽 마감 진행" 같은 말보다 어떤 제품으로 시공했는지 → 제품은 증명서 항목 아래 줄로, 여기는 매장 약속만
-  return ['3M 공인 프리퍼드 인스톨러 매장에서 시공했습니다', '2주 뒤 QC 점검, 6개월마다 메인터넌스로 관리합니다', '시공 기록과 보증서는 매장에서 보관합니다'];
+  return ['3M 공인 프리퍼드 인스톨러 매장에서 시공했습니다', 'PPF는 2주 뒤 QC 점검, 6개월마다 메인터넌스로 관리합니다', '시공 기록과 보증서는 매장에서 보관합니다'];
 }
 
 function Seal() {
@@ -222,7 +222,7 @@ export default function MemberPage() {
         {tab === 'care' && (
           <div className={box}>
             <div className="text-sm font-bold mb-3">관리 일정</div>
-            {data.care.length === 0 ? <div className="text-sm text-white/60">시공이 끝나면 2주 QC와 6개월 메인터넌스 일정이 여기에 잡힙니다.</div> : (
+            {data.care.length === 0 ? <div className="text-sm text-white/60">시공이 끝나면 6개월 메인터넌스(PPF·컬러PPF는 2주 QC도) 일정이 여기에 잡힙니다.</div> : (
               <ul className="space-y-2.5">
                 {data.care.map((f, i) => (
                   <li key={i} className="flex items-center justify-between text-sm">
@@ -314,7 +314,7 @@ export default function MemberPage() {
         {/* 연락 */}
         <div className="grid grid-cols-2 gap-2 pt-1">
           <a href={`tel:${data.shop.phone}`} className={`${btn} bg-white/[0.08] hover:bg-white/[0.14]`}>전화</a>
-          <a href={data.shop.talk} className={`${btn} bg-[#03C75A]/90 hover:bg-[#03C75A]`}>네이버 톡톡</a>
+          <a href={`sms:${data.shop.phone.replace(/-/g, '')}`} className={`${btn} bg-[#E4002B] hover:bg-[#c60026]`}>문자 보내기</a>
           <a href={data.shop.map} className={`${btn} bg-white/[0.08] hover:bg-white/[0.14]`}>길찾기</a>
           <a href={data.shop.card} className={`${btn} bg-white/[0.08] hover:bg-white/[0.14]`}>연락처 저장</a>
         </div>

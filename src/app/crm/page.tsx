@@ -113,12 +113,14 @@ async function createAutoFollowUps(
   serviceId: string,
   customerId: string,
   serviceType: string,
-  completionDate: string
+  completionDate: string,
+  /** 작업 내역서에 PPF 항목이 있으면(신차패키지 안의 프론트 패키지 등) QC 를 잡는다. 2026-11-19 사장님 "QC 는 PPF·컬러PPF 에만" */
+  hasPpf = false
 ) {
   const base = new Date(completionDate + 'T00:00:00+09:00');
   const followUps: { service_id: string; customer_id: string; follow_up_type: string; scheduled_date: string; memo: string }[] = [];
 
-  const needsQC = ['PPF', '컬러PPF', 'PWF'].includes(serviceType);
+  const needsQC = ['PPF', '컬러PPF', 'PWF'].includes(serviceType) || hasPpf;
 
   if (needsQC) {
     const qcDate = new Date(base);
@@ -930,7 +932,8 @@ export default function CRMPage() {
 
     // 사후관리 자동 생성
     if (service && appointment.service_type) {
-      await createAutoFollowUps(service.id, appointment.customer_id, appointment.service_type, completionDate);
+      const hasPpf = (workOrder.ppf || []).length > 0 || !!workOrder.ppf_etc?.trim();
+      await createAutoFollowUps(service.id, appointment.customer_id, appointment.service_type, completionDate, hasPpf);
     }
 
     // 예약 상태 완료로 변경 + memo 보존
