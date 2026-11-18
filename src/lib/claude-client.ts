@@ -93,7 +93,9 @@ export async function analyzeImagesWithClaude(
 export async function analyzeImageWithClaude(
   base64Data: string,
   mediaType: string,
-  prompt: string
+  prompt: string,
+  maxTokens = 1024,
+  model = 'claude-sonnet-4-6'
 ): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -108,8 +110,8 @@ export async function analyzeImageWithClaude(
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 1024,
+      model,
+      max_tokens: maxTokens,
       messages: [
         {
           role: 'user',
@@ -138,7 +140,9 @@ export async function analyzeImageWithClaude(
   }
 
   const data = await response.json();
-  return data.content[0]?.text || '';
+  // 최신 모델은 thinking 블록이 먼저 올 수 있어 첫 text 블록을 찾는다 (2026-11-18)
+  const blocks = (data.content || []) as { type: string; text?: string }[];
+  return blocks.find((b) => b.type === 'text')?.text || blocks[0]?.text || '';
 }
 
 /* ───────────────────────────────────────────────────────────────

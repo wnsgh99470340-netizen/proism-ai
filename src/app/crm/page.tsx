@@ -12,6 +12,7 @@ import InquiryReplyModal from '@/components/crm/InquiryReplyModal';
 import { QC_SMS, MAINT_SMS, REVIEW_SMS } from '@/config/sms-templates';
 import type { DailyBrief, TeamItem, WorkerLine } from '@/lib/team';
 import type { WeeklyStats, SourceTable } from '@/lib/weekly-stats';
+import type { ImportCandidate } from '@/lib/appointment-import';
 import BlogWorkspace from '@/components/BlogWorkspace';
 import HelpModal from '@/components/HelpModal';
 import PushToggle from '@/components/PushToggle';
@@ -228,6 +229,14 @@ export default function CRMPage() {
   // Appointment state
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [showAddAppointment, setShowAddAppointment] = useState(false);
+  // 스크린샷으로 예약 등록 (2026-11-18 사장님 "스크린샷 예약 해보자"): 타임트리 캡처·카톡 대화 → /api/appointments/from-image → 표 확인 → 등록
+  type ShotRow = ImportCandidate & { include: boolean; mode: 'existing' | 'new' };
+  const [showShotImport, setShowShotImport] = useState(false);
+  const [shotBusy, setShotBusy] = useState(false);
+  const [shotRows, setShotRows] = useState<ShotRow[]>([]);
+  const [shotHidden, setShotHidden] = useState<{ date: string; count: number }[]>([]);
+  const [shotMonth, setShotMonth] = useState<string>(() => todaySeoul().slice(0, 7));
+  const shotFileRef = useRef<HTMLInputElement>(null);
   const [appointmentForm, setAppointmentForm] = useState({
     customer_id: '', appointment_date: '', end_date: '', service_type: '', amount: '', memo: '',
   });
@@ -770,6 +779,63 @@ export default function CRMPage() {
     fetchCustomers();
     fetchAllCustomers();
     fetchAppointments();
+  };
+
+  // 스크린샷 읽기: 브라우저에서 2000px 이하로 줄여 보내면 서버가 일정을 뽑고 고객·기존 예약과 맞춰 준다
+  const handleShotFile = async (file: File | undefined | null) => {
+    if (!file || !/^image\//.test(file.type)) return;
+    setShotBusy(true);
+    try {
+      const bitmap = await createImageBitmap(file);
+      const scale = Math.min(1, 2000 / Math.max(bitmap.width, bitmap.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(bitmap.width * scale); canvas.height = Math.round(bitmap.height * scale);
+      canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+      const res = await fetch('/api/appointments/from-image', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: dataUrl.split(',')[1], mediaType: 'image/jpeg', baseMonth: shotMonth }) });
+      const j = await res.json();
+      if (!res.ok || j.error) { alert(j.error || '스크린샷을 읽지 못했습니다'); return; }
+      const rows = ((j.candidates || []) as ImportCandidate[]).map((c): ShotRow => ({ ...c, include: !c.duplicateOf, mode: c.customerId ? 'existing' : 'new' }));
+      setShotRows((prev) => [...prev, ...rows]);
+      setShotHidden((prev) => [...prev, ...((j.hidden || []) as { date: string; count: number }[])]);
+      if (j.month) setShotMonth(j.month);
+      if (rows.length === 0) alert('이 이미지에서 일정을 찾지 못했습니다');
+    } catch (e) {
+      alert('스크린샷 읽기 실패: ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setShotBusy(false);
+      if (shotFileRef.current) shotFileRef.current.value = '';
+    }
+  };
+  const updateShotRow = (key: string, patch: Partial<ShotRow>) => setShotRows((rows) => rows.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+  const handleShotRegister = async () => {
+    const rows = shotRows.filter((r) => r.include && /^\d{4}-\d{2}-\d{2}$/.test(r.start));
+    if (rows.length === 0) return;
+    setShotBusy(true);
+    let made = 0, newCus = 0;
+    const createdByName = new Map<string, string>(); // 같은 새 고객 이름이 두 줄이면 한 명만 만든다
+    try {
+      for (const r of rows) {
+        let customerId = r.mode === 'existing' ? r.customerId : null;
+        if (!customerId) {
+          const name = (r.newCustomerName || '').trim() || `${r.car || '차량'} 고객`;
+          customerId = createdByName.get(name) || null;
+          if (!customerId) {
+            const { data: c, error } = await supabase.from('customers').insert({ name, phone: r.phone || null, car_brand: r.brand || null, car_model: r.car || null, memo: `스크린샷 일정에서 가져온 고객(${todaySeoul()}). 전화·유입경로를 채워 주세요` }).select('id').single();
+            if (error || !c) { alert(`${name} 고객 등록 실패: ${error?.message || ''}`); continue; }
+            customerId = c.id as string; createdByName.set(name, customerId); newCus++;
+          }
+        }
+        const memo = [r.label, r.time, r.note].filter(Boolean).join(' · ') + ` · 스크린샷에서 가져옴 ${todaySeoul()}`;
+        const { error: e2 } = await supabase.from('appointments').insert({ customer_id: customerId, appointment_date: r.start, end_date: r.end || null, service_type: r.service || null, status: r.status, memo });
+        if (e2) alert(`${r.label} 등록 실패: ${e2.message}`); else made++;
+      }
+      alert(`예약 ${made}건을 등록했습니다${newCus ? `. 새 고객 ${newCus}명은 이름·전화를 채워 주세요` : ''}`);
+      setShowShotImport(false); setShotRows([]); setShotHidden([]);
+      fetchAppointments(); fetchAllCustomers(); fetchCustomers();
+    } finally {
+      setShotBusy(false);
+    }
   };
 
   const handleDeleteAppointment = async (id: string) => {
@@ -1860,6 +1926,7 @@ export default function CRMPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <button onClick={() => setShowCalendarSub(true)} className={`${pill} py-2 px-4 text-sm`}>캘린더 구독</button>
+                  <button onClick={() => { setShowShotImport(true); setShotMonth(`${cY}-${String(cM + 1).padStart(2, '0')}`); }} className={`${pill} py-2 px-4 text-sm`} title="타임트리 캡처·카톡 대화 사진에서 일정을 읽어 예약으로 넣기">📷 스크린샷으로 추가</button>
                   <button onClick={() => setShowAddAppointment(true)} className="bg-brand hover:bg-brand-dark text-white text-sm font-semibold rounded-full px-4 py-2 transition-colors whitespace-nowrap">+ 예약 추가</button>
                 </div>
               </div>
@@ -2610,6 +2677,75 @@ export default function CRMPage() {
       )}
 
       {/* ─── Modal: 예약 추가 ────────────────────────────────── */}
+
+      {/* 스크린샷으로 예약 등록 (2026-11-18): 사진 고르기 또는 붙여넣기(⌘V) → 읽은 일정 표에서 날짜·시공·고객 고쳐 → 등록 */}
+      {showShotImport && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-center justify-center p-4" onClick={() => { if (!shotBusy) { setShowShotImport(false); setShotRows([]); setShotHidden([]); } }}>
+          <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl w-full max-w-3xl p-6 shadow-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto" onClick={(e) => e.stopPropagation()} onPaste={(e) => { const f = Array.from(e.clipboardData?.files || []).find((x) => /^image\//.test(x.type)); if (f) { e.preventDefault(); handleShotFile(f); } }} tabIndex={0}>
+            <div className="flex items-center justify-between gap-3 mb-1">
+              <h3 className="text-[var(--c-text-1)] font-semibold text-base">스크린샷으로 예약 추가</h3>
+              <label className="text-xs text-[var(--c-text-3)] flex items-center gap-2">기준 월 <input type="month" value={shotMonth} onChange={(e) => setShotMonth(e.target.value)} className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-2 py-1 text-sm text-[var(--c-text-1)] outline-none" /></label>
+            </div>
+            <p className="text-xs text-[var(--c-text-3)] mb-4">타임트리 달력 캡처나 카톡 예약 대화를 올리면 날짜·차종·시공을 읽어 아래 표로 보여 줍니다. 표를 고친 뒤 등록을 누르면 예약에 들어갑니다. 이 창에서 ⌘V 로 붙여 넣어도 됩니다.</p>
+            <div className="flex items-center gap-2 mb-4">
+              <input ref={shotFileRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleShotFile(e.target.files?.[0])} />
+              <button onClick={() => shotFileRef.current?.click()} disabled={shotBusy} className="bg-[var(--c-text-1)] text-[var(--c-page)] text-sm font-semibold rounded-full px-4 py-2 disabled:opacity-50">{shotBusy ? '읽는 중…' : shotRows.length ? '📷 사진 하나 더' : '📷 사진 고르기'}</button>
+              {shotRows.length > 0 && <span className="text-xs text-[var(--c-text-3)]">{shotRows.length}건 읽음 · 체크한 {shotRows.filter((r) => r.include).length}건 등록</span>}
+            </div>
+            {shotHidden.length > 0 && <div className="text-xs text-warn mb-3">접혀서 못 읽은 일정: {shotHidden.map((h) => `${h.date.slice(5).replace('-', '/')} ${h.count}건`).join(', ')} — 그 날짜를 펼친 캡처를 하나 더 올려 주세요</div>}
+            <div className="space-y-2">
+              {shotRows.map((r) => (
+                <div key={r.key} className={`rounded-xl border p-3 ${r.include ? 'border-[var(--c-border)] bg-[var(--c-card)]' : 'border-[var(--c-border)] bg-[var(--c-subtle)] opacity-60'}`}>
+                  <div className="flex items-start gap-3">
+                    <input type="checkbox" checked={r.include} onChange={(e) => updateShotRow(r.key, { include: e.target.checked })} className="mt-1 w-4 h-4 accent-[var(--c-text-1)]" />
+                    <div className="flex-1 min-w-0 space-y-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-sm text-[var(--c-text-1)]">{r.label}</span>
+                        {r.time && <span className="text-xs text-[var(--c-text-3)]">{r.time}</span>}
+                        {r.note && <span className="text-xs text-[var(--c-text-3)]">{r.note}</span>}
+                        {r.duplicateOf && <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-danger/10 text-danger">이미 같은 예약이 있음</span>}
+                        {r.matchBy && r.mode === 'existing' && <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-ok/10 text-ok">{r.matchBy === 'phone' ? '전화번호' : r.matchBy === 'name' ? '이름' : '차종'}으로 기존 고객 찾음</span>}
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        <label className="text-[11px] text-[var(--c-text-3)]">시작<input type="date" value={r.start} onChange={(e) => updateShotRow(r.key, { start: e.target.value })} className="mt-0.5 w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-2 py-1.5 text-sm text-[var(--c-text-1)] outline-none" /></label>
+                        <label className="text-[11px] text-[var(--c-text-3)]">마지막 날<input type="date" value={r.end || ''} onChange={(e) => updateShotRow(r.key, { end: e.target.value || null })} className="mt-0.5 w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-2 py-1.5 text-sm text-[var(--c-text-1)] outline-none" /></label>
+                        <label className="text-[11px] text-[var(--c-text-3)]">시공
+                          <select value={r.service || ''} onChange={(e) => updateShotRow(r.key, { service: e.target.value || null })} className="mt-0.5 w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-2 py-1.5 text-sm text-[var(--c-text-1)] outline-none">
+                            <option value="">미정</option>
+                            {SERVICE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                          </select>
+                        </label>
+                        <label className="text-[11px] text-[var(--c-text-3)]">상태
+                          <select value={r.status} onChange={(e) => updateShotRow(r.key, { status: e.target.value as ShotRow['status'] })} className="mt-0.5 w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-2 py-1.5 text-sm text-[var(--c-text-1)] outline-none">
+                            <option value="예약확정">예약확정</option>
+                            <option value="시공중">시공중</option>
+                          </select>
+                        </label>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        <label className="text-[11px] text-[var(--c-text-3)]">고객
+                          <select value={r.mode === 'existing' && r.customerId ? r.customerId : '__new__'} onChange={(e) => { const v = e.target.value; if (v === '__new__') updateShotRow(r.key, { mode: 'new', customerId: null }); else { const c = allCustomers.find((x) => x.id === v); updateShotRow(r.key, { mode: 'existing', customerId: v, customerName: c?.name || null }); } }} className="mt-0.5 w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-2 py-1.5 text-sm text-[var(--c-text-1)] outline-none">
+                            <option value="__new__">새 고객으로 등록</option>
+                            {allCustomers.map((c) => <option key={c.id} value={c.id}>{c.name}{c.car_model ? ` · ${c.car_model}` : ''}{c.phone ? ` · ${c.phone.slice(-4)}` : ''}</option>)}
+                          </select>
+                        </label>
+                        {r.mode === 'new' && (
+                          <label className="text-[11px] text-[var(--c-text-3)]">새 고객 이름<input type="text" value={r.newCustomerName} onChange={(e) => updateShotRow(r.key, { newCustomerName: e.target.value })} placeholder="이름을 모르면 차 이름으로" className="mt-0.5 w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-2 py-1.5 text-sm text-[var(--c-text-1)] outline-none" /></label>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {shotRows.length === 0 && !shotBusy && <div className="py-10 text-center text-sm text-[var(--c-text-4)] border border-dashed border-[var(--c-border)] rounded-xl">사진을 고르거나 여기에 붙여 넣으세요</div>}
+            <div className="flex justify-end gap-2 mt-5">
+              <button onClick={() => { setShowShotImport(false); setShotRows([]); setShotHidden([]); }} disabled={shotBusy} className="text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-1)] px-4 py-2 disabled:opacity-50">닫기</button>
+              <button onClick={handleShotRegister} disabled={shotBusy || shotRows.filter((r) => r.include).length === 0} className="bg-brand hover:bg-brand-dark text-white text-sm font-semibold rounded-full px-5 py-2 disabled:opacity-40">{shotRows.filter((r) => r.include).length}건 등록</button>
+            </div>
+          </div>
+        </div>
+      )}
       {showAddAppointment && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-center justify-center p-4" onClick={() => setShowAddAppointment(false)}>
           <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl w-full max-w-lg p-6 shadow-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
