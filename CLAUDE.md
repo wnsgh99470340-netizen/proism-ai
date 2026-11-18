@@ -119,6 +119,10 @@
 - 기준 디자인: 사장님이 하남점에 만든 proism-hq 페이지 — 흰 헤더에 3M 레드 사각 로고+굵은 상호, 검정 알약형 활성 탭, 가운데 정렬 1360px 컨테이너, 흰 카드+1px 테두리(그림자 없음), 강조는 검정·빨강·회색만(라이트에서 --c-gold=#16181d 검정, 금색은 다크 전용). CRM 헤더·탭·컨테이너와 메인 TopBar 가 이 톤(2026-11-11)
 - 색은 src/app/globals.css 변수만 사용: 바탕 --c-page/--c-card/--c-subtle/--c-hover/--c-border, 글자 --c-text-1~4, 강조 --c-brand(3M 레드)/--c-gold/--c-ok/--c-warn/--c-info/--c-danger/--c-violet. Tailwind 클래스는 text-gold·bg-brand·bg-ok/10 처럼 이름으로(@theme inline 매핑). 컴포넌트에 #16진수 색 직접 쓰지 말 것(라이트·다크 둘 다 깨짐). 예외: 공개 명함 페이지(src/app/card)는 다크 고정, 카카오 노랑·네이버 초록 브랜드색, 인쇄용 문서(보증서·작업 내역서) 인라인 스타일
 
+## 로그인·알림 (2026-11-18)
+- 로그인 쿠키 crm_auth: 값 = SHA-256("proism-crm-v1:" + CRM_PASSWORD) hex(src/lib/auth-cookie.ts), 1년 유지 + 미들웨어가 방문 때마다 연장 → 인증된 기기는 비밀번호 재입력 없음, **비밀번호(Vercel env CRM_PASSWORD)를 바꾸면 모든 기기 로그아웃**. 예전 고정값 'authenticated' 는 안 통함. 서버 API 를 curl 로 칠 때는 .env.local 의 CRM_PASSWORD 로 같은 해시를 만들어 쿠키에 넣는다. 비밀번호는 2026-11-18 사장님 지시로 교체(값은 .env.local·Vercel 에만)
+- 웹 푸시: 토글(src/components/PushToggle.tsx)은 권한 허용인데 구독이 없으면 자동 재구독·서버 재등록, 앱이 앞으로 올 때마다 확인, sw.js pushsubscriptionchange 재등록. 차단·미지원이면 버튼을 눌러 이유와 기기별 켜는 법(갤럭시: 폰 설정 → 앱 → 브라우저 알림 허용 + 사이트 알림 허용)을 보여 줌. 아이폰은 홈 화면 앱에서만 가능. 서버 구독은 Supabase push_subscriptions(기기별 endpoint)
+
 ## 배포 규칙
 - 코드 수정 후 반드시: 타입 체크(npx tsc --noEmit) → 빌드(npm run build) → 커밋+푸시 → npx vercel --prod
 - .next 캐시 에러 시: rm -rf .next 후 재시도
