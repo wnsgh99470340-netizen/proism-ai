@@ -73,6 +73,8 @@ export default function CustomerDetailPage() {
 
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [services, setServices] = useState<Service[]>([]);
+  // 예약(보증서 발급 여부·다음 예약 표시용, 2026-11-18 사장님: 상세 화면에서도 보증서 보냈는지 보이게)
+  const [appts, setAppts] = useState<{ id: string; appointment_date: string; end_date: string | null; service_type: string | null; status: string; memo: string | null }[]>([]);
   const [consultations, setConsultations] = useState<Consultation[]>([]);
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
   const [discounts, setDiscounts] = useState<Discount[]>([]);
@@ -138,13 +140,15 @@ export default function CustomerDetailPage() {
   };
 
   const fetchData = useCallback(async () => {
-    const [{ data: c }, { data: s }, { data: con }, { data: f }] = await Promise.all([
+    const [{ data: c }, { data: s }, { data: con }, { data: f }, { data: ap }] = await Promise.all([
       supabase.from('customers').select('*').eq('id', id).single(),
       supabase.from('services').select('*').eq('customer_id', id).order('service_date', { ascending: false }),
       supabase.from('consultations').select('*').eq('customer_id', id).order('consultation_date', { ascending: false }),
       supabase.from('follow_ups').select('*, service:services(service_type)').eq('customer_id', id).order('scheduled_date', { ascending: false }),
+      supabase.from('appointments').select('id, appointment_date, end_date, service_type, status, memo').eq('customer_id', id).order('appointment_date', { ascending: false }),
     ]);
     if (c) setCustomer(c);
+    if (ap) setAppts(ap);
     if (s) setServices(s);
     if (con) setConsultations(con);
     if (f) setFollowUps(f as FollowUp[]);
@@ -207,6 +211,30 @@ export default function CustomerDetailPage() {
                 ? `${services.reduce((sum, s) => sum + (s.amount || 0), 0).toLocaleString()}원`
                 : '-'
             } />
+            {(() => {
+              // 다음(또는 최근) 예약: 취소 제외, 날짜 내림차순 첫 건
+              const a = appts.find((x) => x.status !== '취소');
+              return a ? <InfoItem label="예약" value={`${a.service_type || '시공 미정'} · ${formatDate(a.appointment_date)}${a.end_date && a.end_date !== a.appointment_date ? `~${formatDate(a.end_date).slice(6)}` : ''} · ${a.status}`} /> : <InfoItem label="예약" value="-" />;
+            })()}
+            {(() => {
+              // 보증서: 예약 메모(JSON)에 warranty_issued / warranty 가 있으면 발급된 것. 매장 보증서 페이지 링크(warranty_url)가 있으면 열기
+              type W = { warranty_issued?: boolean; warranty?: { date?: string; work_details?: string }; warranty_url?: string };
+              const issued = appts.map((x) => { try { return { a: x, w: JSON.parse(x.memo || '') as W }; } catch { return null; } }).filter((v): v is { a: typeof appts[number]; w: W } => !!v && !!(v.w.warranty_issued || v.w.warranty));
+              if (issued.length === 0) return <InfoItem label="보증서" value={appts.some((x) => x.status === '완료') ? '미발급' : '-'} />;
+              const { a, w } = issued[0];
+              const url = (w.warranty_url || '').replace(/\s+/g, '');
+              return (
+                <div>
+                  <div className="text-xs text-[var(--c-text-3)] mb-0.5">보증서</div>
+                  <div className="text-sm text-[var(--c-text-1)] flex items-center gap-2 flex-wrap">
+                    <span className="inline-flex items-center gap-1 text-ok font-semibold">✓ 발급</span>
+                    <span className="text-[var(--c-text-3)]">{formatDate(w.warranty?.date || a.appointment_date)}{w.warranty?.work_details ? ` · ${w.warranty.work_details}` : a.service_type ? ` · ${a.service_type}` : ''}</span>
+                    {url && <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold px-2 py-0.5 rounded-full border border-[var(--c-border)] hover:bg-[var(--c-subtle)]">보기</a>}
+                    {issued.length > 1 && <span className="text-xs text-[var(--c-text-4)]">외 {issued.length - 1}건</span>}
+                  </div>
+                </div>
+              );
+            })()}
             {customer.memo && <InfoItem label="메모" value={customer.memo} />}
           </div>
         </div>
