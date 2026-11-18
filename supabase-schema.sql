@@ -142,3 +142,26 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
   user_agent text,
   created_at timestamptz DEFAULT now()
 );
+
+-- ============================================
+-- 9. referrals (고객 멤버십 — 소개 연결, 2026-11-18 추가)
+-- 멤버십은 무료·시공 완료 손님 자동(services 가 있으면 회원, 가입일 = 첫 시공 완료일 → 컬럼 없음).
+-- 이 표는 "누가 누구를 소개했고, 양쪽 혜택을 썼는지"만 기록한다.
+--   소개한 분 혜택: 리터치 + 유리막·발수 코팅(또는 필름 코팅)
+--   소개받은 분 혜택: 생활보호 PPF 5종 또는 실내 PPF 중 1 + 필름 코팅 (전체 PPF·프론트 패키지·신차패키지 이상일 때)
+-- Supabase SQL Editor에서 이 블록만 실행
+-- ============================================
+CREATE TABLE IF NOT EXISTS referrals (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  referrer_id uuid REFERENCES customers(id) ON DELETE SET NULL,   -- 소개한 분
+  referred_id uuid REFERENCES customers(id) ON DELETE CASCADE,    -- 소개받은 분
+  referred_reward text,            -- 소개받은 분이 고른 혜택 (생활보호 5종 / 실내 PPF)
+  referred_reward_used_at date,    -- 소개받은 분 혜택 적용일
+  referrer_reward text,            -- 소개한 분 혜택 (리터치+코팅)
+  referrer_reward_used_at date,    -- 소개한 분 혜택 적용일
+  thanks_sms_sent_at timestamptz,  -- 소개 감사 문자 보낸 때
+  memo text,
+  created_at timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS referrals_referrer_idx ON referrals (referrer_id);
+CREATE UNIQUE INDEX IF NOT EXISTS referrals_referred_uniq ON referrals (referred_id);

@@ -1,6 +1,8 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { MEMBERSHIP } from '@/config/membership';
 
 /**
  * 고객 등록·수정 창 하나 (2026-11-18 사장님: "왜 자꾸 등록 창이랑 수정 창이 달라" → 어디서 열든 같은 창, 같은 칸)
@@ -66,7 +68,7 @@ export async function saveCustomerEdit(customerId: string, form: CustomerFormVal
 const input = 'w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50';
 const label = 'text-xs text-[var(--c-text-3)] mb-1 block';
 
-export default function CustomerFormModal({ mode, form, setForm, latestApptId, busy, onSubmit, onClose }: {
+export default function CustomerFormModal({ mode, form, setForm, latestApptId, busy, onSubmit, onClose, referrerId, setReferrerId, excludeCustomerId }: {
   mode: 'add' | 'edit';
   form: CustomerFormValues;
   setForm: (f: CustomerFormValues) => void;
@@ -74,8 +76,20 @@ export default function CustomerFormModal({ mode, form, setForm, latestApptId, b
   busy?: boolean;
   onSubmit: () => void;
   onClose: () => void;
+  /** 멤버십(2026-11-18): 유입경로가 소개/재방문이면 "소개한 분"을 고른다. 저장은 부모가 linkReferral 로 */
+  referrerId?: string | null;
+  setReferrerId?: (id: string | null) => void;
+  /** 수정 중인 고객 본인은 소개한 분 목록에서 뺀다 */
+  excludeCustomerId?: string | null;
 }) {
   const set = (k: keyof CustomerFormValues, v: string) => setForm({ ...form, [k]: v });
+  const showReferrer = !!setReferrerId && form.source === '소개/재방문';
+  type Person = { id: string; name: string; phone: string | null; car_model: string | null };
+  const [people, setPeople] = useState<Person[] | null>(null);
+  useEffect(() => {
+    if (!showReferrer || people) return;
+    supabase.from('customers').select('id, name, phone, car_model').order('name').then(({ data }) => setPeople((data || []) as Person[]));
+  }, [showReferrer, people]);
   const apptTitle = mode === 'add' ? '예약 정보 (선택)' : latestApptId ? '최근 예약 (고치면 그 예약이 바뀝니다)' : '예약 정보 (시작일을 넣으면 새 예약이 생깁니다)';
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -91,6 +105,15 @@ export default function CustomerFormModal({ mode, form, setForm, latestApptId, b
               {SOURCE_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
+          {showReferrer && (
+            <div className="col-span-2">
+              <label className={label}>소개한 분 <span className="text-[var(--c-text-4)]">(회원 혜택: 소개한 분 {MEMBERSHIP.referrerReward} · 소개받은 분 {MEMBERSHIP.referredCondition}일 때 혜택)</span></label>
+              <select value={referrerId || ''} onChange={(e) => setReferrerId?.(e.target.value || null)} className={input}>
+                <option value="">{people ? '고객 목록에서 고르기 (재방문이면 비워 둠)' : '불러오는 중…'}</option>
+                {(people || []).filter((p) => p.id !== excludeCustomerId).map((p) => <option key={p.id} value={p.id}>{p.name}{p.car_model ? ` · ${p.car_model}` : ''}{p.phone ? ` · ${p.phone.slice(-4)}` : ''}</option>)}
+              </select>
+            </div>
+          )}
           <div><label className={label}>차량 브랜드</label><input type="text" value={form.car_brand} onChange={(e) => set('car_brand', e.target.value)} className={input} placeholder="BMW, 벤츠, 포르쉐 등" /></div>
           <div><label className={label}>차량 모델</label><input type="text" value={form.car_model} onChange={(e) => set('car_model', e.target.value)} className={input} placeholder="X5, GLE, 카이엔 등" /></div>
           <div><label className={label}>연식</label><input type="text" value={form.car_year} onChange={(e) => set('car_year', e.target.value)} className={input} placeholder="2024" /></div>

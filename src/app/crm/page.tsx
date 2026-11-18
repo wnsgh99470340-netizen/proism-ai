@@ -19,6 +19,8 @@ import BlogWorkspace from '@/components/BlogWorkspace';
 import HelpModal from '@/components/HelpModal';
 import PushToggle from '@/components/PushToggle';
 import CustomerFormModal, { EMPTY_CUSTOMER_FORM, loadCustomerForm, saveCustomerEdit } from '@/components/crm/CustomerFormModal';
+import { linkReferral, loadReferralsFor, markThanksSent } from '@/lib/referrals';
+import { MEMBERSHIP } from '@/config/membership';
 
 // ─── Types ───────────────────────────────────────────────
 interface Customer {
@@ -232,6 +234,8 @@ export default function CRMPage() {
   const [editCustomerId, setEditCustomerId] = useState<string | null>(null);
   // 고객 수정 창에 최근 예약(시공·시작·종료·금액)을 같이 보여 주고 고친다 (2026-11-18 사장님: 등록 창과 수정 창이 달라 헷갈림)
   const [editLatestApptId, setEditLatestApptId] = useState<string | null>(null);
+  // 멤버십(2026-11-18): 고객 창에서 고른 "소개한 분". 저장 때 referrals 에 연결
+  const [customerReferrerId, setCustomerReferrerId] = useState<string | null>(null);
   const [customerForm, setCustomerForm] = useState({
     name: '', phone: '', car_brand: '', car_model: '', car_year: '', car_color: '', source: '', memo: '',
     appointment_start_date: '', appointment_end_date: '', appointment_service_type: '', appointment_amount: '', appointment_memo: '',
@@ -496,6 +500,16 @@ export default function CRMPage() {
     }
 
     console.log('[CRM] customerId:', customerId);
+    // 멤버십(2026-11-18): 소개한 분이 골라져 있으면 연결하고 감사 문자 제안
+    if (customerReferrerId) {
+      const refErr = await linkReferral(customerId, customerReferrerId);
+      if (refErr) alert(refErr);
+      else {
+        const ref = allCustomers.find((c) => c.id === customerReferrerId);
+        if (ref?.phone && confirm(`${ref.name} 님께 소개 감사 문자를 보낼까요?`)) { openSmsApp(ref.phone, MEMBERSHIP.thanksSms(ref.name, formData.name)); markThanksSent(customerId); }
+      }
+      setCustomerReferrerId(null);
+    }
     console.log('[CRM] appointment_start_date:', formData.appointment_start_date);
     console.log('[CRM] appointment_service_type:', formData.appointment_service_type);
 
@@ -717,6 +731,8 @@ export default function CRMPage() {
     if (!loaded) { alert('고객 정보를 불러오지 못했습니다'); return; }
     setCustomerForm(loaded.form);
     setEditLatestApptId(loaded.latestApptId);
+    const refs = await loadReferralsFor(customer.id);
+    setCustomerReferrerId(refs.receivedFrom?.referrer_id ?? null);
     setEditCustomerId(customer.id);
     setShowAddCustomer(true);
   };
@@ -733,6 +749,8 @@ export default function CRMPage() {
     if (!editCustomerId) return;
     const err = await saveCustomerEdit(editCustomerId, customerForm, editLatestApptId);
     if (err) { alert(err); return; }
+    if (customerReferrerId && customerForm.source === '소개/재방문') { const refErr = await linkReferral(editCustomerId, customerReferrerId); if (refErr) alert(refErr); }
+    setCustomerReferrerId(null);
     setCustomerForm({ ...EMPTY_CUSTOMER_FORM });
     setEditCustomerId(null);
     setEditLatestApptId(null);
@@ -2567,8 +2585,11 @@ export default function CRMPage() {
           form={customerForm}
           setForm={setCustomerForm}
           latestApptId={editLatestApptId}
+          referrerId={customerReferrerId}
+          setReferrerId={setCustomerReferrerId}
+          excludeCustomerId={editCustomerId}
           onSubmit={editCustomerId ? handleUpdateCustomer : handleAddCustomer}
-          onClose={() => { setShowAddCustomer(false); setEditCustomerId(null); setEditLatestApptId(null); }}
+          onClose={() => { setShowAddCustomer(false); setEditCustomerId(null); setEditLatestApptId(null); setCustomerReferrerId(null); }}
         />
       )}
 

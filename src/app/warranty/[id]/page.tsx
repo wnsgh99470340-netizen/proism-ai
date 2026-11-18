@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { LINKS } from '@/config/links';
+import { MEMBERSHIP } from '@/config/membership';
 import { useParams } from 'next/navigation';
 
 interface WarrantyData {
@@ -185,6 +186,12 @@ export default function WarrantyPage() {
               <a href={LINKS.threeMWarrantyCheck} target="_blank" rel="noopener noreferrer" style={{ color: '#15803d', fontWeight: 600, textDecoration: 'underline' }}>3M 소비자 보증서 확인</a>
               {' · '}
               <a href={LINKS.threeMWarrantyFaq} target="_blank" rel="noopener noreferrer" style={{ color: '#15803d', fontWeight: 600, textDecoration: 'underline' }}>보증 안내</a>
+            </div>
+            {/* 회원 안내 (2026-11-18 멤버십): 출고 때 건네는 보증서에 같이 싣는다 */}
+            <div className="notice-text" style={{ fontSize: '12px', color: '#166534', lineHeight: 1.7, marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #bbf7d0' }}>
+              <strong>{MEMBERSHIP.name} 안내</strong><br />
+              시공하신 고객님은 자동으로 회원이 되어 {MEMBERSHIP.common.slice(0, 2).join(', ')}을 받으십니다.<br />
+              {MEMBERSHIP.referralLine}
             </div>
           </div>
 

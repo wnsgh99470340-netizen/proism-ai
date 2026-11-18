@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import CustomerFormModal, { EMPTY_CUSTOMER_FORM, loadCustomerForm, saveCustomerEdit, type CustomerFormValues } from '@/components/crm/CustomerFormModal';
 import { todaySeoul } from '@/lib/local-date';
+import { linkReferral, loadReferralsFor, markThanksSent, updateReferral, unlinkReferral, type Referral } from '@/lib/referrals';
+import { MEMBERSHIP } from '@/config/membership';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -87,14 +89,23 @@ export default function CustomerDetailPage() {
   const [editForm, setEditForm] = useState<CustomerFormValues>({ ...EMPTY_CUSTOMER_FORM });
   const [editLatestApptId, setEditLatestApptId] = useState<string | null>(null);
   const [editBusy, setEditBusy] = useState(false);
+  // 멤버십(2026-11-18): 소개 연결·혜택 사용
+  const [refs, setRefs] = useState<{ receivedFrom: Referral | null; gave: Referral[]; tableMissing: boolean }>({ receivedFrom: null, gave: [], tableMissing: false });
+  const [editReferrerId, setEditReferrerId] = useState<string | null>(null);
+  const openSms = (phone: string, msg: string) => {
+    const p = phone.replace(/[^\d]/g, '');
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    window.open(isIOS ? `sms:${p}&body=${encodeURIComponent(msg)}` : `sms:${p}?body=${encodeURIComponent(msg)}`);
+  };
   const startEditInfo = async () => {
     const loaded = await loadCustomerForm(id);
     if (!loaded) { alert('고객 정보를 불러오지 못했습니다'); return; }
-    setEditForm(loaded.form); setEditLatestApptId(loaded.latestApptId); setEditOpen(true);
+    setEditForm(loaded.form); setEditLatestApptId(loaded.latestApptId); setEditReferrerId(refs.receivedFrom?.referrer_id ?? null); setEditOpen(true);
   };
   const saveInfo = async () => {
     setEditBusy(true);
     const err = await saveCustomerEdit(id, editForm, editLatestApptId);
+    if (!err && editReferrerId && editForm.source === '소개/재방문') { const e2 = await linkReferral(id, editReferrerId); if (e2) alert(e2); }
     setEditBusy(false);
     if (err) { alert(err); return; }
     setEditOpen(false);
@@ -157,6 +168,7 @@ export default function CustomerDetailPage() {
       const res = await fetch(`/api/discounts?customer_id=${id}`);
       if (res.ok) setDiscounts(await res.json());
     } catch { /* ignore */ }
+    setRefs(await loadReferralsFor(id));
   }, [id]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
@@ -248,8 +260,61 @@ export default function CustomerDetailPage() {
           </div>
         </div>
         {editOpen && (
-          <CustomerFormModal mode="edit" form={editForm} setForm={setEditForm} latestApptId={editLatestApptId} busy={editBusy} onSubmit={saveInfo} onClose={() => { if (!editBusy) setEditOpen(false); }} />
+          <CustomerFormModal mode="edit" form={editForm} setForm={setEditForm} latestApptId={editLatestApptId} busy={editBusy} referrerId={editReferrerId} setReferrerId={setEditReferrerId} excludeCustomerId={id} onSubmit={saveInfo} onClose={() => { if (!editBusy) setEditOpen(false); }} />
         )}
+
+        {/* 멤버십 카드 (2026-11-18): 회원 여부(시공 완료면 자동), 소개받음·소개함과 혜택 사용 */}
+        <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-5 mb-6">
+          <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
+            <div className="text-xs font-semibold text-[var(--c-text-3)]">{MEMBERSHIP.name}</div>
+            {services.length > 0
+              ? <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-ok/10 text-ok">회원 · 가입 {formatDate(services[services.length - 1].service_date)}</span>
+              : <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[var(--c-subtle)] text-[var(--c-text-3)]">비회원 · 시공 완료 시 자동 가입</span>}
+          </div>
+          {refs.tableMissing ? (
+            <div className="text-xs text-warn">소개 기록 표(referrals)가 아직 없습니다. supabase-schema.sql 9번 블록을 Supabase SQL Editor 에서 한 번 실행하면 켜집니다.</div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div>
+                <div className="text-xs text-[var(--c-text-3)] mb-1">소개받음</div>
+                {refs.receivedFrom ? (
+                  <div className="space-y-2">
+                    <div className="text-[var(--c-text-1)]">소개한 분: <Link href={`/crm/${refs.receivedFrom.referrer_id}`} className="font-semibold underline-offset-2 hover:underline">{refs.receivedFrom.referrer?.name || '-'}</Link> <span className="text-[var(--c-text-3)] text-xs">{formatDate(refs.receivedFrom.created_at)}</span></div>
+                    <div className="text-[11px] text-[var(--c-text-4)]">혜택 조건: {MEMBERSHIP.referredCondition}</div>
+                    {refs.receivedFrom.referred_reward_used_at ? (
+                      <div className="text-ok text-xs font-semibold">✓ 혜택 적용 {formatDate(refs.receivedFrom.referred_reward_used_at)} · {refs.receivedFrom.referred_reward}</div>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5">
+                        {MEMBERSHIP.referredRewardOptions.map((opt) => (
+                          <button key={opt} onClick={async () => { if (!confirm(`"${opt}" 혜택을 오늘 적용한 것으로 기록할까요?`)) return; const e = await updateReferral(refs.receivedFrom!.id, { referred_reward: opt, referred_reward_used_at: todaySeoul() }); if (e) alert(e); else fetchData(); }} className="text-[11px] font-medium px-2.5 py-1 rounded-full border border-[var(--c-border)] hover:bg-[var(--c-subtle)] text-[var(--c-text-1)]">{opt.split('(')[0].trim()} 적용</button>
+                        ))}
+                      </div>
+                    )}
+                    <button onClick={async () => { if (confirm('소개 연결을 지울까요?')) { await unlinkReferral(refs.receivedFrom!.id); fetchData(); } }} className="text-[11px] text-[var(--c-text-4)] hover:text-danger">연결 지우기</button>
+                  </div>
+                ) : (
+                  <div className="text-[var(--c-text-3)]">- <span className="text-[11px] text-[var(--c-text-4)]">(✎ 수정에서 유입경로를 소개/재방문으로 두고 소개한 분을 고르면 연결됩니다)</span></div>
+                )}
+              </div>
+              <div>
+                <div className="text-xs text-[var(--c-text-3)] mb-1">이분이 소개한 손님 {refs.gave.length > 0 && <b className="text-[var(--c-text-1)]">{refs.gave.length}명</b>}</div>
+                {refs.gave.length === 0 ? <div className="text-[var(--c-text-3)]">-</div> : (
+                  <ul className="space-y-2">
+                    {refs.gave.map((r) => (
+                      <li key={r.id} className="flex flex-wrap items-center gap-2">
+                        <Link href={`/crm/${r.referred_id}`} className="font-semibold text-[var(--c-text-1)] hover:underline">{r.referred?.name || '-'}</Link>
+                        <span className="text-xs text-[var(--c-text-3)]">{formatDate(r.created_at)}</span>
+                        {r.thanks_sms_sent_at ? <span className="text-[11px] text-ok">✓ 감사 문자</span> : customer.phone ? <button onClick={() => { openSms(customer.phone!, MEMBERSHIP.thanksSms(customer.name, r.referred?.name || '고객')); markThanksSent(r.referred_id).then(fetchData); }} className="text-[11px] font-medium px-2 py-0.5 rounded-full border border-[var(--c-border)] hover:bg-[var(--c-subtle)]">감사 문자</button> : null}
+                        {r.referrer_reward_used_at ? <span className="text-[11px] text-ok">✓ 혜택 적용 {formatDate(r.referrer_reward_used_at)}</span> : <button onClick={async () => { if (!confirm(`소개 혜택(${MEMBERSHIP.referrerReward})을 오늘 적용한 것으로 기록할까요?`)) return; const e = await updateReferral(r.id, { referrer_reward: MEMBERSHIP.referrerReward, referrer_reward_used_at: todaySeoul() }); if (e) alert(e); else fetchData(); }} className="text-[11px] font-medium px-2 py-0.5 rounded-full border border-[var(--c-border)] hover:bg-[var(--c-subtle)]">혜택 적용</button>}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className="text-[11px] text-[var(--c-text-4)] mt-2">소개한 분 혜택: {MEMBERSHIP.referrerReward}</div>
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Detail Tabs */}
         <div className="border-b border-[var(--c-border)] flex gap-0 mb-4">

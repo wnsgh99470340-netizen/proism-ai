@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { MEMBERSHIP } from '@/config/membership';
 
 /**
  * 공개 명함 페이지 (2026-11-11) — 견적 문자 끝에 링크로 붙는다.
@@ -37,6 +38,13 @@ export default function CardPage() {
             <a href="https://blog.naver.com/roice_" className={`${btn} bg-white/10 hover:bg-white/15`}>📝 블로그</a>
             <a href="https://map.naver.com/p/entry/place/2043882706" className={`${btn} bg-white/10 hover:bg-white/15`}>📍 지도·길찾기</a>
           </div>
+        </div>
+
+        {/* 회원 안내 (2026-11-18 멤버십): 시공 고객 자동 회원, 숫자 없이 혜택만 */}
+        <div className="rounded-2xl bg-white/5 p-4 text-sm leading-relaxed text-white/80">
+          <div className="font-semibold text-white mb-1">시공 고객은 회원으로 관리합니다</div>
+          {MEMBERSHIP.common.slice(0, 3).map((c) => <div key={c}>· {c}</div>)}
+          <div className="mt-2 text-white/60 text-[13px]">{MEMBERSHIP.referralLine}</div>
         </div>
 
         <div className="rounded-2xl bg-white/5 p-4 text-sm leading-relaxed text-white/80">
