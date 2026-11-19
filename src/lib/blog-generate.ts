@@ -444,7 +444,8 @@ export async function buildBlogSystemPrompt(researchContext: string, serviceType
   const diffContext = differentiatorPrompt(differentiators ?? pickDifferentiators(serviceType || ''));
   // 부위별 시공 기준 사전(2026-11-18): 랩핑·크롬죽이기(컬러PPF는 안전 항목만)의 부위 기준을 장면의 근거로만 넣는다
   const standardsContext = workStandardsPrompt(standardServiceOf(serviceType || ''), standards ?? []);
-  const formatContext = `\n\n[이번 글의 형식 — 필수: ${fmt.name}]\n${fmt.brief}\n이 형식이 글의 뼈대다. 아래 "구조"의 공통 요소(자기소개 한 줄·차량 2~3줄·관리 2~3줄·상담 문턱 한 줄·연락처)는 이 뼈대 안에 자리를 찾아 넣고, 부위를 "가장 이야기하고 싶은 → 두 번째 → 세 번째"로 번호 매겨 훑지 않는다.`;
+  // 2026-11-19 사장님 "규칙은 참고, 강제 아님" → 형식도 제안으로만 준다
+  const formatContext = `\n\n[이번 글의 형식 — 제안: ${fmt.name}]\n${fmt.brief}\n최근 글에 안 쓴 모양이라 골랐다. 이 뼈대로 가되 더 자연스러운 흐름이 있으면 그쪽을 따른다. 부위를 "가장 이야기하고 싶은 → 두 번째 → 세 번째"로 번호 매겨 훑는 것만 피한다.`;
   let previousContext = '';
   if (previousDrafts.length > 0) {
     const fmtName = (k?: string | null) => BLOG_FORMATS.find(f => f.key === k)?.name;
