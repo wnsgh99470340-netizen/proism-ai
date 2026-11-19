@@ -95,7 +95,7 @@ export default function MemberPage() {
             <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-[#E4002B] font-black text-lg mb-4 shadow-[0_0_30px_rgba(228,0,43,0.3)]">3M</div>
             <div className={micro}>Preferred Installer</div>
             <div className="text-lg font-bold mt-1">3M 프로이즘 강남서초점</div>
-            <div className="text-sm text-white/55 mt-1">{maskedName ? `${maskedName} 고객님 회원 페이지` : '회원 페이지'}</div>
+            <div className="text-sm text-white/55 mt-1">{maskedName ? `${maskedName} 고객님의 3M 프로이즘 회원 페이지` : '3M 프로이즘 회원 페이지'}</div>
           </div>
           <form onSubmit={(e) => { e.preventDefault(); if (pin.length === 4) load(pin); }} className={box}>
             <label className="text-xs text-white/60 block mb-2">본인 확인을 위해 전화번호 뒷자리 4개를 넣어 주세요</label>
@@ -117,7 +117,7 @@ export default function MemberPage() {
   const careSorted = [...data.care].sort((a, b) => ((b.done ? b.doneAt || b.date : b.date) || '').localeCompare((a.done ? a.doneAt || a.date : a.date) || ''));
   const cert = data.warranties[0] || null; // 가장 최근 발급분이 맨 위 증명서
   const latestService = data.services[0] || null;
-  const tabs = [['cert', '증명서'], ['care', '관리'], ['benefit', '혜택'], ['referral', '소개'], ['history', '기록·보증']] as const;
+  const tabs = [['cert', '증명서'], ['care', '관리'], ['benefit', '회원 혜택'], ['referral', '소개'], ['history', '기록·보증']] as const;
 
   return (
     <main className="h-dvh overflow-y-auto overscroll-contain bg-[#0b0c0f] text-white">
@@ -141,6 +141,24 @@ export default function MemberPage() {
             <div className="text-xs font-semibold text-white/80 tabular-nums">{c.memberSince ? fmtDot(c.memberSince) : '첫 시공 뒤'}</div>
           </div>
         </div>
+
+        {/* 회원 카드 — 증명서 위에 얇게. 2026-11-19 사장님 "어디에도 멤버십 이야기가 없어서 보증서인 줄 알 수 있다" → 이게 회원 페이지라는 걸 먼저 보여 준다. 숫자는 포인트 수와 가입일만 */}
+        <section className="rounded-2xl border border-white/10 bg-gradient-to-r from-[#E4002B]/25 via-[#1a1b20] to-[#1a1b20] px-4 py-3.5">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className={micro}>{data.membership.name}</div>
+              <div className="text-base font-bold leading-tight mt-0.5 truncate">{c.name} 고객님</div>
+              <div className="text-[11px] text-white/50 mt-0.5 truncate">{c.car || '차량 미등록'}{c.color ? ` · ${c.color}` : ''}</div>
+            </div>
+            <button onClick={() => setTab('referral')} className="shrink-0 text-right rounded-xl bg-white/[0.06] px-3 py-2 hover:bg-white/10">
+              <div className={micro}>소개 포인트</div>
+              <div className="text-lg font-black leading-tight tabular-nums">{data.points?.balance ?? 0}<span className="text-xs font-semibold text-white/60 ml-0.5">점</span></div>
+            </button>
+          </div>
+          <div className="mt-2.5 pt-2.5 border-t border-white/10 text-[11px] text-white/55 leading-relaxed">
+            시공하신 분은 회원으로 관리해 드립니다 · 2주 QC 점검 · 6개월 메인터넌스 · 리터치 우선 예약 · 지인 소개 혜택
+          </div>
+        </section>
 
         {/* 탭 — 상단 고정. 2026-11-19 사장님 "모바일에서 잘림 → 스크롤되게, 탭도 각각 보이게": 증명서도 탭 하나 */}
         <div className="sticky top-0 z-10 -mx-4 px-4 pt-1 pb-2 bg-[#0b0c0f]/90 backdrop-blur">
