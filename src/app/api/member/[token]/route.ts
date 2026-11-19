@@ -4,6 +4,7 @@ import { maskName } from '@/lib/member-links';
 import { MEMBERSHIP } from '@/config/membership';
 import { parseWorkOrder, workItems, type WorkOrderJson } from '@/lib/work-order';
 import { AUTH_COOKIE_NAME, isAuthCookieValid } from '@/lib/auth-cookie';
+import { pointsView, type PointRow } from '@/lib/referrals';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -33,12 +34,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!last4 || pin !== last4) return Response.json({ error: '전화번호 뒷자리가 맞지 않습니다' }, { status: 401 });
   }
 
-  const [{ data: services }, { data: followUps }, { data: appts }, { data: gave }, { data: received }] = await Promise.all([
+  const [{ data: services }, { data: followUps }, { data: appts }, { data: gave }, { data: received }, { data: pointRows }] = await Promise.all([
     supabase.from('services').select('id, service_type, service_date, completion_date, service_area, film_used').eq('customer_id', c.id).order('service_date', { ascending: false }),
     supabase.from('follow_ups').select('follow_up_type, scheduled_date, is_completed, completed_date').eq('customer_id', c.id).in('follow_up_type', ['QC점검', '메인터넌스']).order('scheduled_date', { ascending: true }),
     supabase.from('appointments').select('id, appointment_date, end_date, service_type, status, memo').eq('customer_id', c.id).neq('status', '취소').order('appointment_date', { ascending: false }),
     supabase.from('referrals').select('id, referred_id, created_at, referrer_reward, referrer_reward_used_at, referred:customers!referrals_referred_id_fkey(name)').eq('referrer_id', c.id).order('created_at', { ascending: false }),
     supabase.from('referrals').select('id, referrer_id, created_at, referred_reward, referred_reward_used_at, referrer:customers!referrals_referrer_id_fkey(name)').eq('referred_id', c.id).maybeSingle(),
+    supabase.from('referral_points').select('id, delta, reason, referral_id, created_at').eq('customer_id', c.id).order('created_at', { ascending: false }), // 표 없으면 null → 빈 포인트
   ]);
 
   // 소개한 분들의 진행 상태: 그 사람에게 시공 기록이 있으면 완료, 예약이 있으면 예약, 아니면 연락
@@ -86,6 +88,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       }),
       received: received ? { from: maskName((received.referrer as unknown as { name: string } | null)?.name), date: received.created_at, reward: received.referred_reward, rewardAt: received.referred_reward_used_at } : null,
     },
+    points: (() => { const v = pointsView((pointRows || []) as PointRow[]); return { ...v, history: v.history.map((h) => ({ ...h, reason: h.reason.replace(/^(\S+) 님 소개/, (_m, n: string) => `${maskName(n)} 님 소개`) })) }; })(), // 소개 포인트 (2026-11-19). 적립 사유의 다른 손님 이름은 가린다
     shop: { name: '3M 프로이즘 강남서초점', phone: '010-7287-7140', address: '서울특별시 서초구 서초중앙로8길 82 1동 1층 1호', card: 'https://proism-ai.vercel.app/card', map: 'https://map.naver.com/p/entry/place/2043882706', talk: 'http://talk.naver.com/wy4w32e' },
   });
 }

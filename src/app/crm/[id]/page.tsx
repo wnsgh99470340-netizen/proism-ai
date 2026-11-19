@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import CustomerFormModal, { EMPTY_CUSTOMER_FORM, loadCustomerForm, saveCustomerEdit, type CustomerFormValues } from '@/components/crm/CustomerFormModal';
 import { todaySeoul } from '@/lib/local-date';
-import { linkReferral, loadReferralsFor, markThanksSent, updateReferral, unlinkReferral, type Referral } from '@/lib/referrals';
-import { MEMBERSHIP } from '@/config/membership';
+import { linkReferral, loadReferralsFor, markThanksSent, updateReferral, unlinkReferral, loadPoints, usePoints, grantPointForReferral, deletePointRow, type Referral, type PointSummary } from '@/lib/referrals';
+import { MEMBERSHIP, POINTS } from '@/config/membership';
 import MemberSmsButtons from '@/components/crm/MemberSmsButtons';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
@@ -92,6 +92,9 @@ export default function CustomerDetailPage() {
   const [editBusy, setEditBusy] = useState(false);
   // 멤버십(2026-11-18): 소개 연결·혜택 사용
   const [refs, setRefs] = useState<{ receivedFrom: Referral | null; gave: Referral[]; tableMissing: boolean }>({ receivedFrom: null, gave: [], tableMissing: false });
+  // 소개 포인트 (2026-11-19): 잔액·내역·사용
+  const [pts, setPts] = useState<PointSummary>({ balance: 0, rows: [], lastEarnAt: null, expiresAt: null, expired: false, tableMissing: false });
+  const [ptsOpen, setPtsOpen] = useState(false);
   const [editReferrerId, setEditReferrerId] = useState<string | null>(null);
   const openSms = (phone: string, msg: string) => {
     const p = phone.replace(/[^\d]/g, '');
@@ -170,6 +173,7 @@ export default function CustomerDetailPage() {
       if (res.ok) setDiscounts(await res.json());
     } catch { /* ignore */ }
     setRefs(await loadReferralsFor(id));
+    setPts(await loadPoints(id));
   }, [id]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
@@ -310,12 +314,69 @@ export default function CustomerDetailPage() {
                         <span className="text-xs text-[var(--c-text-3)]">{formatDate(r.created_at)}</span>
                         {r.thanks_sms_sent_at ? <span className="text-[11px] text-ok">✓ 감사 문자</span> : customer.phone ? <button onClick={() => { openSms(customer.phone!, MEMBERSHIP.thanksSms(customer.name, r.referred?.name || '고객')); markThanksSent(r.referred_id).then(fetchData); }} className="text-[11px] font-medium px-2 py-0.5 rounded-full border border-[var(--c-border)] hover:bg-[var(--c-subtle)]">감사 문자</button> : null}
                         {r.referrer_reward_used_at ? <span className="text-[11px] text-ok">✓ 혜택 적용 {formatDate(r.referrer_reward_used_at)}</span> : <button onClick={async () => { if (!confirm(`소개 혜택(${MEMBERSHIP.referrerReward})을 오늘 적용한 것으로 기록할까요?`)) return; const e = await updateReferral(r.id, { referrer_reward: MEMBERSHIP.referrerReward, referrer_reward_used_at: todaySeoul() }); if (e) alert(e); else fetchData(); }} className="text-[11px] font-medium px-2 py-0.5 rounded-full border border-[var(--c-border)] hover:bg-[var(--c-subtle)]">혜택 적용</button>}
+                        {!pts.tableMissing && (pts.rows.some((p) => p.referral_id === r.id)
+                          ? <span className="text-[11px] text-ok">✓ 1점 적립</span>
+                          : <button onClick={async () => { if (!confirm(`${r.referred?.name || '고객'} 님 소개 건으로 1포인트를 적립할까요? (시공을 마쳤을 때만)`)) return; const e = await grantPointForReferral(r); if (e) alert(e); else fetchData(); }} className="text-[11px] font-medium px-2 py-0.5 rounded-full border border-[var(--c-border)] hover:bg-[var(--c-subtle)]">+1점 적립</button>)}
                       </li>
                     ))}
                   </ul>
                 )}
-                <div className="text-[11px] text-[var(--c-text-4)] mt-2">소개한 분 혜택: {MEMBERSHIP.referrerReward}</div>
+                <div className="text-[11px] text-[var(--c-text-4)] mt-2">소개한 분 혜택: {MEMBERSHIP.referrerReward} · 소개 1건마다 1포인트</div>
               </div>
+            </div>
+          )}
+          {/* 소개 포인트 (2026-11-19 사장님 결정): 소개 1건 = 1점, 쓰는 항목은 전부 공임 서비스(필름값만) */}
+          {!refs.tableMissing && (
+            <div className="mt-4 pt-4 border-t border-[var(--c-border)]">
+              {pts.tableMissing ? (
+                <div className="text-xs text-warn">소개 포인트 표(referral_points)가 아직 없습니다. docs/소개포인트-referral_points-표-만들기.sql 을 Supabase SQL Editor 에서 한 번 실행하면 켜집니다.</div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-xs text-[var(--c-text-3)]">소개 포인트</span>
+                      <span className="text-xl font-extrabold text-[var(--c-text-1)] tabular-nums">{pts.balance}<span className="text-sm font-semibold ml-0.5">점</span></span>
+                      {pts.expired && <span className="text-[11px] text-warn">기한 지남</span>}
+                      {!pts.expired && pts.expiresAt && <span className="text-[11px] text-[var(--c-text-4)]">{formatDate(pts.expiresAt)}까지</span>}
+                    </div>
+                    <button onClick={() => setPtsOpen((v) => !v)} className="text-[11px] font-medium px-2.5 py-1 rounded-full border border-[var(--c-border)] hover:bg-[var(--c-subtle)] text-[var(--c-text-1)]">{ptsOpen ? '접기' : `사용·내역 ${pts.rows.length > 0 ? `(${pts.rows.length})` : ''}`}</button>
+                  </div>
+                  {ptsOpen && (
+                    <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <div className="text-xs text-[var(--c-text-3)] mb-1.5">쓸 수 있는 항목 (전부 공임 서비스, 필름값만)</div>
+                        <ul className="space-y-1.5">
+                          {POINTS.menu.map((m) => {
+                            const ok = pts.balance >= m.cost;
+                            return (
+                              <li key={m.cost} className="flex items-start gap-2">
+                                <button disabled={!ok} onClick={async () => { if (!confirm(`"${m.label}" 에 ${m.cost}점을 오늘 사용한 것으로 기록할까요?\n(지금 ${pts.balance}점 → ${pts.balance - m.cost}점)`)) return; const e = await usePoints(customer.id, m.cost, m.label); if (e) alert(e); else fetchData(); }} className={`shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded-full border ${ok ? 'border-[var(--c-text-1)] text-[var(--c-text-1)] hover:bg-[var(--c-subtle)]' : 'border-[var(--c-border)] text-[var(--c-text-4)] cursor-not-allowed'}`}>{m.cost}점 사용</button>
+                                <div><div className="text-[var(--c-text-1)]">{m.label}</div><div className="text-[11px] text-[var(--c-text-4)]">{m.detail}</div></div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                        <div className="text-[11px] text-[var(--c-text-4)] mt-2">{POINTS.conditions.join(' · ')}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-[var(--c-text-3)] mb-1.5">내역</div>
+                        {pts.rows.length === 0 ? <div className="text-[var(--c-text-3)]">아직 없습니다. 소개받은 분이 시공을 마치면 자동으로 1점 쌓입니다.</div> : (
+                          <ul className="space-y-1">
+                            {pts.rows.map((p) => (
+                              <li key={p.id} className="flex items-center gap-2 text-xs">
+                                <span className={`font-bold tabular-nums w-8 ${p.delta > 0 ? 'text-ok' : 'text-[var(--c-text-1)]'}`}>{p.delta > 0 ? `+${p.delta}` : p.delta}</span>
+                                <span className="text-[var(--c-text-3)] w-20 shrink-0">{formatDate(p.created_at)}</span>
+                                <span className="text-[var(--c-text-1)] flex-1">{p.reason}</span>
+                                <button onClick={async () => { if (confirm('이 줄을 지울까요? (잘못 누른 적립·사용 취소)')) { await deletePointRow(p.id); fetchData(); } }} className="text-[var(--c-text-4)] hover:text-danger">✕</button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           )}
         </div>

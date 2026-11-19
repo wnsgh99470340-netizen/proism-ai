@@ -21,6 +21,7 @@ interface Data {
   upcoming: { date: string; end: string | null; service: string | null; status: string }[];
   warranties: { date: string; end: string | null; work: string; period: string; url: string | null; items: { group: string; text: string; product?: string }[]; certNo: string }[];
   referrals: { gave: { name: string; date: string; state: string; reward: string | null; rewardAt: string | null }[]; received: { from: string; date: string; reward: string | null; rewardAt: string | null } | null };
+  points: { balance: number; expiresAt: string | null; expired: boolean; history: { date: string; delta: number; reason: string }[]; unit: string; earnRule: string; menu: { cost: number; label: string; detail: string }[]; conditions: string[] };
   shop: { name: string; phone: string; address: string; card: string; map: string; talk: string };
 }
 const toDate = (d: string | null | undefined) => { if (!d) return null; const x = new Date(d); return Number.isNaN(x.getTime()) ? null : x; };
@@ -272,7 +273,7 @@ export default function MemberPage() {
             </div>
             <div className={box}>
               <div className="text-sm font-bold mb-2">소개 혜택</div>
-              <div className="text-sm"><div className={micro}>소개해 주신 분</div><div className="mt-1">{data.membership.referrerReward}</div></div>
+              <div className="text-sm"><div className={micro}>소개해 주신 분</div><div className="mt-1">{data.membership.referrerReward}</div>{data.points && <div className="text-[11px] text-white/50 mt-0.5">소개 1건마다 포인트 1점이 쌓입니다. 소개 탭에서 쓸 수 있는 항목을 보실 수 있습니다.</div>}</div>
               <div className="text-sm mt-3"><div className={micro}>소개받고 연락 주신 분</div><div className="text-[11px] text-white/40 mt-0.5">{data.membership.referredCondition}</div>
                 <ul className="mt-1 space-y-0.5">{data.membership.referredRewardOptions.map((o) => <li key={o}>· {o}</li>)}</ul></div>
               {data.referrals.received && (
@@ -292,6 +293,44 @@ export default function MemberPage() {
               <div className="text-sm text-white/70 leading-relaxed break-keep">지인이 연락하실 때 <span className="text-white font-semibold">{c.name}</span> 고객님 성함만 말씀해 주시면 됩니다. 그분과 고객님 모두에게 소개 혜택이 적용됩니다.</div>
               <button onClick={shareShop} className={`${btn} w-full mt-3 bg-white/10 hover:bg-white/15`}>매장 연락처 전달하기</button>
             </div>
+            {/* 소개 포인트 (2026-11-19 사장님 결정): 소개 1건 = 1점, 쓰는 항목은 전부 공임 서비스(필름값만). 금액 숫자 없음 */}
+            {data.points && (
+              <div className={box}>
+                <div className="flex items-end justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-bold">소개 포인트</div>
+                    <div className="text-[11px] text-white/50 mt-0.5 break-keep">{data.points.earnRule}</div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="text-[28px] font-black leading-none tabular-nums">{data.points.balance}<span className="text-sm font-bold ml-0.5">점</span></div>
+                    {data.points.expiresAt && !data.points.expired && <div className="text-[10px] text-white/40 mt-1">{fmtDot(data.points.expiresAt)}까지</div>}
+                  </div>
+                </div>
+                <ul className="mt-3 space-y-2">
+                  {data.points.menu.map((m) => {
+                    const ok = data.points.balance >= m.cost;
+                    return (
+                      <li key={m.cost} className={`flex items-start gap-2.5 rounded-xl px-3 py-2 ${ok ? 'bg-[#E4002B]/12 border border-[#E4002B]/40' : 'bg-white/[0.04]'}`}>
+                        <span className={`shrink-0 mt-0.5 text-[11px] font-bold px-1.5 py-0.5 rounded-md tabular-nums ${ok ? 'bg-[#E4002B] text-white' : 'bg-white/10 text-white/60'}`}>{m.cost}점</span>
+                        <div className="min-w-0">
+                          <div className={`text-sm break-keep ${ok ? 'text-white font-semibold' : 'text-white/75'}`}>{m.label}{ok && <span className="ml-1.5 text-[10px] text-[#ff5c78] font-bold">지금 쓸 수 있음</span>}</div>
+                          <div className="text-[11px] text-white/45 break-keep">{m.detail}</div>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+                {data.points.history.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-white/10">
+                    <div className={micro}>내역</div>
+                    <ul className="mt-1 space-y-1 text-xs">
+                      {data.points.history.map((h, i) => <li key={i} className="flex gap-2"><span className={`font-bold tabular-nums w-6 ${h.delta > 0 ? 'text-[#22c55e]' : 'text-white'}`}>{h.delta > 0 ? `+${h.delta}` : h.delta}</span><span className="text-white/45 w-20 shrink-0">{fmtDot(h.date)}</span><span className="text-white/80">{h.reason}</span></li>)}
+                    </ul>
+                  </div>
+                )}
+                <div className="mt-3 text-[11px] text-white/40 leading-relaxed break-keep">{data.points.conditions.map((t) => <div key={t}>· {t}</div>)}</div>
+              </div>
+            )}
             <div className={box}>
               <div className="text-sm font-bold mb-2">내가 소개한 분 {data.referrals.gave.length > 0 && <span className="text-white/60 font-medium">{data.referrals.gave.length}명</span>}</div>
               {data.referrals.gave.length === 0 ? <div className="text-sm text-white/60">아직 없습니다.</div> : (
