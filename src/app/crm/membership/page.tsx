@@ -31,6 +31,10 @@ export default function MembershipPage() {
   const [referrals, setReferrals] = useState<Referral[]>([]);
   const [tableMissing, setTableMissing] = useState(false);
   const [q, setQ] = useState('');
+  // 회원 페이지 링크 보낸 분 (2026-11-19 사장님: 62명 중 3명만 링크가 있어 "안 보낸 분" 필터 + 줄마다 문자). 보냄 = 상담 기록 "[회원 문자] 회원 페이지 링크", 열어 봄 = member_links.visits
+  const [linkSent, setLinkSent] = useState<Map<string, string>>(new Map());
+  const [linkVisits, setLinkVisits] = useState<Map<string, number>>(new Map());
+  const [onlyUnsent, setOnlyUnsent] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -41,6 +45,12 @@ export default function MembershipPage() {
       supabase.from('referrals').select('*, referrer:customers!referrals_referrer_id_fkey(name, phone), referred:customers!referrals_referred_id_fkey(name, phone)').order('created_at', { ascending: false }),
     ]);
     setCustomers((c || []) as Cust[]); setServices((s || []) as Svc[]); setAppts((a || []) as Appt[]);
+    const [{ data: sent }, { data: links }] = await Promise.all([
+      supabase.from('consultations').select('customer_id, consultation_date').eq('memo', '회원 문자').like('content', '[회원 문자] 회원 페이지 링크%').order('consultation_date', { ascending: false }),
+      supabase.from('member_links').select('customer_id, visits'),
+    ]);
+    const sm = new Map<string, string>(); for (const x of sent || []) if (x.customer_id && !sm.has(x.customer_id)) sm.set(x.customer_id, x.consultation_date); setLinkSent(sm);
+    setLinkVisits(new Map((links || []).map((l) => [l.customer_id as string, (l.visits as number | null) || 0])));
     if (re) setTableMissing(true); else setReferrals((r || []) as Referral[]);
     setLoading(false);
   }, []);
@@ -78,7 +88,10 @@ export default function MembershipPage() {
 
   const sms = (phone: string, msg: string) => { const p = phone.replace(/[^\d]/g, ''); const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent); window.open(ios ? `sms:${p}&body=${encodeURIComponent(msg)}` : `sms:${p}?body=${encodeURIComponent(msg)}`); };
 
-  const filteredMembers = members.filter((c) => !q.trim() || `${c.name} ${c.phone || ''} ${c.car_brand || ''} ${c.car_model || ''}`.toLowerCase().includes(q.trim().toLowerCase()))
+  // 보낸 것으로 치는 기준: 상담 기록에 링크 문자가 있거나, 손님이 한 번이라도 열어 봤으면(기록 없이 보낸 경우)
+  const linkDelivered = (id: string) => linkSent.has(id) || (linkVisits.get(id) || 0) > 0;
+  const unsentMembers = members.filter((c) => !linkDelivered(c.id));
+  const filteredMembers = members.filter((c) => !onlyUnsent || !linkDelivered(c.id)).filter((c) => !q.trim() || `${c.name} ${c.phone || ''} ${c.car_brand || ''} ${c.car_model || ''}`.toLowerCase().includes(q.trim().toLowerCase()))
     .sort((a, b) => (joinedAt(b.id) || '').localeCompare(joinedAt(a.id) || ''));
 
   return (
@@ -96,15 +109,16 @@ export default function MembershipPage() {
         {loading ? <div className="py-20 text-center text-sm text-[var(--c-text-3)]">불러오는 중…</div> : (
           <>
             {/* 숫자 타일 */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5 mb-5">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5 mb-5">
               {[
                 { k: '회원', v: members.length, sub: `전체 고객 ${customers.length}명 중` },
                 { k: '이달 가입', v: joinedThisMonth, sub: `${Number(thisMonth.slice(5))}월 첫 시공` },
                 { k: '소개 연결', v: referrals.length, sub: `성사 ${succeeded.length}건` },
                 { k: '혜택 줄 차례', v: todo.referredReward + todo.referrerReward, sub: `소개받은 분 ${todo.referredReward} · 소개한 분 ${todo.referrerReward}` },
                 { k: '감사 문자 전', v: todo.thanks, sub: '소개한 분께' },
+                { k: '회원 링크 안 보낸 분', v: unsentMembers.length, sub: `보낸 분 ${members.length - unsentMembers.length}명 · 열어 본 분 ${[...linkVisits.values()].filter((n) => n > 0).length}명`, onClick: () => setOnlyUnsent(true) },
               ].map((t) => (
-                <div key={t.k} className={`${card} px-4 py-3`}>
+                <div key={t.k} onClick={'onClick' in t ? t.onClick : undefined} className={`${card} px-4 py-3 ${'onClick' in t ? 'cursor-pointer hover:bg-[var(--c-subtle)]' : ''}`}>
                   <div className="text-[11px] text-[var(--c-text-3)]">{t.k}</div>
                   <div className="text-2xl font-bold text-[var(--c-text-1)] tabular-nums leading-tight mt-0.5">{t.v}</div>
                   <div className="text-[11px] text-[var(--c-text-4)] truncate mt-0.5">{t.sub}</div>
@@ -182,11 +196,14 @@ export default function MembershipPage() {
               <section className={`${card} p-4 md:p-5`}>
                 <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
                   <h2 className="text-base font-bold text-[var(--c-text-1)]">회원 목록 <span className="text-sm font-medium text-[var(--c-text-3)]">{filteredMembers.length}명</span></h2>
-                  <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="이름·전화·차종 검색" className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-1.5 text-sm text-[var(--c-text-1)] outline-none w-56" />
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button onClick={() => setOnlyUnsent((v) => !v)} className={`${pill} ${onlyUnsent ? 'bg-[var(--c-text-1)] text-[var(--c-page)] border-[var(--c-text-1)]' : ''}`}>링크 안 보낸 분만 {unsentMembers.length}명</button>
+                    <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="이름·전화·차종 검색" className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-1.5 text-sm text-[var(--c-text-1)] outline-none w-56" />
+                  </div>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm whitespace-nowrap">
-                    <thead><tr className="text-[11px] text-[var(--c-text-3)] text-left"><th className="py-1.5 pr-3 font-medium">이름</th><th className="py-1.5 pr-3 font-medium">차량</th><th className="py-1.5 pr-3 font-medium">가입일</th><th className="py-1.5 pr-3 font-medium text-right">시공</th><th className="py-1.5 pr-3 font-medium text-right">소개</th><th className="py-1.5 pr-3 font-medium">최근 시공</th><th className="py-1.5 font-medium">문자</th></tr></thead>
+                    <thead><tr className="text-[11px] text-[var(--c-text-3)] text-left"><th className="py-1.5 pr-3 font-medium">이름</th><th className="py-1.5 pr-3 font-medium">차량</th><th className="py-1.5 pr-3 font-medium">가입일</th><th className="py-1.5 pr-3 font-medium text-right">시공</th><th className="py-1.5 pr-3 font-medium text-right">소개</th><th className="py-1.5 pr-3 font-medium">최근 시공</th><th className="py-1.5 pr-3 font-medium">회원 페이지</th><th className="py-1.5 font-medium">문자</th></tr></thead>
                     <tbody>
                       {filteredMembers.map((c) => {
                         const list = [...(byCust.svc.get(c.id) || [])].sort((a, b) => (b.service_date || '').localeCompare(a.service_date || ''));
@@ -198,7 +215,8 @@ export default function MembershipPage() {
                             <td className="py-2 pr-3 text-right tabular-nums text-[var(--c-text-1)]">{list.length}회</td>
                             <td className="py-2 pr-3 text-right tabular-nums">{byCust.gave.get(c.id) ? <span className="font-semibold text-[var(--c-text-1)]">{byCust.gave.get(c.id)}건</span> : <span className="text-[var(--c-text-4)]">-</span>}</td>
                             <td className="py-2 pr-3 text-[var(--c-text-2)]">{list[0] ? `${list[0].service_type} (${fmt(list[0].service_date)})` : '-'}</td>
-                            <td className="py-2"><MemberSmsButtons customerId={c.id} name={c.name} phone={c.phone} size="xs" /></td>
+                            <td className="py-2 pr-3 text-xs">{linkSent.has(c.id) ? <span className="text-ok">✓ 보냄 {fmt(linkSent.get(c.id))}{(linkVisits.get(c.id) || 0) > 0 ? ` · 열어 봄 ${linkVisits.get(c.id)}회` : ''}</span> : (linkVisits.get(c.id) || 0) > 0 ? <span className="text-ok">✓ 열어 봄 {linkVisits.get(c.id)}회</span> : linkVisits.has(c.id) ? <span className="text-[var(--c-text-3)]">링크 있음 · 아직 안 열림</span> : <span className="text-[var(--c-text-4)]">아직</span>}</td>
+                            <td className="py-2"><MemberSmsButtons customerId={c.id} name={c.name} phone={c.phone} size="xs" onSent={load} /></td>
                           </tr>
                         );
                       })}

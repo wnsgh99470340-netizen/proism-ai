@@ -9,6 +9,12 @@ import { pointsView, type PointRow } from '@/lib/referrals';
 export const runtime = 'nodejs';
 export const maxDuration = 30;
 
+/** 뒷자리 시도 제한 (2026-11-19): 같은 주소에서 5번 틀리면 10분 잠금. 서버 인스턴스 메모리라 인스턴스가 바뀌면 초기화되는 가벼운 보호 */
+const PIN_FAILS = new Map<string, { n: number; until: number }>();
+const PIN_MAX = 5, PIN_LOCK_MS = 10 * 60 * 1000;
+function pinLocked(token: string): number { const f = PIN_FAILS.get(token); if (!f) return 0; if (f.until && f.until > Date.now()) return Math.ceil((f.until - Date.now()) / 60000); if (f.until && f.until <= Date.now()) PIN_FAILS.delete(token); return 0; }
+function pinFail(token: string): number { const f = PIN_FAILS.get(token) || { n: 0, until: 0 }; f.n += 1; if (f.n >= PIN_MAX) { f.until = Date.now() + PIN_LOCK_MS; f.n = 0; } PIN_FAILS.set(token, f); return f.until ? PIN_MAX : PIN_MAX - f.n; }
+
 /**
  * GET /api/member/<token> (헤더 x-member-pin: 1234) — 손님용 회원 페이지 데이터 (2026-11-18)
  * - 로그인 없이 열리는 경로(미들웨어 예외). token 이 맞고 pin 이 그 고객 전화 뒷자리 4개와 같을 때만 돌려준다
@@ -30,13 +36,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!c) return Response.json({ error: '고객 정보를 찾을 수 없습니다' }, { status: 404 });
   const last4 = (c.phone || '').replace(/\D/g, '').slice(-4);
   if (!owner) {
+    const lockedMin = pinLocked(token);
+    if (lockedMin) return Response.json({ error: `여러 번 틀려 잠시 막혔습니다. ${lockedMin}분 뒤에 다시 시도해 주세요` }, { status: 429 });
     if (!pin) return Response.json({ needPin: true, name: maskName(c.name) });
-    if (!last4 || pin !== last4) return Response.json({ error: '전화번호 뒷자리가 맞지 않습니다' }, { status: 401 });
+    if (!last4 || pin !== last4) {
+      const left = pinFail(token);
+      return Response.json({ error: left >= PIN_MAX ? `5번 틀려 10분 동안 막혔습니다. 번호가 바뀌셨으면 매장으로 연락 주세요` : `전화번호 뒷자리가 맞지 않습니다 (${left}번 더 틀리면 10분 잠김)` }, { status: 401 });
+    }
+    PIN_FAILS.delete(token);
   }
 
   const [{ data: services }, { data: followUps }, { data: appts }, { data: gave }, { data: received }, { data: pointRows }] = await Promise.all([
     supabase.from('services').select('id, service_type, service_date, completion_date, service_area, film_used').eq('customer_id', c.id).order('service_date', { ascending: false }),
-    supabase.from('follow_ups').select('follow_up_type, scheduled_date, is_completed, completed_date, service_id').eq('customer_id', c.id).in('follow_up_type', ['QC점검', '메인터넌스']).order('scheduled_date', { ascending: true }),
+    supabase.from('follow_ups').select('follow_up_type, scheduled_date, is_completed, completed_date, service_id, memo').eq('customer_id', c.id).in('follow_up_type', ['QC점검', '메인터넌스']).order('scheduled_date', { ascending: true }),
     supabase.from('appointments').select('id, appointment_date, end_date, service_type, status, memo').eq('customer_id', c.id).neq('status', '취소').order('appointment_date', { ascending: false }),
     supabase.from('referrals').select('id, referred_id, created_at, referrer_reward, referrer_reward_used_at, referred:customers!referrals_referred_id_fkey(name)').eq('referrer_id', c.id).order('created_at', { ascending: false }),
     supabase.from('referrals').select('id, referrer_id, created_at, referred_reward, referred_reward_used_at, referrer:customers!referrals_referrer_id_fkey(name)').eq('referred_id', c.id).maybeSingle(),
@@ -77,7 +89,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     customer: { name: c.name, car: [c.car_brand, c.car_model].filter(Boolean).join(' '), color: c.car_color, memberSince, registered: c.created_at },
     membership: { name: MEMBERSHIP.name, common: MEMBERSHIP.common, referrerReward: MEMBERSHIP.referrerReward, referredRewardOptions: MEMBERSHIP.referredRewardOptions, referredCondition: MEMBERSHIP.referredCondition },
     services: (services || []).map((s) => ({ id: s.id, type: s.service_type, date: s.service_date, done: s.completion_date, area: s.service_area, film: s.film_used })),
-    care: (followUps || []).map((f) => ({ type: f.follow_up_type, date: f.scheduled_date, done: f.is_completed, doneAt: f.completed_date, serviceId: (f.service_id as string | null) || null })), // serviceId: 시공 건별로 묶어 보이기 (2026-11-19 사장님 "기존 작업과 새 작업은 따로 분류")
+    // 2026-11-18 "기한 지나 정리"로 일괄 완료 처리된 건(실제 점검 기록 아님)은 손님에게 "받으셨습니다"로 보이면 안 되므로 뺀다 (2026-11-19 사장님). CRM 에는 그대로
+    care: (followUps || []).filter((f) => !(f.is_completed && /기한 지나 정리/.test((f.memo as string | null) || ''))).map((f) => ({ type: f.follow_up_type, date: f.scheduled_date, done: f.is_completed, doneAt: f.completed_date, serviceId: (f.service_id as string | null) || null })), // serviceId: 시공 건별로 묶어 보이기 (2026-11-19 사장님 "기존 작업과 새 작업은 따로 분류")
     upcoming,
     warranties,
     referrals: {
