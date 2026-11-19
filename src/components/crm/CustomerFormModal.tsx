@@ -84,12 +84,25 @@ export default function CustomerFormModal({ mode, form, setForm, latestApptId, b
 }) {
   const set = (k: keyof CustomerFormValues, v: string) => setForm({ ...form, [k]: v });
   const showReferrer = !!setReferrerId && form.source === '소개/재방문';
-  type Person = { id: string; name: string; phone: string | null; car_model: string | null };
+  type Person = { id: string; name: string; phone: string | null; car_brand: string | null; car_model: string | null };
   const [people, setPeople] = useState<Person[] | null>(null);
   useEffect(() => {
     if (!showReferrer || people) return;
-    supabase.from('customers').select('id, name, phone, car_model').order('name').then(({ data }) => setPeople((data || []) as Person[]));
+    supabase.from('customers').select('id, name, phone, car_brand, car_model').order('name').then(({ data }) => setPeople((data || []) as Person[]));
   }, [showReferrer, people]);
+  // 소개한 분 검색 (2026-11-19 사장님 "고객이 많아지면 하나하나 찾기 힘드니 검색도 되게"): 이름·전화 숫자·차종으로 거르고 위 8명만
+  const [refQuery, setRefQuery] = useState('');
+  const [refOpen, setRefOpen] = useState(false);
+  const refSelected = (people || []).find((p) => p.id === referrerId) || null;
+  const personLabel = (p: Person) => `${p.name}${p.car_brand || p.car_model ? ` · ${[p.car_brand, p.car_model].filter(Boolean).join(' ')}` : ''}${p.phone ? ` · ${p.phone.replace(/\D/g, '').slice(-4)}` : ''}`;
+  const refMatches = (() => {
+    const q = refQuery.trim().toLowerCase(); const qd = q.replace(/\D/g, '');
+    return (people || []).filter((p) => p.id !== excludeCustomerId).filter((p) => {
+      if (!q) return true;
+      const car = [p.car_brand, p.car_model].filter(Boolean).join(' ').toLowerCase();
+      return p.name.toLowerCase().includes(q) || car.includes(q) || (qd.length >= 2 && (p.phone || '').replace(/\D/g, '').includes(qd));
+    }).slice(0, 8);
+  })();
   const apptTitle = mode === 'add' ? '예약 정보 (선택)' : latestApptId ? '최근 예약 (고치면 그 예약이 바뀝니다)' : '예약 정보 (시작일을 넣으면 새 예약이 생깁니다)';
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -108,10 +121,24 @@ export default function CustomerFormModal({ mode, form, setForm, latestApptId, b
           {showReferrer && (
             <div className="col-span-2">
               <label className={label}>소개한 분 <span className="text-[var(--c-text-4)]">(회원 혜택: 소개한 분 {MEMBERSHIP.referrerReward} · 소개받은 분 {MEMBERSHIP.referredCondition}일 때 혜택)</span></label>
-              <select value={referrerId || ''} onChange={(e) => setReferrerId?.(e.target.value || null)} className={input}>
-                <option value="">{people ? '고객 목록에서 고르기 (재방문이면 비워 둠)' : '불러오는 중…'}</option>
-                {(people || []).filter((p) => p.id !== excludeCustomerId).map((p) => <option key={p.id} value={p.id}>{p.name}{p.car_model ? ` · ${p.car_model}` : ''}{p.phone ? ` · ${p.phone.slice(-4)}` : ''}</option>)}
-              </select>
+              {refSelected ? (
+                <div className={`${input} flex items-center justify-between gap-2`}>
+                  <span className="truncate">{personLabel(refSelected)}</span>
+                  <button type="button" onClick={() => { setReferrerId?.(null); setRefQuery(''); setRefOpen(true); }} className="shrink-0 text-xs text-[var(--c-text-3)] hover:text-danger">✕ 바꾸기</button>
+                </div>
+              ) : (
+                <div className="relative">
+                  <input type="text" value={refQuery} onChange={(e) => { setRefQuery(e.target.value); setRefOpen(true); }} onFocus={() => setRefOpen(true)} onBlur={() => setTimeout(() => setRefOpen(false), 150)} className={input} placeholder={people ? '이름·전화 뒷자리·차종으로 검색 (재방문이면 비워 둠)' : '불러오는 중…'} />
+                  {refOpen && people && (
+                    <ul className="absolute left-0 right-0 top-full mt-1 z-10 max-h-56 overflow-y-auto bg-[var(--c-card)] border border-[var(--c-border)] rounded-lg shadow-lg py-1">
+                      {refMatches.length === 0 ? <li className="px-3 py-2 text-xs text-[var(--c-text-4)]">맞는 고객이 없습니다</li> : refMatches.map((p) => (
+                        <li key={p.id}><button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { setReferrerId?.(p.id); setRefOpen(false); }} className="w-full text-left px-3 py-2 text-sm text-[var(--c-text-1)] hover:bg-[var(--c-hover)]">{personLabel(p)}</button></li>
+                      ))}
+                      {!refQuery && (people.length - (excludeCustomerId ? 1 : 0)) > 8 && <li className="px-3 py-1.5 text-[11px] text-[var(--c-text-4)]">전체 {people.length}명 중 8명만 표시 · 이름이나 번호를 입력해 주세요</li>}
+                    </ul>
+                  )}
+                </div>
+              )}
             </div>
           )}
           <div><label className={label}>차량 브랜드</label><input type="text" value={form.car_brand} onChange={(e) => set('car_brand', e.target.value)} className={input} placeholder="BMW, 벤츠, 포르쉐 등" /></div>
