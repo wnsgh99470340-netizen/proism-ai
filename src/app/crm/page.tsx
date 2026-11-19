@@ -1653,13 +1653,15 @@ export default function CRMPage() {
                   ) : (
                     <ul className="divide-y divide-[var(--c-border)]">
                       {teamBrief.lines.map((l) => {
-                        const open = teamOpen === l.key && (l.items?.length ?? 0) > 0;
+                        const hasNotes = (l.notes?.length ?? 0) > 0;
+                        const open = teamOpen === l.key && ((l.items?.length ?? 0) > 0 || hasNotes);
                         const unsent = (l.items || []).filter((i) => !i.sent).length;
+                        const noteCount = (l.notes || []).reduce((a, n) => a + n.lines.length, 0);
                         return (
                           <li key={l.key} className="py-3">
                             <button
                               onClick={() => setTeamOpen(open ? null : l.key)}
-                              disabled={!(l.items && l.items.length > 0)}
+                              disabled={!((l.items && l.items.length > 0) || hasNotes)}
                               className="w-full flex items-center gap-3 text-left disabled:cursor-default"
                             >
                               <span className={`w-2 h-2 rounded-full shrink-0 ${statusDot(l.status)}`} />
@@ -1669,13 +1671,31 @@ export default function CRMPage() {
                               {l.items && l.items.length > 0 && (
                                 <span className={`ml-auto shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full ${unsent > 0 ? 'bg-brand text-white' : 'bg-ok/10 text-ok'}`}>{unsent > 0 ? `${unsent}건 ${open ? '접기' : '보기'}` : '✓ 완료'}</span>
                               )}
+                              {hasNotes && (
+                                <span className="ml-auto shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full bg-brand text-white">{noteCount}건 {open ? '접기' : '보기'}</span>
+                              )}
                               {l.key === 'writer' && l.status !== 'idle' && (
                                 <span onClick={(e) => { e.stopPropagation(); setActiveTab('blog'); }} className="ml-auto shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full border border-[var(--c-border)] text-[var(--c-text-1)] hover:bg-[var(--c-subtle)]">열기</span>
                               )}
                             </button>
-                            {open && (
+                            {open && hasNotes && (
+                              <div className="mt-2 ml-5 md:ml-[4.5rem] border-t border-[var(--c-border)]">
+                                {l.notes!.map((n) => (
+                                  <div key={n.label} className="py-2.5 border-b border-[var(--c-border)] last:border-b-0">
+                                    <div className="flex items-baseline justify-between gap-3">
+                                      <span className="font-semibold text-[15px] text-[var(--c-text-1)]">{n.label}</span>
+                                      <span className="text-xs text-[var(--c-text-4)] truncate">{n.where}</span>
+                                    </div>
+                                    <ul className="mt-1 space-y-0.5">
+                                      {n.lines.map((s, i) => <li key={i} className="text-sm text-[var(--c-text-2)]">{s}</li>)}
+                                    </ul>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {open && !hasNotes && (
                               <ul className="mt-2 ml-5 md:ml-[4.5rem] divide-y divide-[var(--c-border)] border-t border-[var(--c-border)]">
-                                {l.items!.map((it) => (
+                                {(l.items || []).map((it) => (
                                   <li key={it.followUpId} className="py-2.5 flex items-center justify-between gap-3">
                                     <div className="flex items-center gap-3 min-w-0">
                                       <span className={`text-sm font-bold tabular-nums shrink-0 ${it.overdueDays > 0 ? 'text-brand' : 'text-[var(--c-text-1)]'}`}>{it.overdueDays > 0 ? `${it.overdueDays}일 지남` : '오늘'}</span>

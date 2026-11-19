@@ -14,6 +14,7 @@ import { followUpMessage, followUpSmsKey, followUpLabel } from '@/config/sms-tem
 import { TEAM, type WorkerKey } from '@/config/ai-team';
 import { todaySeoul, addDaysISO, toSeoulISO } from './local-date';
 import { buildWeeklyStats, weeklySummaryLine, type WeeklyStats } from './weekly-stats';
+import { buildMissedReport, missedSummaryLine, type MissedReport } from './checkups';
 
 export interface TeamItem {
   followUpId: string;
@@ -40,6 +41,8 @@ export interface WorkerLine {
   /** 더 오래 밀린 건수 (14일 넘음) */
   olderCount?: number;
   waitingFor?: string;
+  /** 문자 없이 보여 주기만 하는 줄 (빠진 것 확인, 2026-11-19) */
+  notes?: { label: string; where: string; lines: string[] }[];
 }
 
 export interface DailyBrief {
@@ -50,6 +53,8 @@ export interface DailyBrief {
   /** 월요일에만: 지난주(월~일) 숫자 한 묶음 (2026-11-18 주간 집계) */
   weekly?: WeeklyStats;
   weeklyLine?: string;
+  /** 빠진 것 확인 (매일 계산, 푸시는 금요일) 2026-11-19 */
+  missed?: MissedReport;
 }
 
 const OVERDUE_WINDOW_DAYS = 14;
@@ -160,6 +165,19 @@ export async function buildDailyBrief(date = todaySeoul()): Promise<DailyBrief> 
   } catch {
     lines.push({ key: 'writer', name: w('writer').name, time: '요청 시', status: 'idle', summary: '작업 목록을 읽지 못했습니다' });
   }
+  // 빠진 것 확인 (2026-11-19): 홈에는 매일 계산해 보이고, 푸시는 금요일에만 (크론이 missed 를 보고 보낸다)
+  let missed: MissedReport | undefined;
+  try {
+    missed = await buildMissedReport(date);
+    lines.push({
+      key: 'checkup', name: w('checkup').name, time: '매주 금',
+      status: missed.total === 0 ? 'done' : 'ready',
+      summary: missedSummaryLine(missed),
+      notes: missed.groups.map(g => ({ label: `${g.label} ${g.count}`, where: g.where, lines: g.lines })),
+    });
+  } catch {
+    lines.push({ key: 'checkup', name: w('checkup').name, time: '매주 금', status: 'idle', summary: '확인하지 못했습니다' });
+  }
   for (const t of TEAM.filter(t => t.status === 'prepared')) {
     lines.push({ key: t.key, name: t.name, time: t.time, status: 'prepared', summary: t.role, waitingFor: t.waitingFor });
   }
@@ -182,6 +200,7 @@ export async function buildDailyBrief(date = todaySeoul()): Promise<DailyBrief> 
     totals: { toSend: all.filter(i => !i.sent).length, sent: all.filter(i => i.sent).length },
     weekly,
     weeklyLine,
+    missed,
   };
 }
 

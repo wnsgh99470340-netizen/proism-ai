@@ -126,7 +126,12 @@ export async function buildWeeklyStats(to = todaySeoul(), days = 7): Promise<Wee
     for (const r of data || []) {
       const t = r.follow_up_type as string;
       const sent = Object.values((r.sms_sent as Record<string, boolean> | null) || {}).some(Boolean);
-      const doneIn = inRange(r.completed_date as string | null);
+      // 일괄 정리된 건은 실제 점검·후기가 아니므로 완료 수에 넣지 않는다 (2026-11-19):
+      // memo 에 "기한 지나 정리"가 있거나, 예정일보다 60일 넘게 지나 완료 처리된 것(11-11 에 3~5월 후기요청 10건을 한 번에 닫은 일)
+      const sched = r.scheduled_date as string, comp = r.completed_date as string | null;
+      const lateDays = comp ? Math.round((new Date(comp).getTime() - new Date(sched).getTime()) / 86400000) : 0;
+      const bulkClosed = /기한 지나 정리/.test((r.memo as string | null) || '') || lateDays > 60;
+      const doneIn = inRange(comp) && !bulkClosed;
       if (t === '후기요청') {
         if (sent && inRange(r.scheduled_date as string)) reviewRequested++;
         if (doneIn && (r.is_completed as boolean)) reviewReceived++;
@@ -203,4 +208,25 @@ export function weeklySummaryLine(w: WeeklyStats): string {
     `QC ${w.qcDone} · 메인터넌스 ${w.maintenanceDone}`,
   ];
   return `지난주(${w.from.slice(5).replace('-', '.')}~${w.to.slice(5).replace('-', '.')}) ${parts.join(' · ')}`;
+}
+
+/** 지난달 전체 숫자 + 유입경로 표 (매달 1일 07시 크론, 2026-11-19). 홈 카드의 ‹ 로 보는 것과 같은 계산 */
+export interface MonthlyReport { month: string; stats: WeeklyStats; table: SourceTable; tsv: string; builtAt: string }
+
+export async function buildMonthlyReport(month: string): Promise<MonthlyReport> {
+  const [y, m] = month.split('-').map(Number);
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const last = `${month}-${String(daysInMonth).padStart(2, '0')}`;
+  const [stats, table] = await Promise.all([buildWeeklyStats(last, daysInMonth), buildSourceTable(month)]);
+  return { month, stats, table, tsv: sourceTableTsv(table), builtAt: new Date().toISOString() };
+}
+
+/** 푸시 본문: 두 줄 (숫자 한 줄 + 유입경로 상위 3개) */
+export function monthlySummaryLines(r: MonthlyReport): string[] {
+  const w = r.stats;
+  const top = r.table.labels.map((l, i) => ({ l, n: r.table.totals[i] })).filter((x) => x.n > 0).sort((a, b) => b.n - a.n).slice(0, 3).map((x) => `${x.l} ${x.n}`).join(' · ');
+  return [
+    `발행 ${w.blogPublished} · 상담 ${w.consultations} · 견적 문자 ${w.quoteSms} · 새 고객 ${w.newCustomers} · 입고 ${w.appointments} · 후기 ${w.reviewReceived}/${w.reviewRequested}`,
+    top ? `유입경로: ${top} (합계 ${r.table.total})` : '유입경로: 새 고객 없음',
+  ];
 }

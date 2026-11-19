@@ -4,7 +4,7 @@
  * - prepared: 자리만 있고 아직 돌지 않는다 (사장님 자료·결정 대기)
  * 문자는 건마다 사장님이 직접 보낸다(개별 전송). AI 는 준비까지.
  */
-export type WorkerKey = 'writer' | 'aftercare' | 'consult' | 'review' | 'research' | 'channel';
+export type WorkerKey = 'writer' | 'aftercare' | 'consult' | 'checkup' | 'review' | 'research' | 'channel';
 
 export interface Worker {
   key: WorkerKey;
@@ -22,6 +22,7 @@ export const TEAM: Worker[] = [
   { key: 'aftercare', name: '사후관리 담당', time: '매일 07:00', role: '오늘·밀린 QC·메인터넌스·후기 요청 문자를 고객별로 준비', status: 'active' },
   { key: 'consult', name: '상담 담당', time: '매일 07:00', role: '견적 문자 보낸 분의 하루·사흘 뒤 재연락 문구 준비', status: 'active' },
   { key: 'writer', name: '시공기 작가', time: '요청 즉시', role: '사진 확인 → 조사 → 글 → 인스타·카페 → 영상', status: 'active' },
+  { key: 'checkup', name: '빠진 것 확인', time: '매주 금', role: '회원 링크 안 보낸 분·멈춘 예약·후기 답 없는 분을 세어 알림 (홈에는 매일, 푸시는 금요일)', status: 'active' }, // 2026-11-19
   { key: 'review', name: '검수 담당', time: '매주 월', role: '지난주 발행 글을 사장님 기준으로 다시 읽고 보고', status: 'prepared', waitingFor: '2주차' },
   { key: 'research', name: '리서치 담당', time: '매주 월', role: '키워드 순위·경쟁 매장 새 글·추천 주제', status: 'prepared', waitingFor: '사장님이 키워드·경쟁 매장을 주시면 시작' },
   { key: 'channel', name: '채널 담당', time: '글 완성 때', role: '릴스 대본·게시 순서표', status: 'prepared', waitingFor: '인스타 보류(사장님 결정)' },
