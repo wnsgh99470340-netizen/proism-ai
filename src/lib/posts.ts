@@ -93,16 +93,46 @@ function excerpt(text: string, maxChars: number): string {
  * - final 에 남긴 피드백 최근 15개 (중복 제거)
  * 글이 없으면 빈 문자열.
  */
-export async function buildToneReference(serviceType?: string): Promise<string> {
-  const [owners, finals] = await Promise.all([listPosts('owner', 40), listPosts('final', 20)]);
-  if (owners.length === 0 && finals.length === 0) return '';
+/**
+ * 이 시스템이 써서 발행된 글인지 (2026-11-19): 제목이 초안·최종본과 같거나, 본문 줄의 30% 이상이 어떤 초안·최종본과 그대로 겹치면 AI 글.
+ * 사장님이 제목을 바꿔 발행하면 제목 비교만으로는 못 잡아 사장님 글 기준·문체 참고에 AI 글이 섞였던 일
+ */
+const normAi = (s: string) => s.replace(/\s+/g, '').toLowerCase();
+const lineSetOf = (body: string) => new Set(body.split('\n').map(l => normAi(l)).filter(l => l.length >= 10));
+export function aiPostIndex(aiPosts: BlogPost[]): { title: string; lines: Set<string> }[] {
+  return aiPosts.map(p => ({ title: normAi(p.title), lines: lineSetOf(p.body) }));
+}
+export function looksAiWritten(p: BlogPost, index: { title: string; lines: Set<string> }[]): boolean {
+  const t = normAi(p.title);
+  if (index.some(a => a.title === t)) return true;
+  const lines = [...lineSetOf(p.body)];
+  if (lines.length < 20) return false;
+  return index.some(a => { let hit = 0; for (const l of lines) if (a.lines.has(l)) hit++; return hit / lines.length >= 0.3; });
+}
 
-  // 참고 글 (2026-11-12): 같은 시공 종류의 사장님 글 2편은 거의 전문(4000자), 나머지 1편은 앞부분만
+/** 배열에서 n개를 무작위로 (문체 참고 글을 매번 같은 2편으로 주지 않기 위해, 2026-11-19) */
+function pickRandom<T>(arr: T[], n: number): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a.slice(0, n);
+}
+
+export async function buildToneReference(serviceType?: string): Promise<string> {
+  const [ownersAll, finals, drafts] = await Promise.all([listPosts('owner', 80), listPosts('final', 20), listPosts('draft', 40)]);
+  if (ownersAll.length === 0 && finals.length === 0) return '';
+
+  // 사장님 글 중 이 시스템이 쓴 글(제목 바꿔 발행한 것 포함)은 문체 참고에서 뺀다 — AI 가 자기 글을 다시 배우면 같은 글이 된다
+  const aiIdx = aiPostIndex([...finals, ...drafts]);
+  const owners = ownersAll.filter((o) => !looksAiWritten(o, aiIdx));
+
+  // 참고 글: 같은 시공 종류의 사장님 글 2편은 거의 전문(4000자), 나머지 1편은 앞부분만.
+  // 2026-11-19: 항상 최신 2편이 아니라 같은 종류 최근 10편 중 무작위 2편 — 매번 같은 글을 보고 쓰면 그 글의 문장이 되풀이된다
   const same = serviceType ? owners.filter((o) => o.service_type === serviceType) : [];
-  const rest = owners.filter((o) => !same.includes(o));
-  const samples = [...same, ...rest, ...finals].slice(0, 3);
+  const sameChosen = pickRandom(same.slice(0, 10), 2);
+  const rest = owners.filter((o) => !sameChosen.includes(o));
+  const samples = [...sameChosen, ...pickRandom(rest.slice(0, 15), 1), ...finals].slice(0, 3);
   const sampleText = samples
-    .map((p, i) => `[참고 글 ${i + 1}] ${p.title}\n${excerpt(p.body.replace(/\[사진\s*\d+\]/g, '').trim(), i < 2 && same.includes(p) ? 4000 : 700)}`)
+    .map((p, i) => `[참고 글 ${i + 1}] ${p.title}\n${excerpt(p.body.replace(/\[사진\s*\d+\]/g, '').trim(), i < 2 && sameChosen.includes(p) ? 4000 : 700)}`)
     .join('\n\n');
 
   const feedbacks = Array.from(new Set(

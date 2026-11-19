@@ -259,7 +259,7 @@ ${original}
 const DRAFTS_DIR = path.join(process.cwd(), 'public', 'drafts');
 
 /** 이전에 저장된 글의 제목 + 도입 6줄 + 마무리 4줄 + 짐작한 형식 + 몸통 관용구 (최근 20개). DB 우선, 로컬 파일 폴백 */
-export type PreviousPost = { title: string; intro: string; closing: string; formatKey?: string | null; phrases?: string[] };
+export type PreviousPost = { title: string; intro: string; closing: string; formatKey?: string | null; phrases?: string[]; /** 본문 줄(연락처·서명·사진·해시태그 제외) — 되풀이 표현 추출용 (2026-11-19) */ rawLines?: string[] };
 
 /** 본문을 실제 문장 줄만으로 (HTML 태그·[사진 N]·해시태그·빈 줄 제거) */
 function textLines(body: string): string[] {
@@ -272,12 +272,55 @@ function textLines(body: string): string[] {
 const CONTACT_RE = /010-7287|서초중앙로|blog\.naver|^감사합니다/;
 
 /** 겹침 비교용: 도입 6줄 + 마무리 4줄(연락처 제외) + 형식·관용구 */
-function summarizeForRepeat(body: string): { intro: string; closing: string; formatKey: string | null; phrases: string[] } {
+function summarizeForRepeat(body: string): { intro: string; closing: string; formatKey: string | null; phrases: string[]; rawLines: string[] } {
   const lines = textLines(body);
   const intro = lines.slice(0, 6).join(' / ');
   const closing = lines.filter(l => !CONTACT_RE.test(l)).slice(-4).join(' / ');
   const plain = lines.join('\n');
-  return { intro, closing, formatKey: detectFormat(plain)?.key ?? null, phrases: stockPhrasesIn(plain) };
+  return { intro, closing, formatKey: detectFormat(plain)?.key ?? null, phrases: stockPhrasesIn(plain), rawLines: lines.filter(l => !FIXED_LINE_RE.test(l)) };
+}
+
+/** 글마다 똑같아도 되는 줄: 연락처·주소·서명·상호 */
+const FIXED_LINE_RE = /010-7287|서초중앙로|서울특별시|서초구|blog\.naver|진준호(입니다|였습니다)|3M\s*프로이즘\s*강남서초점|프리퍼드 인스톨러 매장/;
+
+/**
+ * 최근 글에서 되풀이된 문장 (2026-11-19 사장님 "말 표현도 바꿔도 돼, 매 글이 다 똑같아"):
+ * 최근 12편 중 minDocs 편 이상에 똑같이 들어간 줄을 뽑아 프롬프트에 "이번 글에서는 다른 말로" 목록으로 준다.
+ * 측정 당시 3편 이상 겹친 줄이 311개였음("솔직하게 말씀드리면"·"이게 되어 있지 않으면"·"나중에 필름을 벗기면" 등)
+ */
+export function repeatedLines(previous: PreviousPost[], minDocs = 3, limit = 40): string[] {
+  const count = new Map<string, { n: number; text: string }>();
+  for (const p of previous.slice(0, 12)) {
+    const seen = new Set<string>();
+    for (const l of p.rawLines || []) {
+      const k = normLine(l);
+      if (k.length < 8 || seen.has(k)) continue;
+      seen.add(k);
+      const cur = count.get(k);
+      if (cur) cur.n += 1; else count.set(k, { n: 1, text: l });
+    }
+  }
+  return [...count.values()].filter(v => v.n >= minDocs).sort((a, b) => b.n - a.n).slice(0, limit).map(v => v.text);
+}
+
+/** 이번 글의 줄이 이전 글 2편 이상에 그대로 있으면(6줄 이상) 1회 수정 대상 — 사실은 두고 말만 바꾸게 */
+export function checkLineRepeat(body: string, previous: PreviousPost[]): Violation[] {
+  if (previous.length < 3) return [];
+  const docs = previous.slice(0, 12).map(p => new Set((p.rawLines || []).map(normLine).filter(k => k.length >= 8)));
+  if (docs.every(d => d.size === 0)) return [];
+  const hits: string[] = [];
+  const seen = new Set<string>();
+  for (const l of textLines(body)) {
+    if (FIXED_LINE_RE.test(l)) continue;
+    const k = normLine(l);
+    if (k.length < 10 || seen.has(k)) continue;
+    seen.add(k);
+    let n = 0;
+    for (const d of docs) if (d.has(k)) n++;
+    if (n >= 2) hits.push(l);
+  }
+  if (hits.length < 6) return [];
+  return [{ rule: 'body', detail: `이전 글과 똑같은 문장이 ${hits.length}줄 있음(예: ${hits.slice(0, 8).map(h => `"${h}"`).join(', ')}) → 이 문장들은 뜻은 두고 말을 바꾸거나 설명 순서를 바꿔 다시 쓰기(연락처·서명은 그대로)` }];
 }
 
 const normLine = (s: string) => s.replace(/[\s.,!?~…·'"“”‘’()\-]/g, '');
@@ -454,7 +497,11 @@ export async function buildBlogSystemPrompt(researchContext: string, serviceType
       const extra = [fmtName(d.formatKey) ? `형식: ${fmtName(d.formatKey)}` : '', d.phrases?.length ? `말버릇: ${d.phrases.map(phraseLabel).filter(Boolean).join(' · ')}` : ''].filter(Boolean).join(' / ');
       return `${i + 1}. ${d.title}${d.intro ? `\n   도입: ${d.intro}` : ''}${d.closing ? `\n   마무리: ${d.closing}` : ''}${extra ? `\n   ${extra}` : ''}`;
     }).join('\n');
-    previousContext = `\n\n[이전에 작성한 글 — 겹침 금지]\n아래 글들의 도입 첫 문장·마무리 문장·"말버릇"에 적힌 표현을 이번 글에 쓰지 않는다. "완성된 모습부터 보여드립니다"와 그 변형(바뀐 뒤의 모습을 먼저 보시고 등)으로 열지 않는다. 몸통도 전처리 → 부위 1·2·3 → 루프 → 전체 → 감상 → QC → 메인터넌스 순서를 되풀이하지 말고 [이번 글의 형식]을 따른다.\n${list}`;
+    const repeats = repeatedLines(previousDrafts);
+    const repeatBlock = repeats.length > 0
+      ? `\n\n[최근 글에서 되풀이된 문장 — 이번 글에서는 다른 말로]\n아래 줄들은 최근 글 여러 편에 그대로 들어갔던 말이다. 뜻이 필요하면 다른 문장으로 풀고, 같은 비유·같은 설명 순서도 피한다(연락처·서명은 예외).\n${repeats.map(r => `- ${r}`).join('\n')}`
+      : '';
+    previousContext = `\n\n[이전에 작성한 글 — 겹침 금지]\n아래 글들의 도입 첫 문장·마무리 문장·"말버릇"에 적힌 표현을 이번 글에 쓰지 않는다. "완성된 모습부터 보여드립니다"와 그 변형(바뀐 뒤의 모습을 먼저 보시고 등)으로 열지 않는다. 몸통도 전처리 → 부위 1·2·3 → 루프 → 전체 → 감상 → QC → 메인터넌스 순서를 되풀이하지 않는다.\n${list}${repeatBlock}`;
   }
   return `${BLOG_SYSTEM_PROMPT}${formatContext}${diffContext}${standardsContext}${keywordContext}${styleContext}${toneReference}${vehicleContext}${previousContext}`;
 }
@@ -496,7 +543,7 @@ export async function runWriter(opts: RunWriterOptions): Promise<WriterResult> {
   const serviceType = target.serviceType;
   const first = splitTitleBody(reply);
   const previous = save ? await getPreviousDrafts() : [];
-  let violations = first ? [...checkHardViolations(first.body, combinedMessage, serviceType, knownColor), ...checkIntroRepeat(first.body, previous), ...checkBodyRepeat(first.body, previous), ...checkKeywordDensity(first.body, target.keyword)] : [];
+  let violations = first ? [...checkHardViolations(first.body, combinedMessage, serviceType, knownColor), ...checkIntroRepeat(first.body, previous), ...checkBodyRepeat(first.body, previous), ...checkLineRepeat(first.body, previous), ...checkKeywordDensity(first.body, target.keyword)] : [];
   let factIssues: FactIssue[] = first ? factCheck({ body: first.body, serviceType, product: target.product ?? undefined }) : [];
   let formatIssues = first ? checkFormatIssues(first.title, first.body, target.keyword) : [];
   const pureLen = (b: string) => b.replace(/\[사진\s*\d+\]/g, '').replace(/\s/g, '').length;
@@ -510,7 +557,7 @@ export async function runWriter(opts: RunWriterOptions): Promise<WriterResult> {
       const fixed = await fixIssues(systemPrompt, reply, issues, model);
       const f = splitTitleBody(fixed);
       if (f && pureLen(f.body) >= Math.min(1500, pureLen(cur.body))) {
-        const fixedViolations = [...checkHardViolations(f.body, combinedMessage, serviceType, knownColor), ...checkIntroRepeat(f.body, previous), ...checkBodyRepeat(f.body, previous), ...checkKeywordDensity(f.body, target.keyword)];
+        const fixedViolations = [...checkHardViolations(f.body, combinedMessage, serviceType, knownColor), ...checkIntroRepeat(f.body, previous), ...checkBodyRepeat(f.body, previous), ...checkLineRepeat(f.body, previous), ...checkKeywordDensity(f.body, target.keyword)];
         const fixedFacts = factCheck({ body: f.body, serviceType, product: target.product ?? undefined });
         const fixedFormat = checkFormatIssues(f.title, f.body, target.keyword);
         // 위반·팩트 오류가 늘지 않고 형식 미달이 줄었거나 같으면 채택
@@ -531,7 +578,7 @@ export async function runWriter(opts: RunWriterOptions): Promise<WriterResult> {
       const stripped = cur.body.split(/\n\s*\n/).filter(p => !/발수/.test(p)).join('\n\n');
       if (pureLen(stripped) >= 1500) {
         reply = `${cur.title}\n${stripped}`;
-        violations = [...checkHardViolations(stripped, combinedMessage, serviceType, knownColor), ...checkIntroRepeat(stripped, previous), ...checkBodyRepeat(stripped, previous), ...checkKeywordDensity(stripped, target.keyword)];
+        violations = [...checkHardViolations(stripped, combinedMessage, serviceType, knownColor), ...checkIntroRepeat(stripped, previous), ...checkBodyRepeat(stripped, previous), ...checkLineRepeat(stripped, previous), ...checkKeywordDensity(stripped, target.keyword)];
         factIssues = factCheck({ body: stripped, serviceType, product: target.product ?? undefined });
         formatIssues = checkFormatIssues(cur.title, stripped, target.keyword);
       }

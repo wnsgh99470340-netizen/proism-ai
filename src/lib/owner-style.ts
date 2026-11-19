@@ -6,7 +6,7 @@
  * - 저장: Vercel Blob style/owner-style.json (글 생성 때 읽어 프롬프트에 붙인다, 5분 캐시)
  */
 import { list, put } from '@vercel/blob';
-import { listPosts, type BlogPost } from './posts';
+import { listPosts, aiPostIndex, looksAiWritten, type BlogPost } from './posts';
 import { callClaude } from './claude-client';
 
 export interface OwnerStyle {
@@ -61,23 +61,14 @@ function pickSamples(posts: BlogPost[]): BlogPost[] {
 
 const trim = (s: string, n: number) => (s.length <= n ? s : s.slice(0, n) + '\n(…이하 생략)');
 
-const norm = (s: string) => s.replace(/\s+/g, '').toLowerCase();
 
 export async function buildOwnerStyle(): Promise<OwnerStyle> {
   const [all, drafts, finals] = await Promise.all([listPosts('owner', 400), listPosts('draft', 400), listPosts('final', 400)]);
   // 이 시스템이 써서 발행한 글은 "사장님 글"에서 뺀다 — AI 글을 AI 가 다시 배우지 않게.
   // 제목이 같거나, 본문 줄의 30% 이상이 어떤 초안·최종본과 그대로 겹치면 AI 글로 본다
   // (2026-11-19: 사장님이 제목을 바꿔 발행한 3시리즈 투어링 글이 제목 비교만으로는 사장님 글로 들어가 대표 글에 뽑힌 일)
-  const lineSet = (body: string) => new Set(body.split('\n').map(l => norm(l)).filter(l => l.length >= 10));
-  const aiSets = [...drafts, ...finals].map(p => ({ title: norm(p.title), lines: lineSet(p.body) }));
-  const looksAi = (p: BlogPost): boolean => {
-    const t = norm(p.title);
-    if (aiSets.some(a => a.title === t)) return true;
-    const lines = [...lineSet(p.body)];
-    if (lines.length < 20) return false;
-    return aiSets.some(a => { let hit = 0; for (const l of lines) if (a.lines.has(l)) hit++; return hit / lines.length >= 0.3; });
-  };
-  const posts = all.filter(p => !looksAi(p));
+  const aiIdx = aiPostIndex([...drafts, ...finals]);
+  const posts = all.filter(p => !looksAiWritten(p, aiIdx));
   if (posts.length === 0) throw new Error('사장님 글이 없습니다. 먼저 블로그 글을 불러와 주세요.');
   const { used, unused } = countTerms(posts.map(p => p.body));
   const samples = pickSamples(posts);
@@ -134,9 +125,9 @@ export function styleToPrompt(style: OwnerStyle): string {
   const unused = style.unusedTerms.join(', ');
   return `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 [사장님 글에서 배운 기준 — 사장님이 직접 쓴 블로그 글 ${style.postCount}편, ${style.builtAt.slice(0, 10)}]
-말투·도입·작업 묘사의 수준·관리 안내·부위 이름은 이 기준 안에서만 쓴다. 단 위의 "쓰지 않는 것" 목록은 이 기준보다 우선한다(옛 글에 있어도 쓰지 않는다).
+이 사람이 어떻게 쓰는지 알기 위한 참고다. 부위 이름은 아래 목록을 따르고(보닛·휀더 식으로 바꿔 쓰지 않는다), 그 밖의 표현은 매 글 다르게 고른다. 카드의 "자주 쓰는 표현"은 말투를 알려 주는 것이지 매 글에 넣을 목록이 아니다 — 그대로 옮기지 말고 그런 결의 다른 말을 쓴다. 위의 "사실 때문에 쓰지 않는 것"은 이 기준보다 우선한다.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-사장님이 쓰는 부위·공정 말 (이 안에서만): ${used}
+사장님이 쓰는 부위·공정 말: ${used}
 사장님 글에 없는 말 (쓰지 않는다): ${unused}
 
 ${style.card}`;
