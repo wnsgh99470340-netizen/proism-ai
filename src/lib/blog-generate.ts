@@ -256,6 +256,24 @@ ${original}
   return await callClaude(systemPrompt, [{ role: 'user', content: msg }], 8192, model);
 }
 
+/**
+ * 분량 보강 전용 패스 (2026-11-19): 규칙을 참고로 낮춘 뒤 첫 시험 글이 1,470자에 그쳤고, fixIssues 는 "빼기" 위주라 60자밖에 못 늘렸음.
+ * 흐름·문장은 두고 작업 과정(왜 → 어떻게 → 결과)·관리 안내·읽는 분 조건 장면을 더 풀어 2,500자 이상으로. 새 사실은 만들지 않는다
+ */
+async function expandDraft(systemPrompt: string, original: string, currentLen: number, model: string): Promise<string> {
+  const msg = `아래 글은 공백 제외 ${currentLen}자입니다. 2,600자 이상이 되도록 늘려 주세요.
+- 지금 있는 문장·흐름·도입·마무리는 그대로 두고, 그 사이를 채웁니다
+- 늘리는 재료: 이미 글에 나온 부위·공정을 "왜 그렇게 하는지 → 실제로 어떻게 했는지 → 그 결과 어떻게 보이는지"로 더 풀기, 관리 안내를 상황별로 한두 장면 더, 작업 설명을 읽는 분 조건으로 바꾼 문장 한두 개
+- 금지: 요청·[사진 확인 결과]·팩트 표에 없는 새 부위·스펙·고객 사정·작업 디테일을 만들어 넣기, 차량 스펙·디자인 소개로 채우기, 자격·차별점·자랑 추가, 같은 말 되풀이
+- [사진 N] 태그는 늘어난 본문에 맞춰 사이사이에 두 줄 이상 간격으로 다시 배치(10개 이상)
+
+[원본]
+${original}
+
+설명 없이 제목부터 글 전체를 다시 출력하세요.`;
+  return await callClaude(systemPrompt, [{ role: 'user', content: msg }], 8192, model);
+}
+
 const DRAFTS_DIR = path.join(process.cwd(), 'public', 'drafts');
 
 /** 이전에 저장된 글의 제목 + 도입 6줄 + 마무리 4줄 + 짐작한 형식 + 몸통 관용구 (최근 20개). DB 우선, 로컬 파일 폴백 */
@@ -569,6 +587,25 @@ export async function runWriter(opts: RunWriterOptions): Promise<WriterResult> {
         }
       }
     } catch { /* 수정 실패 시 원본 유지 */ }
+  }
+
+  // 분량이 2,500자에 못 미치면 보강 패스 최대 2회 (2026-11-19). 늘어나고 위반·팩트 오류가 늘지 않을 때만 채택
+  for (let tries = 0; tries < 2 && first; tries++) {
+    const cur = splitTitleBody(reply);
+    if (!cur || pureLen(cur.body) >= 2500) break;
+    try {
+      const expanded = await expandDraft(systemPrompt, reply, pureLen(cur.body), model);
+      const e = splitTitleBody(expanded);
+      if (!e || pureLen(e.body) <= pureLen(cur.body)) continue;
+      const eViolations = [...checkHardViolations(e.body, combinedMessage, serviceType, knownColor), ...checkIntroRepeat(e.body, previous), ...checkBodyRepeat(e.body, previous), ...checkLineRepeat(e.body, previous), ...checkKeywordDensity(e.body, target.keyword)];
+      const eFacts = factCheck({ body: e.body, serviceType, product: target.product ?? undefined });
+      if (eViolations.length <= violations.length && eFacts.length <= factIssues.length) {
+        reply = expanded;
+        violations = eViolations;
+        factIssues = eFacts;
+        formatIssues = checkFormatIssues(e.title, e.body, target.keyword);
+      }
+    } catch { /* 보강 실패 시 원본 유지 */ }
   }
 
   // 그래도 시리즈50·100 글에 발수코팅이 남아 있으면 그 문단을 통째로 뺀다 (2026-11-12 X5 시리즈50 글에 4문장 남았던 일)
