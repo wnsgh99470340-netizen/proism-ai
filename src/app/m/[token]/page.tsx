@@ -16,8 +16,8 @@ interface Data {
   owner?: boolean;
   customer: { name: string; car: string; color: string | null; memberSince: string | null; registered: string };
   membership: { name: string; common: string[]; referrerReward: string; referredRewardOptions: string[]; referredCondition: string };
-  services: { type: string; date: string | null; done: string | null; area: string | null; film: string | null }[];
-  care: { type: string; date: string; done: boolean; doneAt: string | null }[];
+  services: { id?: string; type: string; date: string | null; done: string | null; area: string | null; film: string | null }[];
+  care: { type: string; date: string; done: boolean; doneAt: string | null; serviceId?: string | null }[];
   upcoming: { date: string; end: string | null; service: string | null; status: string }[];
   warranties: { date: string; end: string | null; work: string; period: string; url: string | null; items: { group: string; text: string; product?: string }[]; certNo: string }[];
   referrals: { gave: { name: string; date: string; state: string; reward: string | null; rewardAt: string | null }[]; received: { from: string; date: string; reward: string | null; rewardAt: string | null } | null };
@@ -115,6 +115,14 @@ export default function MemberPage() {
   const nextDays = nextCare ? daysUntil(nextCare.date) : null;
   // 최근 것이 위로: 완료는 완료일, 예정은 예정일 기준
   const careSorted = [...data.care].sort((a, b) => ((b.done ? b.doneAt || b.date : b.date) || '').localeCompare((a.done ? a.doneAt || a.date : a.date) || ''));
+  // 시공 건별로 묶기 (2026-11-19 사장님 "기존 작업과 새 작업은 같은 분이 맡겼어도 따로 분류"): 시공이 2건 이상일 때만 건마다 머리줄
+  const careGroups = (() => {
+    const svcs = [...data.services].sort((x, y) => (y.date || '').localeCompare(x.date || ''));
+    const groups = svcs.map((sv) => ({ key: sv.id || '', title: `${fmtDot(sv.date)} ${sv.type}${sv.area ? ` · ${sv.area}` : ''}`, rows: careSorted.filter((f) => f.serviceId && f.serviceId === sv.id) }));
+    const rest = careSorted.filter((f) => !f.serviceId || !svcs.some((sv) => sv.id === f.serviceId));
+    if (rest.length) groups.push({ key: 'rest', title: '그 외', rows: rest });
+    return groups.filter((g) => g.rows.length > 0);
+  })();
   const cert = data.warranties[0] || null; // 가장 최근 발급분이 맨 위 증명서
   const latestService = data.services[0] || null;
   const tabs = [['cert', '증명서'], ['care', '관리'], ['benefit', '회원 혜택'], ['referral', '소개'], ['history', '기록·보증']] as const;
@@ -263,20 +271,27 @@ export default function MemberPage() {
             <div className={box}>
               <div className="text-sm font-bold mb-3">관리 기록</div>
               {data.care.length === 0 ? <div className="text-sm text-white/60">시공이 끝나면 6개월 메인터넌스(PPF·컬러PPF는 2주 QC도) 일정이 여기에 잡힙니다.</div> : (
-                <ul className="space-y-3">
-                  {careSorted.map((f, i) => (
-                    <li key={i} className="flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-2.5">
-                        <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[11px] ${f.done ? 'bg-[#22c55e]/15 text-[#22c55e]' : 'border border-white/20 text-white/40'}`}>{f.done ? '✓' : careSorted.length - i}</span>
-                        <span className={f.done ? '' : 'text-white/80'}>{careName(f.type)}</span>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-white/75 tabular-nums">{fmt(f.done ? f.doneAt || f.date : f.date)}</div>
-                        <div className={`text-[10px] ${f.done ? 'text-[#22c55e]' : 'text-white/40'}`}>{f.done ? '받으셨습니다' : '예정'}</div>
-                      </div>
-                    </li>
+                <div className="space-y-4">
+                  {careGroups.map((g) => (
+                    <div key={g.key}>
+                      {careGroups.length > 1 && <div className={`${micro} mb-2 pb-1.5 border-b border-white/10`}>{g.title} 시공</div>}
+                      <ul className="space-y-3">
+                        {g.rows.map((f, i) => (
+                          <li key={i} className="flex items-center justify-between text-sm">
+                            <div className="flex items-center gap-2.5">
+                              <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[11px] ${f.done ? 'bg-[#22c55e]/15 text-[#22c55e]' : 'border border-white/20 text-white/40'}`}>{f.done ? '✓' : g.rows.length - i}</span>
+                              <span className={f.done ? '' : 'text-white/80'}>{careName(f.type)}</span>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-white/75 tabular-nums">{fmt(f.done ? f.doneAt || f.date : f.date)}</div>
+                              <div className={`text-[10px] ${f.done ? 'text-[#22c55e]' : 'text-white/40'}`}>{f.done ? '받으셨습니다' : '예정'}</div>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   ))}
-                </ul>
+                </div>
               )}
               <div className="text-[11px] text-white/40 mt-3 leading-relaxed">QC 점검은 끝단·표면·물기포를 보고, 메인터넌스는 필름 전용 코팅과 끝단 점검을 합니다. 날짜가 가까워지면 연락드립니다.</div>
             </div>

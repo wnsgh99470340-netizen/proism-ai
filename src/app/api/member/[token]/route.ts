@@ -36,7 +36,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const [{ data: services }, { data: followUps }, { data: appts }, { data: gave }, { data: received }, { data: pointRows }] = await Promise.all([
     supabase.from('services').select('id, service_type, service_date, completion_date, service_area, film_used').eq('customer_id', c.id).order('service_date', { ascending: false }),
-    supabase.from('follow_ups').select('follow_up_type, scheduled_date, is_completed, completed_date').eq('customer_id', c.id).in('follow_up_type', ['QC점검', '메인터넌스']).order('scheduled_date', { ascending: true }),
+    supabase.from('follow_ups').select('follow_up_type, scheduled_date, is_completed, completed_date, service_id').eq('customer_id', c.id).in('follow_up_type', ['QC점검', '메인터넌스']).order('scheduled_date', { ascending: true }),
     supabase.from('appointments').select('id, appointment_date, end_date, service_type, status, memo').eq('customer_id', c.id).neq('status', '취소').order('appointment_date', { ascending: false }),
     supabase.from('referrals').select('id, referred_id, created_at, referrer_reward, referrer_reward_used_at, referred:customers!referrals_referred_id_fkey(name)').eq('referrer_id', c.id).order('created_at', { ascending: false }),
     supabase.from('referrals').select('id, referrer_id, created_at, referred_reward, referred_reward_used_at, referrer:customers!referrals_referrer_id_fkey(name)').eq('referred_id', c.id).maybeSingle(),
@@ -76,8 +76,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     owner,
     customer: { name: c.name, car: [c.car_brand, c.car_model].filter(Boolean).join(' '), color: c.car_color, memberSince, registered: c.created_at },
     membership: { name: MEMBERSHIP.name, common: MEMBERSHIP.common, referrerReward: MEMBERSHIP.referrerReward, referredRewardOptions: MEMBERSHIP.referredRewardOptions, referredCondition: MEMBERSHIP.referredCondition },
-    services: (services || []).map((s) => ({ type: s.service_type, date: s.service_date, done: s.completion_date, area: s.service_area, film: s.film_used })),
-    care: (followUps || []).map((f) => ({ type: f.follow_up_type, date: f.scheduled_date, done: f.is_completed, doneAt: f.completed_date })),
+    services: (services || []).map((s) => ({ id: s.id, type: s.service_type, date: s.service_date, done: s.completion_date, area: s.service_area, film: s.film_used })),
+    care: (followUps || []).map((f) => ({ type: f.follow_up_type, date: f.scheduled_date, done: f.is_completed, doneAt: f.completed_date, serviceId: (f.service_id as string | null) || null })), // serviceId: 시공 건별로 묶어 보이기 (2026-11-19 사장님 "기존 작업과 새 작업은 따로 분류")
     upcoming,
     warranties,
     referrals: {
