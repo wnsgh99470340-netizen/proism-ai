@@ -117,22 +117,19 @@ function pickRandom<T>(arr: T[], n: number): T[] {
   return a.slice(0, n);
 }
 
-export async function buildToneReference(serviceType?: string): Promise<string> {
-  const [ownersAll, finals, drafts] = await Promise.all([listPosts('owner', 80), listPosts('final', 20), listPosts('draft', 40)]);
+export async function buildToneReference(_serviceType?: string): Promise<string> {
+  const [ownersAll, finals, drafts] = await Promise.all([listPosts('owner', 400), listPosts('final', 20), listPosts('draft', 40)]);
   if (ownersAll.length === 0 && finals.length === 0) return '';
 
   // 사장님 글 중 이 시스템이 쓴 글(제목 바꿔 발행한 것 포함)은 문체 참고에서 뺀다 — AI 가 자기 글을 다시 배우면 같은 글이 된다
   const aiIdx = aiPostIndex([...finals, ...drafts]);
   const owners = ownersAll.filter((o) => !looksAiWritten(o, aiIdx));
 
-  // 참고 글: 같은 시공 종류의 사장님 글 2편은 거의 전문(4000자), 나머지 1편은 앞부분만.
-  // 2026-11-19: 항상 최신 2편이 아니라 같은 종류 최근 10편 중 무작위 2편 — 매번 같은 글을 보고 쓰면 그 글의 문장이 되풀이된다
-  const same = serviceType ? owners.filter((o) => o.service_type === serviceType) : [];
-  const sameChosen = pickRandom(same.slice(0, 10), 2);
-  const rest = owners.filter((o) => !sameChosen.includes(o));
-  const samples = [...sameChosen, ...pickRandom(rest.slice(0, 15), 1), ...finals].slice(0, 3);
+  // 참고 글 (2026-11-19 사장님 "최근 10편 중 2편이 아니라 총 게시글 중 무작위 3편으로"): 같은 시공 종류 우선 없이 전체에서 3편, 각 3000자
+  // (이전: 같은 종류 최신 2편 전문 + 1편 앞부분 → 그 2편의 문장이 다음 글마다 되풀이됐음)
+  const samples = owners.length > 0 ? pickRandom(owners, 3) : finals.slice(0, 3);
   const sampleText = samples
-    .map((p, i) => `[참고 글 ${i + 1}] ${p.title}\n${excerpt(p.body.replace(/\[사진\s*\d+\]/g, '').trim(), i < 2 && sameChosen.includes(p) ? 4000 : 700)}`)
+    .map((p, i) => `[참고 글 ${i + 1}] ${p.title}\n${excerpt(p.body.replace(/\[사진\s*\d+\]/g, '').trim(), 3000)}`)
     .join('\n\n');
 
   const feedbacks = Array.from(new Set(
