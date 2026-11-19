@@ -32,6 +32,9 @@ export function cleanBody(raw: string): string {
     .map((l) => l.trim())
     .filter((l, i, arr) => l.length > 0 || (i > 0 && arr[i - 1].length > 0))
     .join('\n')
+    // 네이버 글 아래 붙는 장소 체크인·다른 글 미리보기(이 블로그의 체크인 / 이 장소의 다른 글 / 프로이즘은 … 공인 프리퍼드 인스톨러가 운영합니다 / m.blog.naver.com)는 본문이 아니다.
+    // 216편에 그대로 들어가 어휘 세기(프리퍼드 인스톨러)와 문체 참고를 흐리고 있었음 (2026-11-19 발견, DB 는 일괄 정리)
+    .replace(/\n(?:이 블로그의 체크인|이 장소의 다른 글)(?:\n[\s\S]*)?$/, '')
     .trim();
 }
 
