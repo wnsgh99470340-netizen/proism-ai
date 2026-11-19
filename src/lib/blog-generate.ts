@@ -108,6 +108,10 @@ export function checkHardViolations(body: string, userInput: string, serviceType
   const worker = body.match(/(제가|대표가)\s*직접\s*(합니다|시공|작업)|(작업|시공)은\s*제가\s*직접|1인\s*시공|하루\s*(?:에\s*)?한\s*대/);
   if (worker) v.push({ rule: 'worker', detail: `작업자 강조 표현 "${worker[0]}" (삭제)` });
 
+  // 0-0-2. 매장 시설·장소 지어내기 (2026-11-19 사장님 "프로이즘에 지하주차장이 어딨어")
+  const place = body.match(/지하\s*주차장|옥상|야외\s*주차장|도장\s*부스|리프트\s*위/);
+  if (place) v.push({ rule: 'place', detail: `매장에 없는 장소 "${place[0]}" → 장소 묘사를 빼거나 "매장 안"으로` });
+
   // 0-0-1. 선언형 표현 (2026-11-18 사장님 "뭐든 너무 노골적으로 표현하지 않았으면"): 기준 사전을 옮겨 적은 티가 나는 문장
   const declare = body.match(/[^\n]{0,14}(?:원칙(?:으로|입니다|이라서|이기)|노하우|저희만|우리만|어디서도\s*못)[^\n]{0,8}/);
   if (declare) v.push({ rule: 'declare', detail: `선언형 표현 "${declare[0].trim()}" → 그 문장은 빼거나, 그 자리에서 실제로 한 일(장면)로 바꾸기` });
@@ -498,7 +502,10 @@ export async function buildBlogSystemPrompt(researchContext: string, serviceType
   const keywordContext = keyword
     ? `\n\n[이번 글 제목 키워드 — 필수]\n"${keyword}"를 제목 앞부분에 그대로 넣고(띄어쓰기·순서 유지), 본문에도 3~5회 자연스럽게 넣는다. 억지로 반복하지 말고 문장 안에 녹인다. 해시태그에도 한 번 넣는다.`
     : '';
-  const vehicleContext = researchContext ? '\n\n' + researchContext : '';
+  // 2026-11-19 7시리즈 투톤: 조사가 "글라스 루프 유무 확인 안 됨, 사장님께 확인"이라고 적었는데 글은 루프 전체를 감싼 것으로 씀 → 확인 안 된 구조는 서술 금지를 조사 블록 머리에 못 박는다
+  const vehicleContext = researchContext
+    ? `\n\n[사전 조사 사용 규칙] 아래 조사에서 "확인 안 됨"으로 적힌 구조(글라스 루프 유무·선루프·루프레일·프레임리스 도어 등)는 있는 것으로도 없는 것으로도 쓰지 않는다. 그 부위가 의뢰 범위의 핵심이면 그 부위의 작업 장면을 쓰지 말고 "범위는 상담에서 정한다"로만 둔다. 조사는 구조의 근거일 뿐 작업 사실이 아니다.\n${researchContext}`
+    : '';
   const previousDrafts = await getPreviousDrafts();
   const fmt = format ?? pickFormat(recentFormatKeys(previousDrafts));
   // 차별점 사실표(2026-11-16): 확인된 사실 1~2개를 글마다 골라 작업 설명 안에 녹이게 한다
@@ -534,6 +541,8 @@ export interface RunWriterOptions {
   combinedMessage: string;
   target: Target;
   researchSummary?: string;
+  /** 조사 원문(확인 안 된 항목을 접수 요약에 보여 주기 위해, 2026-11-19) */
+  researchContext?: string;
   /** 초안을 DB에 저장할지 (블로그 요청일 때만) */
   save: boolean;
   /** 이번 글에 지정한 형식 이름 (접수 요약에 표시) */
@@ -634,6 +643,12 @@ export async function runWriter(opts: RunWriterOptions): Promise<WriterResult> {
   notes.push(factIssues.length > 0 ? `팩트체크 ${factIssues.length}건 확인 필요: ${factIssues.map(f => f.detail).join(' / ')}` : '팩트체크 통과 (제품·시공 규칙 위반 없음)');
   if (formatIssues.length > 0) notes.push(`형식: ${formatIssues.join(' / ')}`);
   if (researchSummary) notes.push(researchSummary);
+  // 조사가 확인 못 한 구조를 사장님이 바로 보게 (2026-11-19). 글에는 안 쓰도록 위 [사전 조사 사용 규칙]이 막는다
+  const unknownBlock = (opts.researchContext || '').split('[확인 안 된 항목]')[1];
+  if (unknownBlock) {
+    const items = unknownBlock.split('\n').map(l => l.replace(/^[-•·\s]+/, '').trim()).filter(l => l && !l.startsWith('[')).slice(0, 5);
+    if (items.length) notes.push(`조사에서 확인 못 한 것(글에 안 씀, 맞으면 알려 주세요): ${items.join(' / ')}`);
+  }
 
   let draftId: string | null = null;
   if (save) {
@@ -685,6 +700,7 @@ export async function generateBlogPost(input: {
     combinedMessage: input.message,
     target,
     researchSummary: input.research?.summary || '',
+    researchContext: input.research?.context || '',
     save: true,
     knownColor,
     formatName: format.name,
