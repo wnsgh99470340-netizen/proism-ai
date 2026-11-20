@@ -65,30 +65,46 @@ ${diffs.map(d => `- ${d.label}: ${d.fact}`).join('\n')}
 {"lines":[{"text":"...","source":"요청"}, ...], "unsure":["..."]}`;
 }
 
+function pushLine(lines: FactLine[], seen: Set<string>, text: string, source: string) {
+  const t = text.trim();
+  if (!t || seen.has(t) || lines.length >= 18) return;
+  seen.add(t);
+  lines.push({ text: t, source: (FACT_SOURCES as string[]).includes(source) ? (source as FactSource) : '조사' });
+}
+
+/** 엄격한 JSON → 안 되면 정규식으로 줄만 건진다 (2026-11-20 모델이 문자열 안에 따옴표를 넣어 JSON 이 깨진 일) */
 function parse(raw: string): { lines: FactLine[]; unsure: string[] } {
   const m = raw.match(/\{[\s\S]*\}/);
-  if (!m) throw new Error(`사실표 JSON 없음 (응답 ${raw.length}자: ${raw.slice(0, 160).replace(/\s+/g, ' ')} … ${raw.slice(-120).replace(/\s+/g, ' ')})`);
-  const j = JSON.parse(m[0]) as { lines?: unknown; unsure?: unknown };
-  const seen = new Set<string>();
   const lines: FactLine[] = [];
-  for (const x of Array.isArray(j.lines) ? j.lines : []) {
-    const o = x as { text?: unknown; source?: unknown };
-    const text = String(o.text || '').trim();
-    const source = (FACT_SOURCES as string[]).includes(String(o.source)) ? (String(o.source) as FactSource) : '조사';
-    if (!text || seen.has(text)) continue;
-    seen.add(text);
-    lines.push({ text, source });
-    if (lines.length >= 18) break;
+  const seen = new Set<string>();
+  let unsure: string[] = [];
+  if (m) {
+    try {
+      const j = JSON.parse(m[0]) as { lines?: unknown; unsure?: unknown };
+      for (const x of Array.isArray(j.lines) ? j.lines : []) { const o = x as { text?: unknown; source?: unknown }; pushLine(lines, seen, String(o.text || ''), String(o.source || '')); }
+      unsure = (Array.isArray(j.unsure) ? j.unsure : []).map(x => String(x).trim()).filter(Boolean).slice(0, 8);
+    } catch { /* 아래 느슨한 파싱 */ }
   }
-  const unsure = (Array.isArray(j.unsure) ? j.unsure : []).map(x => String(x).trim()).filter(Boolean).slice(0, 8);
-  if (lines.length < 3) throw new Error('사실표가 너무 짧음');
+  if (lines.length < 3) {
+    for (const mm of raw.matchAll(/"text"\s*:\s*"((?:[^"\\]|\\.)*)"\s*,\s*"source"\s*:\s*"([^"]*)"/g)) pushLine(lines, seen, mm[1].replace(/\\"/g, '"'), mm[2]);
+    const u = raw.split(/"unsure"\s*:/)[1];
+    if (u) unsure = Array.from(u.matchAll(/"((?:[^"\\]|\\.){4,})"/g)).map(x => x[1].replace(/\\"/g, '"').trim()).slice(0, 8);
+  }
+  if (lines.length < 3) throw new Error(`사실표를 읽지 못함 (응답 ${raw.length}자: ${raw.slice(0, 160).replace(/\s+/g, ' ')} …)`);
   return { lines, unsure };
 }
 
 export async function buildFactSheet(input: { message: string; request: BlogRequest | null; researchContext: string; serviceType: string; carModel: string | null; refs?: ReferencePost[] }): Promise<FactSheet> {
-  const raw = await callClaude(SYSTEM, [{ role: 'user', content: buildPrompt(input) }], 6000, FACTS_MODEL);
-  const { lines, unsure } = parse(raw);
-  return { lines, unsure, built_at: new Date().toISOString(), confirmed_at: null };
+  const prompt = buildPrompt(input) + '\n\n문자열 안에 큰따옴표(")를 쓰지 마세요(필요하면 「 」). JSON 밖에 설명을 쓰지 마세요.';
+  let lastErr: unknown = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const raw = await callClaude(SYSTEM, [{ role: 'user', content: prompt }], 6000, FACTS_MODEL);
+      const { lines, unsure } = parse(raw);
+      return { lines, unsure, built_at: new Date().toISOString(), confirmed_at: null };
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
 }
 
 /** 사장님이 고친 줄 목록으로 확정. 출처 없는 줄(사장님이 새로 적은 것)은 '사장님 메모' */
