@@ -19,7 +19,7 @@ import { pickWorkStandards, workStandardsPrompt, standardServiceOf, type WorkSta
 import { extractTagsFromTitle, textToHtml } from './draft-format';
 
 /** 블로그 작성 모델 (담당 직원 설정과 무관하게 고정) */
-export const BLOG_WRITER_MODEL = 'claude-opus-4-6';
+export const BLOG_WRITER_MODEL = 'claude-fable-5-2'; // 2026-11-20 사장님 "글 쓰는 모델이 페이블이 아니야?" — opus-4-6 에서 교체. 되돌리려면 'claude-opus-5-5'
 
 export type Violation = { rule: string; detail: string };
 export type Checks = { violations: Violation[]; facts: FactIssue[]; format: string[] };

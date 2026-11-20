@@ -61,6 +61,11 @@
 - **인스타 콘텐츠**(2026-11-11, 사장님 결정: 시공기 슬라이드 영상은 인스타에 올리지 않음. 인스타는 아래 둘로. **2026-11-12 전부 중단, 위 항목 참고**): (1) **정보 릴스** — 영상 탭 "정보 릴스 3개 만들기" → POST /api/reels → result.reels=queued → 액션 run_media.py → reel_plan.py(Claude 도구 호출로 대본 2~3개: hook 2줄·비트 3~5개·CTA·캡션·해시태그, 본문 사실만·작업자 언급 금지) → reel.py(1080x1920, 훅 2.6s 푸시인+큰 글씨 → 비트 사진 켄번즈+하단 자막 패널+칩 → CTA 2.6s 로고·연락처, loudnorm -16, 안전영역 y 260~1560) → Blob reels/{jobId}/rN.mp4. 사진은 result.video.photos 재사용(없으면 드라이브 링크 입력). (2) **말하기 영상** — 영상 탭에서 폰 영상 업로드(@vercel/blob/client 직접 업로드, /api/upload/blob 토큰, 500MB) → POST /api/talk → blog_jobs 행(result.talk=queued) → talk.py(faster-whisper medium int8 + 도메인 단어 힌트·오인식 보정 사전 → 2줄 14자 큐 → Pillow 자막 패널, 가로 영상은 블러 배경 위 세로, 로고, 끝 연락처 카드 2.5s, 음성 loudnorm -16) → Blob talk/{jobId}/talk.mp4. 자막 수정은 영상 탭에서 줄 단위로 고쳐 PATCH /api/talk(cues) → 음성 인식 건너뛰고 재렌더. 액션에서 whisper 모델은 actions/cache(whisper-medium-v1)
 - 트렌디 모드(빠른 컷·큰 글씨·비포애프터) 등 블로그 영상 고도화는 보류(2026-11-11 사장님 "나중에")
 
+## 모델 (2026-11-20 사장님 "글 쓰는 모델이 페이블이 아니야?" → 교체)
+- 글 쓰기·수정·고치기(BLOG_WRITER_MODEL, src/lib/blog-generate.ts): **claude-fable-5-2** (이전 claude-opus-4-6). 사장님 API 키로 호출 가능 확인(2026-11-20)
+- 조사(웹 검색)·인스타/카페: claude-opus-5-5 / 사진 읽기·문체 카드·QA·callClaude 기본값: claude-sonnet-5-5 (이전 sonnet-4-6) / 영상 선별·예약 캡처: claude-sonnet-5-5
+- src/config/team.ts 의 model 표기는 화면용 라벨이라 그대로
+
 ## 프로젝트 개요
 - 3M 프로이즘 강남서초점 AI 블로그 자동화 + CRM 시스템
 - 기술 스택: Next.js 16 + TypeScript + Tailwind CSS + Supabase + Notion API + Claude API

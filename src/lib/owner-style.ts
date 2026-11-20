@@ -91,7 +91,7 @@ export async function buildOwnerStyle(): Promise<OwnerStyle> {
 8. 이 글들에 없는 것 (라이터가 흔히 넣지만 이 사람은 안 쓰는 것)
 
 ${sampleText}`;
-  const card = (await callClaude('당신은 글쓰기 기준을 정리하는 편집자입니다. 지시한 형식으로만 답합니다.', [{ role: 'user', content: prompt }], 3000, 'claude-sonnet-4-6')).trim();
+  const card = (await callClaude('당신은 글쓰기 기준을 정리하는 편집자입니다. 지시한 형식으로만 답합니다.', [{ role: 'user', content: prompt }], 3000, 'claude-sonnet-5-5')).trim();
 
   const style: OwnerStyle = { builtAt: new Date().toISOString(), postCount: posts.length, usedTerms: used, unusedTerms: unused, card, sampleTitles: samples.map(s => s.title) };
   await put(BLOB_PATH, JSON.stringify(style), { access: 'public', contentType: 'application/json', addRandomSuffix: false, allowOverwrite: true });
