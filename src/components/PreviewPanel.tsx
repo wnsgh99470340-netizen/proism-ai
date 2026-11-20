@@ -118,6 +118,7 @@ interface PreviewPanelProps {
   jobs: BlogJob[];
   onRetryJob: (id: string) => void;
   onDeleteJob: (id: string) => void;
+  onConfirmJob: (id: string, lines: string[]) => Promise<void> | void;
   /** 저장된 글 목록을 다시 불러와야 할 때 */
   onPostsChanged: () => void;
   /** 영상 작업을 접수·재시도한 뒤 작업 목록을 다시 불러올 때 */
@@ -146,6 +147,7 @@ export default function PreviewPanel({
   jobs,
   onRetryJob,
   onDeleteJob,
+  onConfirmJob,
   onPostsChanged,
   onJobsChanged,
   draftTarget,
@@ -191,7 +193,7 @@ export default function PreviewPanel({
       {/* 미리보기 탭 */}
       {activeTab === 'preview' && (
         <div className="flex-1 overflow-y-auto">
-          <SavedPosts refreshKey={postsRefreshKey} activeId={activePostId} onOpen={onOpenPost} jobs={jobs} onRetryJob={onRetryJob} onDeleteJob={onDeleteJob} />
+          <SavedPosts refreshKey={postsRefreshKey} activeId={activePostId} onOpen={onOpenPost} jobs={jobs} onRetryJob={onRetryJob} onDeleteJob={onDeleteJob} onConfirmJob={onConfirmJob} />
           {draft && checks && (
             <div className={`mx-3 mt-3 rounded-xl border p-3 ${checks.facts.length + checks.violations.length === 0 ? 'bg-ok/10 border-ok/30' : 'bg-danger/10 border-danger/30'}`}>
               <div className={`text-xs font-medium mb-1 ${checks.facts.length + checks.violations.length === 0 ? 'text-ok' : 'text-danger'}`}>

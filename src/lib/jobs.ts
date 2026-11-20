@@ -11,15 +11,16 @@ import type { BlogRequest } from '@/config/blog-options';
 import { sendPushToAll } from './push';
 import { findPhotosUrl, buildQueuedVideo, dispatchRender, findReusableVideo, type VideoState } from './video';
 import { inspectPhotos } from './photo-check';
+import { buildFactSheet, confirmFactSheet, factsToText, type FactSheet, type FactLineInput } from './facts';
 
-export type JobStatus = 'queued' | 'researching' | 'writing' | 'channels' | 'done' | 'failed';
+export type JobStatus = 'queued' | 'researching' | 'facts' | 'confirming' | 'writing' | 'channels' | 'done' | 'failed';
 
 export interface BlogJob {
   id: string;
   status: JobStatus;
   message: string;
   request: BlogRequest | null;
-  research: { context: string; summary: string } | null;
+  research: { context: string; summary: string; facts?: FactSheet | null } | null;
   result: WriterResult | null;
   channels: Channels | null;
   error: string | null;
@@ -28,7 +29,7 @@ export interface BlogJob {
   updated_at: string;
 }
 
-export const ACTIVE_STATUSES: JobStatus[] = ['queued', 'researching', 'writing', 'channels'];
+export const ACTIVE_STATUSES: JobStatus[] = ['queued', 'researching', 'facts', 'writing', 'channels'];
 /** 이 시간 동안 갱신이 없으면 멈춘 것으로 보고 다시 깨운다 */
 export const STALL_MS = 8 * 60 * 1000;
 /** 멈춘 작업을 다시 깨우는 최대 횟수 */
@@ -103,9 +104,21 @@ export async function kickJob(origin: string, id: string): Promise<void> {
   }
 }
 
+/** 사장님이 사실표를 확정 → writing 으로 (2026-11-20). lines 가 비면 만들어 둔 표 그대로 */
+export async function confirmJob(id: string, lines?: FactLineInput[] | null): Promise<BlogJob | null> {
+  const job = await getJob(id);
+  if (!job || !job.research) return null;
+  const prev = job.research.facts || null;
+  const facts = lines && lines.length > 0 ? confirmFactSheet(prev, lines) : confirmFactSheet(prev, prev?.lines || []);
+  await updateJob(id, { status: 'writing', error: null, attempts: 0, research: { ...job.research, facts } });
+  return { ...job, status: 'writing', research: { ...job.research, facts } };
+}
+
+export { factsToText };
+
 /**
  * 현재 상태에 맞는 단계 하나만 실행하고 다음 상태를 돌려준다.
- * queued/researching → 조사 → writing → 작성 → channels → 인스타·카페 → done
+ * queued/researching → 조사·사실표 → confirming(사장님 확인, 여기서 멈춤) → writing → 작성 → channels → 인스타·카페 → done
  */
 export async function runNextStep(id: string): Promise<JobStatus> {
   const job = await getJob(id);
@@ -129,12 +142,27 @@ export async function runNextStep(id: string): Promise<JobStatus> {
           research = { context: research?.context || '', summary: [research?.summary, `⚠️ 사진 확인 실패: ${msg}`].filter(Boolean).join('\n') };
         }
       }
-      await updateJob(id, { status: 'writing', research });
-      return 'writing';
+      await updateJob(id, { status: 'facts', research: { context: research?.context || '', summary: research?.summary || '' } });
+      return 'facts';
+    }
+
+    if (job.status === 'facts') {
+      // 2026-11-20 재설계: 조사 결과로 "이 작업의 사실표"를 만들고(약 1분, 별도 단계), 사장님이 확인할 때까지 멈춘다 (confirming)
+      const t = resolveTarget(job.message, job.request);
+      let facts: FactSheet;
+      try {
+        facts = await buildFactSheet({ message: job.message, request: job.request, researchContext: job.research?.context || '', serviceType: t.serviceType, carModel: t.carModel });
+      } catch (e) {
+        throw new Error(`사실표를 만들지 못했습니다: ${e instanceof Error ? e.message : String(e)}`);
+      }
+      await updateJob(id, { status: 'confirming', research: { context: job.research?.context || '', summary: job.research?.summary || '', facts } });
+      const head = facts.lines.slice(0, 4).map((l, i) => `${i + 1}. ${l.text}`).join('\n');
+      await sendPushToAll({ title: '📝 사실표 확인해 주세요', body: `${head}${facts.lines.length > 4 ? `\n… 외 ${facts.lines.length - 4}줄` : ''}${facts.unsure.length ? `\n확인 필요 ${facts.unsure.length}건` : ''}\n블로그 탭에서 고치거나 '이대로 써'`, url: '/crm?tab=blog', tag: `facts-${id}` }).catch(() => {});
+      return 'confirming';
     }
 
     if (job.status === 'writing') {
-      const result = await generateBlogPost({ message: job.message, request: job.request, research: job.research });
+      const result = await generateBlogPost({ message: job.message, request: job.request, research: job.research, facts: job.research?.facts || null });
       if (!result.draft) throw new Error(`글 형식으로 완성되지 않았습니다: ${result.reply.slice(0, 200)}`);
       await updateJob(id, { status: 'channels', result });
       return 'channels';

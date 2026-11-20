@@ -138,7 +138,7 @@ export async function buildToneReference(_serviceType?: string): Promise<string>
 
   // 참고 글 (2026-11-19 사장님 "최근 10편 중 2편이 아니라 총 게시글 중 무작위 3편으로"): 같은 시공 종류 우선 없이 전체에서 3편, 각 3000자
   // (이전: 같은 종류 최신 2편 전문 + 1편 앞부분 → 그 2편의 문장이 다음 글마다 되풀이됐음)
-  const samples = owners.length > 0 ? pickRandom(owners, 3) : finals.slice(0, 3);
+  const samples = owners.length > 0 ? pickRandom(owners, 2) : finals.slice(0, 2); // 2026-11-20 재설계: 2편
   const sampleText = samples
     .map((p, i) => `[참고 글 ${i + 1}] ${p.title}\n${excerpt(p.body.replace(/\[사진\s*\d+\]/g, '').trim(), 2500)}`)
     .join('\n\n');

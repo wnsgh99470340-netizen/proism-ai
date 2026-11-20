@@ -6,7 +6,7 @@ import { analyzeImageWithClaude } from '@/lib/claude-client';
 import { isBlogWriteRequest, resolveTarget, researchForBlogPost } from '@/lib/blog-research';
 import type { BlogRequest } from '@/config/blog-options';
 import { getActiveEmployee } from '@/config/team';
-import { runWriter, buildBlogSystemPrompt, BLOG_WRITER_MODEL, type Target } from '@/lib/blog-generate';
+import { runWriter, generateBlogPost, type Target } from '@/lib/blog-generate';
 
 // 글 작성 전 웹 검색 리서치 + 작성 + QA + 수정까지 여러 번 Claude를 호출하므로 넉넉히 잡음
 export const maxDuration = 300;
@@ -99,20 +99,19 @@ export async function POST(request: NextRequest) {
     }
 
     const isBlog = Boolean(blogRequest) || isBlogWriteRequest(message || '');
-    const systemPrompt = isBlog
-      ? await buildBlogSystemPrompt(researchContext, target.serviceType)
-      : `${activeEmployee.systemPrompt}\n\n현재 담당: ${activeEmployee.emoji} ${activeEmployee.name}\n역할: ${activeEmployee.role}`;
-
-    const result = await runWriter({
-      systemPrompt,
-      model: isBlog ? BLOG_WRITER_MODEL : activeEmployee.model,
-      history,
-      combinedMessage,
-      target,
-      researchSummary,
-      // 일반 대화 답변이 초안으로 저장되는 것을 막는다 (블로그 요청일 때만 저장)
-      save: isBlog,
-    });
+    // 블로그 요청(즉시 경로)은 사실표를 만들어 바로 쓴다 — 확인 단계는 백그라운드 작업 경로에만 (2026-11-20 재설계)
+    const result = isBlog
+      ? await generateBlogPost({ message: combinedMessage, request: blogRequest, research: { context: researchContext, summary: researchSummary }, history })
+      : await runWriter({
+          systemPrompt: `${activeEmployee.systemPrompt}\n\n현재 담당: ${activeEmployee.emoji} ${activeEmployee.name}\n역할: ${activeEmployee.role}`,
+          model: activeEmployee.model,
+          history,
+          combinedMessage,
+          target,
+          researchSummary,
+          // 일반 대화 답변은 초안으로 저장하지 않는다
+          save: false,
+        });
 
     return Response.json({
       reply: result.reply,

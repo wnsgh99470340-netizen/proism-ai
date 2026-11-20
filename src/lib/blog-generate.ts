@@ -16,6 +16,7 @@ import { buildToneReference, savePost, listPosts, getPost, updatePost } from './
 import { BLOG_SYSTEM_PROMPT } from '@/config/prompts';
 import { pickDifferentiators, differentiatorPrompt, type Differentiator } from '@/config/differentiators';
 import { pickWorkStandards, workStandardsPrompt, standardServiceOf, type WorkStandard } from '@/config/work-standards';
+import { buildFactSheet, factsToPrompt, factsNovelty, type FactSheet } from './facts';
 import { extractTagsFromTitle, textToHtml } from './draft-format';
 
 /** 블로그 작성 모델 (담당 직원 설정과 무관하게 고정) */
@@ -257,26 +258,8 @@ ${original}
   return await callClaude(systemPrompt, [{ role: 'user', content: msg }], 8192, model);
 }
 
-/**
- * 분량 보강 전용 패스 (2026-11-19): 규칙을 참고로 낮춘 뒤 첫 시험 글이 1,470자에 그쳤고, fixIssues 는 "빼기" 위주라 60자밖에 못 늘렸음.
- * 흐름·문장은 두고 작업 과정(왜 → 어떻게 → 결과)·관리 안내·읽는 분 조건 장면을 더 풀어 2,500자 이상으로. 새 사실은 만들지 않는다
- */
-async function expandDraft(systemPrompt: string, original: string, currentLen: number, model: string): Promise<string> {
-  const msg = `아래 글은 공백 제외 ${currentLen}자입니다. 2,600자 이상이 되도록 늘려 주세요.
-- 지금 있는 문장·흐름·도입·마무리는 그대로 두고, 그 사이를 채웁니다
-- 늘리는 재료: 이미 글에 나온 부위·공정을 "왜 그렇게 하는지 → 실제로 어떻게 했는지 → 그 결과 어떻게 보이는지"로 더 풀기, 관리 안내를 상황별로 한두 장면 더, 작업 설명을 읽는 분 조건으로 바꾼 문장 한두 개
-- 금지: 요청·[사진 확인 결과]·팩트 표에 없는 새 부위·스펙·고객 사정·작업 디테일을 만들어 넣기, 차량 스펙·디자인 소개로 채우기, 자격·차별점·자랑 추가, 같은 말 되풀이
-
-[원본]
-${original}
-
-설명 없이 제목부터 글 전체를 다시 출력하세요.`;
-  return await callClaude(systemPrompt, [{ role: 'user', content: msg }], 8192, model);
-}
-
 const DRAFTS_DIR = path.join(process.cwd(), 'public', 'drafts');
 
-/** 이전에 저장된 글의 제목 + 도입 6줄 + 마무리 4줄 + 짐작한 형식 + 몸통 관용구 (최근 20개). DB 우선, 로컬 파일 폴백 */
 export type PreviousPost = { title: string; intro: string; closing: string; /** 본문 줄(연락처·서명·사진·해시태그 제외) — 같은 문장 검사용 */ rawLines?: string[] };
 
 /** 본문을 실제 문장 줄만으로 (HTML 태그·[사진 N]·해시태그·빈 줄 제거) */
@@ -533,25 +516,6 @@ export async function runWriter(opts: RunWriterOptions): Promise<WriterResult> {
     } catch { /* 수정 실패 시 원본 유지 */ }
   }
 
-  // 분량이 2,500자에 못 미치면 보강 패스 최대 2회 (2026-11-19). 늘어나고 위반·팩트 오류가 늘지 않을 때만 채택
-  for (let tries = 0; tries < 2 && first; tries++) {
-    const cur = splitTitleBody(reply);
-    if (!cur || pureLen(cur.body) >= 2500) break;
-    try {
-      const expanded = await expandDraft(systemPrompt, reply, pureLen(cur.body), model);
-      const e = splitTitleBody(expanded);
-      if (!e || pureLen(e.body) <= pureLen(cur.body)) continue;
-      const eViolations = [...checkHardViolations(e.body, combinedMessage, serviceType, knownColor), ...checkIntroRepeat(e.body, previous), ...checkLineRepeat(e.body, previous), ...checkKeywordDensity(e.body, target.keyword)];
-      const eFacts = factCheck({ body: e.body, serviceType, product: target.product ?? undefined });
-      if (eViolations.length <= violations.length && eFacts.length <= factIssues.length) {
-        reply = expanded;
-        violations = eViolations;
-        factIssues = eFacts;
-        formatIssues = checkFormatIssues(e.title, e.body, target.keyword);
-      }
-    } catch { /* 보강 실패 시 원본 유지 */ }
-  }
-
   // 그래도 시리즈50·100 글에 발수코팅이 남아 있으면 그 문단을 통째로 뺀다 (2026-11-12 X5 시리즈50 글에 4문장 남았던 일)
   if (first && factIssues.some(f => f.rule === 'hydrophobic_50_100')) {
     const cur = splitTitleBody(reply);
@@ -607,36 +571,120 @@ export async function runWriter(opts: RunWriterOptions): Promise<WriterResult> {
   };
 }
 
+/** 삭제 전용 패스: 지적된 문장만 지운다 (2026-11-20 재설계 — 고쳐 쓰기·늘리기 패스 없음) */
+async function deleteOffending(systemPrompt: string, original: string, issues: string[], model: string): Promise<string> {
+  const msg = `아래 [지적]에 해당하는 문장(또는 그 문단)만 삭제하세요. 다른 문장은 글자 하나 바꾸지 말고, 새 문장을 넣지 마세요. 제목·해시태그는 그대로.
+[지적]
+${issues.map(i => `- ${i}`).join('\n')}
+
+[원본]
+${original}
+
+설명 없이 제목부터 글 전체를 다시 출력하세요.`;
+  return await callClaude(systemPrompt, [{ role: 'user', content: msg }], 8192, model);
+}
+
+/** 사실표만으로 쓰는 작성 프롬프트: 규칙 + 사실표 + 제목 키워드 + 사장님 어휘 + 사장님 글(말투) + 이전 글 제목·도입 */
+export async function buildWriterPromptFromFacts(facts: FactSheet, serviceType: string, keyword?: string | null): Promise<string> {
+  const [toneReference, ownerStyle, previousDrafts] = await Promise.all([buildToneReference(serviceType), getOwnerStyle(), getPreviousDrafts()]);
+  const styleContext = ownerStyle ? styleToPrompt(ownerStyle) : '';
+  const keywordContext = keyword ? `\n\n[제목 키워드 — 필수] "${keyword}"를 제목 앞부분에 그대로 넣고(띄어쓰기·순서 유지) 본문에 3~5회, 해시태그에 한 번` : '';
+  const previousContext = previousDrafts.length > 0
+    ? `\n\n[이전에 쓴 글 — 같은 도입·같은 문장으로 시작하지 않는다]\n${previousDrafts.slice(0, 8).map((d, i) => `${i + 1}. ${d.title}${d.intro ? ` / 도입: ${d.intro.split(' / ').slice(0, 2).join(' / ')}` : ''}`).join('\n')}`
+    : '';
+  return `${BLOG_SYSTEM_PROMPT}${factsToPrompt(facts)}${keywordContext}${styleContext}${toneReference}${previousContext}`;
+}
+
 /**
- * 블로그 글 한 편 생성 (사전 조사 결과를 받아 작성까지). 백그라운드 작업의 "작성" 단계.
+ * 사실표로 글 한 편 (2026-11-20 재설계): 한 번 쓰고, 사실 금지 위반만 삭제 패스 1회, 나머지는 표시만. 늘리기 없음.
+ */
+export async function writeFromFacts(input: { facts: FactSheet; message: string; request: BlogRequest | null; target: Target; knownColor?: string | null; save: boolean }): Promise<WriterResult> {
+  const { facts, target } = input;
+  const systemPrompt = await buildWriterPromptFromFacts(facts, target.serviceType, target.keyword);
+  const userMsg = `${input.message}\n\n위 요청과 시스템의 [이 작업의 사실표]만으로 글을 쓰세요.`;
+  let reply = await callClaude(systemPrompt, [{ role: 'user', content: userMsg }], 8192, BLOG_WRITER_MODEL);
+  let draftResult = tryBuildDraft(reply, input.message);
+  if (!draftResult) return { reply, draft: null, checks: null, draftId: null, target: null };
+
+  const serviceType = target.serviceType;
+  const previous = input.save ? await getPreviousDrafts() : [];
+  const check = (title: string, body: string) => ({
+    violations: [...checkHardViolations(body, input.message, serviceType, input.knownColor ?? null), ...checkIntroRepeat(body, previous), ...checkLineRepeat(body, previous), ...checkKeywordDensity(body, target.keyword)],
+    facts: factCheck({ body, serviceType, product: target.product ?? undefined }),
+    format: checkFormatIssues(title, body, target.keyword),
+  });
+  let tb = splitTitleBody(reply)!;
+  let c = check(tb.title, tb.body);
+  const pureLen = (b: string) => b.replace(/\s/g, '').length;
+
+  // 사실 금지 위반·팩트 오류가 있으면 그 문장만 지우는 패스 1회 (도입·되풀이·키워드 밀도·형식은 표시만)
+  const HARD = new Set(['heat', 'quote', 'career', 'worker', 'color', 'place', 'jargon', 'unprovided', 'declare', 'careful', 'cliche']);
+  const hardIssues = [...c.violations.filter(v => HARD.has(v.rule)).map(v => v.detail), ...c.facts.map(f => `팩트 오류 — ${f.detail}`)];
+  if (hardIssues.length > 0) {
+    try {
+      const fixed = await deleteOffending(systemPrompt, reply, hardIssues, BLOG_WRITER_MODEL);
+      const f = splitTitleBody(fixed);
+      if (f && pureLen(f.body) >= pureLen(tb.body) * 0.7) {
+        const c2 = check(f.title, f.body);
+        const hardAfter = c2.violations.filter(v => HARD.has(v.rule)).length + c2.facts.length;
+        if (hardAfter < c.violations.filter(v => HARD.has(v.rule)).length + c.facts.length) { reply = fixed; tb = f; c = c2; }
+      }
+    } catch { /* 삭제 실패 시 원본 유지 */ }
+  }
+  // 시리즈50·100 글의 발수코팅 문단은 코드로 삭제
+  if (c.facts.some(f => f.rule === 'hydrophobic_50_100')) {
+    const stripped = tb.body.split(/\n\s*\n/).filter(p => !/발수/.test(p)).join('\n\n');
+    reply = `${tb.title}\n${stripped}`; tb = { title: tb.title, body: stripped }; c = check(tb.title, tb.body);
+  }
+
+  reply = normalizeTerms(reply);
+  draftResult = tryBuildDraft(reply, input.message);
+  if (!draftResult) return { reply, draft: null, checks: null, draftId: null, target: null };
+  tb = splitTitleBody(reply) || tb;
+
+  const novelty = factsNovelty(tb.body, facts, input.message);
+  const len = pureLen(tb.body);
+  const notes: string[] = ['블로그 글이 완성되었습니다.'];
+  notes.push(`사실표 ${facts.lines.length}줄로 작성${facts.edited ? ' (사장님이 고친 표)' : ''}`);
+  if (c.violations.length > 0) notes.push(`확인 필요: ${c.violations.map(v => v.detail).join(' / ')}`);
+  notes.push(c.facts.length > 0 ? `팩트체크 ${c.facts.length}건 확인 필요: ${c.facts.map(f => f.detail).join(' / ')}` : '팩트체크 통과');
+  if (novelty.length > 0) notes.push(`사실표에 없는 숫자·제품명이 글에 있음(확인): ${novelty.join(', ')}`);
+  if (len < 2500) notes.push(`분량 ${len.toLocaleString()}자 — 자동으로 늘리지 않았습니다. 사실 ${Math.ceil((2500 - len) / 250)}줄쯤 더 주시면 채웁니다`);
+  if (c.format.length > 0) notes.push(`형식: ${c.format.filter(x => !/2500|분량/.test(x)).join(' / ')}`.replace(/형식: $/, '').trim());
+
+  let draftId: string | null = null;
+  if (input.save) {
+    const saved = await savePost({
+      kind: 'draft', title: tb.title, body: tb.body,
+      car_model: target.carModel, service_type: target.serviceType, product: target.product || null,
+      region: target.region || null,
+      feedback: `사실표 ${facts.lines.length}줄${facts.unsure.length ? ` · 확인 필요 ${facts.unsure.length}` : ''}`,
+    });
+    draftId = saved?.id ?? null;
+    if (!draftId) await saveDraftFile(tb.title, tb.body);
+  }
+  return { reply: notes.filter(Boolean).join('\n'), draft: draftResult.draft, checks: { violations: c.violations, facts: c.facts, format: c.format }, draftId, target };
+}
+
+/**
+ * 블로그 글 한 편 생성 — 백그라운드 작업의 "작성" 단계.
+ * 2026-11-20 재설계: 사실표(facts)가 있으면 그것만으로 쓴다. 없으면(즉시 경로) 여기서 사실표를 만들고 확인 없이 쓴다.
  */
 export async function generateBlogPost(input: {
   message: string;
   request: BlogRequest | null;
-  research: { context: string; summary: string } | null;
+  research: { context: string; summary: string; facts?: FactSheet | null } | null;
   history?: { role: string; content: string }[];
+  facts?: FactSheet | null;
 }): Promise<WriterResult> {
   const t = resolveTarget(input.message, input.request);
   const keyword = input.request?.keyword?.trim() || extractKeyword(input.message);
   const target: Target = { carModel: t.carModel, serviceType: t.serviceType, product: t.product, region: input.request?.region || null, keyword };
-  const didInspection = /검수/.test(input.message) && !/검수(는|도)?\s*(안|하지 않|제외|빼)/.test(input.message);
-  const diffs = pickDifferentiators(target.serviceType).filter(d => d.key !== 'inspection' || didInspection);
-  const standards = pickWorkStandards(target.serviceType, `${input.request?.range || ''} ${input.request?.notes || ''} ${input.message}`, input.research?.context || '');
-  const systemPrompt = await buildBlogSystemPrompt(input.research?.context || '', target.serviceType, keyword, diffs, standards);
   const knownColor = input.request?.color?.trim() || photoColorFromContext(input.research?.context);
-  return runWriter({
-    systemPrompt,
-    model: BLOG_WRITER_MODEL,
-    history: input.history,
-    combinedMessage: input.message,
-    target,
-    researchSummary: input.research?.summary || '',
-    researchContext: input.research?.context || '',
-    save: true,
-    knownColor,
-    differentiatorNames: diffs.map(d => d.label),
-    standardNames: standards.map(st => st.part),
-  });
+  const facts = input.facts || input.research?.facts || await buildFactSheet({ message: input.message, request: input.request, researchContext: input.research?.context || '', serviceType: target.serviceType, carModel: target.carModel });
+  const result = await writeFromFacts({ facts, message: input.message, request: input.request, target, knownColor, save: true });
+  if (input.research?.summary) result.reply = `${result.reply}\n${input.research.summary}`;
+  return result;
 }
 
 /**

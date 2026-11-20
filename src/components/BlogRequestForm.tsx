@@ -172,13 +172,13 @@ export default function BlogRequestForm({ disabled, onSubmit, initial = null }: 
       </div>
 
       <div className="mb-2">
-        <label className={labelCls}>참고 메모 (선택) — 고객 요청, 까다로웠던 부위, 입고 상황 등. 여기 적은 것만 글에 반영됩니다</label>
+        <label className={labelCls}>현장 메모 (선택) — 이 차에서 시간이 간 곳, 손님이 물은 것, 발견한 것. 한 줄이라도 적으면 그게 글의 뼈대가 됩니다</label>
         <textarea
           ref={notesRef}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={initial ? 4 : 2}
-          placeholder="예: 신차 출고 직후 입고. 프론트 립 하단이 까다로웠음"
+          placeholder="예: 손님이 야간 운전이 많아 전면 30%로 / 앞유리 하단 센서 자리 재단에 시간 / 도장에 미세 스크래치 있어 미리 안내"
           className={`${inputCls} resize-none`}
         />
       </div>

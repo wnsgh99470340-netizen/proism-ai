@@ -153,7 +153,7 @@ export async function buildDailyBrief(date = todaySeoul()): Promise<DailyBrief> 
   try {
     const jobs = await listJobs(30);
     const doneToday = jobs.filter(j => j.status === 'done' && toSeoulISO(new Date(j.updated_at)) === date);
-    const running = jobs.filter(j => ['queued', 'researching', 'writing', 'channels'].includes(j.status));
+    const running = jobs.filter(j => ['queued', 'researching', 'facts', 'confirming', 'writing', 'channels'].includes(j.status));
     const titles = doneToday.map(j => j.result?.draft?.title).filter(Boolean).slice(0, 3).join(' / ');
     lines.push({
       key: 'writer', name: w('writer').name, time: '요청 시',

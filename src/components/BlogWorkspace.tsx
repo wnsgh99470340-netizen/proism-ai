@@ -163,6 +163,8 @@ export default function BlogWorkspace({ embedded = false, prefillNonce = 0 }: Bl
       const videoDone = next.filter((j) => j.result?.video?.status === 'done' && prev.some((p) => p.id === j.id && p.result?.video && p.result.video.status !== 'done'));
       const videoFailed = next.filter((j) => j.result?.video?.status === 'failed' && prev.some((p) => p.id === j.id && p.result?.video && p.result.video.status !== 'failed'));
       const newlyFailed = next.filter((j) => j.status === 'failed' && prev.some((p) => p.id === j.id && p.status !== 'failed'));
+      const newlyConfirming = next.filter((j) => j.status === 'confirming' && prev.some((p) => p.id === j.id && p.status !== 'confirming'));
+      if (newlyConfirming.length) setMessages((m) => [...m, { role: 'assistant', content: `📝 사실표가 준비됐습니다. 왼쪽 '생성 중인 글'에서 줄을 보시고 빼거나 보탠 뒤 '이대로 써'를 눌러 주세요.` }]);
       jobsRef.current = next;
       setJobs(next);
       if (justDone.length > 0) applyJobResult(justDone[0]);
@@ -198,13 +200,14 @@ export default function BlogWorkspace({ embedded = false, prefillNonce = 0 }: Bl
   // 처음 열 때 + 진행 중 작업이 있는 동안 10초마다 상태 확인
   useEffect(() => { loadJobs(); }, [loadJobs]);
   useEffect(() => {
-    const active = jobs.some((j) => ['queued', 'researching', 'writing', 'channels'].includes(j.status));
+    const active = jobs.some((j) => ['queued', 'researching', 'facts', 'writing', 'channels'].includes(j.status));
+    const confirming = jobs.some((j) => j.status === 'confirming');
     const videoActive = jobs.some((j) => {
       const r = j.result;
       return [r?.video?.status, r?.reels?.status, r?.talk?.status].some((st) => st === 'queued' || st === 'rendering');
     });
-    if (!active && !videoActive) return;
-    const t = setInterval(loadJobs, active ? 10000 : 20000);
+    if (!active && !videoActive && !confirming) return;
+    const t = setInterval(loadJobs, active ? 10000 : confirming ? 30000 : 20000);
     return () => clearInterval(t);
   }, [jobs, loadJobs]);
 
@@ -214,6 +217,12 @@ export default function BlogWorkspace({ embedded = false, prefillNonce = 0 }: Bl
   };
   const handleDeleteJob = async (id: string) => {
     await fetch(`/api/jobs?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+    loadJobs();
+  };
+  // 사실표 확정 → 작성 시작 (2026-11-20)
+  const handleConfirmJob = async (id: string, lines: string[]) => {
+    await fetch(`/api/jobs?id=${encodeURIComponent(id)}&action=confirm`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lines }) });
+    setMessages((m) => [...m, { role: 'assistant', content: `📝 사실표 ${lines.length}줄로 글을 씁니다. 4~5분 뒤 미리보기에 뜹니다.` }]);
     loadJobs();
   };
 
@@ -660,6 +669,7 @@ export default function BlogWorkspace({ embedded = false, prefillNonce = 0 }: Bl
             jobs={jobs}
             onRetryJob={handleRetryJob}
             onDeleteJob={handleDeleteJob}
+            onConfirmJob={handleConfirmJob}
             onPostsChanged={() => setPostsRefreshKey((k) => k + 1)}
             onJobsChanged={loadJobs}
             draftTarget={draftMeta ? { carModel: draftMeta.carModel, serviceType: draftMeta.serviceType, product: draftMeta.product, region: draftMeta.region } : null}

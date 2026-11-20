@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import FactSheetCard from './FactSheetCard';
 import type { BlogPost } from '@/lib/posts';
 import type { BlogJob } from '@/lib/jobs';
 
@@ -13,11 +14,14 @@ interface Props {
   jobs: BlogJob[];
   onRetryJob: (id: string) => void;
   onDeleteJob: (id: string) => void;
+  onConfirmJob: (id: string, lines: string[]) => Promise<void> | void;
 }
 
 const JOB_STATUS_LABEL: Record<string, string> = {
   queued: '⏳ 접수됨 · 곧 시작',
-  researching: '🔎 차량 구조·시공 사례 조사 중',
+  researching: '🔎 조사 중 (차종 구조·사장님 글·사진)',
+  facts: '🧾 사실표 만드는 중 (1분)',
+  confirming: '📝 사실표 확인 대기 — 보시고 "이대로 써"',
   writing: '✍️ 글 작성 중',
   channels: '📸 인스타·카페 버전 만드는 중',
   failed: '⚠️ 실패',
@@ -50,7 +54,7 @@ function fmtDate(iso?: string) {
  * 저장된 글 목록 (Supabase blog_posts)
  * - 사이트에 들어오면 자동으로 불러오고, 누르면 미리보기에 다시 띄운다
  */
-export default function SavedPosts({ refreshKey, activeId, onOpen, jobs, onRetryJob, onDeleteJob }: Props) {
+export default function SavedPosts({ refreshKey, activeId, onOpen, jobs, onRetryJob, onDeleteJob, onConfirmJob }: Props) {
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(true);
@@ -100,6 +104,8 @@ export default function SavedPosts({ refreshKey, activeId, onOpen, jobs, onRetry
                     <button onClick={() => onRetryJob(j.id)} className="text-[10px] text-gold hover:underline shrink-0">다시 시도</button>
                     <button onClick={() => onDeleteJob(j.id)} className="text-[var(--c-text-4)] hover:text-danger text-xs px-1 shrink-0" title="삭제">✕</button>
                   </>
+                ) : j.status === 'confirming' ? (
+                  <button onClick={() => onDeleteJob(j.id)} className="text-[var(--c-text-4)] hover:text-danger text-xs px-1 shrink-0" title="이 작업 취소">✕</button>
                 ) : (
                   <span className="w-2 h-2 rounded-full bg-gold animate-pulse shrink-0" />
                 )}
@@ -108,8 +114,11 @@ export default function SavedPosts({ refreshKey, activeId, onOpen, jobs, onRetry
                 {JOB_STATUS_LABEL[j.status] || j.status}
                 {j.status === 'failed' && j.error ? ` — ${j.error.slice(0, 120)}` : ''}
               </div>
-              {j.status !== 'failed' && (
-                <div className="text-[10px] text-[var(--c-text-3)] mt-0.5">앱을 닫아도 서버에서 계속 진행됩니다. 보통 4~6분 걸립니다.</div>
+              {j.status === 'confirming' && j.research?.facts && (
+                <FactSheetCard facts={j.research.facts} onConfirm={(lines) => onConfirmJob(j.id, lines)} onDelete={() => onDeleteJob(j.id)} />
+              )}
+              {j.status !== 'failed' && j.status !== 'confirming' && (
+                <div className="text-[10px] text-[var(--c-text-3)] mt-0.5">앱을 닫아도 서버에서 계속 진행됩니다. 조사 4~5분 뒤 사실표가 오면 확인해 주세요.</div>
               )}
             </div>
           ))}
