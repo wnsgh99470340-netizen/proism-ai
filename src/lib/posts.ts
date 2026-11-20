@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { isOwnerVoiceTitle } from '@/config/owner-voice-posts';
 
 /**
  * 사장님 글 데이터베이스 (Supabase blog_posts 테이블)
@@ -190,4 +191,16 @@ export async function ownerPostsForCar(carModel: string, serviceType: string, hi
 ${top.map((x, i) => `[사장님 글 ${i + 1}] ${x.p.title} (${x.p.created_at?.slice(0, 10) || ''}, ${x.p.service_type || '-'})\n${body(x.p)}`).join('\n\n')}${others.length ? `\n\n그 밖의 같은 차종·브랜드 글 제목: ${others.map(x => x.p.title).join(' / ')}` : ''}`;
   const summary = `사장님 글 참고: 같은 차종·브랜드 ${scored.length}편 중 전문 ${top.length}편 — ${top.map(x => x.p.title).join(' / ')}`;
   return { context, summary, count: scored.length };
+}
+
+/**
+ * 말투 참고 — 사장님이 직접 쓴 FAQ·공지 글 중 무작위 n편 (2026-11-20 사장님 "FAQ나 공지글 참고해").
+ * 시공기는 실장·AI 글이 섞여 있어 말투 기준에서 뺀다. 목록은 src/config/owner-voice-posts.ts
+ */
+export async function ownerVoiceReference(n = 2): Promise<string> {
+  const owners = await listPosts('owner', 400);
+  const pool = owners.filter(p => isOwnerVoiceTitle(p.title) && p.body.replace(/\s/g, '').length >= 1500);
+  if (pool.length === 0) return '';
+  const picked = pickRandom(pool, n);
+  return `\n\n[사장님이 직접 쓴 글 ${picked.length}편 — 말투·호흡·독자에게 말 거는 방식만 참고. 주제·주장·문장은 가져오지 않는다]\n${picked.map((p, i) => `[사장님 글 ${i + 1}] ${p.title}\n${excerpt(p.body.replace(/\[사진\s*\d+\]/g, '').trim(), 2500)}`).join('\n\n')}`;
 }

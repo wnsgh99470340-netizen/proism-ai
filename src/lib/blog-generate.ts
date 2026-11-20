@@ -12,7 +12,7 @@ import type { BlogRequest } from '@/config/blog-options';
 import { factCheck, type FactIssue } from './fact-check';
 import { photoColorFromContext } from './photo-check';
 import { getOwnerStyle, styleToPrompt } from './owner-style';
-import { savePost, listPosts, getPost, updatePost } from './posts';
+import { savePost, listPosts, getPost, updatePost, ownerVoiceReference } from './posts';
 import { BLOG_SYSTEM_PROMPT } from '@/config/prompts';
 import { buildFactSheet, factsToPrompt, factsNovelty, type FactSheet } from './facts';
 import { extractTagsFromTitle, textToHtml } from './draft-format';
@@ -562,8 +562,9 @@ ${original}
 
 /** 사실표만으로 쓰는 작성 프롬프트: 규칙 + 사실표 + 제목 키워드 + 사장님 어휘 + 사장님 글(말투) + 이전 글 제목·도입 */
 export async function buildWriterPromptFromFacts(facts: FactSheet, serviceType: string, keyword?: string | null, refs: ReferencePost[] = []): Promise<string> {
-  const [ownerStyle, previousDrafts] = await Promise.all([getOwnerStyle(), getPreviousDrafts()]);
-  const toneReference = refsToPrompt(refs, 'writer'); // 2026-11-20 사장님: 무작위 사장님 글 대신 붙여 준 링크만
+  const [ownerStyle, previousDrafts, voiceRef] = await Promise.all([getOwnerStyle(), getPreviousDrafts(), ownerVoiceReference(2)]);
+  // 말투 참고 = 사장님이 붙인 링크(있으면) + 사장님이 직접 쓴 FAQ·공지 글 2편 (2026-11-20 "FAQ나 공지글 참고해")
+  const toneReference = `${refsToPrompt(refs, 'writer')}${voiceRef}`;
   const styleContext = ownerStyle ? styleToPrompt(ownerStyle) : '';
   const keywordContext = keyword ? `\n\n[제목 키워드 — 필수] "${keyword}"를 제목 앞부분에 그대로 넣고(띄어쓰기·순서 유지) 본문에 3~5회, 해시태그에 한 번` : '';
   const previousContext = previousDrafts.length > 0
