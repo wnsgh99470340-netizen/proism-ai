@@ -96,12 +96,12 @@ JSON 한 개로만 답하세요:
     body && body !== '불확실' ? `- 차체 형태: ${body} (조사 자료에 다른 차체가 섞여 있어도 이것을 따른다. 도어 수·루프 구조를 다르게 쓰지 않는다)` : '',
     roof && roof !== '안 보임' ? `- 루프: ${roof}${/글라스|선루프|카본/.test(roof) ? ' (루프에 필름을 올리는 묘사 금지)' : ''}` : '',
     panels.length ? `- 보이는 부위: ${panels.join(', ')}` : '',
-    scenes.length ? `- 장면(이 글의 몸통. 글은 이 장면들을 따라간다 — 장면이 있는 일은 그 장면으로 쓰고, 사진에 없는 과정은 일반 설명으로 채우지 않는다. [사진 N]은 아래 번호 순서로 두고 그 사진에서 보이는 것을 그 자리에 쓴다):\n  ${scenes.join('\n  ')}` : '',
+    scenes.length ? `- 장면(이 글의 재료. 장면이 있는 일은 그 장면으로 쓰고, 사진에 없는 과정은 일반 설명으로 채우지 않는다. 사진 배치는 대표가 직접 하니 글에 사진 번호를 쓰지 않는다):\n  ${scenes.join('\n  ')}` : '',
     notes.length ? `- 참고: ${notes.join(' / ')}` : '',
     unsure.length ? `- 불확실(쓰지 않기): ${unsure.join(' / ')}` : '',
   ].filter(Boolean).join('\n');
-  const summary = `📷 사진 ${photos.length}장 확인 — 차량 색상 ${color}${body && body !== '불확실' ? `, 차체 ${body}` : ''}${panels.length ? `, 보이는 부위 ${panels.slice(0, 5).join('·')}` : ''}`
-    + (scenes.length ? `\n사진 순서(글의 [사진 N] = 이 순서, 올리실 때 참고): ${scenes.map(s => s.replace(/^(\d+)번\(폴더 \d+번째 ([^)]+)\): (.*)$/, '$1 $2 · $3')).join(' / ')}` : '');
+  // 2026-11-20 사장님 "규칙에서 사진도 빼, 사진은 알아서 넣을 테니까": 글에 사진 번호를 안 쓰므로 순서 줄도 안 보여 준다
+  const summary = `📷 사진 ${photos.length}장 확인 — 차량 색상 ${color}${body && body !== '불확실' ? `, 차체 ${body}` : ''}${panels.length ? `, 보이는 부위 ${panels.slice(0, 5).join('·')}` : ''}`;
   return { count: photos.length, sampled: images.length, color, car, body, roof, panels, scenes, notes, unsure, context, summary };
 }
 

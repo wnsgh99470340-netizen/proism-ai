@@ -227,8 +227,6 @@ export function checkFormatIssues(title: string, body: string, keyword?: string 
   if (pureLen < MIN_BODY_CHARS) {
     issues.push(`분량 부족: 공백 제외 ${pureLen}자 → 2,500자 이상으로 보강. 시공 과정·마감·관리 안내를 더 구체적으로 풀고, 차량 소개는 늘리지 말 것`);
   }
-  const photos = (body.match(/\[사진\s*\d+\]/g) || []).length;
-  if (photos < 10) issues.push(`[사진 N] 태그 ${photos}개 → 10개 이상으로`);
   if (title.length < MIN_TITLE_CHARS) {
     issues.push(`제목 ${title.length}자로 짧음 → 20~25자로 ("[지역] [차종] [서비스]"에 핵심 포인트 한 가지 덧붙이기)`);
   }
@@ -268,7 +266,6 @@ async function expandDraft(systemPrompt: string, original: string, currentLen: n
 - 지금 있는 문장·흐름·도입·마무리는 그대로 두고, 그 사이를 채웁니다
 - 늘리는 재료: 이미 글에 나온 부위·공정을 "왜 그렇게 하는지 → 실제로 어떻게 했는지 → 그 결과 어떻게 보이는지"로 더 풀기, 관리 안내를 상황별로 한두 장면 더, 작업 설명을 읽는 분 조건으로 바꾼 문장 한두 개
 - 금지: 요청·[사진 확인 결과]·팩트 표에 없는 새 부위·스펙·고객 사정·작업 디테일을 만들어 넣기, 차량 스펙·디자인 소개로 채우기, 자격·차별점·자랑 추가, 같은 말 되풀이
-- [사진 N] 태그는 늘어난 본문에 맞춰 사이사이에 두 줄 이상 간격으로 다시 배치(10개 이상)
 
 [원본]
 ${original}
