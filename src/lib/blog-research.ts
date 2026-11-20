@@ -74,7 +74,7 @@ export function extractServiceType(message: string): string {
   return '시공';
 }
 
-const RESEARCH_MAX_SEARCHES = 12;    // 2026-11-20 사장님 "조사는 차종만": 차량 구조 조사에만 쓴다
+const RESEARCH_MAX_SEARCHES = 18;    // 2026-11-20 사장님 "받아 적을 거면 묻지 말고 제대로 조사해": 차종 구조 8 + 제품 공식 정보 5 + 시공 일반 지식 5
 const NAVER_POST_FETCH_LIMIT = 6;     // 본문까지 읽을 네이버 블로그 글 수
 const NAVER_POST_MAX_CHARS = 2500;    // 글당 발췌 글자 수
 
@@ -255,15 +255,17 @@ export function refsToPrompt(refs: ReferencePost[], purpose: 'facts' | 'writer')
 }
 
 /**
- * 블로그 글 작성 전 웹 검색 리서치 — 차종 구조만 (2026-11-20 사장님 "조사는 차종만 들어가")
- * 다른 매장 사례 검색·무작위 사장님 글 찾기는 뺐다. 참고할 글은 사장님이 링크로 붙인다(fetchReferencePosts)
+ * 블로그 글 작성 전 웹 검색 리서치 (2026-11-20 재설계 두 번째):
+ *  A 차종 구조 / B 요청에 적힌 제품의 공식 정보(제조사·공식 수입사 페이지) / C 이 시공에 대한 일반 지식(근거 있는 것만)
+ * 다른 매장 시공 사례는 찾지 않는다(그 매장이 한 일이 우리 글에 옮겨 적히던 일). 참고할 글은 사장님이 링크로 붙인다.
+ * 사장님께는 조사로 알 수 없는 것(손님이 원한 것·결정·실제 한 것)만 묻는다 — "받아 적을 거면 묻지 말고 제대로 조사해"
  */
 export async function researchForBlogPost(
   userMessage: string,
   carModel: string,
   serviceType: string,
 ): Promise<{ context: string; summary: string }> {
-  const researchPrompt = `아래 블로그 작성 요청을 위해 웹 검색으로 차량 구조를 조사해 주세요. 시공 사례·다른 매장 글은 찾지 않습니다.
+  const researchPrompt = `아래 블로그 작성 요청을 위해 웹 검색으로 세 가지를 조사해 주세요: A 차량 구조, B 요청에 적힌 제품의 공식 정보, C 이 시공에 대한 일반 지식. 다른 매장의 시공 사례·시공기는 찾지 않습니다.
 
 [작성 요청 원문]
 ${userMessage}
@@ -273,10 +275,10 @@ ${userMessage}
 - 시공 종류: ${serviceType}
 
 ## 검색 예산
-- 웹 검색은 최대 ${RESEARCH_MAX_SEARCHES}회. 한국어·영어를 섞어 쓰고, 한 번에 여러 키워드를 묶어 검색하세요 (예: "${carModel} 앞범퍼 번호판 그릴 구조", "${carModel} panoramic roof spoiler mirror")
+- 웹 검색은 최대 ${RESEARCH_MAX_SEARCHES}회: A 차량 구조에 8회, B 제품 공식 정보에 5회, C 시공 일반 지식에 5회쯤. 한국어·영어를 섞어 쓰고, 한 번에 여러 키워드를 묶어 검색하세요 (예: "${carModel} 앞범퍼 번호판 그릴 구조", "${carModel} panoramic roof spoiler mirror", "루마 버텍스 900 공식 스펙 비금속 IR")
 - 예산을 다 쓰면 멈추고 찾은 것만 정리합니다
 
-## 조사 항목 — 차량 형상·구조 (현행 세대 기준, 세대/코드명 명시. 국내 사양이 다르면 그것도)
+## A. 차량 형상·구조 (현행 세대 기준, 세대/코드명 명시. 국내 사양이 다르면 그것도)
 1. 세대·코드명·출시연도
 2. 번호판 위치 (앞: 범퍼/그릴, 뒤: 트렁크/범퍼)
 3. 앞범퍼 구조 (그릴 형태, 에어인테이크, 안개등, 센서·카메라 위치, 립 유무)
@@ -290,6 +292,16 @@ ${userMessage}
 11. 유리 (앞유리 곡률·센서 자리, 뒷유리 크기·열선, 쿼터 글라스 유무, 순정 프라이버시 글라스 여부)
 12. 이 차종만의 특이 구조와 외장 재질 특이점
 
+## B. 요청에 적힌 제품의 공식 정보 (제조사·공식 수입사·공식 대리점 페이지에서만. 블로그·쇼핑몰 설명은 출처로 쓰지 않는다)
+- 대상: 요청 원문에 이름이 나온 필름·코팅 제품 전부 (예: 루마 버텍스 900, 레인보우 IS200, 3M 시리즈50, 3M 크리스탈라인, 3M 2080, PWF)
+- 정리할 것: 제품 종류(금속/비금속/세라믹/반사 여부), 열차단·적외선·자외선·가시광선 수치(공식 페이지 숫자만, 없으면 "공식 수치 없음"), 전파 간섭 여부, 두께·셀프힐링·보증 같은 공식 특징, 제조사가 쓰는 소개 문구 한 줄
+- 공식 페이지에서 확인 못 한 것은 적지 않거나 "확인 안 됨"
+
+## C. 이 시공(${serviceType})에 대한 일반 지식 — 공개 자료에 근거 있는 것만 (3~6개)
+- 손님이 이 시공을 알아볼 때 자주 묻는 것과 그 답. 예: 썬팅이면 농도 숫자의 뜻, 전면 농도와 야간·우천 시인성, 열성형을 왜 하는지, 이 차종 루프 유리(파노라마·글라스 루프)에 썬팅 대신 다른 방법을 쓰는 이유 / PPF면 습식과 건식, 셀프힐링 조건, 판시공과 재단의 차이 / 랩핑이면 관리법 등
+- 각 항목에 출처를 붙인다. 프로이즘 방식과 다른 일반론(예: PPF 에 열·오버랩)은 적지 않는다
+- 법규(앞유리 70%·옆유리 40% 가시광선 투과율 기준 등)는 공식 출처가 있을 때만
+
 ## 출력 형식 (이 형식 그대로)
 
 [차량 기본 정보]
@@ -298,6 +310,14 @@ ${userMessage}
 [외관 구조]
 1. 번호판: ...
 (12개 항목 모두, 확인 안 되면 "확인 안 됨")
+
+[제품 공식 정보]
+- 제품명 / 사실 / 출처 URL
+- ...
+
+[이 시공에 대한 일반 지식 — 근거 있는 것만]
+- 질문 → 답 / 출처
+- ...
 
 [참고한 출처] (제목 — URL)
 - ...
@@ -308,17 +328,19 @@ ${userMessage}
   try {
     const result = await researchWithWebSearch(RESEARCH_SYSTEM_PROMPT, researchPrompt, { maxSearches: RESEARCH_MAX_SEARCHES });
     if (!result.text) throw new Error('empty research');
-    const context = `[차종 구조 조사 — 웹 검색 ${result.searchCount}회: ${carModel}]
+    const context = `[사전 조사 — 웹 검색 ${result.searchCount}회: ${carModel} 구조 · 제품 공식 정보 · ${serviceType} 일반 지식]
 ${result.text}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 위 조사 활용 규칙
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 - 구조 정보는 부위 묘사의 근거로만. "확인 안 됨"은 있다고도 없다고도 쓰지 않는다
+- [제품 공식 정보]에 있는 제품 사실은 써도 된다(공식 페이지 확인). 거기 없는 수치·소재는 쓰지 않는다
+- [일반 지식]은 이 차의 작업과 연결될 때만, 강의처럼 길게 풀지 않는다
 - 차량 소개는 두세 줄까지. 세대·출력·크기·디자인 평가로 본문을 채우지 않는다
 - 출처 URL·매체 이름은 본문에 넣지 않는다
 - 사장님이 알려준 정보와 조사가 다르면 사장님 정보가 우선`;
-    const summary = `사전 조사: 웹 검색 ${result.searchCount}회로 ${carModel} 구조를 확인했습니다.`;
+    const summary = `사전 조사: 웹 검색 ${result.searchCount}회 — ${carModel} 구조, 제품 공식 정보, ${serviceType} 일반 지식`;
     return { context, summary };
   } catch (err) {
     console.warn('[research] 웹 검색 실패:', err);

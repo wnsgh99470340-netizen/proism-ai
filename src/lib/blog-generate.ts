@@ -590,7 +590,8 @@ export async function writeFromFacts(input: { facts: FactSheet; message: string;
   const provided = `${input.message}\n${facts.lines.map(l => l.text).join('\n')}`;
   const check = (title: string, body: string) => ({
     violations: [...checkHardViolations(body, provided, serviceType, input.knownColor ?? null), ...checkIntroRepeat(body, previous), ...checkLineRepeat(body, previous), ...checkKeywordDensity(body, target.keyword)],
-    facts: factCheck({ body, serviceType, product: target.product ?? undefined }),
+    // 열차단·IR 수치 등은 사실표(조사 공식 정보·사장님 메모)에 있으면 지어낸 게 아니다
+    facts: factCheck({ body, serviceType, product: target.product ?? undefined }).filter(f => !(/열\s*차단|적외선|IR|자외선|가시광선|비금속|세라믹/.test(f.detail) && /\d\s*%|비금속|세라믹|전파/.test(provided))),
     format: checkFormatIssues(title, body, target.keyword),
   });
   let tb = splitTitleBody(reply)!;
