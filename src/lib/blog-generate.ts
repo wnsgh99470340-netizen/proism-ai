@@ -311,7 +311,7 @@ export function checkIntroRepeat(body: string, previous: PreviousPost[]): Violat
   const prevIntro = new Set(previous.flatMap(p => p.intro.split(' / ')).map(normLine).filter(x => x.length >= 10));
   const prevClosing = new Set(previous.flatMap(p => p.closing.split(' / ')).map(normLine).filter(x => x.length >= 12));
 
-  const opening = lines.slice(0, 4);
+  const opening = lines.slice(0, 4).filter(l => !FIXED_LINE_RE.test(l));
   // "완성된 모습부터"의 변형("바뀐 뒤의 모습을 먼저 보시고", "먼저 보여드리고 시작")까지 잡는다 (2026-11-13 4시리즈 PWF 글)
   const stock = opening.find(l => /완성된?\s*모습|완성\s*(사진|컷|모습)?\s*부터|먼저\s*보(시|여)|뒤의\s*모습|바뀐\s*모습/.test(l));
   const hit = stock || opening.find(l => normLine(l).length >= 10 && prevIntro.has(normLine(l)));
@@ -585,8 +585,10 @@ export async function writeFromFacts(input: { facts: FactSheet; message: string;
 
   const serviceType = target.serviceType;
   const previous = input.save ? await getPreviousDrafts() : [];
+  // 검사의 '요청' 기준은 요청문 + 확정 사실표 (사장님이 표에 보탠 농도·제품이 '요청에 없음'으로 잡히지 않게)
+  const provided = `${input.message}\n${facts.lines.map(l => l.text).join('\n')}`;
   const check = (title: string, body: string) => ({
-    violations: [...checkHardViolations(body, input.message, serviceType, input.knownColor ?? null), ...checkIntroRepeat(body, previous), ...checkLineRepeat(body, previous), ...checkKeywordDensity(body, target.keyword)],
+    violations: [...checkHardViolations(body, provided, serviceType, input.knownColor ?? null), ...checkIntroRepeat(body, previous), ...checkLineRepeat(body, previous), ...checkKeywordDensity(body, target.keyword)],
     facts: factCheck({ body, serviceType, product: target.product ?? undefined }),
     format: checkFormatIssues(title, body, target.keyword),
   });
