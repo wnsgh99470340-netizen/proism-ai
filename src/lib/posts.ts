@@ -145,3 +145,49 @@ export async function buildToneReference(_serviceType?: string): Promise<string>
   // 2026-11-20 정리: "교정 피드백 — 반드시 반영" 블록은 뺐다(final 의 feedback 이 수정 이력 창고가 되어 2.6K 가 매 글에 들어가고 있었음)
   return `\n\n[사장님 글 ${samples.length}편 — 말투·호흡·문단 길이만 참고. 문장과 차량·제품·사실은 가져오지 않는다]\n${sampleText}`;
 }
+
+/** 차종 문자열에서 브랜드와 모델 토큰을 나눈다 ("아우디 Q7" → 아우디 / Q7) */
+const BRANDS = ['아우디', 'BMW', '벤츠', '메르세데스', '포르쉐', '테슬라', '제네시스', '현대', '기아', '랜드로버', '레인지로버', '벤틀리', '마세라티', '볼보', '렉서스', '토요타', '폭스바겐', '미니', '람보르기니', '페라리', '롤스로이스', '쉐보레', '지프', '링컨', '캐딜락', '푸조', '재규어'];
+export function splitCarModel(carModel: string): { brand: string | null; model: string } {
+  const t = carModel.trim();
+  const brand = BRANDS.find(b => t.toLowerCase().startsWith(b.toLowerCase())) || null;
+  const model = brand ? t.slice(brand.length).trim() : t;
+  return { brand, model };
+}
+
+/**
+ * 조사 단계에서 사장님이 같은 차종(없으면 같은 브랜드)·같은 시공에 대해 전에 쓴 글을 찾는다 (2026-11-20 사장님:
+ * "조사에서 차종이랑 내가 쓴 글을 찾아보고 작성하라고 했을 텐데" — 그동안 조사는 roice_ 를 일부러 빼고 말투용 무작위 3편만 썼음).
+ * AI 가 쓴 글은 제외. 점수: 모델 토큰 일치 3, 브랜드 1, 같은 시공 2. 상위 2편 전문(3,000자) + 나머지 제목
+ */
+export async function ownerPostsForCar(carModel: string, serviceType: string, hint = ''): Promise<{ context: string; summary: string; count: number }> {
+  // 요청문에 적힌 제품·부위 말(레인보우·IS200·크리스탈라인·본넷 …)이 제목에도 있으면 가산 — 같은 제품을 다룬 글이 먼저 오게
+  const hintTokens = Array.from(new Set((hint.match(/[A-Za-z0-9]{3,}|[가-힣]{2,}/g) || []).filter(t => !/^(시공기|써줘|사진|폴더|부위|이것만|않기|지정|전면|측면|후면|작성)$/.test(t))));
+  const { brand, model } = splitCarModel(carModel);
+  if (!brand && !model) return { context: '', summary: '', count: 0 };
+  const [owners, finals, drafts] = await Promise.all([listPosts('owner', 400), listPosts('final', 40), listPosts('draft', 60)]);
+  const aiIdx = aiPostIndex([...finals, ...drafts]);
+  const svc = serviceType.replace(/\(.*\)/, '');
+  const modelRe = model ? new RegExp(model.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s*'), 'i') : null;
+  const scored = owners
+    .filter(p => !looksAiWritten(p, aiIdx))
+    .map(p => {
+      const hay = `${p.title} ${p.car_model || ''}`;
+      let score = 0;
+      if (modelRe && modelRe.test(hay)) score += 3;
+      if (brand && hay.includes(brand)) score += 1;
+      if (svc && (p.service_type || '').includes(svc)) score += 2;
+      score += Math.min(2, hintTokens.filter(t => p.title.includes(t)).length);
+      return { p, score };
+    })
+    .filter(x => x.score >= 3 || (x.score >= 1 && brand && x.p.title.includes(brand)))
+    .sort((a, b) => b.score - a.score || (b.p.created_at || '').localeCompare(a.p.created_at || ''));
+  if (scored.length === 0) return { context: '', summary: '', count: 0 };
+  const top = scored.slice(0, 2);
+  const others = scored.slice(2, 8);
+  const body = (p: BlogPost) => excerpt(p.body.replace(/\[사진\s*\d+\]/g, '').trim(), 3000);
+  const context = `[사장님이 같은 차종·브랜드에 대해 전에 쓴 글 ${scored.length}편 — 여기 적힌 제품 설명·관리 안내·부위 이름·판단은 사실로 가져와도 된다. 단 그 차에서 한 작업을 이 차에서 한 것으로 옮기지는 않는다]
+${top.map((x, i) => `[사장님 글 ${i + 1}] ${x.p.title} (${x.p.created_at?.slice(0, 10) || ''}, ${x.p.service_type || '-'})\n${body(x.p)}`).join('\n\n')}${others.length ? `\n\n그 밖의 같은 차종·브랜드 글 제목: ${others.map(x => x.p.title).join(' / ')}` : ''}`;
+  const summary = `사장님 글 참고: 같은 차종·브랜드 ${scored.length}편 중 전문 ${top.length}편 — ${top.map(x => x.p.title).join(' / ')}`;
+  return { context, summary, count: scored.length };
+}

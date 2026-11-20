@@ -195,11 +195,11 @@ export function pickDifferentiators(serviceType: string, previousKeys: string[] 
   const preferred = pool.filter(d => fits(d) && !previousKeys.includes(d.key));
   const rest = pool.filter(d => !preferred.includes(d) && !previousKeys.includes(d.key));
   const shuffle = <T,>(a: T[]) => [...a].sort(() => Math.random() - 0.5);
-  return [...shuffle(preferred), ...shuffle(rest), ...shuffle(pool)].filter((d, i, arr) => arr.indexOf(d) === i).slice(0, 2);
+  return [...shuffle(preferred), ...shuffle(rest), ...shuffle(pool)].filter((d, i, arr) => arr.indexOf(d) === i).slice(0, 3);
 }
 
 export function differentiatorPrompt(picked: Differentiator[]): string {
   if (picked.length === 0) return '';
   const lines = picked.map(d => `- ${d.label}: ${d.fact} (${d.fitsIn})`);
-  return `\n\n[프로이즘이 다른 이유 — 이번 글에 녹일 사실]\n자기소개는 "${SIGNATURE_LINE}" 한 줄로 쓴다(자격 줄·경력 연수·"제가 직접" 금지).\n아래 사실 중 글 흐름에 맞는 것을 1~2곳에서 작업 설명 안에 녹인다. "저희는 ~합니다"식 선언·나열로 모아 쓰지 않고, 왜 그렇게 하는지와 함께 한 문단 안에서 말한다. 적힌 문장 밖의 숫자·고유명사는 만들지 않는다.\n${lines.join('\n')}`;
+  return `\n\n[프로이즘에 맡겨야 하는 이유 — 글 안에 사실로 들어간다]\n자기소개는 "${SIGNATURE_LINE}" 한 줄로 쓴다(자격 줄·경력 연수·"제가 직접" 금지).\n읽는 사람이 이 글을 보고 여기에 맡기고 싶어져야 한다. 아래 사실 중 2~3개를 작업 장면 안에서 "왜 그렇게 하는지"와 함께 쓰고, 마무리 전에 "여기에 맡기면 무엇이 다른가"를 사실로 정리한 문단 하나를 둬도 된다. 최상급·비교("다른 데와 달리")·"저희만" 선언은 쓰지 않고, 무엇을 어떻게 하는지로 보여 준다. 적힌 문장 밖의 숫자·고유명사는 만들지 않는다.\n${lines.join('\n')}`;
 }
