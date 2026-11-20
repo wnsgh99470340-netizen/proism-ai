@@ -113,6 +113,9 @@ export function checkHardViolations(body: string, userInput: string, serviceType
   // 0-0-1. 선언형 표현 (2026-11-18 사장님 "뭐든 너무 노골적으로 표현하지 않았으면"): 기준 사전을 옮겨 적은 티가 나는 문장
   const declare = body.match(/[^\n]{0,14}(?:원칙(?:으로|입니다|이라서|이기)|노하우|저희만|우리만|어디서도\s*못)[^\n]{0,8}/);
   if (declare) v.push({ rule: 'declare', detail: `선언형 표현 "${declare[0].trim()}" → 그 문장은 빼거나, 그 자리에서 실제로 한 일(장면)로 바꾸기` });
+  // 글이 글 자신을 설명하는 문장·멋 부린 도입 (2026-11-20 사장님 "30 그리고 15 … 장난하냐")
+  const meta = body.match(/[^\n]*(적어\s*보겠습니다|정리하겠습니다|이야기부터\s*시작하겠습니다|뒤에서\s*다시\s*(하|말씀드리)겠습니다|적는\s*이유가\s*있습니다|숫자로\s*줄이면|순서대로\s*적은\s*기록|차례대로\s*적|기록입니다)[^\n]*/);
+  if (meta) v.push({ rule: 'meta', detail: `글 자체를 설명하는 문장 "${meta[0].trim().slice(0, 40)}" (삭제)` });
 
   // 0-0. 부품 용어
   const jargon = body.match(JARGON_RE);
@@ -599,7 +602,7 @@ export async function writeFromFacts(input: { facts: FactSheet; message: string;
   const pureLen = (b: string) => b.replace(/\s/g, '').length;
 
   // 사실 금지 위반·팩트 오류가 있으면 그 문장만 지우는 패스 1회 (도입·되풀이·키워드 밀도·형식은 표시만)
-  const HARD = new Set(['heat', 'quote', 'career', 'worker', 'color', 'place', 'jargon', 'unprovided', 'declare', 'careful', 'cliche']);
+  const HARD = new Set(['heat', 'quote', 'career', 'worker', 'color', 'place', 'jargon', 'unprovided', 'declare', 'careful', 'cliche', 'meta']);
   const hardIssues = [...c.violations.filter(v => HARD.has(v.rule)).map(v => v.detail), ...c.facts.map(f => `팩트 오류 — ${f.detail}`)];
   if (hardIssues.length > 0) {
     try {
