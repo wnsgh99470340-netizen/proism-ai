@@ -187,8 +187,10 @@ export const DIFFERENTIATORS: Differentiator[] = [
 export const confirmedDifferentiators = () => DIFFERENTIATORS.filter(d => d.status === 'confirmed');
 
 /** 이번 글에 쓸 차별점 1~2개 고르기 (시공 종류에 맞는 것 우선, 나머지는 무작위) */
+/** 썬팅은 출장 작업자가 하므로(글에 작업자 언급 금지) 누가·어떤 교육을 받고 작업하는지 류의 차별점은 뺀다 (2026-11-20 모델Y 글에 '한 사람이 책임'·'교육 마친 사람만 시공'이 들어간 일) */
+const WORKER_KEYS = new Set(['trained_only', 'owner_voice_responsibility', 'owner_voice_film', 'owner_voice_standard', 'product_understanding', 'trainer_coowner', 'process_ppf']);
 export function pickDifferentiators(serviceType: string, previousKeys: string[] = []): Differentiator[] {
-  const pool = confirmedDifferentiators();
+  const pool = confirmedDifferentiators().filter(d => !(/썬팅|틴팅/.test(serviceType) && WORKER_KEYS.has(d.key)));
   const fits = (d: Differentiator) =>
     (/신차/.test(serviceType) && /신차|여러 시공/.test(d.fitsIn)) ||
     (/PPF|PWF/.test(serviceType) && /PPF/.test(d.fitsIn));

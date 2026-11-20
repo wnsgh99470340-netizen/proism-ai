@@ -62,7 +62,9 @@ const SCOPE_GROUPS: { name: string; scene: RegExp; request: RegExp }[] = [
   { name: '신차검수', scene: /진단기|스캐너|도막|두께\s*측정|열화상|배터리/, request: /검수/ },
   { name: '휠·캘리퍼 작업', scene: /휠\s*(에|을|필름|도색)|캘리퍼/, request: /휠|캘리퍼/ },
 ];
-function flagOutOfScope(scenes: string[], requestText: string): { scenes: string[]; out: string[] } {
+function flagOutOfScope(scenes: string[], rawRequest: string): { scenes: string[]; out: string[] } {
+  // "루프 유리는 요청에 없음"처럼 부정하는 절은 지우고 본다 (2026-11-20 모델Y: '루프'라는 글자 때문에 루프 장면이 범위 안으로 통과)
+  const requestText = rawRequest.split(/\n|[.。]/).filter(l => !/(없음|없다|없습니다|안\s*함|안\s*했|하지\s*않|제외|아님|아니|빼|금지|않기)/.test(l)).join('\n');
   if (!requestText.trim()) return { scenes, out: [] };
   const out: string[] = [];
   const marked = scenes.map((s, i) => {
