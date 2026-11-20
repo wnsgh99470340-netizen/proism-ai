@@ -138,7 +138,7 @@ export function checkHardViolations(body: string, userInput: string, serviceType
   if (known) {
     // 2026-11-13: 컬러PPF·랩핑은 "블루 도장 위에 매트블랙"처럼 원색과 필름색이 한 줄에 같이 나오므로, 원색이 함께 적힌 줄은 잡지 않는다
     const knownRe = COLOR_GROUPS.find(([, name]) => name === known)?.[0];
-    const bad = body.split('\n').find(l => !/2080|글로스|피아노|트림|몰딩|휠|필름|캘리퍼|실내|그릴|랩핑|크롬|투톤|올라가|올린|감싸/.test(l) && !(knownRe && knownRe.test(l)) && colorGroup(l) && colorGroup(l) !== known);
+    const bad = body.split('\n').find(l => !/2080|글로스|피아노|트림|몰딩|휠|필름|캘리퍼|실내|그릴|랩핑|크롬|투톤|올라가|올린|감싸|블랙박스|플레이트|소프트톱|시트|가죽/.test(l) && !(knownRe && knownRe.test(l)) && colorGroup(l) && colorGroup(l) !== known);
     if (bad) v.push({ rule: 'color', detail: `차량 색상은 ${known}인데 다른 색으로 서술: "${bad.trim().slice(0, 30)}"` });
   }
 
@@ -622,7 +622,8 @@ export async function generateBlogPost(input: {
   const t = resolveTarget(input.message, input.request);
   const keyword = input.request?.keyword?.trim() || extractKeyword(input.message);
   const target: Target = { carModel: t.carModel, serviceType: t.serviceType, product: t.product, region: input.request?.region || null, keyword };
-  const diffs = pickDifferentiators(target.serviceType);
+  const didInspection = /검수/.test(input.message) && !/검수(는|도)?\s*(안|하지 않|제외|빼)/.test(input.message);
+  const diffs = pickDifferentiators(target.serviceType).filter(d => d.key !== 'inspection' || didInspection);
   const standards = pickWorkStandards(target.serviceType, `${input.request?.range || ''} ${input.request?.notes || ''} ${input.message}`, input.research?.context || '');
   const systemPrompt = await buildBlogSystemPrompt(input.research?.context || '', target.serviceType, keyword, diffs, standards);
   const knownColor = input.request?.color?.trim() || photoColorFromContext(input.research?.context);
