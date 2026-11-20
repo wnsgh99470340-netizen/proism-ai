@@ -26,6 +26,11 @@ export async function callClaude(
 
   // Opus 5 계열은 안전 분류기 거부 시 서버가 대체 모델로 이어 쓰도록 fallbacks 를 붙인다
   const useFallback = /^claude-(opus-5|fable)/.test(model);
+  // Fable 은 답하기 전 생각(thinking)이 출력 한도를 전부 먹을 수 있다 (2026-11-20 Q7: 8,192·20,000 토큰을 생각만 하고 본문 0자).
+  // adaptive thinking + effort low 로 생각 양을 줄이고(같은 입력 86초·2,162자), 출력 한도는 16,000 이상으로 둔다. 바꾸려면 FABLE_EFFORT=medium
+  const isFable = /^claude-fable/.test(model);
+  const effectiveMax = isFable ? Math.max(maxTokens, 16000) : maxTokens;
+  const fableOpts = isFable ? { thinking: { type: 'adaptive' }, output_config: { effort: process.env.FABLE_EFFORT || 'low' } } : {};
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -36,9 +41,10 @@ export async function callClaude(
     },
     body: JSON.stringify({
       model,
-      max_tokens: maxTokens,
+      max_tokens: effectiveMax,
       system: systemPrompt,
       messages,
+      ...fableOpts,
       ...(useFallback ? { fallbacks: 'default' } : {}),
     }),
   });

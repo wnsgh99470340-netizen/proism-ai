@@ -64,6 +64,7 @@
 
 ## 모델 (2026-11-20 사장님 "글 쓰는 모델이 페이블이 아니야?" → 교체)
 - 글 쓰기·수정·고치기(BLOG_WRITER_MODEL, src/lib/blog-generate.ts): **claude-fable-5-2** (이전 claude-opus-4-6). 사장님 API 키로 호출 가능 확인(2026-11-20)
+- **Fable 호출 주의**(2026-11-20): 기본 설정으로는 생각(thinking)이 출력 한도를 다 써 본문이 0자로 나옴(8,192·20,000 토큰 모두). callClaude 가 fable 모델이면 `thinking adaptive + output_config.effort = FABLE_EFFORT(기본 low)` 를 붙이고 max_tokens 를 16,000 이상으로. 같은 입력으로 low 86초·2,162자, Opus 5.5 기본 98초·2,331자. 사실표(facts.ts)도 같은 경로
 - 조사(웹 검색)·인스타/카페: claude-opus-5-5 / 사진 읽기·문체 카드·QA·callClaude 기본값: claude-sonnet-5-5 (이전 sonnet-4-6) / 영상 선별·예약 캡처: claude-sonnet-5-5
 - src/config/team.ts 의 model 표기는 화면용 라벨이라 그대로
 
