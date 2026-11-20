@@ -4,7 +4,7 @@
  * - 각 단계는 별도의 서버 함수 호출로 실행되고(단계당 최대 300초), 끝나면 다음 단계를 다시 호출한다
  */
 import { supabase } from './supabase';
-import { researchForBlogPost, resolveTarget } from './blog-research';
+import { researchForBlogPost, resolveTarget, extractRefLinks, fetchReferencePosts, type ReferencePost } from './blog-research';
 import { generateBlogPost, type WriterResult } from './blog-generate';
 import { generateChannels, type Channels } from './channels';
 import type { BlogRequest } from '@/config/blog-options';
@@ -20,7 +20,7 @@ export interface BlogJob {
   status: JobStatus;
   message: string;
   request: BlogRequest | null;
-  research: { context: string; summary: string; facts?: FactSheet | null } | null;
+  research: { context: string; summary: string; facts?: FactSheet | null; refs?: ReferencePost[] } | null;
   result: WriterResult | null;
   channels: Channels | null;
   error: string | null;
@@ -142,7 +142,11 @@ export async function runNextStep(id: string): Promise<JobStatus> {
           research = { context: research?.context || '', summary: [research?.summary, `⚠️ 사진 확인 실패: ${msg}`].filter(Boolean).join('\n') };
         }
       }
-      await updateJob(id, { status: 'facts', research: { context: research?.context || '', summary: research?.summary || '' } });
+      // 참고 글(사장님이 붙인 링크) 본문 — 사실표 재료 + 말투 참고 (2026-11-20)
+      const links = extractRefLinks(job.message, job.request);
+      const refs = links.length ? await fetchReferencePosts(links) : [];
+      const refNote = links.length ? `참고 글 ${refs.length}/${links.length}편 읽음` : '참고 글 링크 없음 (말투 참고 없이 씀)';
+      await updateJob(id, { status: 'facts', research: { context: research?.context || '', summary: [research?.summary || '', refNote].filter(Boolean).join('\n'), refs } });
       return 'facts';
     }
 
@@ -151,11 +155,11 @@ export async function runNextStep(id: string): Promise<JobStatus> {
       const t = resolveTarget(job.message, job.request);
       let facts: FactSheet;
       try {
-        facts = await buildFactSheet({ message: job.message, request: job.request, researchContext: job.research?.context || '', serviceType: t.serviceType, carModel: t.carModel });
+        facts = await buildFactSheet({ message: job.message, request: job.request, researchContext: job.research?.context || '', serviceType: t.serviceType, carModel: t.carModel, refs: job.research?.refs || [] });
       } catch (e) {
         throw new Error(`사실표를 만들지 못했습니다: ${e instanceof Error ? e.message : String(e)}`);
       }
-      await updateJob(id, { status: 'confirming', research: { context: job.research?.context || '', summary: job.research?.summary || '', facts } });
+      await updateJob(id, { status: 'confirming', research: { ...(job.research || { context: '', summary: '' }), facts } });
       const head = facts.lines.slice(0, 4).map((l, i) => `${i + 1}. ${l.text}`).join('\n');
       await sendPushToAll({ title: '📝 사실표 확인해 주세요', body: `${head}${facts.lines.length > 4 ? `\n… 외 ${facts.lines.length - 4}줄` : ''}${facts.unsure.length ? `\n확인 필요 ${facts.unsure.length}건` : ''}\n블로그 탭에서 고치거나 '이대로 써'`, url: '/crm?tab=blog', tag: `facts-${id}` }).catch(() => {});
       return 'confirming';

@@ -106,6 +106,8 @@ export interface BlogRequest {
   photosUrl?: string;
   /** 세로(9:16) 영상도 함께 만들기 */
   vertical?: boolean;
+  /** 참고 글 링크(사장님이 붙임, 최대 3). 사실표 재료와 말투 참고로 쓴다 — 무작위 사장님 글 대신 (2026-11-20) */
+  refLinks?: string[];
 }
 
 /** 폼 입력을 기존 채팅 파이프라인이 이해하는 한 문장으로 만든다 */
@@ -120,6 +122,7 @@ export function buildBlogMessage(r: BlogRequest): string {
     r.keyword ? `제목 키워드: ${r.keyword}.` : '',
     `제목과 본문의 지역명은 "${r.region}"으로 써줘.`,
     r.photosUrl ? `사진: ${r.photosUrl}` : '',
+    r.refLinks?.length ? `참고 글: ${r.refLinks.join(' ')}` : '',
   ];
   return parts.filter(Boolean).join(' ');
 }

@@ -7,15 +7,13 @@ import { readFile, writeFile, readdir, mkdir } from 'fs/promises';
 import { todaySeoul } from '@/lib/local-date';
 import path from 'path';
 import { callClaude } from './claude-client';
-import { resolveTarget } from './blog-research';
+import { resolveTarget, refsToPrompt, type ReferencePost } from './blog-research';
 import type { BlogRequest } from '@/config/blog-options';
 import { factCheck, type FactIssue } from './fact-check';
 import { photoColorFromContext } from './photo-check';
 import { getOwnerStyle, styleToPrompt } from './owner-style';
-import { buildToneReference, savePost, listPosts, getPost, updatePost } from './posts';
+import { savePost, listPosts, getPost, updatePost } from './posts';
 import { BLOG_SYSTEM_PROMPT } from '@/config/prompts';
-import { pickDifferentiators, differentiatorPrompt, type Differentiator } from '@/config/differentiators';
-import { pickWorkStandards, workStandardsPrompt, standardServiceOf, type WorkStandard } from '@/config/work-standards';
 import { buildFactSheet, factsToPrompt, factsNovelty, type FactSheet } from './facts';
 import { extractTagsFromTitle, textToHtml } from './draft-format';
 
@@ -429,28 +427,6 @@ async function saveDraftFile(title: string, body: string): Promise<void> {
   } catch { /* 저장 실패해도 응답에는 영향 없음 */ }
 }
 
-/**
- * 블로그 작성용 시스템 프롬프트 (2026-11-20 정리 — 여섯 덩어리만):
- * 규칙(BLOG_SYSTEM_PROMPT) + 차별점 1~2줄 + 부위 기준(있으면) + 제목 키워드(있으면) + 사장님 어휘 + 사장님 글 3편 + 사전 조사·사진 확인 + 이전 글 제목·도입 8편
- * 뺀 것: 형식 돌려쓰기, 되풀이 문장 40줄, 문체 카드, 교정 피드백, 말버릇 목록 (글을 비틀기만 하고 재료는 주지 못했음)
- */
-export async function buildBlogSystemPrompt(researchContext: string, serviceType?: string, keyword?: string | null, differentiators?: Differentiator[], standards?: WorkStandard[]): Promise<string> {
-  const [toneReference, ownerStyle, previousDrafts] = await Promise.all([buildToneReference(serviceType), getOwnerStyle(), getPreviousDrafts()]);
-  const styleContext = ownerStyle ? styleToPrompt(ownerStyle) : '';
-  const keywordContext = keyword
-    ? `\n\n[제목 키워드 — 필수] "${keyword}"를 제목 앞부분에 그대로 넣고(띄어쓰기·순서 유지) 본문에 3~5회, 해시태그에 한 번`
-    : '';
-  const vehicleContext = researchContext
-    ? `\n\n[사전 조사·사진 확인] 조사는 구조의 근거일 뿐 작업 사실이 아니다. "확인 안 됨"인 구조는 있다고도 없다고도 쓰지 않는다.\n${researchContext}`
-    : '';
-  const diffContext = differentiatorPrompt(differentiators ?? pickDifferentiators(serviceType || ''));
-  const standardsContext = workStandardsPrompt(standardServiceOf(serviceType || ''), standards ?? []);
-  const previousContext = previousDrafts.length > 0
-    ? `\n\n[이전에 쓴 글 — 같은 도입·같은 문장으로 시작하지 않는다]\n${previousDrafts.slice(0, 8).map((d, i) => `${i + 1}. ${d.title}${d.intro ? ` / 도입: ${d.intro.split(' / ').slice(0, 2).join(' / ')}` : ''}`).join('\n')}`
-    : '';
-  return `${BLOG_SYSTEM_PROMPT}${diffContext}${standardsContext}${keywordContext}${styleContext}${toneReference}${vehicleContext}${previousContext}`;
-}
-
 export interface RunWriterOptions {
   /** 사진·요청으로 확인된 차량 색상 (있으면 본문의 다른 색 서술을 잡는다) */
   knownColor?: string | null;
@@ -585,8 +561,9 @@ ${original}
 }
 
 /** 사실표만으로 쓰는 작성 프롬프트: 규칙 + 사실표 + 제목 키워드 + 사장님 어휘 + 사장님 글(말투) + 이전 글 제목·도입 */
-export async function buildWriterPromptFromFacts(facts: FactSheet, serviceType: string, keyword?: string | null): Promise<string> {
-  const [toneReference, ownerStyle, previousDrafts] = await Promise.all([buildToneReference(serviceType), getOwnerStyle(), getPreviousDrafts()]);
+export async function buildWriterPromptFromFacts(facts: FactSheet, serviceType: string, keyword?: string | null, refs: ReferencePost[] = []): Promise<string> {
+  const [ownerStyle, previousDrafts] = await Promise.all([getOwnerStyle(), getPreviousDrafts()]);
+  const toneReference = refsToPrompt(refs, 'writer'); // 2026-11-20 사장님: 무작위 사장님 글 대신 붙여 준 링크만
   const styleContext = ownerStyle ? styleToPrompt(ownerStyle) : '';
   const keywordContext = keyword ? `\n\n[제목 키워드 — 필수] "${keyword}"를 제목 앞부분에 그대로 넣고(띄어쓰기·순서 유지) 본문에 3~5회, 해시태그에 한 번` : '';
   const previousContext = previousDrafts.length > 0
@@ -598,9 +575,9 @@ export async function buildWriterPromptFromFacts(facts: FactSheet, serviceType: 
 /**
  * 사실표로 글 한 편 (2026-11-20 재설계): 한 번 쓰고, 사실 금지 위반만 삭제 패스 1회, 나머지는 표시만. 늘리기 없음.
  */
-export async function writeFromFacts(input: { facts: FactSheet; message: string; request: BlogRequest | null; target: Target; knownColor?: string | null; save: boolean }): Promise<WriterResult> {
+export async function writeFromFacts(input: { facts: FactSheet; message: string; request: BlogRequest | null; target: Target; knownColor?: string | null; save: boolean; refs?: ReferencePost[] }): Promise<WriterResult> {
   const { facts, target } = input;
-  const systemPrompt = await buildWriterPromptFromFacts(facts, target.serviceType, target.keyword);
+  const systemPrompt = await buildWriterPromptFromFacts(facts, target.serviceType, target.keyword, input.refs || []);
   const userMsg = `${input.message}\n\n위 요청과 시스템의 [이 작업의 사실표]만으로 글을 쓰세요.`;
   let reply = await callClaude(systemPrompt, [{ role: 'user', content: userMsg }], 8192, BLOG_WRITER_MODEL);
   let draftResult = tryBuildDraft(reply, input.message);
@@ -673,7 +650,7 @@ export async function writeFromFacts(input: { facts: FactSheet; message: string;
 export async function generateBlogPost(input: {
   message: string;
   request: BlogRequest | null;
-  research: { context: string; summary: string; facts?: FactSheet | null } | null;
+  research: { context: string; summary: string; facts?: FactSheet | null; refs?: ReferencePost[] } | null;
   history?: { role: string; content: string }[];
   facts?: FactSheet | null;
 }): Promise<WriterResult> {
@@ -681,8 +658,9 @@ export async function generateBlogPost(input: {
   const keyword = input.request?.keyword?.trim() || extractKeyword(input.message);
   const target: Target = { carModel: t.carModel, serviceType: t.serviceType, product: t.product, region: input.request?.region || null, keyword };
   const knownColor = input.request?.color?.trim() || photoColorFromContext(input.research?.context);
-  const facts = input.facts || input.research?.facts || await buildFactSheet({ message: input.message, request: input.request, researchContext: input.research?.context || '', serviceType: target.serviceType, carModel: target.carModel });
-  const result = await writeFromFacts({ facts, message: input.message, request: input.request, target, knownColor, save: true });
+  const refs = input.research?.refs || [];
+  const facts = input.facts || input.research?.facts || await buildFactSheet({ message: input.message, request: input.request, researchContext: input.research?.context || '', serviceType: target.serviceType, carModel: target.carModel, refs });
+  const result = await writeFromFacts({ facts, message: input.message, request: input.request, target, knownColor, save: true, refs });
   if (input.research?.summary) result.reply = `${result.reply}\n${input.research.summary}`;
   return result;
 }

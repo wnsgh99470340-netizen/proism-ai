@@ -8,9 +8,10 @@ import { callClaude } from './claude-client';
 import { BUSINESS_CONTEXT } from '@/config/prompts';
 import { pickDifferentiators } from '@/config/differentiators';
 import type { BlogRequest } from '@/config/blog-options';
+import { refsToPrompt, type ReferencePost } from './blog-research';
 
-export type FactSource = '요청' | '사장님 메모' | '사진' | '사장님 글' | '조사' | '매장 기본';
-export const FACT_SOURCES: FactSource[] = ['요청', '사장님 메모', '사진', '사장님 글', '조사', '매장 기본'];
+export type FactSource = '요청' | '사장님 메모' | '사진' | '참고 글' | '조사' | '매장 기본';
+export const FACT_SOURCES: FactSource[] = ['요청', '사장님 메모', '사진', '참고 글', '조사', '매장 기본'];
 
 export interface FactLine { text: string; source: FactSource }
 export interface FactSheet {
@@ -30,7 +31,7 @@ const SYSTEM = `당신은 자동차 시공점 블로그 글을 쓰기 전에 "�
 사실표는 이 차·이 의뢰에 대해 참인 것만 담습니다. 참인지 모르는 것은 사실표가 아니라 "확인 필요"에 둡니다.
 출력은 JSON 하나뿐입니다.`;
 
-function buildPrompt(input: { message: string; request: BlogRequest | null; researchContext: string; serviceType: string; carModel: string | null }): string {
+function buildPrompt(input: { message: string; request: BlogRequest | null; researchContext: string; serviceType: string; carModel: string | null; refs?: ReferencePost[] }): string {
   const memo = input.request?.notes?.trim() || '';
   const didInspection = /검수/.test(input.message) && !/검수(는|도)?\s*(안|하지 않|제외|빼)/.test(input.message);
   const diffs = pickDifferentiators(input.serviceType).filter(d => d.key !== 'inspection' || didInspection);
@@ -40,8 +41,8 @@ ${input.message}
 ${input.request ? `\n[폼 입력] 차종 ${input.request.brand} ${input.request.model} / 시공 ${input.request.serviceLabel} / 범위 ${input.request.range} / 제품 ${[input.request.product, input.request.extra].filter(Boolean).join(' ')} / 색 ${input.request.color || '-'}` : ''}
 ${memo ? `\n[사장님 현장 메모 — 이 차에서 실제 있었던 일. 그대로 사실표에 넣는다]\n${memo}` : '\n[사장님 현장 메모] 없음'}
 
-[조사·사진·사장님 글 — 재료일 뿐 사실이 아니다]
-${input.researchContext || '(없음)'}
+[차종 구조 조사·사진 확인 — 재료일 뿐 사실이 아니다]
+${input.researchContext || '(없음)'}${refsToPrompt(input.refs || [], 'facts')}
 
 [제품·시공 팩트 — 제품 설명은 이 안에서만]
 ${productFacts}
@@ -51,12 +52,12 @@ ${diffs.map(d => `- ${d.label}: ${d.fact}`).join('\n')}
 - 관리: 메인터넌스 6개월(필름 위 전용 코팅제 도포·끝단 점검). QC 2주는 PPF·컬러PPF에만
 
 ## 규칙
-1. 10~15줄. 한 줄에 사실 하나, 30자 안팎, 글 문장이 아니라 메모처럼. 각 줄에 출처 하나: 요청 / 사장님 메모 / 사진 / 사장님 글 / 조사 / 매장 기본
-2. 순서: 차종·색·차체 → 의뢰 범위와 제품·농도 → 이 차에서 실제 한 작업 단계(사진·메모에서) → 이 차종 구조 중 이 작업과 관련된 것(조사, 1~3줄) → 제품 설명(팩트 표·사장님 글에 있는 것만) → 관리 안내 → 맡겨야 하는 이유 2~3줄
+1. 10~15줄. 한 줄에 사실 하나, 30자 안팎, 글 문장이 아니라 메모처럼. 각 줄에 출처 하나: 요청 / 사장님 메모 / 사진 / 참고 글 / 조사 / 매장 기본
+2. 순서: 차종·색·차체 → 의뢰 범위와 제품·농도 → 이 차에서 실제 한 작업 단계(사진·메모에서) → 이 차종 구조 중 이 작업과 관련된 것(조사, 1~3줄) → 제품 설명(팩트 표·참고 글에 있는 것만) → 관리 안내 → 맡겨야 하는 이유 2~3줄
 3. 사진: 요청 범위 안의 작업 단계만 사실로 쓴다(예: "앞유리 상단에서 물을 아래로 밀어냄"). 도구·테이프·천의 색이나 상표, 사람 모습은 쓰지 않는다. 요청 범위에 없는 작업이 보이면(실내 PPF, 루프·스포일러 필름, 선루프 썬팅, 신차검수, 탈거 등) 사실표가 아니라 "확인 필요"에 "사진에 ~ 장면이 있음, 요청에는 없음"으로
-4. 조사: "확인 안 됨"으로 적힌 구조는 넣지 않는다. 다른 매장이 한 작업·제품·농도·권유 이유는 넣지 않는다. 구조 주의점 중 이 작업 부위에 걸리는 것만
-5. 사장님 글: 같은 제품·같은 시공의 제품 설명·관리 안내·판단은 가져와도 된다(출처 '사장님 글'). 그 차에서 한 작업을 이 차에서 한 것으로 옮기지 않는다
-6. 모르는 것은 쓰지 않는다: 제품 스펙(수치·소재·겹수)은 팩트 표나 사장님 글에 있을 때만, 차체 형상(각이 가파르다 등)은 조사에서 확인됐을 때만, 고객 사정·작업 시간·"까다로웠다"는 요청·메모에 있을 때만
+4. 조사: "확인 안 됨"으로 적힌 구조는 넣지 않는다. 구조 중 이 작업 부위에 걸리는 것만
+5. 참고 글: 같은 제품·같은 시공의 제품 설명·관리 안내·판단은 가져와도 된다(출처 '참고 글'). 그 글의 차에서 한 작업을 이 차에서 한 것으로 옮기지 않는다
+6. 모르는 것은 쓰지 않는다: 제품 스펙(수치·소재·겹수)은 팩트 표나 참고 글에 있을 때만, 차체 형상(각이 가파르다 등)은 조사에서 확인됐을 때만, 고객 사정·작업 시간·"까다로웠다"는 요청·메모에 있을 때만
 7. 요청에 "~는 안 함/없음/제외"라고 적힌 것은 사실표에도 확인 필요에도 넣지 않는다
 
 ## 출력 (JSON 하나)
@@ -83,7 +84,7 @@ function parse(raw: string): { lines: FactLine[]; unsure: string[] } {
   return { lines, unsure };
 }
 
-export async function buildFactSheet(input: { message: string; request: BlogRequest | null; researchContext: string; serviceType: string; carModel: string | null }): Promise<FactSheet> {
+export async function buildFactSheet(input: { message: string; request: BlogRequest | null; researchContext: string; serviceType: string; carModel: string | null; refs?: ReferencePost[] }): Promise<FactSheet> {
   const raw = await callClaude(SYSTEM, [{ role: 'user', content: buildPrompt(input) }], 6000, FACTS_MODEL);
   const { lines, unsure } = parse(raw);
   return { lines, unsure, built_at: new Date().toISOString(), confirmed_at: null };

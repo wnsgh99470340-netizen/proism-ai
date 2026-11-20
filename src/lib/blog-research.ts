@@ -1,6 +1,5 @@
 import { researchWithWebSearch } from '@/lib/claude-client';
 import type { BlogRequest } from '@/config/blog-options';
-import { ownerPostsForCar } from './posts';
 
 /** 폼에서 온 구조화 요청이 있으면 그것을, 없으면 메시지에서 정규식으로 추출 */
 /** 자동 생성(시공기) 대상 서비스. 썬팅·유리막코팅·신차패키지·실내PPF는 제외 (2026-11-05 사장님 결정) */
@@ -75,7 +74,7 @@ export function extractServiceType(message: string): string {
   return '시공';
 }
 
-const RESEARCH_MAX_SEARCHES = 16;    // 2026-11-20 사장님 "빨리 쓰는 게 문제가 아니다, 조사가 충분히 이루어진 다음에" (10 → 16. 실행 한도 300초 안)
+const RESEARCH_MAX_SEARCHES = 12;    // 2026-11-20 사장님 "조사는 차종만": 차량 구조 조사에만 쓴다
 const NAVER_POST_FETCH_LIMIT = 6;     // 본문까지 읽을 네이버 블로그 글 수
 const NAVER_POST_MAX_CHARS = 2500;    // 글당 발췌 글자 수
 
@@ -215,40 +214,56 @@ const RESEARCH_SYSTEM_PROMPT = `당신은 자동차 외장 시공(PPF·컬러PPF
  * 2) 같은 차종의 같은 시공 사례 (다른 매장 시공기, 커뮤니티 글)
  * 결과를 작성용 시스템 프롬프트에 주입할 텍스트로 반환
  */
+/** 요청문·폼에서 참고 글 링크를 뽑는다 (드라이브 폴더 링크 제외, 최대 3) */
+export function extractRefLinks(message: string, request?: BlogRequest | null): string[] {
+  const fromForm = request?.refLinks || [];
+  const fromMsg = (message.match(/https?:\/\/[^\s)]+/g) || []).filter(u => !/drive\.google\.com/.test(u));
+  return Array.from(new Set([...fromForm, ...fromMsg])).slice(0, 3);
+}
+
+export interface ReferencePost { url: string; text: string }
+
+/** 참고 글 본문 (2026-11-20 사장님 "무작위 3개가 아니라 내가 링크 첨부할게"): 네이버 블로그는 모바일 주소로 서버가 직접 읽고, 다른 사이트는 태그만 벗긴다 */
+export async function fetchReferencePosts(links: string[]): Promise<ReferencePost[]> {
+  const out: ReferencePost[] = [];
+  for (const url of links.slice(0, 3)) {
+    try {
+      let text = '';
+      if (/blog\.naver\.com/.test(url)) {
+        text = await fetchNaverPostText(toMobileUrl(url), 3500);
+      } else {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 8000);
+        const res = await fetch(url, { signal: controller.signal, headers: { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1', 'Accept-Language': 'ko-KR,ko;q=0.9' } });
+        clearTimeout(timer);
+        if (res.ok) text = stripHtml(await res.text()).slice(0, 3500);
+      }
+      text = text.replace(/\n(?:이 블로그의 체크인|이 장소의 다른 글)(?:\n[\s\S]*)?$/, '').trim();
+      if (text.length > 200) out.push({ url, text });
+    } catch (e) { console.warn('[ref]', url, e); }
+  }
+  return out;
+}
+
+/** 참고 글을 조사 결과·작성 프롬프트에 붙이는 블록 */
+export function refsToPrompt(refs: ReferencePost[], purpose: 'facts' | 'writer'): string {
+  if (!refs.length) return '';
+  const head = purpose === 'facts'
+    ? '[참고 글 — 사장님이 붙인 링크. 제품 설명·관리 안내·부위 이름·판단은 사실로 가져와도 된다. 그 글의 차에서 한 작업을 이 차에서 한 것으로 옮기지는 않는다]'
+    : `[참고 글 ${refs.length}편 — 말투·호흡·문단 길이만 참고. 문장과 그 차의 작업·사실은 가져오지 않는다]`;
+  return `\n\n${head}\n${refs.map((r, i) => `[참고 글 ${i + 1}] ${r.url}\n${r.text}`).join('\n\n')}`;
+}
+
+/**
+ * 블로그 글 작성 전 웹 검색 리서치 — 차종 구조만 (2026-11-20 사장님 "조사는 차종만 들어가")
+ * 다른 매장 사례 검색·무작위 사장님 글 찾기는 뺐다. 참고할 글은 사장님이 링크로 붙인다(fetchReferencePosts)
+ */
 export async function researchForBlogPost(
   userMessage: string,
   carModel: string,
   serviceType: string,
 ): Promise<{ context: string; summary: string }> {
-  // 사장님이 같은 차종·브랜드에 대해 쓴 글을 먼저 찾는다 (2026-11-20). 네이버 후보는 그다음
-  const [ownerRef, naverRes] = await Promise.all([
-    ownerPostsForCar(carModel, serviceType, userMessage).catch(e => { console.warn('[owner-ref]', e); return { context: '', summary: '', count: 0 }; }),
-    searchNaverCases(carModel, serviceType).catch(e => { console.warn('[naver]', e); return [] as NaverItem[]; }),
-  ]);
-  const naverItems: NaverItem[] = naverRes;
-
-  // 상위 블로그 글 본문을 우리 서버가 직접 읽어 발췌 (네이버는 Anthropic 크롤러 차단)
-  const blogTargets = naverItems.filter(it => it.source === '블로그').slice(0, NAVER_POST_FETCH_LIMIT);
-  const bodies = await Promise.all(blogTargets.map(it => fetchNaverPostText(it.link)));
-  const excerpts = blogTargets
-    .map((it, i) => ({ it, text: bodies[i] }))
-    .filter(x => x.text.length > 200);
-  const naverFetched = excerpts.length;
-
-  const naverSection = naverItems.length > 0
-    ? `
-
-## 네이버 검색 결과 — 한국어 시공기 후보 ${naverItems.length}건 (B 항목에 우선 활용)
-제목·요약이 "${carModel} ${serviceType}"과 맞는 글만 참고하고, 광고성·무관한 글은 건너뜁니다. 아래 URL은 web_fetch 로 열 수 없으니(차단됨) 요약과 발췌만 사용하세요.
-${naverItems.map((it, i) => `${i + 1}. [${it.source}] ${it.title}${it.date ? ` (${it.date})` : ''}
-   요약: ${it.description}
-   URL: ${it.link}`).join('\n')}${excerpts.length > 0 ? `
-
-## 네이버 블로그 본문 발췌 (${excerpts.length}건, 글당 최대 ${NAVER_POST_MAX_CHARS}자)
-${excerpts.map((x, i) => `[발췌 ${i + 1}] ${x.it.title}\n${x.text}`).join('\n\n')}` : ''}`
-    : '';
-
-  const researchPrompt = `아래 블로그 작성 요청을 위해 웹 검색으로 사전 조사를 해주세요.${naverSection}
+  const researchPrompt = `아래 블로그 작성 요청을 위해 웹 검색으로 차량 구조를 조사해 주세요. 시공 사례·다른 매장 글은 찾지 않습니다.
 
 [작성 요청 원문]
 ${userMessage}
@@ -258,15 +273,11 @@ ${userMessage}
 - 시공 종류: ${serviceType}
 
 ## 검색 예산
-- 웹 검색은 최대 ${RESEARCH_MAX_SEARCHES}회입니다. A(차량 구조)에 3분의 2, B(다른 작업자 글의 구조 주의점)에 3분의 1을 배분하세요
-- 한 번의 검색에 여러 키워드를 묶어 효율적으로 검색하세요 (예: "${carModel} 앞범퍼 번호판 그릴 구조", "${carModel} ${serviceType} 시공 후기 블로그")
-- B(시공 사례)는 한국어 검색을 먼저 하세요. 예: "${carModel} ${serviceType} 시공 후기", "${carModel} ${serviceType} 블로그", "blog.naver.com ${carModel} ${serviceType}", "보배드림 ${carModel} ${serviceType}". 코드명(예: G87)으로도 한 번 검색하세요. 한국어 사례가 부족하면 영어(예: "${carModel} paint protection film install")로 보완합니다
-- 예산을 다 쓰면 검색을 멈추고, 찾은 것만으로 정리합니다
+- 웹 검색은 최대 ${RESEARCH_MAX_SEARCHES}회. 한국어·영어를 섞어 쓰고, 한 번에 여러 키워드를 묶어 검색하세요 (예: "${carModel} 앞범퍼 번호판 그릴 구조", "${carModel} panoramic roof spoiler mirror")
+- 예산을 다 쓰면 멈추고 찾은 것만 정리합니다
 
-## 조사 항목
-
-### A. 차량 형상·구조 (한국어·영어 검색 병행. 현행 세대 기준, 세대/코드명 명시)
-1. 세대·코드명·출시연도 (예: G87, 2세대)
+## 조사 항목 — 차량 형상·구조 (현행 세대 기준, 세대/코드명 명시. 국내 사양이 다르면 그것도)
+1. 세대·코드명·출시연도
 2. 번호판 위치 (앞: 범퍼/그릴, 뒤: 트렁크/범퍼)
 3. 앞범퍼 구조 (그릴 형태, 에어인테이크, 안개등, 센서·카메라 위치, 립 유무)
 4. 뒷범퍼 구조 (디퓨저, 배기구 개수·형태, 센서, 하단 형태)
@@ -274,18 +285,10 @@ ${userMessage}
 6. 사이드미러 형태 (카메라·방향지시등 내장 여부)
 7. 하이그로시·크롬 트림 위치 (윈도우 몰딩, 그릴, 엠블럼, 머플러 팁 등)
 8. 필러 구조·도어 타입 (프레임/프레임리스)
-9. 휀더·휠아치 형상 (와이드 휀더, 블리스터 등)
-10. 루프 (글라스루프, 카본루프, 루프레일 등)
-11. 이 차종만의 특이 구조 (예: 돌출 휀더, 스플리터, 에어브리더, 숨겨진 도어핸들 등)
-12. 외장 재질 특이점 (알루미늄 보닛, 카본 부품, 플라스틱 범퍼 등)
-
-### B. 같은 차종 "${carModel} ${serviceType}"을 다룬 다른 작업자 글 — 구조 주의점만 (3건 이상)
-- 검색 대상: 네이버 블로그·카페, 보배드림, 클리앙, 유튜브 설명란 등 다른 매장 시공기와 커뮤니티 글
-- 정리할 것 (이 차종의 구조 때문에 생기는 것만):
-  - 작업자들이 주의한다고 적은 구조 포인트와 그 이유 (센서·카메라 위치, 몰딩 안쪽 구조, 곡률이 깊은 유리, 탈거가 필요한 부품, 번호판·엠블럼, 숨은 틈)
-  - 이 차종에서 흔히 생기는 문제 (어디가 들뜨기 쉽다, 어디에 이물질이 남는다 등)
-  - 오너들이 상담에서 자주 묻는 질문
-- 적지 않을 것: 다른 매장이 어떤 작업을 어떤 제품·농도·가격으로 했는지, 어떤 부위를 왜 권했는지, 그 글의 구성·강조점. 다른 매장의 작업 내용은 우리 글의 재료가 아니다
+9. 휀더·휠아치 형상
+10. 루프 (글라스루프·파노라마 선루프·카본루프·루프레일 — 시공 범위에 직접 걸리므로 특히 확실하게)
+11. 유리 (앞유리 곡률·센서 자리, 뒷유리 크기·열선, 쿼터 글라스 유무, 순정 프라이버시 글라스 여부)
+12. 이 차종만의 특이 구조와 외장 재질 특이점
 
 ## 출력 형식 (이 형식 그대로)
 
@@ -294,15 +297,7 @@ ${userMessage}
 
 [외관 구조]
 1. 번호판: ...
-2. 앞범퍼: ...
 (12개 항목 모두, 확인 안 되면 "확인 안 됨")
-
-[이 차종 작업 시 주의점 — 다른 작업자 글에서, 구조만]
-- 부위·구조 / 왜 주의하는지 / 몇 건에서 언급
-- ...
-
-[오너들이 자주 묻는 것]
-- ...
 
 [참고한 출처] (제목 — URL)
 - ...
@@ -311,41 +306,25 @@ ${userMessage}
 - ...`;
 
   try {
-    const result = await researchWithWebSearch(RESEARCH_SYSTEM_PROMPT, researchPrompt, {
-      maxSearches: RESEARCH_MAX_SEARCHES,
-    });
-
+    const result = await researchWithWebSearch(RESEARCH_SYSTEM_PROMPT, researchPrompt, { maxSearches: RESEARCH_MAX_SEARCHES });
     if (!result.text) throw new Error('empty research');
-
-    const context = `${ownerRef.context ? `${ownerRef.context}\n\n` : ''}[사전 조사 결과 — 웹 검색 ${result.searchCount}회 기반: ${carModel} ${serviceType}]
+    const context = `[차종 구조 조사 — 웹 검색 ${result.searchCount}회: ${carModel}]
 ${result.text}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-위 사전 조사 결과 활용 규칙 (반드시 준수)
+위 조사 활용 규칙
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- 차량 구조 정보는 부위 묘사의 사실 근거로만 사용. 조사에 없는 구조는 추측하지 말고 일반적 표현 사용
-- **차량 소개는 최소화**. 조사 결과의 세대·출력·크기·디자인 평가 같은 차량 스펙 정보로 본문을 채우지 말 것. 차량 설명은 두세 줄이면 충분하고, 나머지는 "이 차의 이 구조를 어떻게 시공했는지"로 채울 것
-- 다른 작업자 글에서 가져오는 것은 구조 주의점뿐이다. 그 매장이 한 작업·제품·농도·권유 이유를 이 차에서 한 일로 쓰지 않는다. 문장·표현·비유 복사 금지
-- 타 매장 상호, 출처 URL, "다른 업체에서는" 같은 언급을 본문에 넣지 말 것
-- 조사에서 "주의 부위"로 나온 곳은 차량 구조 설명 맥락에서 언급할 수 있지만, "까다로웠다/신경 썼다/공들였다" 어휘는 사장님(사용자 메시지)이 직접 알려준 부위에만 사용. 조사 결과만으로 까다로운 부위를 지정하지 말 것
-- 타 매장 글에 열 성형·히팅건·오버랩 묘사가 있어도 PPF/컬러PPF/PWF 글에는 절대 반영 금지 (프로이즘은 습식·열 없음·오버랩 없음)
-- 제품·스펙은 사용자가 알려준 것만. 조사 결과의 타 브랜드·타 등급 제품 언급 금지
-- "확인 안 됨" 항목은 본문에서 구체적으로 묘사하지 말 것
-- 사장님이 알려준 정보와 조사 결과가 다르면 사장님 정보가 우선`;
-
-    const naverNote = naverItems.length > 0
-      ? ` 네이버 블로그·카페 후보 ${naverItems.length}건 중 ${naverFetched}건은 본문까지 읽었습니다.`
-      : (isNaverSearchEnabled() ? ' 네이버에서는 맞는 시공기를 찾지 못했습니다.' : ' (네이버 검색 API 키가 없어 네이버 블로그 검색은 건너뛰었습니다)');
-    const summary = `사전 조사: 웹 검색 ${result.searchCount}회로 ${carModel} 구조와 같은 차종 작업 주의점을 확인한 뒤 작성했습니다.${naverNote}${ownerRef.count ? `\n${ownerRef.summary}` : '\n사장님 글 중 같은 차종·브랜드 글 없음'}`;
+- 구조 정보는 부위 묘사의 근거로만. "확인 안 됨"은 있다고도 없다고도 쓰지 않는다
+- 차량 소개는 두세 줄까지. 세대·출력·크기·디자인 평가로 본문을 채우지 않는다
+- 출처 URL·매체 이름은 본문에 넣지 않는다
+- 사장님이 알려준 정보와 조사가 다르면 사장님 정보가 우선`;
+    const summary = `사전 조사: 웹 검색 ${result.searchCount}회로 ${carModel} 구조를 확인했습니다.`;
     return { context, summary };
   } catch (err) {
-    console.warn('[chat] 웹 검색 리서치 실패, 기존 지식으로 대체:', err);
-    const context = `[차량 구조 사전 조사 — ${carModel} ${serviceType}]
-(웹 검색 리서치 실패 — 기존 지식으로만 파악)
-
-아래 항목을 아는 범위에서만 파악해 글에 반영하세요. 확인 안 되는 부위는 일반적 표현을 쓰고, 추측해서 구체적으로 쓰지 말 것:
-번호판 위치 / 앞범퍼 구조 / 뒷범퍼 구조 / 사이드미러 / 하이그로시·크롬 트림 / 필러·도어 타입 / 휀더 / 루프 / 해당 차종만의 특이 구조
-사장님이 알려준 정보가 있으면 최우선 반영.`;
-    return { context, summary: '사전 조사: 웹 검색이 실패해 기존 지식으로만 작성했습니다. 차량 구조 묘사를 한 번 더 확인해주세요.' };
+    console.warn('[research] 웹 검색 실패:', err);
+    return {
+      context: `[차종 구조 조사 — ${carModel}] (웹 검색 실패 — 구조는 확인된 것이 없다. 번호판 위치·범퍼·루프·유리 구조를 구체적으로 쓰지 말 것)`,
+      summary: '사전 조사: 웹 검색이 실패해 차량 구조를 확인하지 못했습니다. 구조 묘사를 한 번 더 확인해 주세요.',
+    };
   }
 }

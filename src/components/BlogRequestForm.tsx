@@ -34,6 +34,7 @@ export default function BlogRequestForm({ disabled, onSubmit, initial = null }: 
   const [notes, setNotes] = useState(initial?.notes ?? '');
   const [keyword, setKeyword] = useState('');
   const [photosUrl, setPhotosUrl] = useState('');
+  const [refLinks, setRefLinks] = useState('');
   const [vertical, setVertical] = useState(false);
   const notesRef = useRef<HTMLTextAreaElement>(null);
 
@@ -72,6 +73,7 @@ export default function BlogRequestForm({ disabled, onSubmit, initial = null }: 
       keyword: keyword.trim() || undefined,
       photosUrl: photosUrlTrim || undefined,
       vertical: photosUrlTrim ? vertical : undefined,
+      refLinks: (refLinks.match(/https?:\/\/[^\s]+/g) || []).slice(0, 3),
     };
     onSubmit(buildBlogMessage(req), req);
   };
@@ -169,6 +171,17 @@ export default function BlogRequestForm({ disabled, onSubmit, initial = null }: 
             </label>
           )}
         </div>
+      </div>
+
+      <div className="mb-2">
+        <label className={labelCls}>참고 글 링크 (선택) — 내 블로그 글이나 참고할 글, 한 줄에 하나(최대 3). 말투와 제품 설명·관리 안내를 여기서 가져옵니다</label>
+        <textarea
+          value={refLinks}
+          onChange={(e) => setRefLinks(e.target.value)}
+          rows={2}
+          placeholder="https://blog.naver.com/roice_/2244..."
+          className={`${inputCls} resize-none`}
+        />
       </div>
 
       <div className="mb-2">

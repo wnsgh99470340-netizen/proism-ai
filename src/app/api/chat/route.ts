@@ -3,7 +3,7 @@ import { readFile } from 'fs/promises';
 import path from 'path';
 import sharp from 'sharp';
 import { analyzeImageWithClaude } from '@/lib/claude-client';
-import { isBlogWriteRequest, resolveTarget, researchForBlogPost } from '@/lib/blog-research';
+import { isBlogWriteRequest, resolveTarget, researchForBlogPost, extractRefLinks, fetchReferencePosts } from '@/lib/blog-research';
 import type { BlogRequest } from '@/config/blog-options';
 import { getActiveEmployee } from '@/config/team';
 import { runWriter, generateBlogPost, type Target } from '@/lib/blog-generate';
@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
     const isBlog = Boolean(blogRequest) || isBlogWriteRequest(message || '');
     // 블로그 요청(즉시 경로)은 사실표를 만들어 바로 쓴다 — 확인 단계는 백그라운드 작업 경로에만 (2026-11-20 재설계)
     const result = isBlog
-      ? await generateBlogPost({ message: combinedMessage, request: blogRequest, research: { context: researchContext, summary: researchSummary }, history })
+      ? await generateBlogPost({ message: combinedMessage, request: blogRequest, research: { context: researchContext, summary: researchSummary, refs: await fetchReferencePosts(extractRefLinks(message || '', blogRequest)) }, history })
       : await runWriter({
           systemPrompt: `${activeEmployee.systemPrompt}\n\n현재 담당: ${activeEmployee.emoji} ${activeEmployee.name}\n역할: ${activeEmployee.role}`,
           model: activeEmployee.model,
