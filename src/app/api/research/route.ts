@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     const photosUrl = findPhotosUrl(message, blogRequest);
     if (photosUrl) {
       try {
-        const pf = await inspectPhotos(photosUrl, { carModel, serviceType });
+        const pf = await inspectPhotos(photosUrl, { carModel, serviceType, request: message });
         research = { context: [research.context, pf.context].filter(Boolean).join('\n\n'), summary: [research.summary, pf.summary].filter(Boolean).join('\n') };
       } catch (e) {
         research = { ...research, summary: [research.summary, `⚠️ 사진 확인 실패: ${e instanceof Error ? e.message : String(e)}`].filter(Boolean).join('\n') };

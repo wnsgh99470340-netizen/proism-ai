@@ -51,7 +51,30 @@ async function fetchImage(id: string): Promise<{ data: string; mediaType: string
 
 const list = (v: unknown, max = 8): string[] => (Array.isArray(v) ? v.map(x => String(x).trim()).filter(Boolean).slice(0, max) : []);
 
-export async function inspectPhotos(photosUrl: string, hint: { carModel?: string | null; serviceType?: string } = {}): Promise<PhotoFacts> {
+/**
+ * 요청 범위 밖 작업이 사진에 보일 때 (2026-11-20 Q7: "실내 PPF 없음"이라고 적어 줬는데도 센터콘솔 필름 장면을 보고 실내 PPF 문단을 두 번 씀)
+ * 장면 문구가 아래 그룹에 걸리는데 요청문에 그 작업이 없으면 "요청 범위 밖 — 쓰지 않는다" 표시를 붙이고 접수 요약에 알린다
+ */
+const SCOPE_GROUPS: { name: string; scene: RegExp; request: RegExp }[] = [
+  { name: '실내 PPF', scene: /센터\s*콘솔|기어\s*(주변|노브)|센터\s*페시아|디스플레이|하이\s*글로시|하이\s*그로시|실내[^\n]{0,12}(패널|필름|트림)/, request: /실내|하이\s*글로시|하이\s*그로시|센터|콘솔|디스플레이|네비|트림/ },
+  { name: '루프·스포일러 필름', scene: /루프|스포일러/, request: /루프|스포일러|전체/ },
+  { name: '선루프 썬팅', scene: /선루프|썬루프|파노라마/, request: /선루프|썬루프|파노라마/ },
+  { name: '신차검수', scene: /진단기|스캐너|도막|두께\s*측정|열화상|배터리/, request: /검수/ },
+  { name: '휠·캘리퍼 작업', scene: /휠\s*(에|을|필름|도색)|캘리퍼/, request: /휠|캘리퍼/ },
+];
+function flagOutOfScope(scenes: string[], requestText: string): { scenes: string[]; out: string[] } {
+  if (!requestText.trim()) return { scenes, out: [] };
+  const out: string[] = [];
+  const marked = scenes.map((s, i) => {
+    const hit = SCOPE_GROUPS.find(g => g.scene.test(s) && !g.request.test(requestText));
+    if (!hit) return s;
+    out.push(`${hit.name}(${i + 1}번)`);
+    return `${s} ⚠ 요청 범위에 없는 작업으로 보임(${hit.name}) — 글에 쓰지 않는다`;
+  });
+  return { scenes: marked, out };
+}
+
+export async function inspectPhotos(photosUrl: string, hint: { carModel?: string | null; serviceType?: string; request?: string } = {}): Promise<PhotoFacts> {
   const { files } = await listDriveFolder(photosUrl);
   const photos = files.filter(f => f.kind === 'photo');
   const sample = pickEvenly(photos, MAX_SAMPLE);
@@ -81,11 +104,12 @@ JSON 한 개로만 답하세요:
   const roof = String(j.roof || '').trim();
   const panels = list(j.panels), rawScenes = list(j.scenes, MAX_SAMPLE), notes = list(j.notes, 6), unsure = list(j.unsure, 4);
   // 장면에 폴더 안 순번·파일명을 붙인다 → 글이 [사진 N]을 이 장면에 맞춰 쓰고, 사장님은 그 순서대로 올리면 된다
-  const scenes = rawScenes.map((s, i) => {
+  const numbered = rawScenes.map((s, i) => {
     const f = okFiles[i];
     const idx = f ? photos.findIndex(p => p.id === f.id) + 1 : 0;
     return f ? `${i + 1}번(폴더 ${idx}번째 ${f.name}): ${s.replace(/^사진\s*\d+\s*[:：]\s*/, '')}` : s;
   });
+  const { scenes, out: outOfScope } = flagOutOfScope(numbered, hint.request || '');
 
   const context = [
     '[사진 확인 결과 — 작성 전 실제 시공 사진을 확인한 사실. 요청·이 블록과 어긋나는 차량 색상·부위·장면은 쓰지 않는다]',
@@ -99,9 +123,11 @@ JSON 한 개로만 답하세요:
     scenes.length ? `- 장면(이 글의 재료. 장면이 있는 일은 그 장면으로 쓰고, 사진에 없는 과정은 일반 설명으로 채우지 않는다. 사진 배치는 대표가 직접 하니 글에 사진 번호를 쓰지 않는다):\n  ${scenes.join('\n  ')}` : '',
     notes.length ? `- 참고: ${notes.join(' / ')}` : '',
     unsure.length ? `- 불확실(쓰지 않기): ${unsure.join(' / ')}` : '',
+    outOfScope.length ? `- 요청 범위 밖으로 보이는 장면(이 작업은 하지 않은 것으로 본다. 글에 쓰지 않는다): ${outOfScope.join(', ')}` : '',
   ].filter(Boolean).join('\n');
   // 2026-11-20 사장님 "규칙에서 사진도 빼, 사진은 알아서 넣을 테니까": 글에 사진 번호를 안 쓰므로 순서 줄도 안 보여 준다
-  const summary = `📷 사진 ${photos.length}장 확인 — 차량 색상 ${color}${body && body !== '불확실' ? `, 차체 ${body}` : ''}${panels.length ? `, 보이는 부위 ${panels.slice(0, 5).join('·')}` : ''}`;
+  const summary = `📷 사진 ${photos.length}장 확인 — 차량 색상 ${color}${body && body !== '불확실' ? `, 차체 ${body}` : ''}${panels.length ? `, 보이는 부위 ${panels.slice(0, 5).join('·')}` : ''}`
+    + (outOfScope.length ? `\n⚠ 사진에 요청 범위 밖 작업이 보여 글에 안 썼습니다: ${outOfScope.join(', ')} — 실제로 했으면 알려 주세요` : '');
   return { count: photos.length, sampled: images.length, color, car, body, roof, panels, scenes, notes, unsure, context, summary };
 }
 

@@ -122,7 +122,7 @@ export async function runNextStep(id: string): Promise<JobStatus> {
       const photosUrl = findPhotosUrl(job.message, job.request);
       if (photosUrl) {
         try {
-          const pf = await inspectPhotos(photosUrl, { carModel: t.carModel, serviceType: t.serviceType });
+          const pf = await inspectPhotos(photosUrl, { carModel: t.carModel, serviceType: t.serviceType, request: job.message });
           research = { context: [research?.context, pf.context].filter(Boolean).join('\n\n'), summary: [research?.summary, pf.summary].filter(Boolean).join('\n') };
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);

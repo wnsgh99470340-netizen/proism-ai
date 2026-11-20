@@ -177,7 +177,7 @@ export async function ownerPostsForCar(carModel: string, serviceType: string, hi
       if (modelRe && modelRe.test(hay)) score += 3;
       if (brand && hay.includes(brand)) score += 1;
       if (svc && (p.service_type || '').includes(svc)) score += 2;
-      score += Math.min(2, hintTokens.filter(t => p.title.includes(t)).length);
+      score += Math.min(4, hintTokens.filter(t => p.title.includes(t)).length); // 같은 제품(레인보우 IS200)을 다룬 글이 최신 글보다 앞서게
       return { p, score };
     })
     .filter(x => x.score >= 3 || (x.score >= 1 && brand && x.p.title.includes(brand)))
