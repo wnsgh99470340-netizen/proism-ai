@@ -238,7 +238,7 @@ export async function fetchReferencePosts(links: string[]): Promise<ReferencePos
         clearTimeout(timer);
         if (res.ok) text = stripHtml(await res.text()).slice(0, 3500);
       }
-      text = text.replace(/\n(?:이 블로그의 체크인|이 장소의 다른 글)(?:\n[\s\S]*)?$/, '').trim();
+      text = text.replace(/^[^\n]*se-main-container[^\n]*?>\s*/i, '').replace(/[\u200b\u200c\u200d\ufeff]/g, '').replace(/\n(?:이 블로그의 체크인|이 장소의 다른 글)(?:\n[\s\S]*)?$/, '').replace(/\n\s*\n+/g, '\n').trim();
       if (text.length > 200) out.push({ url, text });
     } catch (e) { console.warn('[ref]', url, e); }
   }

@@ -63,7 +63,7 @@ export async function callClaude(
 export async function analyzeImagesWithClaude(
   images: { data: string; mediaType: string }[],
   prompt: string,
-  maxTokens = 1500,
+  maxTokens = 4000, // 2026-11-20: 사진 12장 장면 JSON 이 1,500 토큰에 잘려 파싱 실패(색상 불확실·장면 없음으로 나옴)
 ): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY가 설정되지 않았습니다.');
@@ -87,7 +87,7 @@ export async function analyzeImagesWithClaude(
   });
   if (!response.ok) throw new Error(`Claude Vision API 오류: ${response.status} - ${await response.text()}`);
   const data = await response.json();
-  return data.content?.[0]?.text || '';
+  return ((data.content || []) as { type: string; text?: string }[]).filter(b => b.type === 'text' && typeof b.text === 'string').map(b => b.text as string).join('\n');
 }
 
 export async function analyzeImageWithClaude(
