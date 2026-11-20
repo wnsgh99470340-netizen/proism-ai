@@ -207,7 +207,7 @@ export function splitTitleBody(text: string): { title: string; body: string } | 
 }
 
 /** 숫자 기준 검사 — 분량·제목 길이. 점수가 아니라 미달 여부만 본다 */
-const MIN_BODY_CHARS = 2300;   // 목표 2500자, 약간의 여유
+const MIN_BODY_CHARS = 2000;   // 2026-11-20 사장님 "공백 제외 2,000자 이상이면 그냥 둬"
 const MIN_TITLE_CHARS = 18;    // 목표 20~25자
 
 export function checkFormatIssues(title: string, body: string, keyword?: string | null): string[] {
@@ -224,7 +224,7 @@ export function checkFormatIssues(title: string, body: string, keyword?: string 
   }
   const pureLen = body.replace(/\[사진\s*\d+\]/g, '').replace(/\s/g, '').length;
   if (pureLen < MIN_BODY_CHARS) {
-    issues.push(`분량 부족: 공백 제외 ${pureLen}자 → 2,500자 이상으로 보강. 시공 과정·마감·관리 안내를 더 구체적으로 풀고, 차량 소개는 늘리지 말 것`);
+    issues.push(`분량 부족: 공백 제외 ${pureLen}자 → 2,000자 이상. 시공 과정·마감·관리 안내를 더 구체적으로 풀고, 차량 소개는 늘리지 말 것`);
   }
   if (title.length < MIN_TITLE_CHARS) {
     issues.push(`제목 ${title.length}자로 짧음 → 20~25자로 ("[지역] [차종] [서비스]"에 핵심 포인트 한 가지 덧붙이기)`);
@@ -629,8 +629,8 @@ export async function writeFromFacts(input: { facts: FactSheet; message: string;
   if (c.violations.length > 0) notes.push(`확인 필요: ${c.violations.map(v => v.detail).join(' / ')}`);
   notes.push(c.facts.length > 0 ? `팩트체크 ${c.facts.length}건 확인 필요: ${c.facts.map(f => f.detail).join(' / ')}` : '팩트체크 통과');
   if (novelty.length > 0) notes.push(`사실표에 없는 숫자·제품명이 글에 있음(확인): ${novelty.join(', ')}`);
-  if (len < 2500) notes.push(`분량 ${len.toLocaleString()}자 — 자동으로 늘리지 않았습니다. 사실 ${Math.ceil((2500 - len) / 250)}줄쯤 더 주시면 채웁니다`);
-  if (c.format.length > 0) notes.push(`형식: ${c.format.filter(x => !/2500|분량/.test(x)).join(' / ')}`.replace(/형식: $/, '').trim());
+  if (len < 2000) notes.push(`분량 ${len.toLocaleString()}자 — 자동으로 늘리지 않았습니다. 사실 ${Math.ceil((2000 - len) / 250)}줄쯤 더 주시면 채웁니다`);
+  if (c.format.length > 0) notes.push(`형식: ${c.format.filter(x => !/2[05]00|분량/.test(x)).join(' / ')}`.replace(/형식: $/, '').trim());
 
   let draftId: string | null = null;
   if (input.save) {
