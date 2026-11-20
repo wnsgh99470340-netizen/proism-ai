@@ -14,7 +14,6 @@ export default function FactSheetCard({ facts, onConfirm, onDelete }: { facts: F
   const [busy, setBusy] = useState(false);
 
   const removeAt = (i: number) => setItems(ls => ls.filter((_, k) => k !== i));
-  const addLine = (t: string) => { const v = t.trim(); if (v) setItems(ls => [...ls, { text: v, source: '사장님 메모' }]); };
   const submit = async () => {
     setBusy(true);
     try {
@@ -25,7 +24,8 @@ export default function FactSheetCard({ facts, onConfirm, onDelete }: { facts: F
 
   return (
     <div className="mt-2 rounded-lg border border-gold/50 bg-[var(--c-card)] p-2.5 text-[11px]">
-      <div className="font-semibold text-[var(--c-text-1)] mb-1">이 작업의 사실표 — 글은 이 줄들로만 씁니다</div>
+      <div className="font-semibold text-[var(--c-text-1)]">글에 들어갈 내용입니다</div>
+      <div className="text-[10px] text-[var(--c-text-3)] mb-1.5">틀린 줄은 ✕로 빼고, 빠진 건 아래 칸에 적은 뒤 '이대로 써'를 누르세요. 이 줄들 밖의 내용은 글에 들어가지 않습니다</div>
       <ul className="space-y-1">
         {items.map((it, i) => (
           <li key={`${i}-${it.text.slice(0, 8)}`} className="flex items-start gap-1.5">
@@ -37,13 +37,10 @@ export default function FactSheetCard({ facts, onConfirm, onDelete }: { facts: F
       </ul>
       {facts.unsure.length > 0 && (
         <div className="mt-2 rounded bg-[var(--c-subtle)] p-2">
-          <div className="text-[10px] font-medium text-[var(--c-text-2)] mb-1">확인 필요 — 글에 쓰지 않습니다. 실제로 한 것이면 표에 넣으세요</div>
-          <ul className="space-y-1">
+          <div className="text-[10px] font-medium text-[var(--c-text-2)] mb-1">제가 모르는 것 — 아시면 아래 칸에 적어 주세요. 안 적으면 글에 쓰지 않습니다</div>
+          <ul className="space-y-0.5">
             {facts.unsure.map((u, i) => (
-              <li key={i} className="flex items-start gap-1.5">
-                <span className="flex-1 text-[var(--c-text-3)]">{u}</span>
-                <button onClick={() => addLine(u.replace(/^사진에\s*/, '').replace(/,?\s*요청에는? 없음.*$/, ''))} className="text-[10px] text-gold hover:underline shrink-0">표에 넣기</button>
-              </li>
+              <li key={i} className="text-[var(--c-text-3)]">· {u}</li>
             ))}
           </ul>
         </div>
@@ -52,7 +49,7 @@ export default function FactSheetCard({ facts, onConfirm, onDelete }: { facts: F
         value={extra}
         onChange={(e) => setExtra(e.target.value)}
         rows={2}
-        placeholder="보탤 사실이 있으면 한 줄에 하나씩 (시간이 간 곳, 손님이 물은 것, 발견한 것)"
+        placeholder="아는 것만 한 줄에 하나씩. 예: 전면 30% 측후면 15% / 생활보호는 3M 시리즈50 / 손님이 야간 운전 많아 밝게"
         className="mt-2 w-full rounded border border-[var(--c-border)] bg-[var(--c-page)] px-2 py-1.5 text-[11px] text-[var(--c-text-1)] placeholder:text-[var(--c-text-4)] resize-none"
       />
       <div className="mt-2 flex items-center gap-2">
