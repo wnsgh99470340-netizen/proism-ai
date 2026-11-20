@@ -140,19 +140,8 @@ export async function buildToneReference(_serviceType?: string): Promise<string>
   // (이전: 같은 종류 최신 2편 전문 + 1편 앞부분 → 그 2편의 문장이 다음 글마다 되풀이됐음)
   const samples = owners.length > 0 ? pickRandom(owners, 3) : finals.slice(0, 3);
   const sampleText = samples
-    .map((p, i) => `[참고 글 ${i + 1}] ${p.title}\n${excerpt(p.body.replace(/\[사진\s*\d+\]/g, '').trim(), 3000)}`)
+    .map((p, i) => `[참고 글 ${i + 1}] ${p.title}\n${excerpt(p.body.replace(/\[사진\s*\d+\]/g, '').trim(), 2500)}`)
     .join('\n\n');
-
-  const feedbacks = Array.from(new Set(
-    finals.map(f => (f.feedback || '').trim()).filter((f) => f && !f.startsWith('source:'))
-  )).slice(0, 15);
-  const feedbackText = feedbacks.length > 0
-    ? `\n\n[사장님이 이전 초안에 남긴 교정 피드백 — 반드시 반영]\n${feedbacks.map(f => `- ${f}`).join('\n')}`
-    : '';
-
-  return `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[사장님 문체 참고 — DB에 저장된 실제 글 ${samples.length}편]
-문장을 베끼지 말고 말투·호흡·단어 선택·문단 길이만 따라 하세요. 아래 글의 차량·제품·사실을 이번 글에 가져오면 안 됩니다.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${sampleText}${feedbackText}`;
+  // 2026-11-20 정리: "교정 피드백 — 반드시 반영" 블록은 뺐다(final 의 feedback 이 수정 이력 창고가 되어 2.6K 가 매 글에 들어가고 있었음)
+  return `\n\n[사장님 글 ${samples.length}편 — 말투·호흡·문단 길이만 참고. 문장과 차량·제품·사실은 가져오지 않는다]\n${sampleText}`;
 }

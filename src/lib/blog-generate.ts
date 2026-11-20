@@ -14,7 +14,6 @@ import { photoColorFromContext } from './photo-check';
 import { getOwnerStyle, styleToPrompt } from './owner-style';
 import { buildToneReference, savePost, listPosts, getPost, updatePost } from './posts';
 import { BLOG_SYSTEM_PROMPT } from '@/config/prompts';
-import { BLOG_FORMATS, detectFormat, pickFormat, stockPhrasesIn, STOCK_PHRASES, formatByKey, formatFromMessage, type BlogFormat } from '@/config/blog-formats';
 import { pickDifferentiators, differentiatorPrompt, type Differentiator } from '@/config/differentiators';
 import { pickWorkStandards, workStandardsPrompt, standardServiceOf, type WorkStandard } from '@/config/work-standards';
 import { extractTagsFromTitle, textToHtml } from './draft-format';
@@ -281,7 +280,7 @@ ${original}
 const DRAFTS_DIR = path.join(process.cwd(), 'public', 'drafts');
 
 /** 이전에 저장된 글의 제목 + 도입 6줄 + 마무리 4줄 + 짐작한 형식 + 몸통 관용구 (최근 20개). DB 우선, 로컬 파일 폴백 */
-export type PreviousPost = { title: string; intro: string; closing: string; formatKey?: string | null; phrases?: string[]; /** 본문 줄(연락처·서명·사진·해시태그 제외) — 되풀이 표현 추출용 (2026-11-19) */ rawLines?: string[] };
+export type PreviousPost = { title: string; intro: string; closing: string; /** 본문 줄(연락처·서명·사진·해시태그 제외) — 같은 문장 검사용 */ rawLines?: string[] };
 
 /** 본문을 실제 문장 줄만으로 (HTML 태그·[사진 N]·해시태그·빈 줄 제거) */
 function textLines(body: string): string[] {
@@ -293,37 +292,16 @@ function textLines(body: string): string[] {
 
 const CONTACT_RE = /010-7287|서초중앙로|blog\.naver|^감사합니다/;
 
-/** 겹침 비교용: 도입 6줄 + 마무리 4줄(연락처 제외) + 형식·관용구 */
-function summarizeForRepeat(body: string): { intro: string; closing: string; formatKey: string | null; phrases: string[]; rawLines: string[] } {
+/** 겹침 비교용: 도입 6줄 + 마무리 4줄(연락처 제외) + 본문 줄 */
+function summarizeForRepeat(body: string): { intro: string; closing: string; rawLines: string[] } {
   const lines = textLines(body);
   const intro = lines.slice(0, 6).join(' / ');
   const closing = lines.filter(l => !CONTACT_RE.test(l)).slice(-4).join(' / ');
-  const plain = lines.join('\n');
-  return { intro, closing, formatKey: detectFormat(plain)?.key ?? null, phrases: stockPhrasesIn(plain), rawLines: lines.filter(l => !FIXED_LINE_RE.test(l)) };
+  return { intro, closing, rawLines: lines.filter(l => !FIXED_LINE_RE.test(l)) };
 }
 
 /** 글마다 똑같아도 되는 줄: 연락처·주소·서명·상호 */
 const FIXED_LINE_RE = /010-7287|서초중앙로|서울특별시|서초구|blog\.naver|진준호(입니다|였습니다)|3M\s*프로이즘\s*강남서초점|프리퍼드 인스톨러 매장/;
-
-/**
- * 최근 글에서 되풀이된 문장 (2026-11-19 사장님 "말 표현도 바꿔도 돼, 매 글이 다 똑같아"):
- * 최근 12편 중 minDocs 편 이상에 똑같이 들어간 줄을 뽑아 프롬프트에 "이번 글에서는 다른 말로" 목록으로 준다.
- * 측정 당시 3편 이상 겹친 줄이 311개였음("솔직하게 말씀드리면"·"이게 되어 있지 않으면"·"나중에 필름을 벗기면" 등)
- */
-export function repeatedLines(previous: PreviousPost[], minDocs = 3, limit = 40): string[] {
-  const count = new Map<string, { n: number; text: string }>();
-  for (const p of previous.slice(0, 12)) {
-    const seen = new Set<string>();
-    for (const l of p.rawLines || []) {
-      const k = normLine(l);
-      if (k.length < 8 || seen.has(k)) continue;
-      seen.add(k);
-      const cur = count.get(k);
-      if (cur) cur.n += 1; else count.set(k, { n: 1, text: l });
-    }
-  }
-  return [...count.values()].filter(v => v.n >= minDocs).sort((a, b) => b.n - a.n).slice(0, limit).map(v => v.text);
-}
 
 /** 이번 글의 줄이 이전 글 2편 이상에 그대로 있으면(6줄 이상) 1회 수정 대상 — 사실은 두고 말만 바꾸게 */
 export function checkLineRepeat(body: string, previous: PreviousPost[]): Violation[] {
@@ -368,20 +346,6 @@ export function checkIntroRepeat(body: string, previous: PreviousPost[]): Violat
     v.push({ rule: 'intro', detail: `마무리 "${hitC}"이(가) 이전 글과 같음 → 마무리 문장을 다르게 다시 쓰기(연락처·주소는 유지)` });
   }
   return v;
-}
-
-/**
- * 몸통 관용구 겹침 검사 (2026-11-13): 이번 글에 있는 관용구가 최근 6편 안에도 있으면 1회 수정 대상.
- * 사실(QC·메인터넌스·끝단 마감)은 두고 말버릇만 바꾸게 한다
- */
-export function checkBodyRepeat(body: string, previous: PreviousPost[]): Violation[] {
-  const mine = stockPhrasesIn(textLines(body).join('\n'));
-  if (mine.length === 0) return [];
-  const recent = new Set(previous.slice(0, 6).flatMap(p => p.phrases || []));
-  const hits = mine.filter(k => recent.has(k));
-  if (hits.length === 0) return [];
-  const labels = hits.map(k => STOCK_PHRASES.find(p => p.key === k)?.label || k);
-  return [{ rule: 'body', detail: `이전 글과 같은 말버릇: ${labels.join(', ')} → 그 문장을 다른 말로 바꾸거나 빼기(부위는 번호 매기지 말고 글 흐름 안에서 소개, 감상은 "개인적으로" 없이 한 줄, 작업 사실은 유지)` }];
 }
 
 /**
@@ -443,10 +407,6 @@ export function checkKeywordDensity(body: string, keyword?: string | null): Viol
 }
 
 /** 이전 글들이 쓴 형식 키(최신순) — 이번 글 형식 고르기용 */
-export function recentFormatKeys(previous: PreviousPost[]): (string | null)[] {
-  return previous.map(p => p.formatKey ?? null);
-}
-
 /** 이전 AI 글(초안·최종본) 목록 — 겹침 방지용. 사장님 글은 문체 참고이므로 제외 */
 export async function getPreviousDrafts(): Promise<PreviousPost[]> {
   try {
@@ -469,7 +429,7 @@ export async function getPreviousDrafts(): Promise<PreviousPost[]> {
         } catch {
           const nameWithoutExt = f.replace(/\.txt$/, '');
           const idx = nameWithoutExt.indexOf('_');
-          return { title: idx >= 0 ? nameWithoutExt.slice(idx + 1) : nameWithoutExt, intro: '', closing: '', formatKey: null, phrases: [] };
+          return { title: idx >= 0 ? nameWithoutExt.slice(idx + 1) : nameWithoutExt, intro: '', closing: '' };
         }
       })
     );
@@ -489,46 +449,26 @@ async function saveDraftFile(title: string, body: string): Promise<void> {
   } catch { /* 저장 실패해도 응답에는 영향 없음 */ }
 }
 
-/** 이번 글 형식 고르기: 이전 글 목록을 보고 최근에 안 쓴 형식 */
-export async function chooseFormat(previous?: PreviousPost[], exclude: string[] = []): Promise<BlogFormat> {
-  const prev = previous ?? await getPreviousDrafts();
-  return pickFormat(recentFormatKeys(prev), exclude);
-}
-
-/** 블로그 작성용 시스템 프롬프트: 규칙 + 이번 글 형식 + 사장님 문체 + 사전 조사 + 이전 글 목록 */
-export async function buildBlogSystemPrompt(researchContext: string, serviceType?: string, keyword?: string | null, format?: BlogFormat | null, differentiators?: Differentiator[], standards?: WorkStandard[]): Promise<string> {
-  const [toneReference, ownerStyle] = await Promise.all([buildToneReference(serviceType), getOwnerStyle()]);
+/**
+ * 블로그 작성용 시스템 프롬프트 (2026-11-20 정리 — 여섯 덩어리만):
+ * 규칙(BLOG_SYSTEM_PROMPT) + 차별점 1~2줄 + 부위 기준(있으면) + 제목 키워드(있으면) + 사장님 어휘 + 사장님 글 3편 + 사전 조사·사진 확인 + 이전 글 제목·도입 8편
+ * 뺀 것: 형식 돌려쓰기, 되풀이 문장 40줄, 문체 카드, 교정 피드백, 말버릇 목록 (글을 비틀기만 하고 재료는 주지 못했음)
+ */
+export async function buildBlogSystemPrompt(researchContext: string, serviceType?: string, keyword?: string | null, differentiators?: Differentiator[], standards?: WorkStandard[]): Promise<string> {
+  const [toneReference, ownerStyle, previousDrafts] = await Promise.all([buildToneReference(serviceType), getOwnerStyle(), getPreviousDrafts()]);
   const styleContext = ownerStyle ? styleToPrompt(ownerStyle) : '';
   const keywordContext = keyword
-    ? `\n\n[이번 글 제목 키워드 — 필수]\n"${keyword}"를 제목 앞부분에 그대로 넣고(띄어쓰기·순서 유지), 본문에도 3~5회 자연스럽게 넣는다. 억지로 반복하지 말고 문장 안에 녹인다. 해시태그에도 한 번 넣는다.`
+    ? `\n\n[제목 키워드 — 필수] "${keyword}"를 제목 앞부분에 그대로 넣고(띄어쓰기·순서 유지) 본문에 3~5회, 해시태그에 한 번`
     : '';
-  // 2026-11-19 7시리즈 투톤: 조사가 "글라스 루프 유무 확인 안 됨, 사장님께 확인"이라고 적었는데 글은 루프 전체를 감싼 것으로 씀 → 확인 안 된 구조는 서술 금지를 조사 블록 머리에 못 박는다
   const vehicleContext = researchContext
-    ? `\n\n[사전 조사 사용 규칙] 아래 조사에서 "확인 안 됨"으로 적힌 구조(글라스 루프 유무·선루프·루프레일·프레임리스 도어 등)는 있는 것으로도 없는 것으로도 쓰지 않는다. 그 부위가 의뢰 범위의 핵심이면 그 부위의 작업 장면을 쓰지 말고 "범위는 상담에서 정한다"로만 둔다. 조사는 구조의 근거일 뿐 작업 사실이 아니다.\n${researchContext}`
+    ? `\n\n[사전 조사·사진 확인] 조사는 구조의 근거일 뿐 작업 사실이 아니다. "확인 안 됨"인 구조는 있다고도 없다고도 쓰지 않는다.\n${researchContext}`
     : '';
-  const previousDrafts = await getPreviousDrafts();
-  const fmt = format ?? pickFormat(recentFormatKeys(previousDrafts));
-  // 차별점 사실표(2026-11-16): 확인된 사실 1~2개를 글마다 골라 작업 설명 안에 녹이게 한다
   const diffContext = differentiatorPrompt(differentiators ?? pickDifferentiators(serviceType || ''));
-  // 부위별 시공 기준 사전(2026-11-18): 랩핑·크롬죽이기(컬러PPF는 안전 항목만)의 부위 기준을 장면의 근거로만 넣는다
   const standardsContext = workStandardsPrompt(standardServiceOf(serviceType || ''), standards ?? []);
-  // 2026-11-19 사장님 "규칙은 참고, 강제 아님" → 형식도 제안으로만 준다
-  const formatContext = `\n\n[이번 글의 형식 — 제안: ${fmt.name}]\n${fmt.brief}\n최근 글에 안 쓴 모양이라 골랐다. 이 뼈대로 가되 더 자연스러운 흐름이 있으면 그쪽을 따른다. 부위를 "가장 이야기하고 싶은 → 두 번째 → 세 번째"로 번호 매겨 훑는 것만 피한다.`;
-  let previousContext = '';
-  if (previousDrafts.length > 0) {
-    const fmtName = (k?: string | null) => BLOG_FORMATS.find(f => f.key === k)?.name;
-    const phraseLabel = (k: string) => STOCK_PHRASES.find(p => p.key === k)?.label;
-    const list = previousDrafts.map((d, i) => {
-      const extra = [fmtName(d.formatKey) ? `형식: ${fmtName(d.formatKey)}` : '', d.phrases?.length ? `말버릇: ${d.phrases.map(phraseLabel).filter(Boolean).join(' · ')}` : ''].filter(Boolean).join(' / ');
-      return `${i + 1}. ${d.title}${d.intro ? `\n   도입: ${d.intro}` : ''}${d.closing ? `\n   마무리: ${d.closing}` : ''}${extra ? `\n   ${extra}` : ''}`;
-    }).join('\n');
-    const repeats = repeatedLines(previousDrafts);
-    const repeatBlock = repeats.length > 0
-      ? `\n\n[최근 글에서 되풀이된 문장 — 이번 글에서는 다루지 않거나 이 차의 일로만]\n아래 줄들은 최근 글 여러 편에 들어갔던 말이다. 말만 바꿔 같은 뜻을 다시 쓰는 것도 되풀이다(예: "건식이라 닿는 순간 붙는다"를 "건식 작업이라 그 자리에서 접착이 진행된다"로 바꾸는 것). 이런 원리 설명·비유·일반론은 이번 글에서 빼거나, 이 차·이 의뢰에서 실제로 생긴 일 한 가지로 대신한다. 관리 사실(QC 2주·메인터넌스 6개월·세차 방법)과 연락처·서명은 되풀이해도 된다.\n${repeats.map(r => `- ${r}`).join('\n')}`
-      : '';
-    previousContext = `\n\n[이전에 작성한 글 — 겹침 금지]\n아래 글들의 도입 첫 문장·마무리 문장·"말버릇"에 적힌 표현을 이번 글에 쓰지 않는다. "완성된 모습부터 보여드립니다"와 그 변형(바뀐 뒤의 모습을 먼저 보시고 등)으로 열지 않는다. 몸통도 전처리 → 부위 1·2·3 → 루프 → 전체 → 감상 → QC → 메인터넌스 순서를 되풀이하지 않는다.\n${list}${repeatBlock}`;
-  }
-  return `${BLOG_SYSTEM_PROMPT}${formatContext}${diffContext}${standardsContext}${keywordContext}${styleContext}${toneReference}${vehicleContext}${previousContext}`;
+  const previousContext = previousDrafts.length > 0
+    ? `\n\n[이전에 쓴 글 — 같은 도입·같은 문장으로 시작하지 않는다]\n${previousDrafts.slice(0, 8).map((d, i) => `${i + 1}. ${d.title}${d.intro ? ` / 도입: ${d.intro.split(' / ').slice(0, 2).join(' / ')}` : ''}`).join('\n')}`
+    : '';
+  return `${BLOG_SYSTEM_PROMPT}${diffContext}${standardsContext}${keywordContext}${styleContext}${toneReference}${vehicleContext}${previousContext}`;
 }
 
 export interface RunWriterOptions {
@@ -545,8 +485,6 @@ export interface RunWriterOptions {
   researchContext?: string;
   /** 초안을 DB에 저장할지 (블로그 요청일 때만) */
   save: boolean;
-  /** 이번 글에 지정한 형식 이름 (접수 요약에 표시) */
-  formatName?: string;
   /** 이번 글에 녹인 차별점 이름들 (접수 요약에 표시) */
   differentiatorNames?: string[];
   /** 이번 글에 넣은 부위별 시공 기준 (접수 요약에 표시) */
@@ -557,7 +495,7 @@ export interface RunWriterOptions {
  * 작성 → 검사 → 1회 수정 → draft 구성 → 저장. /api/chat 과 백그라운드 작업이 공유하는 핵심.
  */
 export async function runWriter(opts: RunWriterOptions): Promise<WriterResult> {
-  const { systemPrompt, model, history = [], combinedMessage, target, researchSummary = '', save, knownColor = null, formatName, differentiatorNames = [], standardNames = [] } = opts;
+  const { systemPrompt, model, history = [], combinedMessage, target, researchSummary = '', save, knownColor = null, differentiatorNames = [], standardNames = [] } = opts;
   const messages = [
     ...history.map(h => ({ role: h.role as 'user' | 'assistant', content: h.content })),
     { role: 'user' as const, content: combinedMessage },
@@ -570,7 +508,7 @@ export async function runWriter(opts: RunWriterOptions): Promise<WriterResult> {
   const serviceType = target.serviceType;
   const first = splitTitleBody(reply);
   const previous = save ? await getPreviousDrafts() : [];
-  let violations = first ? [...checkHardViolations(first.body, combinedMessage, serviceType, knownColor), ...checkIntroRepeat(first.body, previous), ...checkBodyRepeat(first.body, previous), ...checkLineRepeat(first.body, previous), ...checkKeywordDensity(first.body, target.keyword)] : [];
+  let violations = first ? [...checkHardViolations(first.body, combinedMessage, serviceType, knownColor), ...checkIntroRepeat(first.body, previous), ...checkLineRepeat(first.body, previous), ...checkKeywordDensity(first.body, target.keyword)] : [];
   let factIssues: FactIssue[] = first ? factCheck({ body: first.body, serviceType, product: target.product ?? undefined }) : [];
   let formatIssues = first ? checkFormatIssues(first.title, first.body, target.keyword) : [];
   const pureLen = (b: string) => b.replace(/\[사진\s*\d+\]/g, '').replace(/\s/g, '').length;
@@ -584,7 +522,7 @@ export async function runWriter(opts: RunWriterOptions): Promise<WriterResult> {
       const fixed = await fixIssues(systemPrompt, reply, issues, model);
       const f = splitTitleBody(fixed);
       if (f && pureLen(f.body) >= Math.min(1500, pureLen(cur.body))) {
-        const fixedViolations = [...checkHardViolations(f.body, combinedMessage, serviceType, knownColor), ...checkIntroRepeat(f.body, previous), ...checkBodyRepeat(f.body, previous), ...checkLineRepeat(f.body, previous), ...checkKeywordDensity(f.body, target.keyword)];
+        const fixedViolations = [...checkHardViolations(f.body, combinedMessage, serviceType, knownColor), ...checkIntroRepeat(f.body, previous), ...checkLineRepeat(f.body, previous), ...checkKeywordDensity(f.body, target.keyword)];
         const fixedFacts = factCheck({ body: f.body, serviceType, product: target.product ?? undefined });
         const fixedFormat = checkFormatIssues(f.title, f.body, target.keyword);
         // 위반·팩트 오류가 늘지 않고 형식 미달이 줄었거나 같으면 채택
@@ -606,7 +544,7 @@ export async function runWriter(opts: RunWriterOptions): Promise<WriterResult> {
       const expanded = await expandDraft(systemPrompt, reply, pureLen(cur.body), model);
       const e = splitTitleBody(expanded);
       if (!e || pureLen(e.body) <= pureLen(cur.body)) continue;
-      const eViolations = [...checkHardViolations(e.body, combinedMessage, serviceType, knownColor), ...checkIntroRepeat(e.body, previous), ...checkBodyRepeat(e.body, previous), ...checkLineRepeat(e.body, previous), ...checkKeywordDensity(e.body, target.keyword)];
+      const eViolations = [...checkHardViolations(e.body, combinedMessage, serviceType, knownColor), ...checkIntroRepeat(e.body, previous), ...checkLineRepeat(e.body, previous), ...checkKeywordDensity(e.body, target.keyword)];
       const eFacts = factCheck({ body: e.body, serviceType, product: target.product ?? undefined });
       if (eViolations.length <= violations.length && eFacts.length <= factIssues.length) {
         reply = expanded;
@@ -624,7 +562,7 @@ export async function runWriter(opts: RunWriterOptions): Promise<WriterResult> {
       const stripped = cur.body.split(/\n\s*\n/).filter(p => !/발수/.test(p)).join('\n\n');
       if (pureLen(stripped) >= 1500) {
         reply = `${cur.title}\n${stripped}`;
-        violations = [...checkHardViolations(stripped, combinedMessage, serviceType, knownColor), ...checkIntroRepeat(stripped, previous), ...checkBodyRepeat(stripped, previous), ...checkLineRepeat(stripped, previous), ...checkKeywordDensity(stripped, target.keyword)];
+        violations = [...checkHardViolations(stripped, combinedMessage, serviceType, knownColor), ...checkIntroRepeat(stripped, previous), ...checkLineRepeat(stripped, previous), ...checkKeywordDensity(stripped, target.keyword)];
         factIssues = factCheck({ body: stripped, serviceType, product: target.product ?? undefined });
         formatIssues = checkFormatIssues(cur.title, stripped, target.keyword);
       }
@@ -636,7 +574,6 @@ export async function runWriter(opts: RunWriterOptions): Promise<WriterResult> {
   if (!draftResult) return { reply, draft: null, checks: null, draftId: null, target: null };
 
   const notes: string[] = ['블로그 글이 완성되었습니다.'];
-  if (formatName) notes.push(`이번 글 형식: ${formatName}`);
   if (differentiatorNames.length) notes.push(`녹인 차별점: ${differentiatorNames.join(' · ')}`);
   if (standardNames.length) notes.push(`부위 기준 참고: ${standardNames.join(' · ')}`);
   if (violations.length > 0) notes.push(`확인 필요: ${violations.map(v => v.detail).join(' / ')}`);
@@ -685,13 +622,9 @@ export async function generateBlogPost(input: {
   const t = resolveTarget(input.message, input.request);
   const keyword = input.request?.keyword?.trim() || extractKeyword(input.message);
   const target: Target = { carModel: t.carModel, serviceType: t.serviceType, product: t.product, region: input.request?.region || null, keyword };
-  // 사장님이 폼·채팅으로 형식을 지정했으면 그것, 아니면 최근 글에 안 쓴 형식
-  // 신차패키지는 여러 시공을 다루므로 한 부위·QC 시점 형식은 피한다 (2026-11-14 5시리즈 글이 앞유리 하나로 흘렀던 일)
-  const exclude = /신차패키지/.test(target.serviceType) ? ['one_part', 'care'] : [];
-  const format = formatByKey(input.request?.format) || formatFromMessage(`${input.request?.notes || ''}\n${input.message}`) || await chooseFormat(undefined, exclude);
   const diffs = pickDifferentiators(target.serviceType);
   const standards = pickWorkStandards(target.serviceType, `${input.request?.range || ''} ${input.request?.notes || ''} ${input.message}`, input.research?.context || '');
-  const systemPrompt = await buildBlogSystemPrompt(input.research?.context || '', target.serviceType, keyword, format, diffs, standards);
+  const systemPrompt = await buildBlogSystemPrompt(input.research?.context || '', target.serviceType, keyword, diffs, standards);
   const knownColor = input.request?.color?.trim() || photoColorFromContext(input.research?.context);
   return runWriter({
     systemPrompt,
@@ -703,7 +636,6 @@ export async function generateBlogPost(input: {
     researchContext: input.research?.context || '',
     save: true,
     knownColor,
-    formatName: format.name,
     differentiatorNames: diffs.map(d => d.label),
     standardNames: standards.map(st => st.part),
   });

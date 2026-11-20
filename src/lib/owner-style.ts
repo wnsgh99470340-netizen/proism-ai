@@ -119,16 +119,9 @@ export async function getOwnerStyle(): Promise<OwnerStyle | null> {
   }
 }
 
-/** 작성 프롬프트에 붙이는 블록 */
+/** 작성 프롬프트에 붙이는 블록 — 어휘만 (2026-11-20 정리: 문체 카드 3.9K 는 미리보기 화면에서만 보고 글에는 넣지 않는다. 말투는 실제 글 3편이 보여 준다) */
 export function styleToPrompt(style: OwnerStyle): string {
   const used = style.usedTerms.map(t => t.term).join(', ');
   const unused = style.unusedTerms.join(', ');
-  return `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[사장님 글에서 배운 기준 — 사장님이 직접 쓴 블로그 글 ${style.postCount}편, ${style.builtAt.slice(0, 10)}]
-이 사람이 어떻게 쓰는지 알기 위한 참고다. 부위 이름은 아래 목록을 따르고(보닛·휀더 식으로 바꿔 쓰지 않는다), 그 밖의 표현은 매 글 다르게 고른다. 카드의 "자주 쓰는 표현"은 말투를 알려 주는 것이지 매 글에 넣을 목록이 아니다 — 그대로 옮기지 말고 그런 결의 다른 말을 쓴다. 위의 "사실 때문에 쓰지 않는 것"은 이 기준보다 우선한다.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-사장님이 쓰는 부위·공정 말: ${used}
-사장님 글에 없는 말 (쓰지 않는다): ${unused}
-
-${style.card}`;
+  return `\n\n[사장님이 쓰는 말 — 사장님 글 ${style.postCount}편에서 센 것]\n부위·공정 말(이 안에서 고른다): ${used}\n사장님 글에 없는 말(쓰지 않는다): ${unused}`;
 }
