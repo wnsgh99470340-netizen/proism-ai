@@ -98,7 +98,9 @@ function excerpt(text: string, maxChars: number): string {
  * 사장님이 제목을 바꿔 발행하면 제목 비교만으로는 못 잡아 사장님 글 기준·문체 참고에 AI 글이 섞였던 일
  */
 const normAi = (s: string) => s.replace(/\s+/g, '').toLowerCase();
-const lineSetOf = (body: string) => new Set(body.split('\n').map(l => normAi(l)).filter(l => l.length >= 10));
+/** 어느 글에나 있는 줄(연락처·주소·서명·인사·해시태그)은 겹침 계산에서 뺀다 */
+const AI_FIXED_RE = /010-|서초중앙로|서울특별시|서초구|강남서초점|프로이즘|감사합니다|안녕하세요|톡톡|^#/;
+const lineSetOf = (body: string) => new Set(body.replace(/<[^>]+>/g, '\n').split('\n').filter(l => !AI_FIXED_RE.test(l.trim())).map(l => normAi(l)).filter(l => l.length >= 10));
 export function aiPostIndex(aiPosts: BlogPost[]): { title: string; lines: Set<string> }[] {
   return aiPosts.map(p => ({ title: normAi(p.title), lines: lineSetOf(p.body) }));
 }
@@ -107,7 +109,16 @@ export function looksAiWritten(p: BlogPost, index: { title: string; lines: Set<s
   if (index.some(a => a.title === t)) return true;
   const lines = [...lineSetOf(p.body)];
   if (lines.length < 20) return false;
-  return index.some(a => { let hit = 0; for (const l of lines) if (a.lines.has(l)) hit++; return hit / lines.length >= 0.3; });
+  // (1) 어느 한 초안·최종본과 줄의 30% 이상 겹침 (2026-11-19)
+  if (index.some(a => { let hit = 0; for (const l of lines) if (a.lines.has(l)) hit++; return hit / lines.length >= 0.3; })) return true;
+  // (2) 2026-11-20: 사장님이 많이 고쳐 올린 AI 글(M2 17줄·GV70 8줄 겹침)이 (1)을 빠져나가 문체 참고로 다시 들어왔음
+  //     → 전체 초안·최종본 줄과 합쳐 6줄 이상 겹치면, 또는 2026-10 이후 글이 4줄 이상 겹치면 AI 글로 본다
+  //     (사장님이 직접 쓴 옛 글은 많아야 5줄 안팎: 마세라티 2026-04 5줄)
+  const all = new Set<string>();
+  for (const a of index) for (const l of a.lines) all.add(l);
+  let hit = 0; for (const l of lines) if (all.has(l)) hit++;
+  const recent = (p.created_at || '') >= '2026-10-01';
+  return hit >= 6 || (recent && hit >= 4);
 }
 
 /** 배열에서 n개를 무작위로 (문체 참고 글을 매번 같은 2편으로 주지 않기 위해, 2026-11-19) */

@@ -26,7 +26,7 @@ export interface PhotoFacts {
   summary: string;
 }
 
-const MAX_SAMPLE = 6;
+const MAX_SAMPLE = 12; // 2026-11-20: 6장이라 장면이 부족해 글이 일반 설명으로 채워졌음(Q7 신차패키지). 12장으로
 
 function pickEvenly<T>(arr: T[], n: number): T[] {
   if (arr.length <= n) return arr;
@@ -55,7 +55,9 @@ export async function inspectPhotos(photosUrl: string, hint: { carModel?: string
   const { files } = await listDriveFolder(photosUrl);
   const photos = files.filter(f => f.kind === 'photo');
   const sample = pickEvenly(photos, MAX_SAMPLE);
-  const images = (await Promise.all(sample.map(f => fetchImage(f.id)))).filter((x): x is { data: string; mediaType: string } => Boolean(x));
+  const fetched = await Promise.all(sample.map(async f => ({ f, img: await fetchImage(f.id) })));
+  const okFiles = fetched.filter(x => x.img).map(x => x.f);
+  const images = fetched.map(x => x.img).filter((x): x is { data: string; mediaType: string } => Boolean(x));
   if (images.length === 0) throw new Error('드라이브 사진을 내려받지 못했습니다 (공유 설정 확인)');
 
   const prompt = `위 사진들은 자동차 시공점에서 찍은 ${[hint.carModel, hint.serviceType].filter(Boolean).join(' ')} 시공 사진입니다. 블로그 글을 쓰기 전에 사실을 확인하려는 것이니 보이는 것만 적고 추측하지 마세요.
@@ -65,7 +67,7 @@ JSON 한 개로만 답하세요:
  "body":"차체 형태: 쿠페(2도어) / 세단(4도어) / 그란쿠페·4도어쿠페 / SUV / 해치백 / 왜건 / 컨버터블 중 하나. 도어 수를 세어 보고 확실하지 않으면 \"불확실\"",
  "roof":"루프 상태: 도장 루프 / 글라스·선루프 / 카본 루프 / 안 보임 중 하나",
  "panels":["사진에 보이는 시공 부위·패널 (본넷, 앞범퍼, 도어, 휀더, 루프, 트렁크, 뒷범퍼, 실내 등)"],
- "scenes":["사진 순서대로 장면 요약 1줄씩 (예: 본넷 필름 밀착 중, 엠블럼 탈거 상태, 완성 전경)"],
+ "scenes":["사진 순서대로 한 장에 한 줄씩, 사진 수와 같은 개수로. 무엇을 어디에 어떻게 하는 장면인지 구체적으로 (예: 앞유리 상단 가장자리에 열풍기로 필름을 맞추는 중 / 도어 유리에 시공액이 흥건한 상태로 스퀴지 작업 / 트렁크 쪽에서 본 완성 전경)"],
  "notes":["글에 쓸 만한 눈에 띄는 사실 (엠블럼·손잡이 탈거 여부, 마스킹, 실내/실외, 특별한 장비 등)"],
  "unsure":["확실하지 않은 것"]}`;
   const raw = await analyzeImagesWithClaude(images, prompt);
@@ -77,7 +79,13 @@ JSON 한 개로만 답하세요:
   const car = String(j.car || '').trim();
   const body = String(j.body || '').trim();
   const roof = String(j.roof || '').trim();
-  const panels = list(j.panels), scenes = list(j.scenes), notes = list(j.notes, 6), unsure = list(j.unsure, 4);
+  const panels = list(j.panels), rawScenes = list(j.scenes, MAX_SAMPLE), notes = list(j.notes, 6), unsure = list(j.unsure, 4);
+  // 장면에 폴더 안 순번·파일명을 붙인다 → 글이 [사진 N]을 이 장면에 맞춰 쓰고, 사장님은 그 순서대로 올리면 된다
+  const scenes = rawScenes.map((s, i) => {
+    const f = okFiles[i];
+    const idx = f ? photos.findIndex(p => p.id === f.id) + 1 : 0;
+    return f ? `${i + 1}번(폴더 ${idx}번째 ${f.name}): ${s.replace(/^사진\s*\d+\s*[:：]\s*/, '')}` : s;
+  });
 
   const context = [
     '[사진 확인 결과 — 작성 전 실제 시공 사진을 확인한 사실. 요청·이 블록과 어긋나는 차량 색상·부위·장면은 쓰지 않는다]',
@@ -88,11 +96,12 @@ JSON 한 개로만 답하세요:
     body && body !== '불확실' ? `- 차체 형태: ${body} (조사 자료에 다른 차체가 섞여 있어도 이것을 따른다. 도어 수·루프 구조를 다르게 쓰지 않는다)` : '',
     roof && roof !== '안 보임' ? `- 루프: ${roof}${/글라스|선루프|카본/.test(roof) ? ' (루프에 필름을 올리는 묘사 금지)' : ''}` : '',
     panels.length ? `- 보이는 부위: ${panels.join(', ')}` : '',
-    scenes.length ? `- 장면: ${scenes.join(' / ')}` : '',
+    scenes.length ? `- 장면(이 글의 몸통. 글은 이 장면들을 따라간다 — 장면이 있는 일은 그 장면으로 쓰고, 사진에 없는 과정은 일반 설명으로 채우지 않는다. [사진 N]은 아래 번호 순서로 두고 그 사진에서 보이는 것을 그 자리에 쓴다):\n  ${scenes.join('\n  ')}` : '',
     notes.length ? `- 참고: ${notes.join(' / ')}` : '',
     unsure.length ? `- 불확실(쓰지 않기): ${unsure.join(' / ')}` : '',
   ].filter(Boolean).join('\n');
-  const summary = `📷 사진 ${photos.length}장 확인 — 차량 색상 ${color}${body && body !== '불확실' ? `, 차체 ${body}` : ''}${panels.length ? `, 보이는 부위 ${panels.slice(0, 5).join('·')}` : ''}`;
+  const summary = `📷 사진 ${photos.length}장 확인 — 차량 색상 ${color}${body && body !== '불확실' ? `, 차체 ${body}` : ''}${panels.length ? `, 보이는 부위 ${panels.slice(0, 5).join('·')}` : ''}`
+    + (scenes.length ? `\n사진 순서(글의 [사진 N] = 이 순서, 올리실 때 참고): ${scenes.map(s => s.replace(/^(\d+)번\(폴더 \d+번째 ([^)]+)\): (.*)$/, '$1 $2 · $3')).join(' / ')}` : '');
   return { count: photos.length, sampled: images.length, color, car, body, roof, panels, scenes, notes, unsure, context, summary };
 }
 
