@@ -10,8 +10,8 @@ import { pickDifferentiators } from '@/config/differentiators';
 import type { BlogRequest } from '@/config/blog-options';
 import { refsToPrompt, type ReferencePost } from './blog-research';
 
-export type FactSource = '요청' | '사장님 메모' | '사진' | '참고 글' | '조사' | '매장 기본';
-export const FACT_SOURCES: FactSource[] = ['요청', '사장님 메모', '사진', '참고 글', '조사', '매장 기본'];
+export type FactSource = '요청' | '사장님 메모' | '사진' | '참고 글' | '사장님 글' | '조사' | '매장 기본';
+export const FACT_SOURCES: FactSource[] = ['요청', '사장님 메모', '사진', '참고 글', '사장님 글', '조사', '매장 기본'];
 
 export interface FactLine { text: string; source: FactSource }
 export interface FactSheet {
@@ -30,6 +30,38 @@ export const FACTS_MODEL = 'claude-fable-5-2';
 const SYSTEM = `당신은 자동차 시공점 블로그 글을 쓰기 전에 "이 작업의 사실표"를 만드는 편집자입니다. 글을 쓰지 않습니다.
 사실표는 이 차·이 의뢰에 대해 참인 것만 담습니다. 참인지 모르는 것은 사실표가 아니라 "확인 필요"에 둡니다.
 출력은 JSON 하나뿐입니다.`;
+
+/** FAQ·공지용 사실표 프롬프트 (2026-11-21): 질문 → 사장님 입장 → 근거 사실 → 매장 방식 → 맡겨야 하는 이유 */
+function buildFaqPrompt(input: { message: string; request: BlogRequest | null; researchContext: string; serviceType: string; topic: string; refs?: ReferencePost[] }): string {
+  const memo = input.request?.notes?.trim() || (input.message.match(/사장님 입장 메모\s*:\s*([\s\S]+)$/)?.[1] || '').trim();
+  const diffs = pickDifferentiators(input.serviceType);
+  const productFacts = BUSINESS_CONTEXT.split('# 제품·시공 팩트')[1] || '';
+  return `[주제·질문 — 이 글이 답할 것]
+${input.topic}
+(시공 분야: ${input.serviceType})
+${memo ? `\n[사장님 입장 메모 — 그대로 사실표에, 출처 '사장님 메모']\n${memo}` : '\n[사장님 입장 메모] 없음'}
+
+[조사 결과·사장님의 기존 글 — 재료]
+${input.researchContext || '(없음)'}${refsToPrompt(input.refs || [], 'facts')}
+
+[프로이즘 제품·시공 방식 — 매장 방식은 이 안에서만]
+${productFacts}
+
+[맡겨야 하는 이유 후보 — 이 주제에 맞는 것 1~2개만 '매장 기본' 줄로]
+${diffs.map(d => `- ${d.label}: ${d.fact}`).join('\n')}
+- 관리: 메인터넌스 6개월(필름 위 전용 코팅제 도포·끝단 점검). QC 2주는 PPF·컬러PPF에만
+
+## 규칙
+1. 12~18줄. 한 줄에 사실 하나, 30자 안팎, 메모처럼. 출처 하나: 요청 / 사장님 메모 / 사장님 글 / 참고 글 / 조사 / 매장 기본
+2. 순서: 손님이 이 질문으로 실제 알고 싶은 것(요청·조사의 [질문 정리], 1~2줄) → 사장님 입장(사장님 메모·사장님 글에서, 2~4줄. 없으면 넣지 않고 unsure 로 묻는다) → 근거 사실(조사의 제품 공식 정보·법규·일반 지식에서 4~7줄, 숫자는 출처 그대로) → 예외·반대 경우가 있으면 1~2줄 → 프로이즘에서는 어떻게 하는지(팩트 표의 방식·관리, 2~3줄) → 맡겨야 하는 이유 1~2줄
+3. 제품 스펙·수치는 팩트 표·[제품 공식 정보]·사장님 글에 있을 때만. 법규는 [법규·공식 기준]에 있을 때만
+4. 다른 매장을 깎아내리는 말, 최상급, 보증 기간 숫자(팩트 표에 없으면)는 넣지 않는다
+5. 사장님 입장이 조사·글 어디에도 없으면 사실표에 지어 넣지 말고 unsure 에 "~에 대한 사장님 기준은?"으로 묻는다 (최대 4개, 25자 안팎)
+6. '매장 기본' 줄은 후보·팩트 표의 문구 그대로. "3M 공식 시공점" 같은 없는 표현은 만들지 않는다
+
+## 출력 (JSON 하나)
+{"lines":[{"text":"...","source":"요청"}, ...], "unsure":["..."]}`;
+}
 
 function buildPrompt(input: { message: string; request: BlogRequest | null; researchContext: string; serviceType: string; carModel: string | null; refs?: ReferencePost[] }): string {
   const memo = input.request?.notes?.trim() || '';
@@ -96,8 +128,9 @@ function parse(raw: string): { lines: FactLine[]; unsure: string[] } {
   return { lines, unsure };
 }
 
-export async function buildFactSheet(input: { message: string; request: BlogRequest | null; researchContext: string; serviceType: string; carModel: string | null; refs?: ReferencePost[] }): Promise<FactSheet> {
-  const prompt = buildPrompt(input) + '\n\n문자열 안에 큰따옴표(")를 쓰지 마세요(필요하면 「 」). JSON 밖에 설명을 쓰지 마세요.';
+export async function buildFactSheet(input: { message: string; request: BlogRequest | null; researchContext: string; serviceType: string; carModel: string | null; refs?: ReferencePost[]; mode?: 'work' | 'faq'; topic?: string }): Promise<FactSheet> {
+  const base = input.mode === 'faq' ? buildFaqPrompt({ ...input, topic: input.topic || '' }) : buildPrompt(input);
+  const prompt = base + '\n\n문자열 안에 큰따옴표(")를 쓰지 마세요(필요하면 「 」). JSON 밖에 설명을 쓰지 마세요.';
   let lastErr: unknown = null;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {

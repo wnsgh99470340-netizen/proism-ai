@@ -204,3 +204,34 @@ export async function ownerVoiceReference(n = 2): Promise<string> {
   const picked = pickRandom(pool, n);
   return `\n\n[사장님이 직접 쓴 글 ${picked.length}편 — 말투·호흡·독자에게 말 거는 방식만 참고. 주제·주장·문장은 가져오지 않는다]\n${picked.map((p, i) => `[사장님 글 ${i + 1}] ${p.title}\n${excerpt(p.body.replace(/\[사진\s*\d+\]/g, '').trim(), 2500)}`).join('\n\n')}`;
 }
+
+/**
+ * 사장님이 전에 쓴 글에서 이 주제에 대한 입장 찾기 (FAQ 글용, 2026-11-21)
+ * 주제어가 제목·본문에 많이 나오는 사장님 글(AI 글 제외) 상위 n편에서, 주제어가 든 문단만 모아 준다
+ */
+export async function ownerStanceForTopic(topic: string, n = 3): Promise<{ context: string; summary: string; count: number }> {
+  const tokens = Array.from(new Set((topic.match(/[A-Za-z0-9]{2,}|[가-힣]{2,}/g) || []).filter(t => !/^(글|관련|대해|대한|무엇|어떻게|하나요|인가요|있나요|해도|되나요|경우|이유|방법|정리|질문)$/.test(t))));
+  if (tokens.length === 0) return { context: '', summary: '', count: 0 };
+  const [owners, finals, drafts] = await Promise.all([listPosts('owner', 400), listPosts('final', 40), listPosts('draft', 60)]);
+  const aiIdx = aiPostIndex([...finals, ...drafts]);
+  const scored = owners
+    .filter(p => !looksAiWritten(p, aiIdx))
+    .map(p => {
+      const body = p.body.replace(/<[^>]+>/g, '\n');
+      const score = tokens.reduce((a, t) => a + (p.title.includes(t) ? 3 : 0) + Math.min(5, body.split(t).length - 1), 0);
+      return { p, body, score };
+    })
+    .filter(x => x.score >= 3)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, n);
+  if (scored.length === 0) return { context: '', summary: '사장님 글 중 이 주제를 다룬 글 없음', count: 0 };
+  const blocks = scored.map((x, i) => {
+    const paras = x.body.split(/\n\s*\n/).map(s => s.trim()).filter(s => s.length >= 20 && tokens.some(t => s.includes(t))).slice(0, 6);
+    return `[사장님 글 ${i + 1}] ${x.p.title} (${x.p.created_at?.slice(0, 10) || ''})\n${paras.join('\n\n').slice(0, 1500)}`;
+  });
+  return {
+    context: `[사장님이 전에 쓴 글에서 이 주제에 대한 입장 — 여기 적힌 판단·기준·권장은 사장님 입장으로 써도 된다. 옛 글의 금지 항목(경력 연수·직접 시공·톡톡·상담 공짜)은 가져오지 않는다]\n${blocks.join('\n\n')}`,
+    summary: `사장님 글 참고(입장): ${scored.map(x => x.p.title).join(' / ')}`,
+    count: scored.length,
+  };
+}

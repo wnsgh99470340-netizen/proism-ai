@@ -29,6 +29,7 @@ const JOB_STATUS_LABEL: Record<string, string> = {
 
 export function jobLabel(job: BlogJob): string {
   const r = job.request;
+  if (r?.kind === 'faq') return `FAQ · ${r.topic || ''}`.trim();
   if (r) return [r.region, r.brand, r.model, r.serviceLabel, r.range].filter(Boolean).join(' ');
   return job.message.length > 40 ? `${job.message.slice(0, 40)}…` : job.message;
 }

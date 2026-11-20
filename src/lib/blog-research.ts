@@ -8,7 +8,27 @@ export function isAutoBlogService(serviceType: string): boolean {
   return AUTO_BLOG_SERVICES.includes(serviceType);
 }
 
+/** FAQ·공지 요청인지 (2026-11-21) */
+export function isFaqRequest(message: string, request?: BlogRequest | null): boolean {
+  if (request?.kind === 'faq') return true;
+  if (request?.kind === 'work') return false;
+  return /^\s*(FAQ|공지|정보\s*글|칼럼)\s*(글)?\s*(써|작성)/im.test(message) || /\n주제\s*:/.test(message);
+}
+
+/** FAQ 요청문에서 주제 뽑기 */
+export function extractTopic(message: string, request?: BlogRequest | null): string {
+  if (request?.topic) return request.topic.trim();
+  const m = message.match(/주제\s*:\s*([^\n]+)/);
+  if (m) return m[1].trim();
+  return message.split('\n')[0].replace(/(FAQ|공지|정보\s*글|칼럼)\s*(글)?\s*(써줘|써|작성해줘|작성)\.?/i, '').trim();
+}
+
 export function resolveTarget(message: string, request?: BlogRequest | null): { carModel: string | null; serviceType: string; product: string } {
+  if (isFaqRequest(message, request)) {
+    const svcRaw = request?.serviceLabel || (message.match(/시공\s*분야\s*:\s*([^\n.]+)/)?.[1] || '').trim() || extractServiceType(message);
+    const svc = svcRaw === '컬러PPF' ? '컬러PPF(PWF)' : (svcRaw === '시공' ? '일반' : svcRaw);
+    return { carModel: null, serviceType: svc || '일반', product: '' };
+  }
   if (request && request.model) {
     return {
       carModel: `${request.brand} ${request.model}`.trim(),
@@ -349,5 +369,77 @@ ${result.text}
       context: `[차종 구조 조사 — ${carModel}] (웹 검색 실패 — 구조는 확인된 것이 없다. 번호판 위치·범퍼·루프·유리 구조를 구체적으로 쓰지 말 것)`,
       summary: '사전 조사: 웹 검색이 실패해 차량 구조를 확인하지 못했습니다. 구조 묘사를 한 번 더 확인해 주세요.',
     };
+  }
+}
+
+/**
+ * FAQ·공지 글 사전 조사 (2026-11-21): 질문을 사실로 답하기 위한 재료 — 제품 공식 정보, 법규·공식 기준, 근거 있는 일반 지식.
+ * 다른 매장 글은 찾지 않는다. 사장님의 기존 입장은 posts.ts ownerStanceForTopic 이 따로 붙인다.
+ */
+export async function researchForFaq(topic: string, serviceType: string, userMessage: string): Promise<{ context: string; summary: string }> {
+  const prompt = `아래 질문(주제)에 대해 블로그 FAQ 글을 쓰기 전에 웹 검색으로 사실을 모아 주세요. 다른 매장의 블로그 글·시공기는 출처로 쓰지 않습니다.
+
+[주제·질문]
+${topic}
+
+[시공 분야] ${serviceType}
+
+[요청 원문]
+${userMessage}
+
+## 검색 예산
+- 최대 ${RESEARCH_MAX_SEARCHES}회. 한국어·영어를 섞어 쓰고 한 번에 여러 키워드를 묶으세요
+- 배분: 제품 공식 정보 6회, 법규·공식 기준 4회, 일반 지식·원리 8회
+
+## 조사 항목
+### A. 질문 정리
+- 손님이 이 질문을 할 때 실제로 알고 싶은 것 2~3가지 (추측 말고 질문 문장에서 읽히는 것만)
+
+### B. 제품 공식 정보 (제조사·공식 수입사·공식 대리점 페이지에서만)
+- 주제에 나온 제품, 그리고 3M 프로이즘이 쓰는 제품(3M PPF 시리즈50/100/150/PRO200, 3M PWF, 3M 2080, 3M 크리스탈라인, 루마 버텍스 900) 중 이 주제와 관련된 것
+- 종류·구조·공식 수치(없으면 "공식 수치 없음")·보증·제조사 소개 문구 한 줄
+
+### C. 법규·공식 기준
+- 이 주제에 걸리는 법·기준 (예: 썬팅 가시광선 투과율 기준, 자동차 관리법상 구조 변경, 보증 조건). 공식 출처(법령·정부·제조사)만. 없으면 "해당 없음"
+
+### D. 근거 있는 일반 지식·원리
+- 질문에 답하는 데 필요한 원리·사실 5~8개. 각 항목에 출처. 블로그 광고 글·커뮤니티 주장은 출처로 쓰지 않는다
+- 프로이즘 방식과 다른 일반론(PPF 에 열·오버랩, 썬팅 열성형을 '늘린다'로 설명 등)은 적지 않는다
+
+## 출력 형식 (이 형식 그대로)
+
+[질문 정리]
+- ...
+
+[제품 공식 정보]
+- 제품명 / 사실 / 출처 URL
+
+[법규·공식 기준]
+- 기준 / 내용 / 출처 URL
+
+[근거 있는 일반 지식]
+- 사실 / 출처 URL
+
+[참고한 출처] (제목 — URL)
+- ...
+
+[확인 안 된 항목]
+- ...`;
+  try {
+    const result = await researchWithWebSearch(RESEARCH_SYSTEM_PROMPT, prompt, { maxSearches: RESEARCH_MAX_SEARCHES });
+    if (!result.text) throw new Error('empty research');
+    const context = `[FAQ 사전 조사 — 웹 검색 ${result.searchCount}회: ${topic}]
+${result.text}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+위 조사 활용 규칙
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- 글의 사실은 여기 적힌 것과 사장님 입장만. "확인 안 됨"은 쓰지 않는다
+- 출처 URL·매체 이름은 본문에 넣지 않는다. 법규는 조문 번호까지 쓰지 않아도 되지만 숫자는 출처 그대로
+- 프로이즘 방식(PPF 습식·열 없음·오버랩 없음 등)과 다른 일반론은 쓰지 않는다`;
+    return { context, summary: `사전 조사: 웹 검색 ${result.searchCount}회 — 제품 공식 정보·법규·일반 지식` };
+  } catch (err) {
+    console.warn('[research-faq] 실패:', err);
+    return { context: `[FAQ 사전 조사 — ${topic}] (웹 검색 실패 — 조사로 확인된 사실이 없다. 사장님 입장과 매장 기본 사실만으로 짧게 쓴다)`, summary: '사전 조사: 웹 검색이 실패했습니다.' };
   }
 }

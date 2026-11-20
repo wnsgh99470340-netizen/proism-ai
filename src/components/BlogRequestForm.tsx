@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CAR_BRANDS, REGIONS, SERVICES, buildBlogMessage, type BlogRequest, type BlogPrefill, type ServiceKey } from '@/config/blog-options';
+import { CAR_BRANDS, REGIONS, SERVICES, buildBlogMessage, type BlogRequest, type BlogPrefill, type ServiceKey, FAQ_SERVICE_OPTIONS } from '@/config/blog-options';
 
 interface Props {
   disabled: boolean;
@@ -35,6 +35,10 @@ export default function BlogRequestForm({ disabled, onSubmit, initial = null }: 
   const [keyword, setKeyword] = useState('');
   const [photosUrl, setPhotosUrl] = useState('');
   const [refLinks, setRefLinks] = useState('');
+  // 글 종류 (2026-11-21 사장님: 이 기능은 FAQ·공지, 시공기는 마케팅 실장) — 기본 FAQ
+  const [mode, setMode] = useState<'work' | 'faq'>(initial ? 'work' : 'faq');
+  const [topic, setTopic] = useState('');
+  const [faqService, setFaqService] = useState<string>('PPF');
   const [vertical, setVertical] = useState(false);
   const notesRef = useRef<HTMLTextAreaElement>(null);
 
@@ -55,10 +59,21 @@ export default function BlogRequestForm({ disabled, onSubmit, initial = null }: 
   const finalBrand = brand === '기타' ? customBrand.trim() : brand;
   const photosUrlTrim = photosUrl.trim();
   const photosUrlOk = photosUrlTrim === '' || /^https?:\/\/drive\.google\.com\//.test(photosUrlTrim);
-  const canSubmit = !disabled && finalBrand.length > 0 && model.trim().length > 0 && (service.products.length === 0 ? extra.trim().length > 0 : product.length > 0) && photosUrlOk;
+  const canSubmitWork = !disabled && finalBrand.length > 0 && model.trim().length > 0 && (service.products.length === 0 ? extra.trim().length > 0 : product.length > 0) && photosUrlOk;
+  const canSubmit = mode === 'faq' ? (!disabled && topic.trim().length >= 3) : canSubmitWork;
 
   const submit = () => {
     if (!canSubmit) return;
+    if (mode === 'faq') {
+      const req: BlogRequest = {
+        brand: '', model: '', serviceKey: 'PPF', serviceLabel: faqService, range: '', product: '',
+        region, notes: notes.trim() || undefined, keyword: keyword.trim() || undefined,
+        refLinks: (refLinks.match(/https?:\/\/[^\s]+/g) || []).slice(0, 3),
+        kind: 'faq', topic: topic.trim(),
+      };
+      onSubmit(buildBlogMessage(req), req);
+      return;
+    }
     const req: BlogRequest = {
       brand: finalBrand,
       model: model.trim(),
@@ -81,8 +96,11 @@ export default function BlogRequestForm({ disabled, onSubmit, initial = null }: 
   return (
     <div className="@container mx-3 md:mx-4 mt-3 mb-1 bg-[var(--c-card)] border border-gold/30 rounded-xl p-3">
       <div className="flex items-center justify-between mb-2 gap-2">
-        <span className="text-xs font-semibold text-[var(--c-text-1)] shrink-0">⚡ 시공기 빠른 생성</span>
-        <span className="text-[10px] text-[var(--c-text-3)] hidden @sm:inline truncate">차량·시공·제품만 고르면 조사부터 초안까지 자동</span>
+        <div className="flex items-center gap-1 shrink-0">
+          <button type="button" onClick={() => setMode('faq')} className={`text-xs font-semibold px-2.5 py-1 rounded-full ${mode === 'faq' ? 'bg-gold text-[var(--c-page)]' : 'text-[var(--c-text-2)] hover:text-[var(--c-text-1)]'}`}>❓ FAQ·공지 글</button>
+          <button type="button" onClick={() => setMode('work')} className={`text-xs font-semibold px-2.5 py-1 rounded-full ${mode === 'work' ? 'bg-gold text-[var(--c-page)]' : 'text-[var(--c-text-2)] hover:text-[var(--c-text-1)]'}`}>⚡ 시공기</button>
+        </div>
+        <span className="text-[10px] text-[var(--c-text-3)] hidden @sm:inline truncate">{mode === 'faq' ? '손님 질문 하나를 적으면 조사 → 사실표 확인 → 글' : '차량·시공·제품만 고르면 조사부터 초안까지 자동'}</span>
       </div>
 
       {initial && (
@@ -90,6 +108,19 @@ export default function BlogRequestForm({ disabled, onSubmit, initial = null }: 
           📋 {initial.source || 'CRM'}에서 가져왔습니다. <b>제품 등급을 확인</b>하고, 아래 <b>참고 메모에 그 차의 이야기 두세 줄</b>(입고 상황·고객 요청·특이 부위)을 적은 뒤 생성하세요. 메모에 적은 것만 글에 들어갑니다.
         </div>
       )}
+      {mode === 'faq' && (
+        <div className="mb-2">
+          <label className={labelCls}>주제·질문 — 손님이 실제로 묻는 말로 적을수록 좋습니다</label>
+          <textarea
+            value={topic}
+            onChange={(e) => setTopic(e.target.value)}
+            rows={2}
+            placeholder="예: 앞유리 썬팅 15%로 해도 되나요? / 테슬라 루프 유리도 썬팅하나요? / PPF 시리즈50과 150은 뭐가 다른가요?"
+            className={`${inputCls} resize-none`}
+          />
+        </div>
+      )}
+      {mode === 'work' && (<>
       <div className="grid grid-cols-2 @lg:grid-cols-3 gap-2 mb-2">
         <div>
           <label className={labelCls}>브랜드</label>
@@ -150,11 +181,29 @@ export default function BlogRequestForm({ disabled, onSubmit, initial = null }: 
         )}
       </div>
 
+      </>)}
+
       <div className="grid grid-cols-1 @lg:grid-cols-2 gap-2 mb-2">
         <div>
           <label className={labelCls}>제목 키워드 (선택) — 이번 글 제목에 꼭 넣을 말. 본문에도 3~5회 들어갑니다</label>
           <input value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="예: 양재 랩핑" className={inputCls} />
         </div>
+        {mode === 'faq' ? (
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className={labelCls}>시공 분야</label>
+            <select value={faqService} onChange={(e) => setFaqService(e.target.value)} className={inputCls}>
+              {FAQ_SERVICE_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className={labelCls}>지역 (제목·본문 키워드)</label>
+            <select value={region} onChange={(e) => setRegion(e.target.value)} className={inputCls}>
+              {REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+        </div>
+        ) : (
         <div>
           <label className={labelCls}>사진 폴더 링크 (선택) — 구글 드라이브 공유 폴더. 넣으면 글 완성 뒤 영상까지 자동 제작</label>
           <input
@@ -171,6 +220,7 @@ export default function BlogRequestForm({ disabled, onSubmit, initial = null }: 
             </label>
           )}
         </div>
+        )}
       </div>
 
       <div className="mb-2">
@@ -185,13 +235,13 @@ export default function BlogRequestForm({ disabled, onSubmit, initial = null }: 
       </div>
 
       <div className="mb-2">
-        <label className={labelCls}>현장 메모 (선택) — 이 차에서 시간이 간 곳, 손님이 물은 것, 발견한 것. 한 줄이라도 적으면 그게 글의 뼈대가 됩니다</label>
+        <label className={labelCls}>{mode === 'faq' ? '사장님 입장 메모 (선택) — 이 질문에 대한 사장님 기준·권하는 것·권하지 않는 것. 조사로 알 수 없는 건 이것뿐입니다' : '현장 메모 (선택) — 이 차에서 시간이 간 곳, 손님이 물은 것, 발견한 것. 한 줄이라도 적으면 그게 글의 뼈대가 됩니다'}</label>
         <textarea
           ref={notesRef}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={initial ? 4 : 2}
-          placeholder="예: 손님이 야간 운전이 많아 전면 30%로 / 앞유리 하단 센서 자리 재단에 시간 / 도장에 미세 스크래치 있어 미리 안내"
+          placeholder={mode === 'faq' ? "예: 앞유리 30% 아래는 권하지 않음, 밤·눈·비에 위험 / 루프는 썬쉐이드 권함" : "예: 손님이 야간 운전이 많아 전면 30%로 / 앞유리 하단 센서 자리 재단에 시간 / 도장에 미세 스크래치 있어 미리 안내"}
           className={`${inputCls} resize-none`}
         />
       </div>
@@ -201,7 +251,7 @@ export default function BlogRequestForm({ disabled, onSubmit, initial = null }: 
         disabled={!canSubmit}
         className="w-full bg-brand hover:bg-brand-dark disabled:bg-[var(--c-subtle)] disabled:text-[var(--c-text-3)] text-white text-xs font-semibold py-3 rounded-lg transition-colors"
       >
-        {disabled ? '작성 중...' : '🔎 조사 → ✍️ 시공기 생성'}
+        {disabled ? '작성 중...' : mode === 'faq' ? '🔎 조사 → 📝 사실표 → FAQ 글' : '🔎 조사 → ✍️ 시공기 생성'}
       </button>
     </div>
   );

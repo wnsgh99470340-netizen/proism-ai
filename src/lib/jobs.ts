@@ -4,7 +4,8 @@
  * - 각 단계는 별도의 서버 함수 호출로 실행되고(단계당 최대 300초), 끝나면 다음 단계를 다시 호출한다
  */
 import { supabase } from './supabase';
-import { researchForBlogPost, resolveTarget, extractRefLinks, fetchReferencePosts, type ReferencePost } from './blog-research';
+import { researchForBlogPost, researchForFaq, resolveTarget, isFaqRequest, extractTopic, extractRefLinks, fetchReferencePosts, type ReferencePost } from './blog-research';
+import { ownerStanceForTopic } from './posts';
 import { generateBlogPost, type WriterResult } from './blog-generate';
 import { generateChannels, type Channels } from './channels';
 import type { BlogRequest } from '@/config/blog-options';
@@ -129,10 +130,16 @@ export async function runNextStep(id: string): Promise<JobStatus> {
     if (job.status === 'queued' || job.status === 'researching') {
       await updateJob(id, { status: 'researching' });
       const t = resolveTarget(job.message, job.request);
+      const faq = isFaqRequest(job.message, job.request);
       let research: BlogJob['research'] = null;
-      if (t.carModel) research = await researchForBlogPost(job.message, t.carModel, t.serviceType);
+      if (faq) {
+        // FAQ·공지 (2026-11-21): 제품 공식 정보·법규·일반 지식 조사 + 사장님 기존 글의 입장. 사진 없음
+        const topic = extractTopic(job.message, job.request);
+        const [r, stance] = await Promise.all([researchForFaq(topic, t.serviceType, job.message), ownerStanceForTopic(topic).catch(() => ({ context: '', summary: '', count: 0 }))]);
+        research = { context: [stance.context, r.context].filter(Boolean).join('\n\n'), summary: [r.summary, stance.summary].filter(Boolean).join('\n') };
+      } else if (t.carModel) research = await researchForBlogPost(job.message, t.carModel, t.serviceType);
       // 사진 폴더 링크가 있으면 글 쓰기 전에 사진부터 확인 (차량 색상·보이는 부위)
-      const photosUrl = findPhotosUrl(job.message, job.request);
+      const photosUrl = faq ? null : findPhotosUrl(job.message, job.request);
       if (photosUrl) {
         try {
           const pf = await inspectPhotos(photosUrl, { carModel: t.carModel, serviceType: t.serviceType, request: job.message });
@@ -155,7 +162,8 @@ export async function runNextStep(id: string): Promise<JobStatus> {
       const t = resolveTarget(job.message, job.request);
       let facts: FactSheet;
       try {
-        facts = await buildFactSheet({ message: job.message, request: job.request, researchContext: job.research?.context || '', serviceType: t.serviceType, carModel: t.carModel, refs: job.research?.refs || [] });
+        const faq = isFaqRequest(job.message, job.request);
+        facts = await buildFactSheet({ message: job.message, request: job.request, researchContext: job.research?.context || '', serviceType: t.serviceType, carModel: t.carModel, refs: job.research?.refs || [], mode: faq ? 'faq' : 'work', topic: faq ? extractTopic(job.message, job.request) : undefined });
       } catch (e) {
         throw new Error(`사실표를 만들지 못했습니다: ${e instanceof Error ? e.message : String(e)}`);
       }

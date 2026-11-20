@@ -108,10 +108,27 @@ export interface BlogRequest {
   vertical?: boolean;
   /** 참고 글 링크(사장님이 붙임, 최대 3). 사실표 재료와 말투 참고로 쓴다 — 무작위 사장님 글 대신 (2026-11-20) */
   refLinks?: string[];
+  /** 글 종류: 시공기(기본) / FAQ·공지 (2026-11-21 사장님 "시공기는 마케팅 실장이, 이 기능은 FAQ·공지") */
+  kind?: 'work' | 'faq';
+  /** FAQ·공지의 주제·질문 */
+  topic?: string;
 }
+
+/** FAQ·공지 글의 시공 분야 선택지 */
+export const FAQ_SERVICE_OPTIONS = ['PPF', '컬러PPF', '랩핑', '크롬죽이기', '썬팅', '신차패키지', '유리막코팅', '실내PPF', '일반'] as const;
 
 /** 폼 입력을 기존 채팅 파이프라인이 이해하는 한 문장으로 만든다 */
 export function buildBlogMessage(r: BlogRequest): string {
+  if (r.kind === 'faq') {
+    return [
+      `FAQ 글 써줘.`,
+      `주제: ${r.topic || ''}`,
+      `시공 분야: ${r.serviceLabel || '일반'}`,
+      r.keyword ? `제목 키워드: ${r.keyword}.` : '',
+      r.refLinks?.length ? `참고 글: ${r.refLinks.join(' ')}` : '',
+      r.notes ? `사장님 입장 메모: ${r.notes}` : '',
+    ].filter(Boolean).join('\n');
+  }
   const car = `${r.brand} ${r.model}`.trim();
   const productLine = [r.product, r.extra].filter(Boolean).join(' ');
   const parts = [

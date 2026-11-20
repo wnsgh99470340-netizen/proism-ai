@@ -2,7 +2,7 @@ import { NextRequest, after } from 'next/server';
 import { createJob, listJobs, deleteJob, getJob, updateJob, kickJob, reviveStalledJobs, confirmJob } from '@/lib/jobs';
 import { dispatchRender } from '@/lib/video';
 import type { BlogRequest } from '@/config/blog-options';
-import { resolveTarget, isAutoBlogService } from '@/lib/blog-research';
+import { resolveTarget, isAutoBlogService, isFaqRequest } from '@/lib/blog-research';
 
 export const maxDuration = 60;
 
@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     if (!message.trim()) return Response.json({ error: '메시지가 필요합니다.' }, { status: 400 });
     // 폼·CRM 버튼(자동 생성)은 PPF·컬러PPF·랩핑·크롬죽이기만. 채팅으로 직접 쓴 요청은 모든 시공 허용 (2026-11-05 사장님 결정)
     const target = resolveTarget(message, blogRequest);
-    if (blogRequest && !isAutoBlogService(target.serviceType)) {
+    if (blogRequest && !isFaqRequest(message, blogRequest) && !isAutoBlogService(target.serviceType)) {
       return Response.json({
         excluded: true,
         error: `${target.serviceType === '시공' ? '시공 종류를 알 수 없는 요청은' : `${target.serviceType} 시공기는`} 자동 생성 대상이 아닙니다. 자동 생성은 PPF·컬러PPF·랩핑·크롬죽이기만 됩니다.`,

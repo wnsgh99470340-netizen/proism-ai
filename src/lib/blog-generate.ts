@@ -7,13 +7,13 @@ import { readFile, writeFile, readdir, mkdir } from 'fs/promises';
 import { todaySeoul } from '@/lib/local-date';
 import path from 'path';
 import { callClaude } from './claude-client';
-import { resolveTarget, refsToPrompt, type ReferencePost } from './blog-research';
+import { resolveTarget, refsToPrompt, isFaqRequest, extractTopic, type ReferencePost } from './blog-research';
 import type { BlogRequest } from '@/config/blog-options';
 import { factCheck, type FactIssue } from './fact-check';
 import { photoColorFromContext } from './photo-check';
 import { getOwnerStyle, styleToPrompt } from './owner-style';
 import { savePost, listPosts, getPost, updatePost, ownerVoiceReference } from './posts';
-import { BLOG_SYSTEM_PROMPT } from '@/config/prompts';
+import { BLOG_SYSTEM_PROMPT, FAQ_SYSTEM_PROMPT } from '@/config/prompts';
 import { buildFactSheet, factsToPrompt, factsNovelty, type FactSheet } from './facts';
 import { extractTagsFromTitle, textToHtml } from './draft-format';
 
@@ -23,7 +23,7 @@ export const BLOG_WRITER_MODEL = 'claude-fable-5-2'; // 2026-11-20 사장님 "�
 export type Violation = { rule: string; detail: string };
 export type Checks = { violations: Violation[]; facts: FactIssue[]; format: string[] };
 export type Draft = { title: string; content: string; tags: string[]; category: string };
-export type Target = { carModel: string | null; serviceType: string; product: string | null; region: string | null; keyword?: string | null };
+export type Target = { carModel: string | null; serviceType: string; product: string | null; region: string | null; keyword?: string | null; /** FAQ·공지 글이면 'faq' (2026-11-21) */ mode?: 'work' | 'faq'; topic?: string };
 
 /** 채팅 요청에서 "제목 키워드: 양재 랩핑" / "키워드: ..." 를 뽑는다 (폼 값이 없을 때) */
 export function extractKeyword(message: string): string | null {
@@ -564,7 +564,7 @@ ${original}
 }
 
 /** 사실표만으로 쓰는 작성 프롬프트: 규칙 + 사실표 + 제목 키워드 + 사장님 어휘 + 사장님 글(말투) + 이전 글 제목·도입 */
-export async function buildWriterPromptFromFacts(facts: FactSheet, serviceType: string, keyword?: string | null, refs: ReferencePost[] = []): Promise<string> {
+export async function buildWriterPromptFromFacts(facts: FactSheet, serviceType: string, keyword?: string | null, refs: ReferencePost[] = [], mode: 'work' | 'faq' = 'work'): Promise<string> {
   const [ownerStyle, previousDrafts, voiceRef] = await Promise.all([getOwnerStyle(), getPreviousDrafts(), ownerVoiceReference(2)]);
   // 말투 참고 = 사장님이 붙인 링크(있으면) + 사장님이 직접 쓴 FAQ·공지 글 2편 (2026-11-20 "FAQ나 공지글 참고해")
   const toneReference = `${refsToPrompt(refs, 'writer')}${voiceRef}`;
@@ -573,7 +573,8 @@ export async function buildWriterPromptFromFacts(facts: FactSheet, serviceType: 
   const previousContext = previousDrafts.length > 0
     ? `\n\n[이전에 쓴 글 — 같은 도입·같은 문장으로 시작하지 않는다]\n${previousDrafts.slice(0, 8).map((d, i) => `${i + 1}. ${d.title}${d.intro ? ` / 도입: ${d.intro.split(' / ').slice(0, 2).join(' / ')}` : ''}`).join('\n')}`
     : '';
-  return `${BLOG_SYSTEM_PROMPT}${factsToPrompt(facts)}${keywordContext}${styleContext}${toneReference}${previousContext}`;
+  const base = mode === 'faq' ? FAQ_SYSTEM_PROMPT : BLOG_SYSTEM_PROMPT;
+  return `${base}${factsToPrompt(facts).replace('[이 작업의 사실표', mode === 'faq' ? '[이 글의 사실표' : '[이 작업의 사실표')}${keywordContext}${styleContext}${toneReference}${previousContext}`;
 }
 
 /**
@@ -581,8 +582,8 @@ export async function buildWriterPromptFromFacts(facts: FactSheet, serviceType: 
  */
 export async function writeFromFacts(input: { facts: FactSheet; message: string; request: BlogRequest | null; target: Target; knownColor?: string | null; save: boolean; refs?: ReferencePost[] }): Promise<WriterResult> {
   const { facts, target } = input;
-  const systemPrompt = await buildWriterPromptFromFacts(facts, target.serviceType, target.keyword, input.refs || []);
-  const userMsg = `${input.message}\n\n위 요청과 시스템의 [이 작업의 사실표]만으로 글을 쓰세요.`;
+  const systemPrompt = await buildWriterPromptFromFacts(facts, target.serviceType, target.keyword, input.refs || [], target.mode || 'work');
+  const userMsg = `${input.message}\n\n위 요청과 시스템의 ${target.mode === 'faq' ? '[이 글의 사실표]' : '[이 작업의 사실표]'}만으로 글을 쓰세요.`;
   let reply = await callClaude(systemPrompt, [{ role: 'user', content: userMsg }], 8192, BLOG_WRITER_MODEL);
   let draftResult = tryBuildDraft(reply, input.message);
   if (!draftResult) return { reply, draft: null, checks: null, draftId: null, target: null };
@@ -640,7 +641,7 @@ export async function writeFromFacts(input: { facts: FactSheet; message: string;
   if (input.save) {
     const saved = await savePost({
       kind: 'draft', title: tb.title, body: tb.body,
-      car_model: target.carModel, service_type: target.serviceType, product: target.product || null,
+      car_model: target.carModel, service_type: target.mode === 'faq' ? `FAQ·${target.serviceType}` : target.serviceType, product: target.product || null,
       region: target.region || null,
       feedback: `사실표 ${facts.lines.length}줄${facts.unsure.length ? ` · 확인 필요 ${facts.unsure.length}` : ''}`,
     });
@@ -663,10 +664,11 @@ export async function generateBlogPost(input: {
 }): Promise<WriterResult> {
   const t = resolveTarget(input.message, input.request);
   const keyword = input.request?.keyword?.trim() || extractKeyword(input.message);
-  const target: Target = { carModel: t.carModel, serviceType: t.serviceType, product: t.product, region: input.request?.region || null, keyword };
+  const faq = isFaqRequest(input.message, input.request);
+  const target: Target = { carModel: t.carModel, serviceType: t.serviceType, product: t.product, region: input.request?.region || null, keyword, mode: faq ? 'faq' : 'work', topic: faq ? extractTopic(input.message, input.request) : undefined };
   const knownColor = input.request?.color?.trim() || photoColorFromContext(input.research?.context);
   const refs = input.research?.refs || [];
-  const facts = input.facts || input.research?.facts || await buildFactSheet({ message: input.message, request: input.request, researchContext: input.research?.context || '', serviceType: target.serviceType, carModel: target.carModel, refs });
+  const facts = input.facts || input.research?.facts || await buildFactSheet({ message: input.message, request: input.request, researchContext: input.research?.context || '', serviceType: target.serviceType, carModel: target.carModel, refs, mode: target.mode, topic: target.topic });
   const result = await writeFromFacts({ facts, message: input.message, request: input.request, target, knownColor, save: true, refs });
   if (input.research?.summary) result.reply = `${result.reply}\n${input.research.summary}`;
   return result;
