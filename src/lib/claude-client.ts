@@ -29,7 +29,7 @@ export async function callClaude(
   // Fable 은 답하기 전 생각(thinking)이 출력 한도를 전부 먹을 수 있다 (2026-11-20 Q7: 8,192·20,000 토큰을 생각만 하고 본문 0자).
   // adaptive thinking + effort low 로 생각 양을 줄이고(같은 입력 86초·2,162자), 출력 한도는 16,000 이상으로 둔다. 바꾸려면 FABLE_EFFORT=medium
   const isFable = /^claude-fable/.test(model);
-  const effectiveMax = isFable ? Math.max(maxTokens, 16000) : maxTokens;
+  const effectiveMax = isFable ? Math.max(maxTokens, 24000) : maxTokens; // 2026-11-21 FAQ 다시 쓰기가 562자에서 잘림 → 24,000
   const fableOpts = isFable ? { thinking: { type: 'adaptive' }, output_config: { effort: process.env.FABLE_EFFORT || 'low' } } : {};
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -58,6 +58,7 @@ export async function callClaude(
   if (data.stop_reason === 'refusal') {
     throw new Error('Claude가 요청을 거부했습니다. ' + (data.stop_details?.explanation || ''));
   }
+  if (data.stop_reason === 'max_tokens') console.warn(`[claude] ${model} 출력이 max_tokens(${effectiveMax})에서 잘림 — thinking ${data.usage?.output_tokens_details?.thinking_tokens ?? '?'} / out ${data.usage?.output_tokens ?? '?'}`);
   // thinking 블록이 앞에 올 수 있으므로 text 블록만 이어붙인다
   return (data.content as { type: string; text?: string }[])
     .filter(b => b.type === 'text' && typeof b.text === 'string')
