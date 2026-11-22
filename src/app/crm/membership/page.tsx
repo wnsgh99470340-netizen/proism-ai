@@ -7,6 +7,7 @@ import { todaySeoul } from '@/lib/local-date';
 import { MEMBERSHIP } from '@/config/membership';
 import { markThanksSent, updateReferral, type Referral } from '@/lib/referrals';
 import MemberSmsButtons from '@/components/crm/MemberSmsButtons';
+import BlacklistModal from '@/components/crm/BlacklistModal';
 
 /**
  * 회원 한눈에 보기 (2026-11-18 사장님 "멤버십 한눈에 보이게, 페이지 하나 따로")
@@ -33,6 +34,7 @@ export default function MembershipPage() {
   const [q, setQ] = useState('');
   // 회원 페이지 링크 보낸 분 (2026-11-19 사장님: 62명 중 3명만 링크가 있어 "안 보낸 분" 필터 + 줄마다 문자). 보냄 = 상담 기록 "[회원 문자] 회원 페이지 링크", 열어 봄 = member_links.visits
   const [linkSent, setLinkSent] = useState<Map<string, string>>(new Map());
+  const [showBlacklist, setShowBlacklist] = useState(false); // 블랙리스트 창 — 회원 탭 맨 아래 작은 글자로만 (2026-11-22 사장님 "잘 안 보이게 빼두자")
   const [linkVisits, setLinkVisits] = useState<Map<string, number>>(new Map());
   const [onlyUnsent, setOnlyUnsent] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -226,6 +228,10 @@ export default function MembershipPage() {
                 </div>
               </section>
             </div>
+            <div className="mt-10 text-right">
+              <button onClick={() => setShowBlacklist(true)} className="text-[11px] text-[var(--c-text-4)] hover:text-danger transition-colors">블랙리스트 관리</button>
+            </div>
+            {showBlacklist && <BlacklistModal onClose={() => setShowBlacklist(false)} />}
           </>
         )}
       </div>

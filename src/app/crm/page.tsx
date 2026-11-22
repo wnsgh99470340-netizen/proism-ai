@@ -32,7 +32,7 @@ import { loadVehicles, loadAllVehicles, ensurePrimaryVehicle, fillPlateIfEmpty, 
 import { advanceAppointmentsForToday, overdueAppointments, linkOrphanRecordsByPhone, ensureArrivalNotice, resyncArrivalNotice } from '@/lib/appointments-flow';
 import { formatPhoneInput } from '@/lib/phone';
 import ReferrerPicker, { referrerToken, hideRefToken } from '@/components/crm/ReferrerPicker';
-import BlacklistModal, { BlacklistWarning } from '@/components/crm/BlacklistModal';
+import { BlacklistWarning } from '@/components/crm/BlacklistModal';
 import { isBlacklisted, blacklistInfo } from '@/lib/blacklist';
 import { careGuidesFor } from '@/config/care-guide';
 
@@ -435,7 +435,6 @@ export default function CRMPage() {
 
   // Customer picker state (shared)
   const [allCustomers, setAllCustomers] = useState<{ id: string; name: string; phone: string | null; car_brand?: string | null; car_model?: string | null; car_color?: string | null; memo?: string | null }[]>([]);
-  const [showBlacklist, setShowBlacklist] = useState(false); // 블랙리스트 창 (2026-11-22)
   const [customerPickerSearch, setCustomerPickerSearch] = useState('');
 
   // ─── Data Fetching ──────────────────────────────────────
@@ -2153,7 +2152,6 @@ export default function CRMPage() {
                 />
                 <span className="text-xs text-[var(--c-text-3)]">{filteredCustomers.length}명</span>
               </div>
-              <button onClick={() => setShowBlacklist(true)} className="text-sm font-medium rounded-lg px-3 py-2 border border-danger/40 text-danger hover:bg-danger/10 transition-colors mr-2" title="블랙리스트 보기·추가·해제">⛔ 블랙리스트{customers.filter((c) => isBlacklisted(c.memo)).length ? ` ${customers.filter((c) => isBlacklisted(c.memo)).length}` : ''}</button>
               <button
                 onClick={() => { setEditCustomerId(null); setCustomerForm({ name: '', phone: '', car_brand: '', car_model: '', car_year: '', car_color: '', source: '', memo: '', appointment_start_date: '', appointment_end_date: '', appointment_service_type: '', appointment_amount: '', appointment_memo: '' }); setShowAddCustomer(true); }}
                 className="bg-brand hover:bg-brand-dark text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors"
@@ -3253,7 +3251,6 @@ export default function CRMPage() {
           </div>
         </div>
       )}
-      {showBlacklist && <BlacklistModal onClose={() => setShowBlacklist(false)} onChanged={() => { fetchCustomers(); fetchAllCustomers(); }} />}
       {careBook && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-end sm:items-center justify-center p-3" onClick={() => setCareBook(null)}>
           <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-2xl w-full max-w-sm p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
