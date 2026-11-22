@@ -9,11 +9,13 @@ import { CARE_NOTE_PRESETS } from '@/lib/care-log';
  * - 기록은 follow_ups.memo 에 붙고(src/lib/care-log.ts) 손님 회원 페이지 관리 탭에 그대로 보인다
  * - "기록 없이 완료"도 남겨 둔다 (급할 때)
  */
-export default function CareCompleteModal({ type, customerName, onClose, onDone }: {
+export default function CareCompleteModal({ type, customerName, onClose, onDone, services }: {
   type: string;
   customerName: string;
   onClose: () => void;
-  onDone: (note: string, photos: string[]) => Promise<void> | void;
+  onDone: (note: string, photos: string[], serviceId?: string | null) => Promise<void> | void;
+  /** 리터치(2026-11-22): 어느 시공 기록 밑에 붙일지. 하나면 자동, 여럿이면 고르게 */
+  services?: { id: string; label: string }[];
 }) {
   const presets = CARE_NOTE_PRESETS[type] || [];
   const [picked, setPicked] = useState<string[]>([]);
@@ -22,6 +24,7 @@ export default function CareCompleteModal({ type, customerName, onClose, onDone 
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [serviceId, setServiceId] = useState<string>(services && services.length > 0 ? services[0].id : '');
 
   const note = [...picked, extra.trim()].filter(Boolean).join(' · ');
   const toggle = (p: string) => setPicked((cur) => (cur.includes(p) ? cur.filter((x) => x !== p) : [...cur, p]));
@@ -51,10 +54,11 @@ export default function CareCompleteModal({ type, customerName, onClose, onDone 
 
   const finish = async (withLog: boolean) => {
     setSaving(true);
-    try { await onDone(withLog ? note : '', withLog ? photos : []); } finally { setSaving(false); }
+    try { await onDone(withLog ? note : '', withLog ? photos : [], serviceId || null); } finally { setSaving(false); }
   };
 
   const title = type === 'QC점검' ? 'QC 점검 완료' : `${type} 완료`;
+  const isRetouch = type === '리터치';
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-end sm:items-center justify-center p-3" onClick={onClose}>
       <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-2xl w-full max-w-md max-h-[calc(100dvh-1.5rem)] overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
@@ -66,8 +70,20 @@ export default function CareCompleteModal({ type, customerName, onClose, onDone 
           <button onClick={onClose} className="text-[var(--c-text-3)] hover:text-[var(--c-text-1)] text-lg">✕</button>
         </div>
         <div className="p-5 space-y-4">
+          {isRetouch && (
+            <div>
+              <div className="text-xs text-[var(--c-text-3)] mb-2">어느 시공의 리터치인가요</div>
+              {services && services.length > 0 ? (
+                <select value={serviceId} onChange={(e) => setServiceId(e.target.value)} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50">
+                  {services.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+                </select>
+              ) : (
+                <div className="text-xs text-warn bg-warn/10 rounded-lg px-3 py-2">이 고객님의 시공 기록이 없어 묶을 곳이 없습니다. 리터치 기록은 고객에게만 남고, 손님 페이지에는 "그 외"로 보입니다</div>
+              )}
+            </div>
+          )}
           <div>
-            <div className="text-xs text-[var(--c-text-3)] mb-2">무엇을 봤나요</div>
+            <div className="text-xs text-[var(--c-text-3)] mb-2">{isRetouch ? '무엇을 했나요' : '무엇을 봤나요'}</div>
             <div className="flex flex-wrap gap-1.5">
               {presets.map((p) => (
                 <button key={p} type="button" onClick={() => toggle(p)} className={`text-xs px-2.5 py-1.5 rounded-full border transition-colors ${picked.includes(p) ? 'bg-brand text-white border-brand' : 'border-[var(--c-border)] text-[var(--c-text-2)] hover:bg-[var(--c-hover)]'}`}>{p}</button>

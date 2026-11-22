@@ -50,7 +50,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const [{ data: services }, { data: followUps }, { data: appts }, { data: gave }, { data: received }, { data: pointRows }] = await Promise.all([
     supabase.from('services').select('id, service_type, service_date, completion_date, service_area, film_used').eq('customer_id', c.id).order('service_date', { ascending: false }),
-    supabase.from('follow_ups').select('follow_up_type, scheduled_date, is_completed, completed_date, service_id, memo').eq('customer_id', c.id).in('follow_up_type', ['QC점검', '메인터넌스']).order('scheduled_date', { ascending: true }),
+    supabase.from('follow_ups').select('follow_up_type, scheduled_date, is_completed, completed_date, service_id, memo').eq('customer_id', c.id).in('follow_up_type', ['QC점검', '메인터넌스', '리터치']).order('scheduled_date', { ascending: true }),
     supabase.from('appointments').select('id, appointment_date, end_date, service_type, status, memo').eq('customer_id', c.id).neq('status', '취소').order('appointment_date', { ascending: false }),
     supabase.from('referrals').select('id, referred_id, created_at, referrer_reward, referrer_reward_used_at, referred:customers!referrals_referred_id_fkey(name)').eq('referrer_id', c.id).order('created_at', { ascending: false }),
     supabase.from('referrals').select('id, referrer_id, created_at, referred_reward, referred_reward_used_at, referrer:customers!referrals_referrer_id_fkey(name)').eq('referred_id', c.id).maybeSingle(),

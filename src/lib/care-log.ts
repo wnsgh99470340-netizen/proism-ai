@@ -41,4 +41,6 @@ export function appendCareLog(memo: string | null | undefined, log: CareLog): st
 export const CARE_NOTE_PRESETS: Record<string, string[]> = {
   QC점검: ['물기포 모두 빠짐', '끝단 들뜸 없음', '표면 이물질 없음', '기포 조금 남아 재점검 안내', '리터치 함'],
   메인터넌스: ['필름 전용 코팅 도포', '끝단 점검 이상 없음', '오염 제거', '리터치 함', '세차 방법 다시 안내'],
+  // 리터치 예약 완료 (2026-11-22): 새 시공 기록 없이 원래 시공 기록 밑에 한 건으로
+  리터치: ['끝단 재마감', '기포 제거', '부분 재시공(필름값만)', '오염 제거', '소개 포인트로 공임 서비스'],
 };

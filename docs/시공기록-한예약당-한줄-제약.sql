@@ -6,7 +6,8 @@
 CREATE UNIQUE INDEX IF NOT EXISTS services_one_per_job
   ON services (customer_id, service_date, service_type);
 
--- 사후관리도 한 시공 기록당 유형별 한 건만 (QC점검·메인터넌스·후기요청이 두 벌 생기는 일 방지)
+-- 사후관리는 한 시공 기록당 QC점검·메인터넌스·후기요청 각 한 건만 (두 벌 생기는 일 방지)
+-- 리터치는 같은 시공 기록 밑에 여러 번 쌓이므로 제외 (2026-11-22 리터치 흐름)
 CREATE UNIQUE INDEX IF NOT EXISTS follow_ups_one_per_service_type
   ON follow_ups (service_id, follow_up_type)
-  WHERE service_id IS NOT NULL;
+  WHERE service_id IS NOT NULL AND follow_up_type IN ('QC점검', '메인터넌스', '후기요청');

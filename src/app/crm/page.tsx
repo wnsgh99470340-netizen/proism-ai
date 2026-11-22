@@ -93,7 +93,9 @@ interface Consultation {
 type Tab = 'home' | 'blog' | 'customers' | 'appointments' | 'followups' | 'consultations';
 const TAB_KEYS: Tab[] = ['home', 'blog', 'customers', 'appointments', 'followups', 'consultations'];
 
-const SERVICE_TYPES = ['PPF', '컬러PPF', 'PWF', '랩핑', '크롬죽이기', '썬팅', '유리막코팅', '가죽코팅', '실내PPF', '신차패키지'];
+const SERVICE_TYPES = ['PPF', '컬러PPF', 'PWF', '랩핑', '크롬죽이기', '썬팅', '유리막코팅', '가죽코팅', '실내PPF', '신차패키지', '리터치'];
+/** 리터치(2026-11-22): 완료해도 새 시공 기록을 만들지 않고 원래 시공 기록 밑에 관리 이력 한 건으로 붙는다 */
+const RETOUCH_TYPE = '리터치';
 const APPOINTMENT_STATUSES = ['상담중', '예약확정', '시공중', '완료'];
 const FOLLOW_UP_TYPES = ['QC점검', '메인터넌스', '후기요청'];
 /** 홈 상단 배너 사진 경로(public 기준, 예: '/img/home-banner.jpg'). 비우면 글자만 표시. 사장님이 배너용 사진 주면 넣는다 */
@@ -884,9 +886,10 @@ export default function CRMPage() {
   });
 
   const handleStatusChange = async (appointment: Appointment, newStatus: string) => {
-    // 완료 변경 시 작업 내역서 모달 표시 (기존 데이터 불러오기)
+    // 완료 변경 시 작업 내역서 모달 표시 (기존 데이터 불러오기). 리터치는 작업 내역서 대신 리터치 완료 창
     if (newStatus === '완료') {
-      handleOpenWorkOrder(appointment);
+      if (appointment.service_type === RETOUCH_TYPE) handleOpenRetouch(appointment);
+      else handleOpenWorkOrder(appointment);
       return;
     }
 
@@ -907,7 +910,9 @@ export default function CRMPage() {
   const doWorkOrderSubmit = async () => {
     if (!workOrderAppointment) return;
     const appointment = workOrderAppointment;
-    const completionDate = todaySeoul();
+    // 완료일 = 출고일(예약 종료일, 없으면 예약일). 버튼 누른 날이 아니다 (2026-11-22: 11/13 출고 차의 QC 가 12/6, 메인터넌스가 5/22 로 잡혔던 일 — 완료 처리를 11/22 에 눌렀기 때문)
+    // 아직 끝나지 않은 예약을 미리 완료하면 오늘
+    const completionDate = (() => { const end = appointment.end_date || appointment.appointment_date; const today = todaySeoul(); return end && end < today ? end : today; })();
 
     // 빠진 칸 한 번 묻기 (2026-11-22 사장님): 차량번호·금액·PPF 제품·썬팅 농도가 비면 회원 페이지 증명서 제품 줄과 월말 숫자가 비어 나온다
     {
@@ -1331,6 +1336,25 @@ export default function CRMPage() {
 
   // QC·메인터넌스 완료는 점검 기록 창을 거친다 (2026-11-22 사장님 "QC 완료가 체크 하나뿐 → 사진·한 줄을 남겨 손님 페이지에 보이게")
   const [careTarget, setCareTarget] = useState<FollowUp | null>(null);
+
+  // 리터치 예약 완료 (2026-11-22 사장님 "리터치가 들어오면 기존 작업 기록에 연동돼서 업데이트돼야"):
+  // 시공 기록을 새로 만들지 않고 고른 시공 기록(service_id) 밑에 follow_ups '리터치' 한 건(완료 상태, 점검 기록·사진)으로 붙인다. QC·메인터넌스·후기요청도 새로 안 생김
+  const [retouchTarget, setRetouchTarget] = useState<Appointment | null>(null);
+  const [retouchServices, setRetouchServices] = useState<{ id: string; label: string }[]>([]);
+  const handleOpenRetouch = async (a: Appointment) => {
+    const { data } = await supabase.from('services').select('id, service_type, service_date, service_area').eq('customer_id', a.customer_id).order('service_date', { ascending: false });
+    setRetouchServices((data || []).map((s) => ({ id: s.id as string, label: `${s.service_date} ${s.service_type}${s.service_area ? ` · ${String(s.service_area).slice(0, 30)}` : ''}` })));
+    setRetouchTarget(a);
+  };
+  const handleRetouchDone = async (a: Appointment, note: string, photos: string[], serviceId?: string | null) => {
+    const date = todaySeoul();
+    const memo = appendCareLog('리터치', { date, note, photos });
+    await supabase.from('follow_ups').insert({ service_id: serviceId || null, customer_id: a.customer_id, follow_up_type: RETOUCH_TYPE, scheduled_date: date, is_completed: true, completed_date: date, memo });
+    await supabase.from('appointments').update({ status: '완료' }).eq('id', a.id);
+    setRetouchTarget(null);
+    fetchAppointments();
+    fetchFollowUps();
+  };
   const handleCareDone = async (f: FollowUp, note: string, photos: string[]) => {
     const date = todaySeoul();
     const memo = note || photos.length ? appendCareLog(f.memo, { date, note, photos }) : (f.memo || null);
@@ -2158,9 +2182,13 @@ export default function CRMPage() {
                             {!isDemo && a.service_type && CRM_SERVICE_TO_KEY[a.service_type] && (
                               <button onClick={() => handleWriteBlogFromAppointment(a)} className={pill} title="이 시공으로 블로그 시공기 폼 채우기">✍️ 시공기</button>
                             )}
+                            {a.service_type === RETOUCH_TYPE ? (
+                              <button onClick={() => handleOpenRetouch(a)} className={a.status === '완료' ? 'text-xs font-semibold rounded-full px-3 py-1.5 bg-ok text-white whitespace-nowrap' : pill} title="새 시공 기록 없이 원래 시공 기록 밑에 리터치 한 건으로 남깁니다">{a.status === '완료' ? '✓ 리터치 기록됨 · 더 남기기' : '리터치 완료'}</button>
+                            ) : (<>
                             <button onClick={() => handleOpenWorkOrder(a)} className={pill}>작업 내역서</button>
                             <button onClick={() => handleOpenWarranty(a)} className={hasWarrantyIssued(a.memo) ? 'text-xs font-semibold rounded-full px-3 py-1.5 bg-ok text-white whitespace-nowrap' : pill}>{hasWarrantyIssued(a.memo) ? '✓ 보증서 발급' : '보증서'}</button>
                             <a href={LINKS.threeMWarrantyCheck} target="_blank" rel="noopener noreferrer" className={pill} title="한국쓰리엠 소비자 보증서 확인 페이지 새 창으로">3M 보증서 ↗</a>
+                            </>)}
                             {a.customer?.phone && (() => {
                               const sent = reviewSentFor(a.customer_id);
                               const anySent = Object.values(sent).some(Boolean);
@@ -2304,6 +2332,8 @@ export default function CRMPage() {
 
                 const typeBadgeClass = f.follow_up_type === 'QC점검'
                   ? 'bg-info/20 text-info'
+                  : f.follow_up_type === RETOUCH_TYPE
+                  ? 'bg-ok/20 text-ok'
                   : f.follow_up_type === '후기요청'
                     ? 'bg-warn/20 text-warn'
                     : isQuote
@@ -2932,6 +2962,15 @@ export default function CRMPage() {
         </div>
       )}
       {/* ─── Modal: 작업 내역서 ──────────────────────────────── */}
+      {retouchTarget && (
+        <CareCompleteModal
+          type={RETOUCH_TYPE}
+          customerName={retouchTarget.customer?.name || '고객'}
+          services={retouchServices}
+          onClose={() => setRetouchTarget(null)}
+          onDone={(note, photos, serviceId) => handleRetouchDone(retouchTarget, note, photos, serviceId)}
+        />
+      )}
       {careTarget && (
         <CareCompleteModal
           type={careTarget.follow_up_type}
