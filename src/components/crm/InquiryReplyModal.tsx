@@ -172,6 +172,9 @@ export default function InquiryReplyModal({ onClose, onDone }: { onClose: () => 
                     )}
                   </tbody>
                 </table>
+                {ans.faqs && ans.faqs.length > 0 && (
+                  <div className="px-3 py-2 border-t border-[var(--c-border)] text-[11px] text-ok">✓ 자주 묻는 질문 답 포함: {ans.faqs.map((f) => f.question).join(' · ')}</div>
+                )}
                 {ans.warnings.length > 0 && (
                   <ul className="px-3 py-2 border-t border-[var(--c-border)] space-y-1">
                     {ans.warnings.map((w, i) => <li key={i} className="text-[11px] text-warn">⚠️ {w}</li>)}

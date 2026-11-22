@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CAR_BRANDS, REGIONS, SERVICES, buildBlogMessage, type BlogRequest, type BlogPrefill, type ServiceKey, FAQ_SERVICE_OPTIONS } from '@/config/blog-options';
+import { INQUIRY_FAQS } from '@/config/inquiry-faq';
 
 interface Props {
   disabled: boolean;
@@ -118,6 +119,12 @@ export default function BlogRequestForm({ disabled, onSubmit, initial = null }: 
             placeholder="예: 앞유리 썬팅 15%로 해도 되나요? / 테슬라 루프 유리도 썬팅하나요? / PPF 시리즈50과 150은 뭐가 다른가요?"
             className={`${inputCls} resize-none`}
           />
+          {/* 자주 묻는 질문에서 고르기 (2026-11-22): 문의 답변과 같은 목록(src/config/inquiry-faq.ts) → 답장과 글이 같은 문장에서 나온다 */}
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {INQUIRY_FAQS.map((f) => (
+              <button key={f.key} type="button" onClick={() => setTopic(f.question)} className={`text-[11px] px-2 py-1 rounded-full border transition-colors ${topic === f.question ? 'bg-brand text-white border-brand' : 'border-[var(--c-border)] text-[var(--c-text-3)] hover:bg-[var(--c-hover)]'}`}>{f.question}</button>
+            ))}
+          </div>
         </div>
       )}
       {mode === 'work' && (<>

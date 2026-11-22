@@ -9,6 +9,7 @@
  */
 import { callClaude } from './claude-client';
 import { MARKET_ITEMS, matchItems, estimateDuration, priceText, fmtMan, CONFIDENCE_LABEL, serviceKeyFor, type MarketItem } from '@/config/inquiry-pricing';
+import { matchFaqs, type InquiryFaq } from '@/config/inquiry-faq';
 
 export interface InquiryItem {
   key: string;
@@ -35,6 +36,8 @@ export interface InquiryAnswer {
   duration: string;
   /** 링크 고르기용 시공 종류(PPF·랩핑·크롬죽이기·썬팅·실내PPF…) */
   serviceKey: string;
+  /** 문의 글에서 알아본 반복 질문 — 답은 src/config/inquiry-faq.ts 문장 그대로 (2026-11-22) */
+  faqs: { key: string; question: string }[];
   reply: string;
   warnings: string[];
 }
@@ -66,14 +69,20 @@ ${catalog}
   return parseJson<Extracted>(raw) || {};
 }
 
-function buildFacts(a: Omit<InquiryAnswer, 'reply' | 'warnings'>): string {
+function buildFacts(a: Omit<InquiryAnswer, 'reply' | 'warnings'>, faqs: InquiryFaq[]): string {
   const lines = a.items.map(i => `- ${i.label}${i.unit ? `(${i.unit})` : ''}: ${i.priceText}`);
   if (a.unmatched.length) lines.push(...a.unmatched.map(u => `- ${u}: 가격은 차량을 보고 안내(숫자 쓰지 말 것)`));
   const total = a.total && a.total.typical > 0 && a.items.filter(i => i.typical > 0).length >= 2
     ? `합계: 대략 ${fmtMan(a.total.typical)} 안팎 (범위 ${fmtMan(a.total.min)}~${fmtMan(a.total.max)})`
     : '합계: 쓰지 말 것';
   const dur = a.duration ? `시공 시간: ${a.duration}` : '시공 시간: 정해진 기준 없음 → "차량 보고 안내드리겠습니다"로만';
-  return [`차종: ${a.car || '언급 없음'}`, '항목별 가격(이 숫자만 사용):', ...lines, total, dur].join('\n');
+  const out = [`차종: ${a.car || '언급 없음'}`, '항목별 가격(이 숫자만 사용):', ...lines, total, dur];
+  // 반복 질문의 사장님 답 (2026-11-22): 글에 그 질문이 있을 때만 넣고, 문장을 바꾸지 않고 그대로 쓰게 한다
+  if (faqs.length) {
+    out.push('', '자주 묻는 질문 답(고객이 물은 것이라 아래 문장을 그대로 넣는다. 이 안의 숫자는 써도 된다):');
+    for (const f of faqs) out.push(`- 질문 "${f.question}" → ${f.answer.replace(/\n/g, ' ')}`);
+  }
+  return out.join('\n');
 }
 
 const REPLY_SYSTEM = `너는 3M 프로이즘 강남서초점 대표 진준호다. 고객 문의에 네가 직접 보내는 답장을 아래 [사실]만으로 쓴다.
@@ -87,12 +96,14 @@ const REPLY_SYSTEM = `너는 3M 프로이즘 강남서초점 대표 진준호다
 4) 합계가 있으면 "전부 하시면 90만원입니다." 한 줄
 5) 시공 시간 한 줄: "작업은 6시간이면 되고 당일 출고 가능합니다." 식. 기준이 없으면 "작업 시간은 차량 보고 말씀드리겠습니다."
 6) "차량 상태와 범위에 따라 금액은 조금 달라질 수 있습니다." 한 줄
+6-1) [사실]에 "자주 묻는 질문 답"이 있으면 여기에 그 문장을 그대로 넣는다(질문마다 줄을 나눠서, 말을 바꾸거나 줄이지 않는다). 없으면 이 자리는 비운다
 7) "어디까지 하실지 정하지 않고 오셔도 됩니다. 보고 같이 정하면 됩니다." 한 줄
 8) "입고 가능한 날짜 두 개 정도 알려주시면 일정 잡아드리겠습니다." 한 줄
 9) 마지막 줄 "궁금한 점 있으시면 편하게 물어봐 주세요." (연락처·링크는 쓰지 않는다. 뒤에 따로 붙는다)
 빈 줄은 2)와 3) 사이, 4)와 5) 사이, 7)과 8) 사이에만 넣는다
-숫자: [사실]에 적힌 금액·시간만 쓴다. 다른 숫자(경력·보증 기간·두께·겹수·고객 수)는 절대 쓰지 않는다
-길이: 250~450자. 답장 본문만 출력`;
+숫자: [사실]에 적힌 금액·시간과 "자주 묻는 질문 답" 문장 안의 숫자만 쓴다. 그 밖의 숫자(경력·보증 기간·두께·겹수·고객 수)는 절대 쓰지 않는다
+가격 말고 다른 질문이 있는데 [사실]에 그 답이 없으면 "그건 차량 보고 말씀드리겠습니다." 한 줄로만 (지어내지 않는다)
+길이: 250~600자. 답장 본문만 출력`;
 
 /** 사장님이 안 쓰는 표현 (2026-11-12 "만 원 선·안팎 이런 말 안 써") */
 const BANNED_WORDS = /만\s*원\s*선|안팎|저렴|합리적|프리미엄|!/g;
@@ -139,9 +150,12 @@ export async function answerInquiry(text: string): Promise<InquiryAnswer> {
     total,
     duration: estimateDuration(matched),
     serviceKey: serviceKeyFor(matched),
+    faqs: [],
   };
+  const faqs = matchFaqs(src);
+  base.faqs = faqs.map(f => ({ key: f.key, question: f.question }));
 
-  const facts = buildFacts(base);
+  const facts = buildFacts(base, faqs);
   const allowed = new Set<number>();
   for (const i of priced) { allowed.add(i.typical); allowed.add(i.min); allowed.add(i.max); }
   if (total) { allowed.add(total.typical); allowed.add(total.min); allowed.add(total.max); }
@@ -165,6 +179,9 @@ export async function answerInquiry(text: string): Promise<InquiryAnswer> {
   for (const i of items) if (i.confidence === 'low') warnings.push(`${i.label}은(는) 시장 자료가 적어 평균값(${fmtMan(i.typical)})으로 적었습니다`);
   for (const i of items) if (i.confidence === 'ours') warnings.push(`${i.label}은(는) 시장 자료가 없어 우리 견적표 값입니다`);
   if (!base.duration && base.asks.time) warnings.push('이 조합의 시공 시간 기준이 없어 "차량 보고 안내"로 적었습니다');
+  // 답 틀이 없는 질문은 사장님이 직접 채우도록 표시 (2026-11-22). 모델이 요약한 질문 중 반복 질문 패턴에 안 걸린 것
+  const uncovered = base.asks.other.filter(q => matchFaqs(q).length === 0 && !/가격|금액|얼마|비용|시간|기간/.test(q));
+  if (uncovered.length) warnings.push(`답 틀이 없는 질문이라 "차량 보고 안내"로만 적었습니다: ${uncovered.join(' / ')} — 자주 묻는 질문이면 inquiry-faq 에 답을 추가해 두세요`);
 
   return { ...base, reply, warnings };
 }

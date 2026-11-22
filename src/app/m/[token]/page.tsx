@@ -19,6 +19,7 @@ interface Data {
   services: { id?: string; type: string; date: string | null; done: string | null; area: string | null; film: string | null }[];
   care: { type: string; date: string; done: boolean; doneAt: string | null; serviceId?: string | null; note?: string | null; photos?: string[] }[];
   upcoming: { date: string; end: string | null; service: string | null; status: string }[];
+  careGuide?: { guides: { key: string; title: string; after: string[]; daily: string[]; contact: string[] }[]; common: string };
   warranties: { date: string; end: string | null; work: string; period: string; url: string | null; items: { group: string; text: string; product?: string }[]; certNo: string }[];
   referrals: { gave: { name: string; date: string; state: string; reward: string | null; rewardAt: string | null }[]; received: { from: string; date: string; reward: string | null; rewardAt: string | null } | null };
   points: { balance: number; expiresAt: string | null; expired: boolean; history: { date: string; delta: number; reason: string }[]; unit: string; earnRule: string; menu: { cost: number; label: string; detail: string }[]; conditions: string[] };
@@ -308,6 +309,33 @@ export default function MemberPage() {
               )}
               <div className="text-[11px] text-white/40 mt-3 leading-relaxed">QC 점검은 끝단·표면·물기포를 보고, 메인터넌스는 필름 전용 코팅과 끝단 점검을 합니다. 날짜가 가까워지면 연락드립니다.</div>
             </div>
+            {/* 내 차 관리법 (2026-11-22): 시공 종류별 출고 직후 / 평소 / 이럴 때 연락. 문구는 src/config/care-guide.ts */}
+            {data.careGuide && data.careGuide.guides.length > 0 && (
+              <div className={box}>
+                <div className="text-sm font-bold mb-1">내 차 관리법</div>
+                <div className="text-[11px] text-white/45 mb-3">받으신 시공에 맞는 안내만 모았습니다</div>
+                <div className="space-y-2">
+                  {data.careGuide.guides.map((g, gi) => (
+                    <details key={g.key} open={gi === 0} className="rounded-xl bg-white/[0.04] border border-white/10 px-3.5 py-2.5 group">
+                      <summary className="cursor-pointer list-none flex items-center justify-between text-sm font-semibold">
+                        <span>{g.title}</span><span className="text-white/40 text-xs group-open:rotate-180 transition-transform">▾</span>
+                      </summary>
+                      <div className="mt-3 space-y-3">
+                        {[['출고 직후', g.after], ['평소 관리', g.daily], ['이럴 때 연락 주세요', g.contact]].map(([label, lines]) => (lines as string[]).length > 0 && (
+                          <div key={label as string}>
+                            <div className={micro}>{label as string}</div>
+                            <ul className="mt-1.5 space-y-1.5">
+                              {(lines as string[]).map((t) => <li key={t} className="flex gap-2 text-[13px] leading-relaxed text-white/85 break-keep"><span className="text-[#E4002B] shrink-0">·</span><span>{t}</span></li>)}
+                            </ul>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  ))}
+                </div>
+                <div className="text-[12px] text-white/60 mt-3 leading-relaxed break-keep">{data.careGuide.common}</div>
+              </div>
+            )}
           </div>
         )}
 
