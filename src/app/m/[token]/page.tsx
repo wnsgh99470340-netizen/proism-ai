@@ -20,6 +20,7 @@ interface Data {
   vehicles?: { id: string; label: string; year: string | null; color: string | null; plate: string | null; primary: boolean }[];
   care: { type: string; date: string; done: boolean; skipped?: boolean; visitDate?: string | null; doneAt: string | null; serviceId?: string | null; note?: string | null; photos?: string[] }[];
   upcoming: { date: string; end: string | null; service: string | null; status: string }[];
+  careYears?: number | null;
   careGuide?: { guides: { key: string; title: string; after: string[]; daily: string[]; contact: string[] }[]; common: string };
   warranties: { date: string; end: string | null; work: string; period: string; url: string | null; items: { group: string; text: string; product?: string }[]; certNo: string; vehicle?: string | null }[];
   referrals: { gave: { name: string; date: string; state: string; reward: string | null; rewardAt: string | null }[]; received: { from: string; date: string; reward: string | null; rewardAt: string | null } | null };
@@ -311,7 +312,7 @@ export default function MemberPage() {
                   ))}
                 </div>
               )}
-              <div className="text-[11px] text-white/40 mt-3 leading-relaxed">QC 점검은 끝단·표면·물기포를 보고, 메인터넌스는 필름 전용 코팅과 끝단 점검을 합니다. 날짜가 가까워지면 연락드립니다.</div>
+              <div className="text-[11px] text-white/40 mt-3 leading-relaxed">QC 점검은 끝단·표면·물기포를 보고, 메인터넌스는 필름 전용 코팅과 끝단 점검을 합니다.{data.careYears ? ` 메인터넌스는 시공일로부터 ${data.careYears}년 동안 6개월마다 이어집니다.` : ''} 날짜가 가까워지면 연락드립니다.</div>
             </div>
             {/* 내 차 관리법 (2026-11-22): 시공 종류별 출고 직후 / 평소 / 이럴 때 연락. 문구는 src/config/care-guide.ts */}
             {data.careGuide && data.careGuide.guides.length > 0 && (

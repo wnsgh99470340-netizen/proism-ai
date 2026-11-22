@@ -9,6 +9,8 @@ export interface WorkOrderJson {
   warranty?: { date?: string; work_details?: string; warranty_period?: string; customer_name?: string; phone?: string; car_type?: string; car_number?: string; price?: string };
   warranty_url?: string;
   car_number?: string;
+  /** 메인터넌스 기간(년) 2·3·4·5·7·10 (2026-11-22). 보증서 기간이자 6개월 반복의 한계 */
+  maintenance_years?: string | number;
   ppf?: string[]; ppf_etc?: string;
   wrapping?: string[]; wrapping_etc?: string;
   coating?: string[];

@@ -27,6 +27,10 @@ export interface WeeklyStats {
   blogGenerated: number;
   consultations: number;
   quoteSms: number;
+  /** 견적 결과 (2026-11-22 점검 2-1): 이 기간에 닫힌 견적 마무리 건의 사유별 수 */
+  quoteOutcome?: { booked: number; lost: number; noReply: number; hold: number };
+  /** 이 기간 견적 문자의 추천 금액 평균 (만원, consultations.estimate 에서) */
+  quoteAvgMan?: number;
   inquiryReplies: number;
   newCustomers: number;
   sources: { label: string; count: number }[];
@@ -95,17 +99,35 @@ export async function buildWeeklyStats(to = todaySeoul(), days = 7): Promise<Wee
     blogGenerated = jobs.filter(j => j.status === 'done' && inRange(toSeoulISO(new Date(j.updated_at)))).length;
   } catch { errors.push('시공기 생성'); }
 
-  let consultations = 0, quoteSms = 0, inquiryReplies = 0;
+  let consultations = 0, quoteSms = 0, inquiryReplies = 0, quoteAvgMan = 0;
   try {
-    const { data, error } = await supabase.from('consultations').select('content, consultation_date').gte('consultation_date', from).lte('consultation_date', to);
+    const { data, error } = await supabase.from('consultations').select('content, consultation_date, estimate').gte('consultation_date', from).lte('consultation_date', to);
     if (error) throw error;
+    const amounts: number[] = [];
     for (const r of data || []) {
       const c = (r.content as string) || '';
-      if (c.startsWith('[견적 문자 발송]')) quoteSms++;
+      if (c.startsWith('[견적 문자 발송]')) {
+        quoteSms++;
+        const m = ((r.estimate as string | null) || '').match(/([\d,]+)\s*만/); // "시리즈50(185μm) 550만원" → 550
+        if (m) { const n = Number(m[1].replace(/,/g, '')); if (n > 0) amounts.push(n); }
+      }
       else if (c.startsWith('[문의 답변]')) inquiryReplies++;
       else consultations++;
     }
+    if (amounts.length) quoteAvgMan = Math.round(amounts.reduce((a, b) => a + b, 0) / amounts.length);
   } catch { errors.push('상담 기록'); }
+  // 견적 결과: 이 기간에 닫힌 견적 마무리(견적당 1건) — 예약 잡힘 / 타사 / 무응답 / 보류
+  const quoteOutcome = { booked: 0, lost: 0, noReply: 0, hold: 0 };
+  try {
+    const { data } = await supabase.from('follow_ups').select('memo, completed_date').eq('follow_up_type', '견적마무리').eq('is_completed', true).gte('completed_date', from).lte('completed_date', to);
+    for (const r of data || []) {
+      const m = (r.memo as string | null) || '';
+      if (/예약 잡혀 자동 정리/.test(m)) quoteOutcome.booked++;
+      else if (/견적 종결 \d{4}-\d{2}-\d{2}: 다른 곳에서 함/.test(m)) quoteOutcome.lost++;
+      else if (/견적 종결 \d{4}-\d{2}-\d{2}: 연락 없음/.test(m)) quoteOutcome.noReply++;
+      else if (/견적 종결 \d{4}-\d{2}-\d{2}: 보류/.test(m)) quoteOutcome.hold++;
+    }
+  } catch { /* 건너뜀 */ }
 
   let newCustomers = 0;
   const sourceCounts = SOURCE_LABELS.map(() => 0);
@@ -148,7 +170,7 @@ export async function buildWeeklyStats(to = todaySeoul(), days = 7): Promise<Wee
   } catch { errors.push('예약'); }
 
   return {
-    from, to, blogPublished, blogPublishedTitles, blogGenerated, consultations, quoteSms, inquiryReplies, newCustomers,
+    from, to, blogPublished, blogPublishedTitles, blogGenerated, consultations, quoteSms, quoteOutcome, quoteAvgMan, inquiryReplies, newCustomers,
     sources: SOURCE_LABELS.map((label, i) => ({ label, count: sourceCounts[i] })).filter(s => s.count > 0),
     reviewRequested, reviewReceived, qcDone, maintenanceDone, appointments, errors,
   };
@@ -201,7 +223,7 @@ export function weeklySummaryLine(w: WeeklyStats): string {
   const parts = [
     `발행 ${w.blogPublished}`,
     `상담 ${w.consultations}`,
-    `견적 문자 ${w.quoteSms}`,
+    `견적 문자 ${w.quoteSms}${w.quoteOutcome && (w.quoteOutcome.booked || w.quoteOutcome.lost || w.quoteOutcome.noReply) ? `(입고 ${w.quoteOutcome.booked}·타사 ${w.quoteOutcome.lost}·무응답 ${w.quoteOutcome.noReply})` : ''}`,
     `문의 답변 ${w.inquiryReplies}`,
     `새 고객 ${w.newCustomers}`,
     `후기 ${w.reviewReceived}/${w.reviewRequested}`,

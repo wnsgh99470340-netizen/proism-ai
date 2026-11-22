@@ -9,7 +9,7 @@ import { supabase } from './supabase';
 import { todaySeoul, addDaysISO } from './local-date';
 
 export interface MissedGroup {
-  key: 'link' | 'stuck' | 'review';
+  key: 'link' | 'stuck' | 'review' | 'fill';
   label: string;
   count: number;
   /** 화면·푸시용 짧은 줄 (이름 · 내용) */
@@ -75,6 +75,15 @@ export async function buildMissedReport(date = todaySeoul()): Promise<MissedRepo
       .filter((f) => Object.values((f.sms_sent as Record<string, boolean> | null) || {}).some(Boolean))
       .map((f) => `${nameOf(f.customer)} · 요청 ${(f.scheduled_date as string).slice(5).replace('-', '.')}`);
     if (lines.length) groups.push({ key: 'review', label: '후기 요청 뒤 2주 답 없는 분', count: lines.length, lines, where: '사후관리 탭 → 후기요청 → 후기 받음 또는 다시 문자' });
+  } catch { /* 건너뜀 */ }
+
+  // 4) 채워야 할 고객 (2026-11-22 점검 10): 유입경로나 차종이 비어 있는 분 — 월말 유입경로 표와 차량 연결이 틀어진다
+  try {
+    const { data } = await supabase.from('customers').select('name, source, car_model, car_brand').order('created_at', { ascending: false });
+    const lines = (data || [])
+      .filter((c) => !c.source || (!c.car_model && !c.car_brand))
+      .map((c) => `${c.name} · ${[!c.source ? '유입경로' : '', !c.car_model && !c.car_brand ? '차종' : ''].filter(Boolean).join('·')} 비어 있음`);
+    if (lines.length) groups.push({ key: 'fill', label: '채워야 할 고객', count: lines.length, lines, where: '고객 목록 → 이름 눌러 수정' });
   } catch { /* 건너뜀 */ }
 
   return { date, groups, total: groups.reduce((a, g) => a + g.count, 0) };

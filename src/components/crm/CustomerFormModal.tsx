@@ -39,11 +39,20 @@ export async function loadCustomerForm(customerId: string): Promise<{ form: Cust
   };
 }
 
+/** 전화번호 저장 형식 통일 010-0000-0000 (2026-11-22) */
+function normalizePhoneForSave(raw: string): string | null {
+  const t = (raw || '').trim(); if (!t) return null;
+  const d = t.replace(/\D/g, '');
+  if (d.length === 11) return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`;
+  if (d.length === 10) return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`;
+  return t;
+}
+
 /** 고객 정보 + 최근 예약 저장. 예약이 없는데 시작일을 넣었으면 새 예약을 만든다. 실패하면 오류 문구를 돌려줌 */
 export async function saveCustomerEdit(customerId: string, form: CustomerFormValues, latestApptId: string | null): Promise<string | null> {
   if (!form.name.trim()) return '이름은 비울 수 없습니다';
   const { error } = await supabase.from('customers').update({
-    name: form.name.trim(), phone: form.phone.trim() || null, car_brand: form.car_brand.trim() || null, car_model: form.car_model.trim() || null,
+    name: form.name.trim(), phone: normalizePhoneForSave(form.phone), car_brand: form.car_brand.trim() || null, car_model: form.car_model.trim() || null,
     car_year: form.car_year.trim() || null, car_color: form.car_color.trim() || null, source: form.source || null, memo: form.memo.trim() || null,
   }).eq('id', customerId);
   if (error) return '수정 실패: ' + error.message;

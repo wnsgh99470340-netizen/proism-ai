@@ -27,7 +27,7 @@ import { workDetailsText, workItems, ppfProduct, type WorkOrderJson } from '@/li
 import CareCompleteModal from '@/components/crm/CareCompleteModal';
 import { appendCareLog, parseCareLog, stripCareLog } from '@/lib/care-log';
 import { isDemoClient } from '@/lib/demo';
-import { scheduleNextMaintenance, markFollowUpSkipped, closeQuoteFollowUpsFor, isSkipped } from '@/lib/followups';
+import { scheduleNextMaintenance, markFollowUpSkipped, closeQuoteFollowUpsFor, isSkipped, closeQuoteAs, quoteCloseReason, QUOTE_CLOSE_REASONS } from '@/lib/followups';
 import { loadVehicles, loadAllVehicles, ensurePrimaryVehicle, fillPlateIfEmpty, vehicleLabel, addVehicle, type Vehicle } from '@/lib/vehicles';
 import { advanceAppointmentsForToday, overdueAppointments, linkOrphanRecordsByPhone } from '@/lib/appointments-flow';
 
@@ -182,6 +182,14 @@ async function createAutoFollowUps(
 }
 
 // ─── Helper ──────────────────────────────────────────────
+/** 전화번호 저장 형식 통일 010-0000-0000 (2026-11-22 점검 10). 11자리·10자리가 아니면 적은 그대로 */
+function normalizePhone(raw: string | null | undefined): string | null {
+  const t = (raw || '').trim(); if (!t) return null;
+  const d = t.replace(/\D/g, '');
+  if (d.length === 11) return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`;
+  if (d.length === 10) return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`;
+  return t;
+}
 function formatDate(dateStr: string | null) {
   if (!dateStr) return '-';
   return new Date(dateStr).toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -396,6 +404,7 @@ export default function CRMPage() {
   const [workOrder, setWorkOrder] = useState({
     car_number: '',
     amount: '',
+    maintenance_years: '', // 메인터넌스 기간(년) 2·3·4·5·7·10 — 보증서 기간이자 메인터넌스 반복 한계 (2026-11-22 사장님)
     warranty_issued: false,
     crm_recorded: false,
     tinting: {
@@ -554,7 +563,7 @@ export default function CRMPage() {
       .from('customers')
       .insert({
         name: formData.name,
-        phone: formData.phone || null,
+        phone: normalizePhone(formData.phone),
         car_brand: formData.car_brand || null,
         car_model: formData.car_model || null,
         car_year: formData.car_year || null,
@@ -813,7 +822,10 @@ export default function CRMPage() {
   });
 
   const handleDeleteCustomer = async (id: string, name: string) => {
-    if (!confirm(`"${name}" 고객을 정말 삭제하시겠습니까?\n관련 예약, 시공, 상담, 사후관리도 모두 삭제됩니다.`)) return;
+    // 시공 기록이 있는 고객은 지우지 않는다 (2026-11-22 점검 10): 한 번 확인으로 예약·시공·사후관리·차량·회원 페이지가 전부 사라졌음
+    const { count } = await supabase.from('services').select('id', { count: 'exact', head: true }).eq('customer_id', id);
+    if ((count || 0) > 0) { alert(`"${name}" 고객님은 시공 기록이 ${count}건 있어 삭제할 수 없습니다.\n잘못 만든 기록이면 시공 기록을 먼저 정리하거나, 같은 분이 둘이면 전화번호가 같은지 확인해 주세요.`); return; }
+    if (!confirm(`"${name}" 고객을 정말 삭제하시겠습니까?\n관련 예약, 상담, 사후관리도 모두 삭제됩니다.`)) return;
     await supabase.from('customers').delete().eq('id', id);
     fetchCustomers();
     fetchAllCustomers();
@@ -970,7 +982,7 @@ export default function CRMPage() {
   };
 
   const resetWorkOrder = () => setWorkOrder({
-    car_number: '', amount: '', warranty_issued: false, crm_recorded: false,
+    car_number: '', amount: '', maintenance_years: '', warranty_issued: false, crm_recorded: false,
     tinting: {
       vertex: { selected: [], density: '' }, rainbow: { selected: [], density: '' },
       glasstint: { selected: [], density: '' }, tinain: { selected: [], density: '' },
@@ -1034,6 +1046,7 @@ export default function CRMPage() {
       if ((wo.ppf || []).length > 0 && !ppfProduct(wo.ppf_etc)) missing.push('PPF 제품(기타 칸에 50·100·150·PRO200)');
       const tintNoDensity = Object.values(wo.tinting || {}).some((t) => (t?.selected || []).length > 0 && !t?.density?.trim());
       if (tintNoDensity) missing.push('썬팅 농도');
+      if (!(workOrder as { maintenance_years?: string }).maintenance_years) missing.push('메인터넌스 기간(2·3·4·5·7·10년)');
       if (missing.length > 0 && !confirm(`작업 내역서에 빠진 칸이 있습니다.\n- ${missing.join('\n- ')}\n\n빠진 채로 완료할까요? (취소하면 채우러 돌아갑니다)`)) return;
     }
 
@@ -1056,9 +1069,11 @@ export default function CRMPage() {
       memoObj.warranty = {
         date: appointment.appointment_date, customer_name: cust?.name || appointment.customer?.name || '', phone: cust?.phone || appointment.customer?.phone || '',
         car_type: (appointment.vehicle && vehicleLabel(appointment.vehicle)) || [cust?.car_brand, cust?.car_model].filter(Boolean).join(' '), car_number: workOrder.car_number || '',
-        work_details: workDetailsText(workOrder as WorkOrderJson, appointment.service_type || '시공'), warranty_period: '시공일로부터 1년',
+        work_details: workDetailsText(workOrder as WorkOrderJson, appointment.service_type || '시공'), warranty_period: (workOrder as { maintenance_years?: string }).maintenance_years ? `시공일로부터 ${(workOrder as { maintenance_years?: string }).maintenance_years}년` : '시공일로부터 1년',
         price: finalAmount ? `₩${Number(finalAmount).toLocaleString()}` : '',
       };
+    } else if ((workOrder as { maintenance_years?: string }).maintenance_years) {
+      (memoObj.warranty as { warranty_period?: string }).warranty_period = `시공일로부터 ${(workOrder as { maintenance_years?: string }).maintenance_years}년`;
     }
     memoObj.warranty_issued = true;
     const mergedMemo = JSON.stringify(memoObj);
@@ -2033,7 +2048,7 @@ export default function CRMPage() {
                       {[
                         { k: '블로그 발행', v: stats.weekly.blogPublished, sub: stats.weekly.blogGenerated ? `생성 ${stats.weekly.blogGenerated}` : '' },
                         { k: '상담 기록', v: stats.weekly.consultations, sub: `문의 답변 ${stats.weekly.inquiryReplies}` },
-                        { k: '견적 문자', v: stats.weekly.quoteSms, sub: '' },
+                        { k: '견적 문자', v: stats.weekly.quoteSms, sub: stats.weekly.quoteOutcome ? [stats.weekly.quoteOutcome.booked ? `입고 ${stats.weekly.quoteOutcome.booked}` : '', stats.weekly.quoteOutcome.lost ? `타사 ${stats.weekly.quoteOutcome.lost}` : '', stats.weekly.quoteOutcome.noReply ? `무응답 ${stats.weekly.quoteOutcome.noReply}` : '', stats.weekly.quoteAvgMan ? `평균 ${stats.weekly.quoteAvgMan}만` : ''].filter(Boolean).join(' · ') : '' },
                         { k: '새 고객', v: stats.weekly.newCustomers, sub: stats.weekly.sources.slice(0, 2).map((x) => `${x.label} ${x.count}`).join(' · ') },
                         { k: '후기 받음', v: stats.weekly.reviewReceived, sub: `요청 ${stats.weekly.reviewRequested}건` },
                         { k: 'QC · 메인터넌스', v: stats.weekly.qcDone + stats.weekly.maintenanceDone, sub: `입고 ${stats.weekly.appointments}` },
@@ -2531,7 +2546,7 @@ export default function CRMPage() {
                       : 'bg-violet/20 text-violet';
 
                 const statusBadge = f.is_completed
-                  ? (isSkipped(f.memo) ? { text: '미방문', class: 'bg-[var(--c-hover)] text-[var(--c-text-3)]' } : { text: '처리완료', class: 'bg-ok/20 text-ok' })
+                  ? (isSkipped(f.memo) ? { text: '미방문', class: 'bg-[var(--c-hover)] text-[var(--c-text-3)]' } : quoteCloseReason(f.memo) ? { text: `종결 · ${quoteCloseReason(f.memo)}`, class: 'bg-[var(--c-hover)] text-[var(--c-text-3)]' } : /예약 잡혀 자동 정리/.test(f.memo || '') ? { text: '예약 잡힘', class: 'bg-ok/20 text-ok' } : { text: '처리완료', class: 'bg-ok/20 text-ok' })
                   : isOverdue
                     ? { text: `${Math.abs(daysUntil)}일 지남`, class: 'bg-danger/20 text-danger' }
                     : isUrgent
@@ -2640,6 +2655,9 @@ export default function CRMPage() {
                       {isQuote && !f.customer_id && (
                         <button onClick={() => handleAddCustomerFromQuote(quoteHead)} className="text-[10px] font-medium px-2.5 py-1 rounded-lg bg-ok/15 hover:bg-ok/25 text-ok transition-colors">＋ 고객 목록에 추가</button>
                       )}
+                      {isQuote && !f.is_completed && QUOTE_CLOSE_REASONS.map((r) => (
+                        <button key={r} onClick={async () => { if (!confirm(`이 견적을 "${r}"(으)로 종결할까요? 재연락·마무리가 같이 닫힙니다.`)) return; await closeQuoteAs(f, r); fetchFollowUps(); fetchStats(statsMonth); }} className="text-[10px] font-medium px-2 py-1 rounded-lg bg-[var(--c-subtle)] text-[var(--c-text-3)] hover:bg-[var(--c-hover)]" title="견적 종결 — 월말 숫자에 사유별로 집계">{r}</button>
+                      ))}
                       {isQuote && (
                         <>
                         <button onClick={() => sendSms(quoteBody, 'quote')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${sent.quote ? sentBtn : 'bg-gold/20 text-gold hover:bg-gold/30'}`}>{sent.quote ? '✓ 문자완료' : (f.follow_up_type === '견적재연락' ? '재연락 문자' : '마무리 문자')}</button>
@@ -3397,6 +3415,11 @@ function WorkOrderModal({ appointment, workOrder, setWorkOrder, onSubmit, onSave
               </div>
             </div>
             <div>
+              <label className="text-xs text-[var(--c-text-3)] mb-1 block">메인터넌스 기간 *</label>
+              <select value={workOrder.maintenance_years || ''} onChange={(e) => setWorkOrder({ ...workOrder, maintenance_years: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50 mb-3" title="이 기간 동안 6개월마다 메인터넌스를 잡고, 보증서 기간으로도 들어갑니다">
+                <option value="">선택</option>
+                {['2', '3', '4', '5', '7', '10'].map((y) => <option key={y} value={y}>{y}년</option>)}
+              </select>
               <label className="text-xs text-[var(--c-text-3)] mb-1 block">금액 (원)</label>
               <input type="text" inputMode="numeric" value={workOrder.amount ? Number(String(workOrder.amount).replace(/[^\d]/g, '') || 0).toLocaleString() : ''} onChange={(e) => setWorkOrder({ ...workOrder, amount: e.target.value.replace(/[^\d]/g, '') })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder={appointment.amount ? Number(appointment.amount).toLocaleString() : '예: 5,500,000'} />
             </div>
@@ -3753,8 +3776,11 @@ function WarrantyModal({ warrantyForm, setWarrantyForm, onSave, onDownloaded, on
               <input type="text" value={warrantyForm.phone} onChange={(e) => setWarrantyForm({ ...warrantyForm, phone: e.target.value })} className={inputClass} />
             </div>
             <div>
-              <label className="text-xs text-[var(--c-text-3)] mb-1 block">보증기간</label>
-              <input type="text" value={warrantyForm.warranty_period} onChange={(e) => setWarrantyForm({ ...warrantyForm, warranty_period: e.target.value })} className={inputClass} placeholder="시공일로부터 1년" />
+              <label className="text-xs text-[var(--c-text-3)] mb-1 block">보증·메인터넌스 기간</label>
+              <select value={warrantyForm.warranty_period} onChange={(e) => setWarrantyForm({ ...warrantyForm, warranty_period: e.target.value })} className={inputClass}>
+                {!['2', '3', '4', '5', '7', '10'].some((y) => warrantyForm.warranty_period === `시공일로부터 ${y}년`) && <option value={warrantyForm.warranty_period}>{warrantyForm.warranty_period || '선택'}</option>}
+                {['2', '3', '4', '5', '7', '10'].map((y) => <option key={y} value={`시공일로부터 ${y}년`}>시공일로부터 {y}년</option>)}
+              </select>
             </div>
             <div className="col-span-2">
               <label className="text-xs text-[var(--c-text-3)] mb-1 block">정상가 금액</label>
