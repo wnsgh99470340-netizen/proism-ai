@@ -42,7 +42,7 @@ export default function BlacklistModal({ onClose, onChanged }: { onClose: () => 
         <div className="p-5 space-y-4">
           <div className="rounded-xl border border-[var(--c-border)] bg-[var(--c-subtle)] p-3 space-y-2">
             <div className="text-xs font-semibold text-[var(--c-text-2)]">추가</div>
-            <ReferrerPicker compact value={pick} onChange={setPick} />
+            <ReferrerPicker compact value={pick} onChange={setPick} placeholder="고객 고르기 (이름·전화 뒷자리·차종)" selectedLabel="고객" />
             <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="사유 (예: 결제 미이행, 무리한 요구)" className={input} />
             <div className="flex justify-end"><button onClick={add} disabled={!pick || busy} className="text-sm px-4 py-2 rounded-lg bg-danger text-white disabled:opacity-40">{busy ? '저장 중…' : '블랙리스트에 넣기'}</button></div>
           </div>

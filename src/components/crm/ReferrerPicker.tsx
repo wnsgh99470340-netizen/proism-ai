@@ -19,7 +19,7 @@ export function hideRefToken(memo: string | null | undefined): string {
   return (memo || '').replace(REF_TOKEN_RE, '');
 }
 
-export default function ReferrerPicker({ value, onChange, excludeCustomerId, compact }: { value: Person | null; onChange: (p: Person | null) => void; excludeCustomerId?: string | null; compact?: boolean }) {
+export default function ReferrerPicker({ value, onChange, excludeCustomerId, compact, placeholder, selectedLabel }: { value: Person | null; onChange: (p: Person | null) => void; excludeCustomerId?: string | null; compact?: boolean; /** 다른 용도(블랙리스트 등)로 쓸 때 문구 바꾸기 */ placeholder?: string; selectedLabel?: string }) {
   const [people, setPeople] = useState<Person[] | null>(null);
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
@@ -34,7 +34,7 @@ export default function ReferrerPicker({ value, onChange, excludeCustomerId, com
   if (value) {
     return (
       <div className="flex items-center gap-2 text-sm">
-        <span className="text-[var(--c-text-3)] text-xs">소개한 분</span>
+        <span className="text-[var(--c-text-3)] text-xs">{selectedLabel || '소개한 분'}</span>
         <span className="font-medium text-[var(--c-text-1)]">{label(value)}</span>
         <button type="button" onClick={() => onChange(null)} className="text-xs text-[var(--c-text-3)] hover:text-danger">✕ 바꾸기</button>
       </div>
@@ -43,7 +43,7 @@ export default function ReferrerPicker({ value, onChange, excludeCustomerId, com
   return (
     <div className="relative">
       {!compact && <label className="text-xs text-[var(--c-text-3)] mb-1 block">소개한 분 (선택) — 소개로 왔다면 여기서 골라 두면 고객 등록 때 자동으로 연결됩니다</label>}
-      <input type="text" value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)} className={input} placeholder={people ? (compact ? '소개한 분 (이름·전화 뒷자리·차종)' : '이름·전화 뒷자리·차종으로 검색') : '불러오는 중…'} />
+      <input type="text" value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)} className={input} placeholder={people ? (placeholder || (compact ? '소개한 분 (이름·전화 뒷자리·차종)' : '이름·전화 뒷자리·차종으로 검색')) : '불러오는 중…'} />
       {open && people && (
         <ul className="absolute z-30 mt-1 w-full max-h-52 overflow-y-auto bg-[var(--c-card)] border border-[var(--c-border)] rounded-lg shadow-xl text-sm">
           {list.map((p) => <li key={p.id}><button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { onChange(p); setOpen(false); setQ(''); }} className="w-full text-left px-3 py-2 hover:bg-[var(--c-subtle)] text-[var(--c-text-1)]">{label(p)}</button></li>)}
