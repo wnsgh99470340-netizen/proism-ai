@@ -33,7 +33,7 @@ export default function VehicleList({ customerId, onChange }: { customerId: stri
     if (!form.brand.trim() && !form.model.trim()) { alert('브랜드나 차종은 적어 주세요'); return; }
     setBusy(true);
     try {
-      const payload: VehicleInput = { brand: form.brand.trim() || null, model: form.model.trim() || null, year: form.year.trim() || null, color: form.color.trim() || null, plate: form.plate.trim() || null };
+      const payload: VehicleInput = { brand: form.brand.trim() || null, model: form.model.trim() || null, plate: form.plate.trim() || null }; // 연식·색상은 고객 정보 칸에서 (2026-11-23)
       if (editId) { const v = list.find((x) => x.id === editId); if (v) await updateVehicle(v, payload); }
       else await addVehicle(customerId, payload);
       cancel();
@@ -49,12 +49,10 @@ export default function VehicleList({ customerId, onChange }: { customerId: stri
 
   const FormRow = (
     <div className="rounded-lg border border-[var(--c-border)] bg-[var(--c-subtle)] p-3 space-y-2">
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         <input value={form.brand} onChange={(e) => setForm({ ...form, brand: e.target.value })} placeholder="브랜드 (BMW)" className={input} />
         <input value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} placeholder="차종 (X5)" className={input} />
-        <input value={form.year} onChange={(e) => setForm({ ...form, year: e.target.value })} placeholder="연식" className={input} />
-        <input value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })} placeholder="색상" className={input} />
-        <input value={form.plate} onChange={(e) => setForm({ ...form, plate: e.target.value })} placeholder="차량번호" className={input} />
+        <input value={form.plate} onChange={(e) => setForm({ ...form, plate: e.target.value })} placeholder="차량번호 (12가 3456)" className={input} />
       </div>
       <div className="flex gap-2 justify-end">
         <button onClick={cancel} className="text-xs px-3 py-1.5 rounded-full border border-[var(--c-border)] text-[var(--c-text-2)]">취소</button>
@@ -78,7 +76,7 @@ export default function VehicleList({ customerId, onChange }: { customerId: stri
             <div key={v.id} className="flex items-center gap-3 rounded-lg border border-[var(--c-border)] px-3 py-2">
               <div className="min-w-0 flex-1">
                 <div className="text-sm text-[var(--c-text-1)] font-medium truncate">{vehicleLabel(v) || '차량'}{v.is_primary && <span className="ml-2 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gold/15 text-gold align-middle">대표</span>}</div>
-                <div className="text-xs text-[var(--c-text-3)] mt-0.5">{[v.year, v.color, v.plate].filter(Boolean).join(' · ') || '연식·색상·차량번호 없음'}</div>
+                <div className="text-xs text-[var(--c-text-3)] mt-0.5">{v.plate ? `차량번호 ${v.plate}` : '차량번호 없음 — 작업 내역서에 적으면 자동으로 들어옵니다'}</div>
               </div>
               {!v.is_primary && <button onClick={() => makePrimary(v)} className="text-[11px] text-[var(--c-text-3)] hover:text-[var(--c-text-1)]">대표로</button>}
               <button onClick={() => startEdit(v)} className="text-[11px] text-[var(--c-text-3)] hover:text-[var(--c-text-1)]">수정</button>
