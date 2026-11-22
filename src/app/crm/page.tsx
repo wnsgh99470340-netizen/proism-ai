@@ -29,6 +29,7 @@ import { appendCareLog, parseCareLog, stripCareLog } from '@/lib/care-log';
 import { isDemoClient } from '@/lib/demo';
 import { scheduleNextMaintenance, markFollowUpSkipped, closeQuoteFollowUpsFor, isSkipped } from '@/lib/followups';
 import { loadVehicles, loadAllVehicles, ensurePrimaryVehicle, fillPlateIfEmpty, vehicleLabel, addVehicle, type Vehicle } from '@/lib/vehicles';
+import { advanceAppointmentsForToday, overdueAppointments, linkOrphanRecordsByPhone } from '@/lib/appointments-flow';
 
 // ─── Types ───────────────────────────────────────────────
 interface Customer {
@@ -455,6 +456,7 @@ export default function CRMPage() {
   }, []);
 
   const fetchAppointments = useCallback(async () => {
+    await advanceAppointmentsForToday().catch(() => 0); // 시작일이 된 예약확정 → 시공중 (2026-11-22). 크론도 같은 함수를 돈다
     let { data } = await supabase
       .from('appointments')
       .select('*, customer:customers(name, phone), vehicle:vehicles(brand, model, plate)')
@@ -586,6 +588,8 @@ export default function CRMPage() {
     }
 
     console.log('[CRM] customerId:', customerId);
+    // 같은 번호로 남은 미연결 상담 기록·견적 재연락을 이 고객에 붙인다 (2026-11-22 점검 1-1. 견적 문자 경로에만 있던 것)
+    linkOrphanRecordsByPhone(customerId, formData.phone).then((n) => { if (n.consultations || n.followUps) { fetchConsultations(); fetchFollowUps(); } }).catch(() => {});
     // 멤버십(2026-11-18): 소개한 분이 골라져 있으면 연결하고 감사 문자 제안
     if (customerReferrerId) {
       const refErr = await linkReferral(customerId, customerReferrerId);
@@ -974,6 +978,22 @@ export default function CRMPage() {
     ppf: [], wrapping: [], coating: [], electrical: [], electrical_etc: '',
     polish: [], polish_etc: '', package_options: [], ppf_etc: '', wrapping_etc: '', notes: '',
   });
+
+  // 예약 날짜 바꾸기 (2026-11-22 생애 흐름 점검 3-1): 지우고 다시 만들지 않게. QC·메인터넌스 방문 예약이면 묶인 사후관리 날짜도 같이 옮긴다
+  const [dateEdit, setDateEdit] = useState<Appointment | null>(null);
+  const [dateEditForm, setDateEditForm] = useState({ start: '', end: '' });
+  const openDateEdit = (a: Appointment) => { setDateEditForm({ start: a.appointment_date, end: a.end_date || '' }); setDateEdit(a); };
+  const handleDateEditSave = async () => {
+    const a = dateEdit; if (!a || !dateEditForm.start) return;
+    const end = dateEditForm.end && dateEditForm.end >= dateEditForm.start ? dateEditForm.end : null;
+    await supabase.from('appointments').update({ appointment_date: dateEditForm.start, end_date: CARE_VISIT_TYPES.includes(a.service_type || '') ? dateEditForm.start : end }).eq('id', a.id);
+    if (CARE_VISIT_TYPES.includes(a.service_type || '')) {
+      const fid = a.follow_up_id || (a.memo || '').match(/사후관리:([0-9a-f-]{36})/)?.[1];
+      if (fid) await supabase.from('follow_ups').update({ scheduled_date: dateEditForm.start }).eq('id', fid);
+    }
+    setDateEdit(null);
+    fetchAppointments(); fetchFollowUps();
+  };
 
   const handleStatusChange = async (appointment: Appointment, newStatus: string) => {
     // 완료 변경 시 작업 내역서 모달 표시 (기존 데이터 불러오기). 리터치는 작업 내역서 대신 리터치 완료 창
@@ -1793,6 +1813,7 @@ export default function CRMPage() {
           const fmtDot = (d: string) => d.replace(/-/g, '.');
           const plus = (n: number) => addDaysISO(today, n);
           const todayAppts = appointments.filter((a) => a.appointment_date <= today && (a.end_date || a.appointment_date) >= today && a.status !== '취소');
+          const overdueAppts = overdueAppointments(appointments, today); // 끝난 날이 지났는데 완료 안 된 예약 (2026-11-22 점검 3-3)
           const weekAppts = appointments.filter((a) => a.appointment_date > today && a.appointment_date <= plus(7) && a.status !== '취소').slice(0, 5);
           const pendingCount = followUps.filter((f) => !f.is_completed).length;
           const upcoming3 = followUps.filter((f) => !f.is_completed && f.scheduled_date > today && f.scheduled_date <= plus(3)).length;
@@ -1863,6 +1884,25 @@ export default function CRMPage() {
                     <h2 className="text-lg font-bold text-[var(--c-text-1)]">오늘 예약 <span className="text-[var(--c-text-3)] text-sm font-medium ml-1">{todayAppts.length}건</span></h2>
                     <button onClick={() => setActiveTab('appointments')} className="text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-1)] transition-colors">전체 보기 →</button>
                   </div>
+                  {overdueAppts.length > 0 && (
+                    <div className="mb-4 rounded-xl border border-warn/40 bg-warn/5 p-3">
+                      <div className="text-xs font-semibold text-warn mb-2">완료 처리할 예약 {overdueAppts.length}건 — 끝난 날이 지났는데 아직 {overdueAppts.some((a) => a.status === '시공중') ? '시공중·' : ''}예약확정입니다</div>
+                      <ul className="space-y-1.5">
+                        {overdueAppts.slice(0, 5).map((a) => (
+                          <li key={a.id} className="flex items-center gap-2 flex-wrap text-sm">
+                            <span className="font-medium text-[var(--c-text-1)]">{a.customer?.name || '(삭제된 고객)'}</span>
+                            <span className="text-xs text-[var(--c-text-3)]">{a.service_type || '시공 미정'} · {a.appointment_date.slice(5).replace('-', '/')}{a.end_date && a.end_date !== a.appointment_date ? `~${a.end_date.slice(5).replace('-', '/')}` : ''}</span>
+                            <span className="ml-auto flex items-center gap-1">
+                              <button onClick={() => handleStatusChange(a, '완료')} className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-ok text-white">{CARE_VISIT_TYPES.includes(a.service_type || '') ? '점검 완료' : a.service_type === RETOUCH_TYPE ? '리터치 완료' : '완료 처리'}</button>
+                              <button onClick={() => openDateEdit(a)} className="text-[11px] font-medium px-2.5 py-1 rounded-full border border-[var(--c-border)] text-[var(--c-text-2)]">날짜</button>
+                              <button onClick={() => { if (confirm(`${a.customer?.name || '이'} 예약을 취소로 바꿀까요?`)) handleStatusChange(a, '취소'); }} className="text-[11px] font-medium px-2.5 py-1 rounded-full border border-[var(--c-border)] text-[var(--c-text-3)]">취소</button>
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                      {overdueAppts.length > 5 && <div className="text-[11px] text-[var(--c-text-3)] mt-2">외 {overdueAppts.length - 5}건은 예약/일정 탭에서</div>}
+                    </div>
+                  )}
                   {todayAppts.length === 0 ? (
                     <div className="py-12 text-center text-sm text-[var(--c-text-3)]">오늘 예약이 없습니다.</div>
                   ) : (
@@ -2358,6 +2398,7 @@ export default function CRMPage() {
                                 {APPOINTMENT_STATUSES.filter((st) => st !== a.status).map((st) => (<option key={st} value={st}>{st}</option>))}
                               </select>
                             )}
+                            {a.status !== '완료' && a.status !== '취소' && <button onClick={() => openDateEdit(a)} className={pill} title="시작·종료일 바꾸기 (QC·메인터넌스 방문이면 사후관리 날짜도 함께)">📆 날짜</button>}
                             <button onClick={() => handleDeleteAppointment(a.id)} className="opacity-0 group-hover:opacity-100 w-7 h-7 rounded-full flex items-center justify-center text-[var(--c-text-3)] hover:text-danger hover:bg-danger/10 transition-all text-xs" title="삭제">✕</button>
                           </div>
                         </div>
@@ -3134,6 +3175,22 @@ export default function CRMPage() {
           onClose={() => setRetouchTarget(null)}
           onDone={(note, photos, serviceId) => handleRetouchDone(retouchTarget, note, photos, serviceId)}
         />
+      )}
+      {dateEdit && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-end sm:items-center justify-center p-3" onClick={() => setDateEdit(null)}>
+          <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-2xl w-full max-w-sm p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="text-[var(--c-text-1)] font-semibold">예약 날짜 바꾸기</div>
+            <div className="text-xs text-[var(--c-text-3)] mt-0.5 mb-4">{dateEdit.customer?.name || '고객'} · {dateEdit.service_type || '시공 미정'}{CARE_VISIT_TYPES.includes(dateEdit.service_type || '') ? ' · 사후관리 날짜도 같이 바뀝니다' : ''}</div>
+            <div className={CARE_VISIT_TYPES.includes(dateEdit.service_type || '') ? '' : 'grid grid-cols-2 gap-3'}>
+              <div><label className="text-xs text-[var(--c-text-3)] mb-1 block">{CARE_VISIT_TYPES.includes(dateEdit.service_type || '') ? '방문일' : '시작일'} *</label><input type="date" value={dateEditForm.start} onChange={(e) => setDateEditForm({ ...dateEditForm, start: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" /></div>
+              {!CARE_VISIT_TYPES.includes(dateEdit.service_type || '') && <div><label className="text-xs text-[var(--c-text-3)] mb-1 block">종료일</label><input type="date" value={dateEditForm.end} min={dateEditForm.start} onChange={(e) => setDateEditForm({ ...dateEditForm, end: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" /></div>}
+            </div>
+            <div className="flex gap-2 justify-end mt-4">
+              <button onClick={() => setDateEdit(null)} className="text-sm px-4 py-2 rounded-lg border border-[var(--c-border)] text-[var(--c-text-2)]">취소</button>
+              <button onClick={handleDateEditSave} disabled={!dateEditForm.start} className="text-sm px-4 py-2 rounded-lg bg-brand text-white disabled:opacity-40">저장</button>
+            </div>
+          </div>
+        </div>
       )}
       {careBook && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-end sm:items-center justify-center p-3" onClick={() => setCareBook(null)}>

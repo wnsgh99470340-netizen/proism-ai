@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { put } from '@vercel/blob';
 import { buildDailyBrief, saveTeamLog } from '@/lib/team';
+import { advanceAppointmentsForToday } from '@/lib/appointments-flow';
 import { sendPushToAll as sendPush } from '@/lib/push';
 import { missedPushBody } from '@/lib/checkups';
 import { buildMonthlyReport, monthlySummaryLines } from '@/lib/weekly-stats';
@@ -30,6 +31,7 @@ export async function GET(request: NextRequest) {
   const dry = request.nextUrl.searchParams.get('dry') === '1';
   const sendPushToAll = dry ? async (_p: unknown) => ({ sent: 0, removed: 0, dry: true }) : sendPush;
   try {
+    if (!dry) await advanceAppointmentsForToday(asDate).catch(() => 0); // 시작일이 된 예약확정 → 시공중 (2026-11-22)
     const brief = await buildDailyBrief(asDate);
     const logUrl = dry ? null : await saveTeamLog(brief).catch(() => null);
     const after = brief.lines.find(l => l.key === 'aftercare');
