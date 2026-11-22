@@ -216,7 +216,7 @@ export default function MemberPage() {
                   <div className="mt-5 flex items-end justify-between gap-4">
                     <div className="flex flex-col gap-3">
                       <div><div className={micro}>시공 기간</div><div className="text-sm font-semibold tabular-nums mt-1 whitespace-nowrap">{fmtDot(cert.date)}{cert.end && cert.end !== cert.date ? <span className="text-white/50"> – {fmtDot(cert.end).slice(5)}</span> : null}</div></div>
-                      <div><div className={micro}>{cert.period ? '매장 보증' : '시공 매장'}</div><div className="text-sm font-semibold mt-1">{cert.period || '강남서초점'}</div></div>
+                      <div><div className={micro}>시공 매장</div><div className="text-sm font-semibold mt-1">3M 프로이즘 강남서초점</div></div>{/* 매장 보증 칸은 뺌 (2026-11-22 사장님). 보증은 3M 전자 보증서 안내만 */}
                     </div>
                     <Seal />
                   </div>
@@ -433,19 +433,18 @@ export default function MemberPage() {
               )}
             </div>
             <div className={box}>
-              <div className="text-sm font-bold mb-2">보증</div>
-              {data.warranties.length === 0 ? <div className="text-sm text-white/60">발급된 매장 보증서가 없습니다.</div> : (
+              <div className="text-sm font-bold mb-2">시공 증명</div>
+              {data.warranties.length === 0 ? <div className="text-sm text-white/60">발급된 시공 증명서가 없습니다.</div> : (
                 <ul className="space-y-2.5">
                   {data.warranties.map((w, i) => (
                     <li key={i} className="text-sm">
                       <div className="flex items-center justify-between"><div className="font-medium">{w.work || '시공 보증서'}</div><div className="text-white/70 tabular-nums">{fmt(w.date)}</div></div>
-                      <div className="text-[11px] text-white/45 mt-0.5 tabular-nums">No. {w.certNo}{w.period ? ` · 매장 보증 ${w.period}` : ''}</div>
+                      <div className="text-[11px] text-white/45 mt-0.5 tabular-nums">No. {w.certNo}</div>
                       {w.items.length > 0 && <ul className="mt-1.5 space-y-0.5">{w.items.map((it, k) => <li key={k} className="text-[12px] text-white/60 break-keep"><span className="text-[#ff5c78] font-semibold mr-1.5">{it.group}</span>{it.text}{it.product ? <span className="text-white/40"> · {it.product}</span> : null}</li>)}</ul>}
                     </li>
                   ))}
                 </ul>
               )}
-              <div className="text-[12px] text-white/60 mt-3 leading-relaxed">매장 보증은 보증 기간 안에 시공 하자가 생기면 무상으로 다시 시공해 드리는 약속입니다. 외부 충격·사고·부주의로 인한 손상은 제외됩니다.</div>
               <a href={LINKS.threeMWarrantyCheck} target="_blank" rel="noopener noreferrer" className={`${btn} w-full mt-3 bg-white/[0.08] hover:bg-white/[0.14]`}>3M 소비자 보증서 확인 ↗</a>
               <div className="text-[11px] text-white/40 mt-2 leading-relaxed">3M 필름 보증은 한국쓰리엠 전자 보증서로 별도 발급됩니다. 보증 청구는 저희 매장으로 먼저 연락 주세요.</div>
             </div>
