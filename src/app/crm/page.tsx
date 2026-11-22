@@ -56,6 +56,8 @@ interface Appointment {
   customer_id: string;
   /** 어느 차에 한 작업인지 (2026-11-22 차량 N대). 표가 없으면 undefined */
   vehicle_id?: string | null;
+  /** QC·메인터넌스 방문 예약이 묶인 사후관리 (열이 없으면 memo 의 "사후관리:<id>") */
+  follow_up_id?: string | null;
   vehicle?: { brand: string | null; model: string | null; plate: string | null } | null;
   appointment_date: string;
   end_date?: string | null;
@@ -81,6 +83,8 @@ interface FollowUp {
   customer?: { name: string; phone: string | null };
   service?: { service_type: string };
   sms_sent?: Record<string, boolean> | null;
+  /** 잡힌 방문 예약 (2026-11-22) */
+  visit?: { id: string; appointment_date: string; status: string } | null;
 }
 
 interface Consultation {
@@ -98,7 +102,9 @@ interface Consultation {
 type Tab = 'home' | 'blog' | 'customers' | 'appointments' | 'followups' | 'consultations';
 const TAB_KEYS: Tab[] = ['home', 'blog', 'customers', 'appointments', 'followups', 'consultations'];
 
-const SERVICE_TYPES = ['PPF', '컬러PPF', 'PWF', '랩핑', '크롬죽이기', '썬팅', '유리막코팅', '가죽코팅', '실내PPF', '신차패키지', '리터치'];
+const SERVICE_TYPES = ['PPF', '컬러PPF', 'PWF', '랩핑', '크롬죽이기', '썬팅', '유리막코팅', '가죽코팅', '실내PPF', '신차패키지', '리터치', 'QC점검', '메인터넌스'];
+/** QC·메인터넌스 방문 예약 (2026-11-22): 사후관리 한 건에 묶인 달력 예약. 완료하면 점검 기록 창 → 그 사후관리도 완료 */
+const CARE_VISIT_TYPES = ['QC점검', '메인터넌스'];
 /** 리터치(2026-11-22): 완료해도 새 시공 기록을 만들지 않고 원래 시공 기록 밑에 관리 이력 한 건으로 붙는다 */
 const RETOUCH_TYPE = '리터치';
 const APPOINTMENT_STATUSES = ['상담중', '예약확정', '시공중', '완료', '취소']; // 취소(2026-11-22): 삭제하면 "예약했다 취소했다" 기록이 사라지므로 상태로 남긴다. 홈·오늘 예약·손님 페이지에서는 이미 거른다
@@ -471,7 +477,17 @@ export default function CRMPage() {
       .from('follow_ups')
       .select('*, customer:customers(name, phone), service:services(service_type)')
       .order('scheduled_date', { ascending: true });
-    if (data) setFollowUps(data as FollowUp[]);
+    if (!data) return;
+    // 방문 예약(QC·메인터넌스) 붙이기: follow_up_id 열이 있으면 그걸로, 없으면 memo 의 "사후관리:<id>"
+    const visits = new Map<string, { id: string; appointment_date: string; status: string }>();
+    type VisitRow = { id: string; appointment_date: string; status: string; follow_up_id?: string | null; memo: string | null };
+    let va: VisitRow[] | null = (await supabase.from('appointments').select('id, appointment_date, status, follow_up_id, memo').in('service_type', CARE_VISIT_TYPES).neq('status', '취소')).data as VisitRow[] | null;
+    if (!va) va = (await supabase.from('appointments').select('id, appointment_date, status, memo').in('service_type', CARE_VISIT_TYPES).neq('status', '취소')).data as VisitRow[] | null; // follow_up_id 열이 아직 없으면 memo 로만
+    for (const a of va || []) {
+      const fid = a.follow_up_id || (a.memo || '').match(/사후관리:([0-9a-f-]{36})/)?.[1];
+      if (fid && !visits.has(fid)) visits.set(fid, { id: a.id, appointment_date: a.appointment_date, status: a.status });
+    }
+    setFollowUps((data as FollowUp[]).map((f) => ({ ...f, visit: visits.get(f.id) || null })));
   }, []);
 
   const fetchConsultations = useCallback(async () => {
@@ -882,6 +898,18 @@ export default function CRMPage() {
     });
     // 예약이 잡혔으니 이 손님의 열린 견적 재연락·마무리는 닫는다 (2026-11-22)
     closeQuoteFollowUpsFor(appointmentForm.customer_id, allCustomers.find((c) => c.id === appointmentForm.customer_id)?.phone).then((n) => { if (n) fetchFollowUps(); });
+    // QC·메인터넌스를 직접 골랐으면 그 손님의 열린 같은 유형 사후관리에 묶고 날짜도 방문일로 (2026-11-22)
+    if (CARE_VISIT_TYPES.includes(appointmentForm.service_type)) {
+      const { data: openFu } = await supabase.from('follow_ups').select('id').eq('customer_id', appointmentForm.customer_id).eq('follow_up_type', appointmentForm.service_type).eq('is_completed', false).order('scheduled_date', { ascending: true }).limit(1);
+      const fid = (openFu || [])[0]?.id as string | undefined;
+      if (fid) {
+        const { data: justMade } = await supabase.from('appointments').select('id, memo').eq('customer_id', appointmentForm.customer_id).eq('appointment_date', appointmentForm.appointment_date).eq('service_type', appointmentForm.service_type).order('created_at', { ascending: false }).limit(1);
+        const ap = (justMade || [])[0];
+        if (ap) { const { error } = await supabase.from('appointments').update({ follow_up_id: fid }).eq('id', ap.id); if (error) await supabase.from('appointments').update({ memo: `${ap.memo || ''} · 사후관리:${fid}`.replace(/^ · /, '') }).eq('id', ap.id); }
+        await supabase.from('follow_ups').update({ scheduled_date: appointmentForm.appointment_date }).eq('id', fid);
+        fetchFollowUps();
+      }
+    }
 
     // Notion 예약 일정 동기화 (fire-and-forget)
     const apptCustomer = allCustomers.find((c) => c.id === appointmentForm.customer_id);
@@ -921,6 +949,7 @@ export default function CRMPage() {
     // 완료 변경 시 작업 내역서 모달 표시 (기존 데이터 불러오기). 리터치는 작업 내역서 대신 리터치 완료 창
     if (newStatus === '완료') {
       if (appointment.service_type === RETOUCH_TYPE) handleOpenRetouch(appointment);
+      else if (CARE_VISIT_TYPES.includes(appointment.service_type || '')) handleOpenCareVisit(appointment);
       else handleOpenWorkOrder(appointment);
       return;
     }
@@ -1390,21 +1419,61 @@ export default function CRMPage() {
     fetchAppointments();
     fetchFollowUps();
   };
+  // 점검 기록 창이 방문 예약(달력)에서 열렸으면 그 예약도 같이 완료/취소 (2026-11-22)
+  const [careVisitAppt, setCareVisitAppt] = useState<Appointment | null>(null);
   const handleCareDone = async (f: FollowUp, note: string, photos: string[]) => {
     const date = todaySeoul();
     const memo = note || photos.length ? appendCareLog(f.memo, { date, note, photos }) : (f.memo || null);
     await supabase.from('follow_ups').update({ is_completed: true, completed_date: date, memo }).eq('id', f.id);
     // 메인터넌스는 6개월마다 → 끝나면 같은 시공 기록에 다음 회차 자동 생성 (2026-11-22)
     const next = await scheduleNextMaintenance(f, date);
-    setCareTarget(null);
-    fetchFollowUps();
+    const visitId = careVisitAppt?.id || f.visit?.id;
+    if (visitId) await supabase.from('appointments').update({ status: '완료' }).eq('id', visitId);
+    setCareTarget(null); setCareVisitAppt(null);
+    fetchFollowUps(); if (visitId) fetchAppointments();
     if (next) alert(`다음 메인터넌스를 ${next} 에 잡아 두었습니다.`);
   };
   // 연락했는데 안 오신 분: '미방문'으로 정리 (예정으로 영원히 남지 않게). 메인터넌스면 다음 회차는 그대로 잡는다 (2026-11-22)
   const handleCareSkip = async (f: FollowUp, reason: string) => {
     await markFollowUpSkipped(f, reason);
-    setCareTarget(null);
-    fetchFollowUps();
+    const visitId = careVisitAppt?.id || f.visit?.id;
+    if (visitId) await supabase.from('appointments').update({ status: '취소' }).eq('id', visitId);
+    setCareTarget(null); setCareVisitAppt(null);
+    fetchFollowUps(); if (visitId) fetchAppointments();
+  };
+
+  // ─── QC·메인터넌스 방문 예약 (2026-11-22 사장님 "QC랑 메인터넌스 예약은 어떻게 등록해?") ───
+  // 사후관리 카드 "방문 잡기" → 달력 예약(종류 QC점검/메인터넌스, 그 시공의 차, follow_up_id) + 사후관리 날짜를 방문일로
+  const [careBook, setCareBook] = useState<FollowUp | null>(null);
+  const [careBookForm, setCareBookForm] = useState({ date: '', time: '', memo: '' });
+  const openCareBook = (f: FollowUp) => { setCareBookForm({ date: f.scheduled_date >= todaySeoul() ? f.scheduled_date : todaySeoul(), time: '', memo: '' }); setCareBook(f); };
+  const handleBookCareVisit = async () => {
+    const f = careBook; if (!f || !careBookForm.date) return;
+    let vehicleId: string | null = null;
+    if (f.service_id) { const { data: sv } = await supabase.from('services').select('*').eq('id', f.service_id).maybeSingle(); vehicleId = ((sv as { vehicle_id?: string | null } | null)?.vehicle_id) || null; }
+    const memoText = [careBookForm.time.trim(), `${f.follow_up_type === 'QC점검' ? 'QC 점검' : '메인터넌스'} 방문`, careBookForm.memo.trim()].filter(Boolean).join(' · ');
+    const base = { customer_id: f.customer_id, appointment_date: careBookForm.date, end_date: careBookForm.date, service_type: f.follow_up_type, status: '예약확정', ...(vehicleId ? { vehicle_id: vehicleId } : {}) };
+    let { error } = await supabase.from('appointments').insert({ ...base, memo: memoText, follow_up_id: f.id });
+    if (error) ({ error } = await supabase.from('appointments').insert({ ...base, memo: `${memoText} · 사후관리:${f.id}` })); // follow_up_id 열이 아직 없으면 memo 에
+    if (error) { alert(`예약 저장 실패: ${error.message}`); return; }
+    await supabase.from('follow_ups').update({ scheduled_date: careBookForm.date }).eq('id', f.id); // 사후관리 날짜 = 방문일 (손님 페이지 '다음 관리'도 이 날짜)
+    setCareBook(null);
+    fetchFollowUps(); fetchAppointments();
+  };
+  // 달력의 QC·메인터넌스 예약을 완료 → 묶인 사후관리를 찾아 점검 기록 창. 없으면 같은 고객·같은 유형의 열린 사후관리, 그것도 없으면 새로 만들어 완료
+  const handleOpenCareVisit = async (a: Appointment) => {
+    const fid = a.follow_up_id || (a.memo || '').match(/사후관리:([0-9a-f-]{36})/)?.[1] || null;
+    let f: FollowUp | null = null;
+    if (fid) { const { data } = await supabase.from('follow_ups').select('*, customer:customers(name, phone), service:services(service_type)').eq('id', fid).maybeSingle(); f = (data as FollowUp | null) || null; }
+    if (!f) { const { data } = await supabase.from('follow_ups').select('*, customer:customers(name, phone), service:services(service_type)').eq('customer_id', a.customer_id).eq('follow_up_type', a.service_type || '').eq('is_completed', false).order('scheduled_date', { ascending: true }).limit(1); f = ((data || [])[0] as FollowUp | undefined) || null; }
+    if (!f) {
+      const { data: sv } = await supabase.from('services').select('id').eq('customer_id', a.customer_id).order('service_date', { ascending: false }).limit(1);
+      const { data: made } = await supabase.from('follow_ups').insert({ service_id: (sv || [])[0]?.id || null, customer_id: a.customer_id, follow_up_type: a.service_type, scheduled_date: a.appointment_date, memo: `${a.service_type} (달력 예약에서 바로 기록)` }).select('*, customer:customers(name, phone), service:services(service_type)').single();
+      f = (made as FollowUp | null) || null;
+    }
+    if (!f) { alert('묶을 사후관리를 찾지 못했습니다'); return; }
+    setCareVisitAppt(a);
+    setCareTarget(f);
   };
 
   const handleToggleFollowUp = async (followUp: FollowUp) => {
@@ -2228,7 +2297,9 @@ export default function CRMPage() {
                             {!isDemo && a.service_type && CRM_SERVICE_TO_KEY[a.service_type] && (
                               <button onClick={() => handleWriteBlogFromAppointment(a)} className={pill} title="이 시공으로 블로그 시공기 폼 채우기">✍️ 시공기</button>
                             )}
-                            {a.service_type === RETOUCH_TYPE ? (
+                            {CARE_VISIT_TYPES.includes(a.service_type || '') ? (
+                              <button onClick={() => handleOpenCareVisit(a)} className={a.status === '완료' ? 'text-xs font-semibold rounded-full px-3 py-1.5 bg-ok text-white whitespace-nowrap' : pill} title="점검 기록을 남기면 사후관리도 함께 완료됩니다">{a.status === '완료' ? '✓ 점검 기록됨' : '점검 완료'}</button>
+                            ) : a.service_type === RETOUCH_TYPE ? (
                               <button onClick={() => handleOpenRetouch(a)} className={a.status === '완료' ? 'text-xs font-semibold rounded-full px-3 py-1.5 bg-ok text-white whitespace-nowrap' : pill} title="새 시공 기록 없이 원래 시공 기록 밑에 리터치 한 건으로 남깁니다">{a.status === '완료' ? '✓ 리터치 기록됨 · 더 남기기' : '리터치 완료'}</button>
                             ) : (<>
                             <button onClick={() => handleOpenWorkOrder(a)} className={pill}>작업 내역서</button>
@@ -2501,6 +2572,11 @@ export default function CRMPage() {
                         <button onClick={() => sendSms(quoteBody, 'quote')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${sent.quote ? sentBtn : 'bg-gold/20 text-gold hover:bg-gold/30'}`}>{sent.quote ? '✓ 문자완료' : (f.follow_up_type === '견적재연락' ? '재연락 문자' : '마무리 문자')}</button>
                         <button onClick={() => copyMsg(quoteBody)} className="text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors bg-[var(--c-subtle)] text-[var(--c-text-2)] hover:bg-[var(--c-hover)]">복사</button>
                         </>
+                      )}
+                      {(f.follow_up_type === 'QC점검' || f.follow_up_type === '메인터넌스') && !f.is_completed && (
+                        f.visit
+                          ? <button onClick={() => { setActiveTab('appointments'); }} className="text-[10px] font-medium px-2.5 py-1 rounded-lg bg-info/15 text-info" title="예약/일정 달력에 잡힌 방문">📅 {f.visit.appointment_date.slice(5).replace('-', '/')} 방문</button>
+                          : <button onClick={() => openCareBook(f)} className="text-[10px] font-medium px-2.5 py-1 rounded-lg bg-[var(--c-subtle)] text-[var(--c-text-2)] hover:bg-[var(--c-hover)]" title="손님과 잡은 날짜로 달력 예약을 만듭니다">📅 방문 잡기</button>
                       )}
                       <button
                         onClick={() => handleToggleFollowUp(f)}
@@ -3026,11 +3102,28 @@ export default function CRMPage() {
           onDone={(note, photos, serviceId) => handleRetouchDone(retouchTarget, note, photos, serviceId)}
         />
       )}
+      {careBook && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-end sm:items-center justify-center p-3" onClick={() => setCareBook(null)}>
+          <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-2xl w-full max-w-sm p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="text-[var(--c-text-1)] font-semibold">{careBook.follow_up_type === 'QC점검' ? 'QC 점검' : '메인터넌스'} 방문 잡기</div>
+            <div className="text-xs text-[var(--c-text-3)] mt-0.5 mb-4">{careBook.customer?.name || '고객'} 고객님 · 예약/일정 달력에 들어가고 손님 페이지 '다음 관리' 날짜도 이 날로 바뀝니다</div>
+            <div className="space-y-3">
+              <div><label className="text-xs text-[var(--c-text-3)] mb-1 block">방문일 *</label><input type="date" value={careBookForm.date} onChange={(e) => setCareBookForm({ ...careBookForm, date: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" /></div>
+              <div><label className="text-xs text-[var(--c-text-3)] mb-1 block">시간 (선택)</label><input value={careBookForm.time} onChange={(e) => setCareBookForm({ ...careBookForm, time: e.target.value })} placeholder="오후 2시" className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" /></div>
+              <div><label className="text-xs text-[var(--c-text-3)] mb-1 block">메모 (선택)</label><input value={careBookForm.memo} onChange={(e) => setCareBookForm({ ...careBookForm, memo: e.target.value })} placeholder="앞범퍼 기포 봐 달라 하심" className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" /></div>
+            </div>
+            <div className="flex gap-2 justify-end mt-4">
+              <button onClick={() => setCareBook(null)} className="text-sm px-4 py-2 rounded-lg border border-[var(--c-border)] text-[var(--c-text-2)]">취소</button>
+              <button onClick={handleBookCareVisit} disabled={!careBookForm.date} className="text-sm px-4 py-2 rounded-lg bg-brand text-white disabled:opacity-40">달력에 넣기</button>
+            </div>
+          </div>
+        </div>
+      )}
       {careTarget && (
         <CareCompleteModal
           type={careTarget.follow_up_type}
           customerName={careTarget.customer?.name || '고객'}
-          onClose={() => setCareTarget(null)}
+          onClose={() => { setCareTarget(null); setCareVisitAppt(null); }}
           onDone={(note, photos) => handleCareDone(careTarget, note, photos)}
           onSkip={(reason) => handleCareSkip(careTarget, reason)}
         />

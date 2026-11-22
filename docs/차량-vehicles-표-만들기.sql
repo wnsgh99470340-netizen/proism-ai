@@ -17,9 +17,10 @@ CREATE TABLE IF NOT EXISTS vehicles (
 );
 CREATE INDEX IF NOT EXISTS vehicles_customer_idx ON vehicles (customer_id);
 
--- 2) 예약·시공 기록이 어느 차인지
+-- 2) 예약·시공 기록이 어느 차인지 + QC·메인터넌스 방문 예약이 어느 사후관리인지 (2026-11-22 방문 예약 흐름)
 ALTER TABLE appointments ADD COLUMN IF NOT EXISTS vehicle_id uuid REFERENCES vehicles(id) ON DELETE SET NULL;
 ALTER TABLE services     ADD COLUMN IF NOT EXISTS vehicle_id uuid REFERENCES vehicles(id) ON DELETE SET NULL;
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS follow_up_id uuid REFERENCES follow_ups(id) ON DELETE SET NULL;
 
 -- 3) 기존 고객의 차를 차량 1대씩으로 옮기고(대표), 그 고객의 예약·시공을 그 차에 연결
 INSERT INTO vehicles (customer_id, brand, model, year, color, is_primary)
@@ -36,5 +37,4 @@ UPDATE services s SET vehicle_id = v.id
 FROM vehicles v
 WHERE s.vehicle_id IS NULL AND v.customer_id = s.customer_id AND v.is_primary;
 
--- 4) 손님 회원 페이지(로그인 없이 읽는 API)가 차량을 읽을 수 있게 — 다른 표와 같은 정책이면 아래는 필요 없음.
---    RLS 를 켜 둔 프로젝트라면: ALTER TABLE vehicles ENABLE ROW LEVEL SECURITY; 뒤에 anon select/insert/update/delete 정책을 customers 와 같게.
+-- (이 프로젝트는 다른 표에도 RLS 를 쓰지 않으므로 정책 추가 없음)

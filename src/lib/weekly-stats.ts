@@ -142,9 +142,9 @@ export async function buildWeeklyStats(to = todaySeoul(), days = 7): Promise<Wee
 
   let appointments = 0;
   try {
-    const { data, error } = await supabase.from('appointments').select('appointment_date, status').gte('appointment_date', from).lte('appointment_date', to);
+    const { data, error } = await supabase.from('appointments').select('appointment_date, status, service_type').gte('appointment_date', from).lte('appointment_date', to);
     if (error) throw error;
-    appointments = (data || []).filter(r => r.status !== '취소').length;
+    appointments = (data || []).filter(r => r.status !== '취소' && !['QC점검', '메인터넌스'].includes((r.service_type as string | null) || '')).length; // QC·메인터넌스 방문은 입고가 아니다 (2026-11-22)
   } catch { errors.push('예약'); }
 
   return {
