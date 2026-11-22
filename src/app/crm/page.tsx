@@ -2980,20 +2980,21 @@ export default function CRMPage() {
                           const headName = headPhone ? parts[0].replace(headPhone, '').trim() : '';
                           setQuoteSms({ customerId: c.customer_id, name: c.customer?.name || cu?.name || headName, phone: c.customer?.phone || cu?.phone || headPhone, car: cu ? [cu.car_brand, cu.car_model].filter(Boolean).join(' ') : (headPhone ? parts[1] || '' : ''), service: c.interested_services || '' });
                         }}
-                        className="text-[10px] font-medium px-2.5 py-1 rounded-lg bg-gold/10 hover:bg-gold/20 text-gold transition-colors"
+                        className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${c.memo === '회원 문자' ? 'hidden' : 'bg-gold/10 hover:bg-gold/20 text-gold'}`}
                       >
                         📩 견적 문자
                       </button>
+                      {c.memo === '회원 문자' && <span className="text-[10px] font-medium px-2.5 py-1 rounded-lg bg-ok/10 text-ok" title="회원 링크·소개 감사 문자를 보내면 자동으로 남는 기록입니다">🔗 회원 문자</span>}
                       <span className="text-xs text-[var(--c-text-3)]">{formatDate(c.consultation_date)}</span>
                     </div>
                   </div>
-                  {c.content && (/^\[(견적 문자 발송|문의 답변)\]/.test(c.content)
-                    ? <details className="mb-2 text-sm text-[var(--c-text-2)]"><summary className="cursor-pointer">{c.content.split('\n')[0]} — 보낸 문자 보기</summary><pre className="whitespace-pre-wrap font-sans mt-2 text-xs text-[var(--c-text-2)] bg-[var(--c-input)] rounded-lg p-3">{c.content.split('\n').slice(1).join('\n')}</pre></details>
+                  {c.content && (/^\[(견적 문자 발송|문의 답변|회원 문자)\]/.test(c.content)
+                    ? <details className="mb-2 text-sm text-[var(--c-text-2)]"><summary className="cursor-pointer">{c.content.split('\n')[0]} — {c.content.startsWith('[회원 문자]') ? '자동 기록 · 링크 보기' : '보낸 문자 보기'}</summary><pre className="whitespace-pre-wrap font-sans mt-2 text-xs text-[var(--c-text-2)] bg-[var(--c-input)] rounded-lg p-3">{c.content.split('\n').slice(1).join('\n')}</pre></details>
                     : <p className="text-sm text-[var(--c-text-2)] mb-2">{c.content}</p>)}
                   <div className="flex items-center gap-3 text-xs text-[var(--c-text-3)]">
                     {c.estimate && <span>견적: <span className="text-gold">{c.estimate}</span></span>}
                     {c.interested_services && <span>관심: <span className="text-[var(--c-text-2)]">{c.interested_services}</span></span>}
-                    {c.memo && <span>메모: {hideRefToken(c.memo).split(' · ').filter((seg) => !seg.startsWith('사진: ')).join(' · ') || '-'}</span>}
+                    {c.memo && c.memo !== '회원 문자' && <span>메모: {hideRefToken(c.memo).split(' · ').filter((seg) => !seg.startsWith('사진: ')).join(' · ') || '-'}</span>}
                   </div>
                   {c.memo && c.memo.includes('사진: ') && (
                     <div className="flex flex-wrap gap-2 mt-2">
