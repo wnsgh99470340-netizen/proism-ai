@@ -28,7 +28,7 @@ import CareCompleteModal from '@/components/crm/CareCompleteModal';
 import { appendCareLog, parseCareLog, stripCareLog } from '@/lib/care-log';
 import { isDemoClient } from '@/lib/demo';
 import { scheduleNextMaintenance, markFollowUpSkipped, closeQuoteFollowUpsFor, isSkipped } from '@/lib/followups';
-import { loadVehicles, loadAllVehicles, ensurePrimaryVehicle, fillPlateIfEmpty, vehicleLabel, type Vehicle } from '@/lib/vehicles';
+import { loadVehicles, loadAllVehicles, ensurePrimaryVehicle, fillPlateIfEmpty, vehicleLabel, addVehicle, type Vehicle } from '@/lib/vehicles';
 
 // ─── Types ───────────────────────────────────────────────
 interface Customer {
@@ -520,8 +520,35 @@ export default function CRMPage() {
     console.log('[CRM] === 고객 등록 시작 ===');
     console.log('[CRM] formData:', JSON.stringify(formData));
 
-    // 1. 고객 등록
-    const { data: insertData, error: insertError } = await supabase
+    // 0. 같은 전화번호의 고객이 이미 있으면 새 기록을 만들지 않고 그 분께 차량만 추가 (2026-11-22 사장님 "기존 고객인데 차종이 다르면 알아서 통합되나?")
+    //    같은 번호를 쓰는 다른 사람(가족)일 수도 있어 한 번 묻는다. "아니요"면 예전처럼 새 기록
+    let customerId: string | undefined;
+    let mergedVehicleId: string | null = null;
+    const phoneDigits = (formData.phone || '').replace(/\D/g, '');
+    if (phoneDigits.length >= 10) {
+      const { data: candidates } = await supabase.from('customers').select('id, name, phone, car_brand, car_model, memo').order('created_at', { ascending: true });
+      const same = (candidates || []).find((c) => ((c.phone as string | null) || '').replace(/\D/g, '') === phoneDigits);
+      if (same) {
+        const existingCar = [same.car_brand, same.car_model].filter(Boolean).join(' ') || '차종 없음';
+        const newCar = [formData.car_brand, formData.car_model].filter(Boolean).join(' ').trim();
+        const ok = confirm(`같은 전화번호로 ${same.name} 고객님(${existingCar})이 이미 등록되어 있습니다.\n같은 분이면 새 기록을 만들지 않고 ${newCar ? `차량 "${newCar}"을(를) 그 분께 추가하고 ` : ''}예약도 그 분 이름으로 잡습니다.\n\n같은 분인가요? (취소 = 다른 사람이라 새 기록으로 등록)`);
+        if (ok) {
+          customerId = same.id as string;
+          if (newCar) {
+            const existingVehicles = await loadVehicles(customerId);
+            const dup = existingVehicles.find((v) => (v.brand || '') === (formData.car_brand || '') && (v.model || '') === (formData.car_model || ''));
+            const v = dup || await addVehicle(customerId, { brand: formData.car_brand || null, model: formData.car_model || null, year: formData.car_year || null, color: formData.car_color || null });
+            mergedVehicleId = v?.id || null;
+          }
+          if (formData.memo) await supabase.from('customers').update({ memo: [same.memo || '', formData.memo].filter(Boolean).join('\n') }).eq('id', customerId);
+          if (formData.source && formData.source !== '소개/재방문') { /* 유입경로는 첫 기록 것을 유지 */ }
+          console.log('[CRM] 기존 고객에 합침:', customerId, '차량', mergedVehicleId);
+        }
+      }
+    }
+
+    // 1. 고객 등록 (기존 고객에 합친 경우는 건너뜀)
+    const { data: insertData, error: insertError } = customerId ? { data: { id: customerId } as { id: string }, error: null } : await supabase
       .from('customers')
       .insert({
         name: formData.name,
@@ -537,9 +564,9 @@ export default function CRMPage() {
       .single();
 
     console.log('[CRM] customer insert result:', JSON.stringify(insertData), JSON.stringify(insertError));
-    if (insertData?.id) ensurePrimaryVehicle(insertData.id as string, { brand: formData.car_brand || null, model: formData.car_model || null, year: formData.car_year || null, color: formData.car_color || null }); // 차량 N대 (2026-11-22)
+    if (insertData?.id && !mergedVehicleId && !customerId) ensurePrimaryVehicle(insertData.id as string, { brand: formData.car_brand || null, model: formData.car_model || null, year: formData.car_year || null, color: formData.car_color || null }); // 차량 N대 (2026-11-22)
 
-    let customerId = insertData?.id;
+    customerId = customerId || insertData?.id;
 
     if (!customerId) {
       const { data: found } = await supabase
@@ -589,6 +616,7 @@ export default function CRMPage() {
           status: '예약확정',
           amount: apptAmount,
           memo: formData.appointment_memo || null,
+          ...(mergedVehicleId ? { vehicle_id: mergedVehicleId } : {}),
         })
         .select()
         .single();
@@ -610,6 +638,7 @@ export default function CRMPage() {
         status: '상담중',
         amount: apptAmount,
         memo: formData.appointment_memo || null,
+        ...(mergedVehicleId ? { vehicle_id: mergedVehicleId } : {}),
       });
       closeQuoteFollowUpsFor(customerId, formData.phone).then((n) => { if (n) fetchFollowUps(); }); // 2026-11-22
     }
