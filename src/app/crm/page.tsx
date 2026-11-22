@@ -207,7 +207,7 @@ export default function CRMPage() {
   const [blogVisited, setBlogVisited] = useState(false);
   const [prefillNonce, setPrefillNonce] = useState(0);
   const [helpOpen, setHelpOpen] = useState(false);
-  useEffect(() => { if (activeTab === 'blog') setBlogVisited(true); }, [activeTab]);
+  useEffect(() => { if (activeTab === 'blog') { if (isDemo) setActiveTab('home'); else setBlogVisited(true); } }, [activeTab, isDemo]);
   // 주소 ?tab=blog 로 바로 열기, ?warranty=<예약 id> 면 그 예약의 보증서 창까지 (고객 상세 화면 "보증서 만들기" 링크, 2026-11-18)
   const pendingWarrantyId = useRef<string | null>(null);
   useEffect(() => {
@@ -1510,9 +1510,10 @@ export default function CRMPage() {
   };
 
   // ─── Render ─────────────────────────────────────────────
+  // 둘러보기에서는 블로그 탭을 뺀다 (2026-11-22 사장님) — 글 생성은 API 가 막혀 있어 보여 줄 것도 없음
   const tabs: { key: Tab; label: string }[] = [
     { key: 'home', label: '홈' },
-    { key: 'blog', label: '✍️ 블로그' },
+    ...(isDemo ? [] : [{ key: 'blog' as Tab, label: '✍️ 블로그' }]),
     { key: 'customers', label: '고객 목록' },
     { key: 'appointments', label: '예약/일정' },
     { key: 'followups', label: '사후관리' },
@@ -1594,7 +1595,7 @@ export default function CRMPage() {
             { icon: '📅', label: '예약 등록', desc: '입고 일정 잡기', onClick: () => setShowAddAppointment(true) },
             { icon: '📩', label: '견적 문자', desc: '통화 직후 견적 보내기', onClick: () => setQuoteSms({}) },
             { icon: '💬', label: '문의 답변', desc: '카페·문자 문의 답장 만들기', onClick: () => setShowInquiry(true) },
-            { icon: '✍️', label: '시공기 쓰기', desc: '블로그 탭에서 작성', onClick: () => setActiveTab('blog') },
+            ...(isDemo ? [] : [{ icon: '✍️', label: '시공기 쓰기', desc: '블로그 탭에서 작성', onClick: () => setActiveTab('blog') }]),
           ];
           const card = 'bg-[var(--c-card)] border border-[var(--c-border)] rounded-2xl';
           const quote = quoteForDate(today);
@@ -2116,7 +2117,7 @@ export default function CRMPage() {
                             {a.customer_id && (
                               <button onClick={() => handleEditCustomerFromAppointment(a)} className={pill} title="이름·전화·차량·유입경로 수정">👤 고객 정보</button>
                             )}
-                            {a.service_type && CRM_SERVICE_TO_KEY[a.service_type] && (
+                            {!isDemo && a.service_type && CRM_SERVICE_TO_KEY[a.service_type] && (
                               <button onClick={() => handleWriteBlogFromAppointment(a)} className={pill} title="이 시공으로 블로그 시공기 폼 채우기">✍️ 시공기</button>
                             )}
                             <button onClick={() => handleOpenWorkOrder(a)} className={pill}>작업 내역서</button>
@@ -2692,7 +2693,7 @@ export default function CRMPage() {
       </div>
 
       {/* ─── TAB: 블로그 (2026-11-12 블로그 페이지를 CRM 탭으로 합침) ─── */}
-      {blogVisited && (
+      {blogVisited && !isDemo && (
         <div className={activeTab === 'blog' ? 'flex-1 flex flex-col min-h-0' : 'hidden'}>
           <BlogWorkspace embedded prefillNonce={prefillNonce} />
         </div>
