@@ -4,6 +4,7 @@
  * - 표(member_links)가 없으면 오류 문구를 돌려준다
  */
 import { supabase } from './supabase';
+import { todaySeoul } from './local-date';
 
 export const MEMBER_PAGE_BASE = 'https://proism-ai.vercel.app/m/';
 
@@ -36,4 +37,16 @@ export function maskName(name: string | null | undefined): string {
 export function memberLinkSms(name: string, url: string, careLine?: string | null): string {
   // careLine: 그 시공의 관리법 첫 줄 ("출고 후 1주일은 세차와 왁스를 쉬어 주세요 …") — 출고 당일 문자에 핵심 한 줄 (2026-11-22 점검 4-2)
   return `안녕하세요 3M 프로이즘 대표 진준호입니다.\n${name} 고객님을 3M 프로이즘 회원으로 등록해 드렸습니다.\n${careLine ? `${careLine.replace(/\.?$/, '.')}\n` : ''}회원 페이지에서 시공 증명서와 보증, 관리 일정, 내 차 관리법, 소개 혜택과 포인트를 보실 수 있습니다.\n${url}\n들어가실 때 전화번호 뒷자리 4개를 넣어 주세요.`;
+}
+
+/**
+ * 회원 문자 자동 기록 (2026-11-23 사장님 "이것도 중복으로 등록 안 되게"): 같은 고객·같은 날·같은 종류(첫 줄)가 이미 있으면 다시 남기지 않는다
+ * 완료 처리 더블 클릭 등으로 문자 제안이 두 번 떠도 기록은 한 줄. 돌려준 값 = 새로 남겼는지
+ */
+export async function logMemberSms(customerId: string, content: string, date = todaySeoul()): Promise<boolean> {
+  const head = content.split('\n')[0];
+  const { data } = await supabase.from('consultations').select('id, content').eq('customer_id', customerId).eq('memo', '회원 문자').eq('consultation_date', date);
+  if ((data || []).some((r) => ((r.content as string) || '').split('\n')[0] === head)) return false;
+  await supabase.from('consultations').insert({ customer_id: customerId, consultation_date: date, content, memo: '회원 문자' });
+  return true;
 }

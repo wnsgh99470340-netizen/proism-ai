@@ -22,7 +22,7 @@ import Link from 'next/link';
 import CustomerFormModal, { EMPTY_CUSTOMER_FORM, loadCustomerForm, saveCustomerEdit } from '@/components/crm/CustomerFormModal';
 import { linkReferral, loadReferralsFor, markThanksSent, grantPointForReferred, loadPoints, usePoints, updateReferral } from '@/lib/referrals';
 import { MEMBERSHIP, POINTS } from '@/config/membership';
-import { getOrCreateMemberLink, memberLinkSms } from '@/lib/member-links';
+import { getOrCreateMemberLink, memberLinkSms, logMemberSms } from '@/lib/member-links';
 import { workDetailsText, workItems, ppfProduct, type WorkOrderJson } from '@/lib/work-order';
 import CareCompleteModal from '@/components/crm/CareCompleteModal';
 import { appendCareLog, parseCareLog, stripCareLog } from '@/lib/care-log';
@@ -1149,7 +1149,7 @@ export default function CRMPage() {
     const link = await getOrCreateMemberLink(appointment.customer_id);
     if ('url' in link && custPhone && confirm(`${custName} 고객님을 회원으로 등록하고 보증서를 발급했습니다.\n시공 증명서·보증·관리 일정이 담긴 회원 페이지 링크를 문자로 보낼까요?`)) {
       openSmsApp(custPhone, memberLinkSms(custName, link.url, careGuidesFor([appointment.service_type || ''], woItems.map((i) => i.group))[0]?.after[0] || null)); // 관리법 첫 줄 (2026-11-22)
-      await supabase.from('consultations').insert({ customer_id: appointment.customer_id, consultation_date: todaySeoul(), content: `[회원 문자] 회원 등록·보증서 발급 링크\n${link.url}`, memo: '회원 문자' });
+      await logMemberSms(appointment.customer_id, `[회원 문자] 회원 등록·보증서 발급 링크\n${link.url}`); // 같은 날 같은 기록은 한 번만 (2026-11-23)
     }
 
     // 소개 포인트 (2026-11-19): 이 손님이 소개받고 온 분이면 소개한 분에게 1포인트 (소개 1건당 한 번)
@@ -1161,7 +1161,7 @@ export default function CRMPage() {
       if (refPhone && confirm(`${granted.referrerName} 고객님(소개한 분)께 소개 포인트 1점을 적립했습니다 (지금 ${pts.balance}점).\n감사 문자를 보낼까요?`)) {
         openSmsApp(refPhone, `${MEMBERSHIP.thanksSms(granted.referrerName, granted.referredName)}\n${POINTS.smsLine(pts.balance)}`);
         await markThanksSent(appointment.customer_id);
-        await supabase.from('consultations').insert({ customer_id: granted.referrerId, consultation_date: todaySeoul(), content: `[회원 문자] 소개 감사 + 포인트 적립 (${granted.referredName} 님 시공 완료, 잔액 ${pts.balance}점)`, memo: '회원 문자' });
+        await logMemberSms(granted.referrerId, `[회원 문자] 소개 감사 + 포인트 적립 (${granted.referredName} 님 시공 완료, 잔액 ${pts.balance}점)`);
       }
     }
 

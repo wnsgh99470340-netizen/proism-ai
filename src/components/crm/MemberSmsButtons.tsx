@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { todaySeoul } from '@/lib/local-date';
 import { MEMBERSHIP } from '@/config/membership';
-import { getOrCreateMemberLink, memberLinkSms } from '@/lib/member-links';
+import { getOrCreateMemberLink, memberLinkSms, logMemberSms } from '@/lib/member-links';
 
 /**
  * 회원 문자 버튼 (2026-11-18): 회원 페이지 목록과 고객 상세 멤버십 카드에서 같은 버튼
@@ -31,7 +31,7 @@ export default function MemberSmsButtons({ customerId, name, phone, size = 'sm',
     openSmsApp(phone, t.build(name));
     if (!confirm('문자를 전송하셨나요? (기록으로 남깁니다)')) return;
     setBusy(t.key);
-    await supabase.from('consultations').insert({ customer_id: customerId, consultation_date: todaySeoul(), content: `[회원 문자] ${t.label}\n${t.build(name)}`, memo: '회원 문자' });
+    await logMemberSms(customerId, `[회원 문자] ${t.label}\n${t.build(name)}`); // 같은 날 같은 기록은 한 번만 (2026-11-23)
     setBusy(null);
     onSent?.();
   };
@@ -44,7 +44,7 @@ export default function MemberSmsButtons({ customerId, name, phone, size = 'sm',
     try { await navigator.clipboard?.writeText(r.url); } catch { /* 복사 실패는 무시 */ }
     openSmsApp(phone, memberLinkSms(name, r.url));
     if (!confirm('회원 페이지 링크 문자를 전송하셨나요? (기록으로 남깁니다. 주소는 복사해 두었습니다)')) return;
-    await supabase.from('consultations').insert({ customer_id: customerId, consultation_date: todaySeoul(), content: `[회원 문자] 회원 페이지 링크\n${r.url}`, memo: '회원 문자' });
+    await logMemberSms(customerId, `[회원 문자] 회원 페이지 링크\n${r.url}`);
     onSent?.();
   };
   // 사장님이 손님 화면을 그대로 열어 보기 (2026-11-19): 로그인된 기기는 뒷자리 없이 열린다 (API 가 crm_auth 쿠키로 확인)
