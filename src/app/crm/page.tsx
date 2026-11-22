@@ -338,7 +338,7 @@ export default function CRMPage() {
   const [statsDays, setStatsDays] = useState(false);
   const fetchStats = useCallback(async (month: string) => {
     try {
-      const res = await fetch(`/api/stats?month=${month}`, { cache: 'no-store' });
+      const res = await fetch(`/api/stats?month=${month}&range=month`, { cache: 'no-store' }); // 월간 (2026-11-23)
       const d = await res.json();
       if (res.ok && d.weekly) setStats({ weekly: d.weekly as WeeklyStats, table: d.table as SourceTable });
     } catch { /* 카드만 비움 */ }
@@ -2068,7 +2068,7 @@ export default function CRMPage() {
               {/* 이번 주 숫자 · 유입경로 표 (2026-11-18): 구글 시트에 손으로 적던 집계를 CRM 기록으로 자동 계산, 표 복사로 시트에 붙이기 */}
               <section className={`${card} p-5 md:p-6`}>
                 <div className="flex items-center justify-between mb-4 gap-3">
-                  <h2 className="text-lg font-bold text-[var(--c-text-1)]">이번 주 숫자 <span className="text-[var(--c-text-3)] text-sm font-medium ml-1">{stats ? `${stats.weekly.from.slice(5).replace('-', '.')}~${stats.weekly.to.slice(5).replace('-', '.')}` : ''}</span></h2>
+                  <h2 className="text-lg font-bold text-[var(--c-text-1)]">{Number(statsMonth.slice(5))}월 숫자 <span className="text-[var(--c-text-3)] text-sm font-medium ml-1">{stats ? `${stats.weekly.from.slice(5).replace('-', '.')}~${stats.weekly.to.slice(5).replace('-', '.')}` : ''}</span></h2>
                   <button onClick={() => fetchStats(statsMonth)} className="text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-1)] transition-colors">↻ 새로고침</button>
                 </div>
                 {!stats ? (

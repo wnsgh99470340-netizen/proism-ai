@@ -71,8 +71,9 @@ function sourceIndex(src: string | null | undefined): number {
   return 6;
 }
 
-export async function buildWeeklyStats(to = todaySeoul(), days = 7): Promise<WeeklyStats> {
-  const from = addDaysISO(to, -(days - 1));
+export async function buildWeeklyStats(to = todaySeoul(), days = 7, fromOverride?: string): Promise<WeeklyStats> {
+  // fromOverride: 홈 카드가 '이번 달'로 바뀌어(2026-11-23 사장님) 달의 1일부터 세는 경우. 월요일 브리핑의 '지난주' 한 줄은 그대로 7일
+  const from = fromOverride || addDaysISO(to, -(days - 1));
   const { start, end } = seoulRange(from, to);
   const errors: string[] = [];
   const inRange = (d: string | null | undefined) => !!d && d >= from && d <= to;
