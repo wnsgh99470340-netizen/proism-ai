@@ -890,7 +890,17 @@ export default function CRMPage() {
     fetchAppointments();
   };
 
+  // 이중 제출 가드 (2026-11-22): "시공 완료 처리"를 두 번 누르면(더블 클릭) 같은 초에 시공 기록·사후관리가 두 벌 생겼음(김수희 외 4쌍). 처리 중엔 버튼을 잠그고 두 번째 호출은 버린다
+  const workOrderSubmitting = useRef(false);
+  const [workOrderBusy, setWorkOrderBusy] = useState(false);
   const handleWorkOrderSubmit = async () => {
+    if (workOrderSubmitting.current) return;
+    workOrderSubmitting.current = true;
+    setWorkOrderBusy(true);
+    try { await doWorkOrderSubmit(); } finally { workOrderSubmitting.current = false; setWorkOrderBusy(false); }
+  };
+
+  const doWorkOrderSubmit = async () => {
     if (!workOrderAppointment) return;
     const appointment = workOrderAppointment;
     const completionDate = todaySeoul();
@@ -938,6 +948,24 @@ export default function CRMPage() {
     const woItems = workItems(workOrder as WorkOrderJson);
     const filmUsed = woItems.map((i) => i.product).filter(Boolean).join(' / ') || null;
     const serviceArea = woItems.map((i) => `${i.group} ${i.text}`).join(' / ').slice(0, 200) || null;
+
+    // 같은 예약을 다시 완료 처리하면(내역 고치려고 다시 누르는 경우) 시공 기록을 새로 만들지 않고 기존 줄만 갱신한다 (2026-11-22)
+    // 기준: 같은 고객·같은 시공일·같은 시공 종류. 사후관리·회원 문자·포인트는 처음 완료 때 이미 처리됐으므로 건너뛴다
+    {
+      const { data: existing } = await supabase.from('services').select('id').eq('customer_id', appointment.customer_id)
+        .eq('service_date', appointment.appointment_date).eq('service_type', appointment.service_type || '기타').order('created_at', { ascending: true }).limit(1);
+      const prev = existing && existing.length > 0 ? existing[0] : null;
+      if (prev) {
+        await supabase.from('services').update({ amount: finalAmount, film_used: filmUsed, service_area: serviceArea, memo: mergedMemo }).eq('id', prev.id);
+        await supabase.from('appointments').update({ status: '완료', memo: mergedMemo }).eq('id', appointment.id);
+        setShowWorkOrder(false);
+        setWorkOrderAppointment(null);
+        fetchAppointments();
+        fetchFollowUps();
+        alert('이미 완료 처리된 시공이라 작업 내역만 갱신했습니다. 사후관리 일정은 그대로입니다.');
+        return;
+      }
+    }
     const { data: service } = await supabase
       .from('services')
       .insert({
@@ -2910,6 +2938,7 @@ export default function CRMPage() {
           onSubmit={handleWorkOrderSubmit}
           onSaveOnly={handleWorkOrderSaveOnly}
           onClose={() => { setShowWorkOrder(false); setWorkOrderAppointment(null); }}
+          busy={workOrderBusy}
         />
       )}
       {showCalendarSub && (
@@ -2970,6 +2999,8 @@ interface WorkOrderModalProps {
   onSubmit: () => void;
   onSaveOnly: () => void;
   onClose: () => void;
+  /** 완료 처리 진행 중 — 버튼 잠금 (이중 제출 방지) */
+  busy?: boolean;
 }
 
 function CheckItem({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
@@ -3001,7 +3032,7 @@ function PrintCheck({ checked }: { checked: boolean }) {
     : <span style={{ border: '2px solid #ccc', display: 'inline-block', width: '16px', height: '16px', borderRadius: '3px', marginRight: '6px', verticalAlign: 'middle' }} />;
 }
 
-function WorkOrderModal({ appointment, workOrder, setWorkOrder, onSubmit, onSaveOnly, onClose }: WorkOrderModalProps & { workOrder: any }) {
+function WorkOrderModal({ appointment, workOrder, setWorkOrder, onSubmit, onSaveOnly, onClose, busy }: WorkOrderModalProps & { workOrder: any }) {
   const printRef = useRef<HTMLDivElement>(null);
 
   const handlePdfSave = async () => {
@@ -3324,7 +3355,7 @@ function WorkOrderModal({ appointment, workOrder, setWorkOrder, onSubmit, onSave
           <button onClick={onClose} className="px-4 py-2 text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-2)] transition-colors">취소</button>
           <button onClick={handlePdfSave} className="bg-info hover:bg-info text-white text-sm font-medium rounded-lg px-5 py-2 transition-colors">PDF 저장</button>
           <button onClick={onSaveOnly} className="bg-[var(--c-subtle)] hover:bg-[var(--c-hover)] text-[var(--c-text-2)] text-sm font-medium rounded-lg px-5 py-2 transition-colors border border-[var(--c-border)]">저장만 하기</button>
-          <button onClick={onSubmit} className="bg-brand hover:bg-brand-dark text-white text-sm font-medium rounded-lg px-6 py-2 transition-colors">시공 완료 처리</button>
+          <button onClick={onSubmit} disabled={busy} className="bg-brand hover:bg-brand-dark disabled:opacity-50 disabled:cursor-wait text-white text-sm font-medium rounded-lg px-6 py-2 transition-colors">{busy ? '처리 중…' : '시공 완료 처리'}</button>
         </div>
       </div>
     </div>
