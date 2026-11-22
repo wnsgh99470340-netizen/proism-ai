@@ -9,7 +9,7 @@ import { BLOG_PREFILL_KEY, CRM_SERVICE_TO_KEY, type BlogPrefill } from '@/config
 import { useTheme } from '@/components/ThemeProvider';
 import QuoteSmsModal, { type QuoteSmsInitial } from '@/components/crm/QuoteSmsModal';
 import InquiryReplyModal from '@/components/crm/InquiryReplyModal';
-import { QC_SMS, MAINT_SMS, REVIEW_SMS } from '@/config/sms-templates';
+import { QC_SMS, MAINT_SMS, REVIEW_SMS, followUpMessage } from '@/config/sms-templates';
 import type { DailyBrief, TeamItem, WorkerLine } from '@/lib/team';
 import type { WeeklyStats, SourceTable } from '@/lib/weekly-stats';
 import type { ImportCandidate } from '@/lib/appointment-import';
@@ -20,7 +20,7 @@ import HelpModal from '@/components/HelpModal';
 import PushToggle from '@/components/PushToggle';
 import Link from 'next/link';
 import CustomerFormModal, { EMPTY_CUSTOMER_FORM, loadCustomerForm, saveCustomerEdit } from '@/components/crm/CustomerFormModal';
-import { linkReferral, loadReferralsFor, markThanksSent, grantPointForReferred, loadPoints } from '@/lib/referrals';
+import { linkReferral, loadReferralsFor, markThanksSent, grantPointForReferred, loadPoints, usePoints, updateReferral } from '@/lib/referrals';
 import { MEMBERSHIP, POINTS } from '@/config/membership';
 import { getOrCreateMemberLink, memberLinkSms } from '@/lib/member-links';
 import { workDetailsText, workItems, ppfProduct, type WorkOrderJson } from '@/lib/work-order';
@@ -29,7 +29,9 @@ import { appendCareLog, parseCareLog, stripCareLog } from '@/lib/care-log';
 import { isDemoClient } from '@/lib/demo';
 import { scheduleNextMaintenance, markFollowUpSkipped, closeQuoteFollowUpsFor, isSkipped, closeQuoteAs, quoteCloseReason, QUOTE_CLOSE_REASONS } from '@/lib/followups';
 import { loadVehicles, loadAllVehicles, ensurePrimaryVehicle, fillPlateIfEmpty, vehicleLabel, addVehicle, type Vehicle } from '@/lib/vehicles';
-import { advanceAppointmentsForToday, overdueAppointments, linkOrphanRecordsByPhone } from '@/lib/appointments-flow';
+import { advanceAppointmentsForToday, overdueAppointments, linkOrphanRecordsByPhone, ensureArrivalNotice, resyncArrivalNotice } from '@/lib/appointments-flow';
+import { formatPhoneInput } from '@/lib/phone';
+import { careGuidesFor } from '@/config/care-guide';
 
 // ─── Types ───────────────────────────────────────────────
 interface Customer {
@@ -635,6 +637,7 @@ export default function CRMPage() {
         .single();
 
       console.log('[CRM] appointment result:', JSON.stringify(apptData), JSON.stringify(apptError));
+      ensureArrivalNotice({ customerId, name: formData.name, phone: formData.phone, date: formData.appointment_start_date, serviceType: formData.appointment_service_type }).catch(() => {}); // 입고 전날 안내 (2026-11-22)
 
       if (apptData) {
         appointmentForWorkOrder = {
@@ -914,7 +917,7 @@ export default function CRMPage() {
         }
         const memo = [r.label, r.time, r.note].filter(Boolean).join(' · ') + ` · 스크린샷에서 가져옴 ${todaySeoul()}`;
         const { error: e2 } = await supabase.from('appointments').insert({ customer_id: customerId, appointment_date: r.start, end_date: r.end || null, service_type: r.service || null, status: r.status, memo });
-        if (e2) alert(`${r.label} 등록 실패: ${e2.message}`); else { made++; await closeQuoteFollowUpsFor(customerId, r.phone || null); } // 예약 잡히면 견적 재연락 닫기 (2026-11-22)
+        if (e2) alert(`${r.label} 등록 실패: ${e2.message}`); else { made++; await closeQuoteFollowUpsFor(customerId, r.phone || null); if (r.status !== '시공중') await ensureArrivalNotice({ customerId, name: r.customerName || r.label, phone: r.phone || null, date: r.start, serviceType: r.service || null }).catch(() => false); } // 예약 잡히면 견적 재연락 닫기 + 입고 전날 안내 (2026-11-22)
       }
       alert(`예약 ${made}건을 등록했습니다${newCus ? `. 새 고객 ${newCus}명은 이름·전화를 채워 주세요` : ''}`);
       setShowShotImport(false); setShotRows([]); setShotHidden([]);
@@ -944,6 +947,7 @@ export default function CRMPage() {
     });
     // 예약이 잡혔으니 이 손님의 열린 견적 재연락·마무리는 닫는다 (2026-11-22)
     closeQuoteFollowUpsFor(appointmentForm.customer_id, allCustomers.find((c) => c.id === appointmentForm.customer_id)?.phone).then((n) => { if (n) fetchFollowUps(); });
+    { const cst = allCustomers.find((c) => c.id === appointmentForm.customer_id); if (cst) ensureArrivalNotice({ customerId: cst.id, name: cst.name, phone: cst.phone, date: appointmentForm.appointment_date, serviceType: appointmentForm.service_type || null }).then((ok) => { if (ok) fetchFollowUps(); }); } // 입고 전날 안내 (2026-11-22)
     // QC·메인터넌스를 직접 골랐으면 그 손님의 열린 같은 유형 사후관리에 묶고 날짜도 방문일로 (2026-11-22)
     if (CARE_VISIT_TYPES.includes(appointmentForm.service_type)) {
       const { data: openFu } = await supabase.from('follow_ups').select('id').eq('customer_id', appointmentForm.customer_id).eq('follow_up_type', appointmentForm.service_type).eq('is_completed', false).order('scheduled_date', { ascending: true }).limit(1);
@@ -999,6 +1003,7 @@ export default function CRMPage() {
     const a = dateEdit; if (!a || !dateEditForm.start) return;
     const end = dateEditForm.end && dateEditForm.end >= dateEditForm.start ? dateEditForm.end : null;
     await supabase.from('appointments').update({ appointment_date: dateEditForm.start, end_date: CARE_VISIT_TYPES.includes(a.service_type || '') ? dateEditForm.start : end }).eq('id', a.id);
+    if (a.appointment_date !== dateEditForm.start) resyncArrivalNotice({ customerId: a.customer_id, name: a.customer?.name || '고객', phone: a.customer?.phone, oldDate: a.appointment_date, newDate: dateEditForm.start, serviceType: a.service_type }).catch(() => {}); // 입고 안내도 새 날짜로
     if (CARE_VISIT_TYPES.includes(a.service_type || '')) {
       const fid = a.follow_up_id || (a.memo || '').match(/사후관리:([0-9a-f-]{36})/)?.[1];
       if (fid) await supabase.from('follow_ups').update({ scheduled_date: dateEditForm.start }).eq('id', fid);
@@ -1017,6 +1022,7 @@ export default function CRMPage() {
     }
 
     await supabase.from('appointments').update({ status: newStatus }).eq('id', appointment.id);
+    if (newStatus === '취소') resyncArrivalNotice({ customerId: appointment.customer_id, name: appointment.customer?.name || '고객', phone: appointment.customer?.phone, oldDate: appointment.appointment_date, newDate: null, serviceType: appointment.service_type }).then(() => fetchFollowUps()).catch(() => {}); // 취소면 입고 안내도 지움
     fetchAppointments();
   };
 
@@ -1138,7 +1144,7 @@ export default function CRMPage() {
     const custPhone = cust?.phone || appointment.customer?.phone || '';
     const link = await getOrCreateMemberLink(appointment.customer_id);
     if ('url' in link && custPhone && confirm(`${custName} 고객님을 회원으로 등록하고 보증서를 발급했습니다.\n시공 증명서·보증·관리 일정이 담긴 회원 페이지 링크를 문자로 보낼까요?`)) {
-      openSmsApp(custPhone, memberLinkSms(custName, link.url));
+      openSmsApp(custPhone, memberLinkSms(custName, link.url, careGuidesFor([appointment.service_type || ''], woItems.map((i) => i.group))[0]?.after[0] || null)); // 관리법 첫 줄 (2026-11-22)
       await supabase.from('consultations').insert({ customer_id: appointment.customer_id, consultation_date: todaySeoul(), content: `[회원 문자] 회원 등록·보증서 발급 링크\n${link.url}`, memo: '회원 문자' });
     }
 
@@ -1470,6 +1476,24 @@ export default function CRMPage() {
   // 시공 기록을 새로 만들지 않고 고른 시공 기록(service_id) 밑에 follow_ups '리터치' 한 건(완료 상태, 점검 기록·사진)으로 붙인다. QC·메인터넌스·후기요청도 새로 안 생김
   const [retouchTarget, setRetouchTarget] = useState<Appointment | null>(null);
   const [retouchServices, setRetouchServices] = useState<{ id: string; label: string }[]>([]);
+  // 점검·리터치 기록의 칩에서 포인트·소개 혜택을 같은 자리에서 처리 (2026-11-22 점검 7-1·9-1)
+  const applyCareBenefits = async (customerId: string, note: string) => {
+    if (/소개 포인트로 공임 서비스/.test(note)) {
+      const pts = await loadPoints(customerId);
+      const menu = POINTS.menu.map((m, i) => `${i + 1}) ${m.label} — ${m.cost}점`).join('\n');
+      const pick = window.prompt(`소개 포인트 ${pts.balance}점 중 어떤 항목으로 쓸까요? 번호만 적어 주세요.\n${menu}\n(취소하면 포인트는 그대로)`, '');
+      const idx = pick ? Number(pick.trim()) - 1 : -1;
+      const m = POINTS.menu[idx];
+      if (m) { const err = await usePoints(customerId, m.cost, m.label); if (err) alert(err); else alert(`${m.cost}점을 사용으로 기록했습니다 (남은 ${pts.balance - m.cost}점).`); }
+    }
+    if (/소개 혜택\(리터치\+코팅\) 적용/.test(note)) {
+      const refs = await loadReferralsFor(customerId);
+      const pending = refs.gave.find((r) => !r.referrer_reward_used_at);
+      if (pending) { const err = await updateReferral(pending.id, { referrer_reward_used_at: todaySeoul() }); if (!err) alert('소개한 분 혜택(리터치+코팅)을 오늘 적용한 것으로 기록했습니다.'); }
+      else alert('이 분이 소개한 기록 중 아직 혜택을 안 쓴 건이 없습니다. 고객 상세 멤버십 카드를 확인해 주세요.');
+    }
+  };
+
   const handleOpenRetouch = async (a: Appointment) => {
     const { data } = await supabase.from('services').select('id, service_type, service_date, service_area').eq('customer_id', a.customer_id).order('service_date', { ascending: false });
     setRetouchServices((data || []).map((s) => ({ id: s.id as string, label: `${s.service_date} ${s.service_type}${s.service_area ? ` · ${String(s.service_area).slice(0, 30)}` : ''}` })));
@@ -1480,6 +1504,7 @@ export default function CRMPage() {
     const memo = appendCareLog('리터치', { date, note, photos });
     await supabase.from('follow_ups').insert({ service_id: serviceId || null, customer_id: a.customer_id, follow_up_type: RETOUCH_TYPE, scheduled_date: date, is_completed: true, completed_date: date, memo });
     await supabase.from('appointments').update({ status: '완료' }).eq('id', a.id);
+    await applyCareBenefits(a.customer_id, note); // 소개 포인트 차감·소개 혜택 적용 (2026-11-22 점검 7-1·9-1)
     setRetouchTarget(null);
     fetchAppointments();
     fetchFollowUps();
@@ -1490,6 +1515,7 @@ export default function CRMPage() {
     const date = todaySeoul();
     const memo = note || photos.length ? appendCareLog(f.memo, { date, note, photos }) : (f.memo || null);
     await supabase.from('follow_ups').update({ is_completed: true, completed_date: date, memo }).eq('id', f.id);
+    await applyCareBenefits(f.customer_id, note);
     // 메인터넌스는 6개월마다 → 끝나면 같은 시공 기록에 다음 회차 자동 생성 (2026-11-22)
     const next = await scheduleNextMaintenance(f, date);
     const visitId = careVisitAppt?.id || f.visit?.id;
@@ -2151,6 +2177,7 @@ export default function CRMPage() {
                       <td className="px-4 py-3 text-sm text-[var(--c-text-1)] font-medium">
                         {c.name}
                         {c.service_count >= 2 && <span className="ml-1.5 text-[9px] bg-gold/20 text-gold px-1.5 py-0.5 rounded-full font-medium">재방문</span>}
+                        {(vehiclesByCustomer.get(c.id)?.length || 0) > 1 && <span className="ml-1 text-[9px] bg-info/15 text-info px-1.5 py-0.5 rounded-full font-medium">차 {vehiclesByCustomer.get(c.id)!.length}대</span>}
                       </td>
                       <td className="px-4 py-3 text-sm text-[var(--c-text-2)]">{c.phone || '-'}</td>
                       <td className="px-4 py-3 text-sm text-[var(--c-text-2)]">
@@ -2486,7 +2513,7 @@ export default function CRMPage() {
                 const isOverdue = !f.is_completed && f.scheduled_date < today;
 
                 const smsQC = QC_SMS;
-                const smsMaint = MAINT_SMS;
+                const smsMaint = followUpMessage('메인터넌스', f.memo); // 회차 문구 (2026-11-22)
                 const smsReviewProism = REVIEW_SMS.proism;
                 const smsReviewBMW = REVIEW_SMS.bmw;
                 const smsReviewAudi = REVIEW_SMS.audi;
@@ -2654,6 +2681,12 @@ export default function CRMPage() {
                       )}
                       {isQuote && !f.customer_id && (
                         <button onClick={() => handleAddCustomerFromQuote(quoteHead)} className="text-[10px] font-medium px-2.5 py-1 rounded-lg bg-ok/15 hover:bg-ok/25 text-ok transition-colors">＋ 고객 목록에 추가</button>
+                      )}
+                      {f.follow_up_type === '입고안내' && (
+                        <>
+                        <button onClick={() => sendSms(followUpMessage('입고안내', f.memo), 'arrival')} disabled={!phone} className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${sent.arrival ? sentBtn : 'bg-info/15 text-info hover:bg-info/25'}`}>{sent.arrival ? '✓ 문자완료' : '입고 안내 문자'}</button>
+                        <button onClick={() => copyMsg(followUpMessage('입고안내', f.memo))} className="text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors bg-[var(--c-subtle)] text-[var(--c-text-2)] hover:bg-[var(--c-hover)]">복사</button>
+                        </>
                       )}
                       {isQuote && !f.is_completed && QUOTE_CLOSE_REASONS.map((r) => (
                         <button key={r} onClick={async () => { if (!confirm(`이 견적을 "${r}"(으)로 종결할까요? 재연락·마무리가 같이 닫힙니다.`)) return; await closeQuoteAs(f, r); fetchFollowUps(); fetchStats(statsMonth); }} className="text-[10px] font-medium px-2 py-1 rounded-lg bg-[var(--c-subtle)] text-[var(--c-text-3)] hover:bg-[var(--c-hover)]" title="견적 종결 — 월말 숫자에 사유별로 집계">{r}</button>
@@ -3132,7 +3165,7 @@ export default function CRMPage() {
                   <div className="text-xs font-semibold text-[var(--c-text-2)] mb-2">고객 목록에 없는 분 — 이름·전화만 적으면 됩니다 (전화 필수)</div>
                   <div className="grid grid-cols-3 gap-2">
                     <input type="text" placeholder="이름" value={consultationForm.name} onChange={(e) => setConsultationForm({ ...consultationForm, name: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[var(--c-text-1)]" />
-                    <input type="tel" placeholder="010-0000-0000 *" value={consultationForm.phone} onChange={(e) => setConsultationForm({ ...consultationForm, phone: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[var(--c-text-1)]" />
+                    <input type="tel" inputMode="numeric" placeholder="010-0000-0000 *" value={consultationForm.phone} onChange={(e) => setConsultationForm({ ...consultationForm, phone: formatPhoneInput(e.target.value) })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[var(--c-text-1)]" />
                     <input type="text" placeholder="차종 (예: 포르쉐 카이엔)" value={consultationForm.car} onChange={(e) => setConsultationForm({ ...consultationForm, car: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[var(--c-text-1)]" />
                   </div>
                   <div className="text-[11px] text-[var(--c-text-3)] mt-2">계약으로 이어지면 상담 기록 줄의 "＋ 고객 목록에 추가"로 등록하면 이 기록이 자동으로 연결됩니다</div>

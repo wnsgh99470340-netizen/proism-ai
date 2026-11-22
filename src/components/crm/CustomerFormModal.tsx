@@ -5,6 +5,8 @@ import { supabase } from '@/lib/supabase';
 import { MEMBERSHIP } from '@/config/membership';
 import { closeQuoteFollowUpsFor } from '@/lib/followups';
 import { ensurePrimaryVehicle } from '@/lib/vehicles';
+import { formatPhoneInput } from '@/lib/phone';
+import { ensureArrivalNotice } from '@/lib/appointments-flow';
 
 /**
  * 고객 등록·수정 창 하나 (2026-11-18 사장님: "왜 자꾸 등록 창이랑 수정 창이 달라" → 어디서 열든 같은 창, 같은 칸)
@@ -74,6 +76,7 @@ export async function saveCustomerEdit(customerId: string, form: CustomerFormVal
     });
     if (e3) return '예약 저장 실패: ' + e3.message;
     closeQuoteFollowUpsFor(customerId, form.phone).catch(() => {}); // 예약 잡히면 견적 재연락 닫기 (2026-11-22)
+    ensureArrivalNotice({ customerId, name: form.name.trim(), phone: form.phone, date: form.appointment_start_date, serviceType: form.appointment_service_type || null }).catch(() => {}); // 입고 전날 안내 (2026-11-22)
   }
   return null;
 }
@@ -123,7 +126,7 @@ export default function CustomerFormModal({ mode, form, setForm, latestApptId, b
         <h3 className="text-[var(--c-text-1)] font-semibold text-base mb-4">{mode === 'edit' ? '고객 수정' : '고객 추가'}</h3>
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2"><label className={label}>이름 *</label><input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} className={input} placeholder="고객 이름" /></div>
-          <div><label className={label}>연락처</label><input type="text" value={form.phone} onChange={(e) => set('phone', e.target.value)} className={input} placeholder="010-0000-0000" /></div>
+          <div><label className={label}>연락처</label><input type="tel" inputMode="numeric" value={form.phone} onChange={(e) => set('phone', formatPhoneInput(e.target.value))} className={input} placeholder="010-0000-0000" /></div>
           <div>
             <label className={label}>유입경로</label>
             <select value={form.source} onChange={(e) => set('source', e.target.value)} className={input}>

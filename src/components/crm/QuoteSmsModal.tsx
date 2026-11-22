@@ -1,5 +1,6 @@
 'use client';
 
+import { formatPhoneInput } from '@/lib/phone';
 import { useEffect, useMemo, useState } from 'react';
 import { todaySeoul, addDaysISO } from '@/lib/local-date';
 import { supabase } from '@/lib/supabase';
@@ -405,7 +406,7 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
           <div className="px-6 py-4 space-y-3 md:border-r border-[var(--c-border)]">
             <div className="grid grid-cols-2 gap-3">
               <div><label className={labelCls}>고객</label><input value={name} onChange={(e) => setName(e.target.value)} className={inputCls} placeholder="이름" /></div>
-              <div><label className={labelCls}>전화 *</label><input value={phone} onChange={(e) => setPhone(e.target.value)} className={inputCls} placeholder="010-0000-0000" /></div>
+              <div><label className={labelCls}>전화 *</label><input type="tel" inputMode="numeric" value={phone} onChange={(e) => setPhone(formatPhoneInput(e.target.value))} className={inputCls} placeholder="010-0000-0000" /></div>
               <div><label className={labelCls}>차종 *</label><input value={car} onChange={(e) => setCar(e.target.value)} className={inputCls} placeholder="예: 포르쉐 카이엔" /></div>
               <div><label className={labelCls}>시공</label>
                 <div className="flex gap-2">

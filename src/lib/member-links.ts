@@ -33,6 +33,7 @@ export function maskName(name: string | null | undefined): string {
 }
 
 /** 회원 페이지 링크 안내 문자 (사장님 말투) */
-export function memberLinkSms(name: string, url: string): string {
-  return `안녕하세요 3M 프로이즘 대표 진준호입니다.\n${name} 고객님을 3M 프로이즘 회원으로 등록해 드렸습니다.\n회원 페이지에서 시공 증명서와 보증, 관리 일정, 내 차 관리법, 소개 혜택과 포인트를 보실 수 있습니다.\n${url}\n들어가실 때 전화번호 뒷자리 4개를 넣어 주세요.`;
+export function memberLinkSms(name: string, url: string, careLine?: string | null): string {
+  // careLine: 그 시공의 관리법 첫 줄 ("출고 후 1주일은 세차와 왁스를 쉬어 주세요 …") — 출고 당일 문자에 핵심 한 줄 (2026-11-22 점검 4-2)
+  return `안녕하세요 3M 프로이즘 대표 진준호입니다.\n${name} 고객님을 3M 프로이즘 회원으로 등록해 드렸습니다.\n${careLine ? `${careLine.replace(/\.?$/, '.')}\n` : ''}회원 페이지에서 시공 증명서와 보증, 관리 일정, 내 차 관리법, 소개 혜택과 포인트를 보실 수 있습니다.\n${url}\n들어가실 때 전화번호 뒷자리 4개를 넣어 주세요.`;
 }
