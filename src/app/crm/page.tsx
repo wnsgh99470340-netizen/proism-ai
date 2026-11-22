@@ -26,6 +26,7 @@ import { getOrCreateMemberLink, memberLinkSms } from '@/lib/member-links';
 import { workDetailsText, workItems, ppfProduct, type WorkOrderJson } from '@/lib/work-order';
 import CareCompleteModal from '@/components/crm/CareCompleteModal';
 import { appendCareLog, parseCareLog, stripCareLog } from '@/lib/care-log';
+import { isDemoClient } from '@/lib/demo';
 
 // ─── Types ───────────────────────────────────────────────
 interface Customer {
@@ -200,6 +201,8 @@ export default function CRMPage() {
   const router = useRouter();
   const { theme, toggle: toggleTheme } = useTheme();
   const [activeTab, setActiveTab] = useState<Tab>('home');
+  const [isDemo, setIsDemo] = useState(false);
+  useEffect(() => { setIsDemo(isDemoClient()); }, []);
   // 블로그 AI 탭 (2026-11-12): 한 번 열면 다른 탭을 봐도 대화·초안을 유지하기 위해 숨기기만 한다
   const [blogVisited, setBlogVisited] = useState(false);
   const [prefillNonce, setPrefillNonce] = useState(0);
@@ -1518,8 +1521,16 @@ export default function CRMPage() {
 
   return (
     <div className="h-dvh flex flex-col bg-[var(--c-page)]">
+      {/* 둘러보기 띠 (2026-11-22): /demo 로 들어온 화면. 고객 데이터 없이 구조만 보이고 저장 안 됨. 사장님 기기에서 열었다면 "나가기"로 돌아온다 */}
+      {isDemo && (
+        <div className="bg-brand text-white text-xs md:text-sm px-4 py-2 flex items-center justify-center gap-3 shrink-0 pt-[max(0.5rem,env(safe-area-inset-top))]">
+          <span className="font-semibold">둘러보기 모드</span>
+          <span className="opacity-90">고객 정보 없이 화면 구조만 보입니다 · 입력해도 저장되지 않습니다</span>
+          <a href="/demo?off=1" className="ml-2 px-2.5 py-1 rounded-full bg-white/20 hover:bg-white/30 font-medium">나가기</a>
+        </div>
+      )}
       {/* Header (2026-11-11 하남점 페이지 톤: 3M 레드 사각 로고 + 알약형 탭, 가운데 컨테이너) */}
-      <header className="bg-[var(--c-card)] border-b border-[var(--c-border)] shrink-0 pt-[env(safe-area-inset-top)]">
+      <header className={`bg-[var(--c-card)] border-b border-[var(--c-border)] shrink-0 ${isDemo ? '' : 'pt-[env(safe-area-inset-top)]'}`}>
         <div className="mx-auto max-w-[1360px] px-4 md:px-6">
           <div className="h-14 md:h-16 flex items-center justify-between gap-3">
             <button type="button" onClick={() => setActiveTab('home')} className="flex items-center gap-2.5 min-w-0 hover:opacity-80 transition-opacity text-left">
@@ -1685,7 +1696,7 @@ export default function CRMPage() {
                     </div>
                   </div>
                   {!teamBrief ? (
-                    <div className="py-10 text-center text-sm text-[var(--c-text-3)]">마케팅팀이 준비한 일을 읽는 중…</div>
+                    <div className="py-10 text-center text-sm text-[var(--c-text-3)]">{isDemo ? "둘러보기에서는 비어 있습니다" : "마케팅팀이 준비한 일을 읽는 중…"}</div>
                   ) : (
                     <ul className="divide-y divide-[var(--c-border)]">
                       {teamBrief.lines.map((l) => {
@@ -1767,7 +1778,7 @@ export default function CRMPage() {
                   <button onClick={() => fetchStats(statsMonth)} className="text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-1)] transition-colors">↻ 새로고침</button>
                 </div>
                 {!stats ? (
-                  <div className="py-8 text-center text-sm text-[var(--c-text-3)]">지난 7일 기록을 세는 중…</div>
+                  <div className="py-8 text-center text-sm text-[var(--c-text-3)]">{isDemo ? "둘러보기에서는 비어 있습니다" : "지난 7일 기록을 세는 중…"}</div>
                 ) : (
                   <>
                     <div className="grid grid-cols-3 md:grid-cols-6 gap-2.5">

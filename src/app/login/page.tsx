@@ -2,6 +2,7 @@
 
 import { useState, FormEvent, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { clearDemoCookie } from '@/lib/demo';
 
 function LoginForm() {
   const [password, setPassword] = useState('');
@@ -23,6 +24,7 @@ function LoginForm() {
       });
 
       if (res.ok) {
+        clearDemoCookie(); // 둘러보기 쿠키가 남아 있으면 로그인해도 빈 화면이 보이므로 지운다
         const from = searchParams.get('from') || '/';
         router.push(from);
         router.refresh();

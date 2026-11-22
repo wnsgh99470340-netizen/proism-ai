@@ -1,8 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AUTH_COOKIE_NAME, isAuthCookieValid, authCookieValue, authCookieOptions } from '@/lib/auth-cookie';
+import { DEMO_COOKIE, DEMO_COOKIE_VALUE } from '@/lib/demo';
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // 둘러보기 (2026-11-22): /demo 입장은 열어 두고, 그 쿠키로는 /crm 화면(페이지)만 통과. /api/* 는 아래에서 그대로 401 → 데이터는 빈 채로 보인다 (src/lib/demo.ts)
+  if (pathname === '/demo') return NextResponse.next();
+  const demo = request.cookies.get(DEMO_COOKIE)?.value === DEMO_COOKIE_VALUE;
+  // 사장님 기기(로그인된 상태)에서 /demo 를 열어도 홈 카드·숫자·블로그 목록 API 가 실제 데이터를 내려주면 안 된다 → 둘러보기 쿠키가 있으면 API 는 로그인 여부와 상관없이 401 (로그인 API 만 예외)
+  if (demo && pathname.startsWith('/api/') && pathname !== '/api/auth/login') {
+    return NextResponse.json({ error: 'demo' }, { status: 401 });
+  }
+  if (demo && (pathname === '/' || pathname === '/crm' || pathname.startsWith('/crm/'))) return NextResponse.next();
 
   // 로그인 페이지·로그인 API·Vercel Cron(자체 시크릿으로 검증)·PWA 파일은 통과
   if (
