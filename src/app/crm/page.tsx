@@ -27,6 +27,7 @@ import { workDetailsText, workItems, ppfProduct, type WorkOrderJson } from '@/li
 import CareCompleteModal from '@/components/crm/CareCompleteModal';
 import { appendCareLog, parseCareLog, stripCareLog } from '@/lib/care-log';
 import { isDemoClient } from '@/lib/demo';
+import { scheduleNextMaintenance, markFollowUpSkipped, closeQuoteFollowUpsFor, isSkipped } from '@/lib/followups';
 
 // ─── Types ───────────────────────────────────────────────
 interface Customer {
@@ -96,7 +97,7 @@ const TAB_KEYS: Tab[] = ['home', 'blog', 'customers', 'appointments', 'followups
 const SERVICE_TYPES = ['PPF', '컬러PPF', 'PWF', '랩핑', '크롬죽이기', '썬팅', '유리막코팅', '가죽코팅', '실내PPF', '신차패키지', '리터치'];
 /** 리터치(2026-11-22): 완료해도 새 시공 기록을 만들지 않고 원래 시공 기록 밑에 관리 이력 한 건으로 붙는다 */
 const RETOUCH_TYPE = '리터치';
-const APPOINTMENT_STATUSES = ['상담중', '예약확정', '시공중', '완료'];
+const APPOINTMENT_STATUSES = ['상담중', '예약확정', '시공중', '완료', '취소']; // 취소(2026-11-22): 삭제하면 "예약했다 취소했다" 기록이 사라지므로 상태로 남긴다. 홈·오늘 예약·손님 페이지에서는 이미 거른다
 const FOLLOW_UP_TYPES = ['QC점검', '메인터넌스', '후기요청'];
 /** 홈 상단 배너 사진 경로(public 기준, 예: '/img/home-banner.jpg'). 비우면 글자만 표시. 사장님이 배너용 사진 주면 넣는다 */
 const HOME_BANNER_IMAGE = '';
@@ -181,6 +182,7 @@ function statusColor(status: string) {
     case '예약확정': return 'bg-info/20 text-info';
     case '시공중': return 'bg-warn/20 text-warn';
     case '완료': return 'bg-ok/20 text-ok';
+    case '취소': return 'bg-danger/10 text-danger line-through';
     default: return 'bg-[var(--c-hover)] text-[var(--c-text-2)]';
   }
 }
@@ -568,6 +570,7 @@ export default function CRMPage() {
         amount: apptAmount,
         memo: formData.appointment_memo || null,
       });
+      closeQuoteFollowUpsFor(customerId, formData.phone).then((n) => { if (n) fetchFollowUps(); }); // 2026-11-22
     }
 
     // 2.5. Notion에 예약 일정 동기화 (fire-and-forget)
@@ -823,7 +826,7 @@ export default function CRMPage() {
         }
         const memo = [r.label, r.time, r.note].filter(Boolean).join(' · ') + ` · 스크린샷에서 가져옴 ${todaySeoul()}`;
         const { error: e2 } = await supabase.from('appointments').insert({ customer_id: customerId, appointment_date: r.start, end_date: r.end || null, service_type: r.service || null, status: r.status, memo });
-        if (e2) alert(`${r.label} 등록 실패: ${e2.message}`); else made++;
+        if (e2) alert(`${r.label} 등록 실패: ${e2.message}`); else { made++; await closeQuoteFollowUpsFor(customerId, r.phone || null); } // 예약 잡히면 견적 재연락 닫기 (2026-11-22)
       }
       alert(`예약 ${made}건을 등록했습니다${newCus ? `. 새 고객 ${newCus}명은 이름·전화를 채워 주세요` : ''}`);
       setShowShotImport(false); setShotRows([]); setShotHidden([]);
@@ -850,6 +853,8 @@ export default function CRMPage() {
       amount: appointmentForm.amount ? Number(appointmentForm.amount) : null,
       memo: appointmentForm.memo || null,
     });
+    // 예약이 잡혔으니 이 손님의 열린 견적 재연락·마무리는 닫는다 (2026-11-22)
+    closeQuoteFollowUpsFor(appointmentForm.customer_id, allCustomers.find((c) => c.id === appointmentForm.customer_id)?.phone).then((n) => { if (n) fetchFollowUps(); });
 
     // Notion 예약 일정 동기화 (fire-and-forget)
     const apptCustomer = allCustomers.find((c) => c.id === appointmentForm.customer_id);
@@ -1359,6 +1364,15 @@ export default function CRMPage() {
     const date = todaySeoul();
     const memo = note || photos.length ? appendCareLog(f.memo, { date, note, photos }) : (f.memo || null);
     await supabase.from('follow_ups').update({ is_completed: true, completed_date: date, memo }).eq('id', f.id);
+    // 메인터넌스는 6개월마다 → 끝나면 같은 시공 기록에 다음 회차 자동 생성 (2026-11-22)
+    const next = await scheduleNextMaintenance(f, date);
+    setCareTarget(null);
+    fetchFollowUps();
+    if (next) alert(`다음 메인터넌스를 ${next} 에 잡아 두었습니다.`);
+  };
+  // 연락했는데 안 오신 분: '미방문'으로 정리 (예정으로 영원히 남지 않게). 메인터넌스면 다음 회차는 그대로 잡는다 (2026-11-22)
+  const handleCareSkip = async (f: FollowUp, reason: string) => {
+    await markFollowUpSkipped(f, reason);
     setCareTarget(null);
     fetchFollowUps();
   };
@@ -2147,7 +2161,7 @@ export default function CRMPage() {
                     {displayAppointments.map((a) => {
                       const isToday = a.appointment_date === today;
                       const isPast = a.appointment_date < today;
-                      const dim = a.status === '완료' ? 'opacity-60' : isPast ? 'opacity-70' : '';
+                      const dim = a.status === '완료' ? 'opacity-60' : a.status === '취소' ? 'opacity-40' : isPast ? 'opacity-70' : '';
                       let memoDisplay = a.memo;
                       try { if (a.memo && JSON.parse(a.memo)?.car_number !== undefined) memoDisplay = null; } catch { /* not JSON */ }
                       const d = new Date(a.appointment_date + 'T00:00:00');
@@ -2341,7 +2355,7 @@ export default function CRMPage() {
                       : 'bg-violet/20 text-violet';
 
                 const statusBadge = f.is_completed
-                  ? { text: '처리완료', class: 'bg-ok/20 text-ok' }
+                  ? (isSkipped(f.memo) ? { text: '미방문', class: 'bg-[var(--c-hover)] text-[var(--c-text-3)]' } : { text: '처리완료', class: 'bg-ok/20 text-ok' })
                   : isOverdue
                     ? { text: `${Math.abs(daysUntil)}일 지남`, class: 'bg-danger/20 text-danger' }
                     : isUrgent
@@ -2977,6 +2991,7 @@ export default function CRMPage() {
           customerName={careTarget.customer?.name || '고객'}
           onClose={() => setCareTarget(null)}
           onDone={(note, photos) => handleCareDone(careTarget, note, photos)}
+          onSkip={(reason) => handleCareSkip(careTarget, reason)}
         />
       )}
       {showWorkOrder && workOrderAppointment && (

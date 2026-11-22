@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { MEMBERSHIP } from '@/config/membership';
+import { closeQuoteFollowUpsFor } from '@/lib/followups';
 
 /**
  * 고객 등록·수정 창 하나 (2026-11-18 사장님: "왜 자꾸 등록 창이랑 수정 창이 달라" → 어디서 열든 같은 창, 같은 칸)
@@ -61,6 +62,7 @@ export async function saveCustomerEdit(customerId: string, form: CustomerFormVal
       service_type: form.appointment_service_type || null, status: form.appointment_service_type ? '예약확정' : '상담중', amount, memo: form.appointment_memo || null,
     });
     if (e3) return '예약 저장 실패: ' + e3.message;
+    closeQuoteFollowUpsFor(customerId, form.phone).catch(() => {}); // 예약 잡히면 견적 재연락 닫기 (2026-11-22)
   }
   return null;
 }

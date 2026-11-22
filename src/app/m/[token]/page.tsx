@@ -17,7 +17,7 @@ interface Data {
   customer: { name: string; car: string; color: string | null; memberSince: string | null; registered: string };
   membership: { name: string; common: string[]; referrerReward: string; referredRewardOptions: string[]; referredCondition: string };
   services: { id?: string; type: string; date: string | null; done: string | null; area: string | null; film: string | null }[];
-  care: { type: string; date: string; done: boolean; doneAt: string | null; serviceId?: string | null; note?: string | null; photos?: string[] }[];
+  care: { type: string; date: string; done: boolean; skipped?: boolean; doneAt: string | null; serviceId?: string | null; note?: string | null; photos?: string[] }[];
   upcoming: { date: string; end: string | null; service: string | null; status: string }[];
   careGuide?: { guides: { key: string; title: string; after: string[]; daily: string[]; contact: string[] }[]; common: string };
   warranties: { date: string; end: string | null; work: string; period: string; url: string | null; items: { group: string; text: string; product?: string }[]; certNo: string }[];
@@ -112,7 +112,7 @@ export default function MemberPage() {
 
   const c = data.customer;
   const nextCare = data.care.find((f) => !f.done);
-  const doneCare = data.care.filter((f) => f.done);
+  const doneCare = data.care.filter((f) => f.done && !f.skipped); // 미방문은 받은 관리에 안 센다
   const nextDays = nextCare ? daysUntil(nextCare.date) : null;
   // 최근 것이 위로: 완료는 완료일, 예정은 예정일 기준
   const careSorted = [...data.care].sort((a, b) => ((b.done ? b.doneAt || b.date : b.date) || '').localeCompare((a.done ? a.doneAt || a.date : a.date) || ''));
@@ -281,16 +281,16 @@ export default function MemberPage() {
                           <li key={i} className="text-sm">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2.5">
-                                <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[11px] ${f.done ? 'bg-[#22c55e]/15 text-[#22c55e]' : 'border border-white/20 text-white/40'}`}>{f.done ? '✓' : g.rows.length - i}</span>
+                                <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[11px] ${f.done && !f.skipped ? 'bg-[#22c55e]/15 text-[#22c55e]' : f.skipped ? 'border border-white/15 text-white/30' : 'border border-white/20 text-white/40'}`}>{f.done && !f.skipped ? '✓' : f.skipped ? '–' : g.rows.length - i}</span>
                                 <span className={f.done ? '' : 'text-white/80'}>{careName(f.type)}</span>
                               </div>
                               <div className="text-right">
                                 <div className="text-white/75 tabular-nums">{fmt(f.done ? f.doneAt || f.date : f.date)}</div>
-                                <div className={`text-[10px] ${f.done ? 'text-[#22c55e]' : 'text-white/40'}`}>{f.done ? '받으셨습니다' : '예정'}</div>
+                                <div className={`text-[10px] ${f.done && !f.skipped ? 'text-[#22c55e]' : 'text-white/40'}`}>{f.skipped ? '미방문' : f.done ? '받으셨습니다' : '예정'}</div>
                               </div>
                             </div>
                             {/* 점검 기록 (2026-11-22): 그날 무엇을 봤는지 한 줄 + 사진. "받으셨습니다"보다 이게 관리의 증거 */}
-                            {f.done && (f.note || (f.photos && f.photos.length > 0)) && (
+                            {f.done && !f.skipped && (f.note || (f.photos && f.photos.length > 0)) && (
                               <div className="ml-[30px] mt-1.5 rounded-xl bg-white/[0.05] px-3 py-2">
                                 {f.note && <div className="text-[12px] text-white/80 leading-relaxed break-keep">{f.note}</div>}
                                 {f.photos && f.photos.length > 0 && (

@@ -6,6 +6,7 @@ import { parseWorkOrder, workItems, type WorkOrderJson } from '@/lib/work-order'
 import { AUTH_COOKIE_NAME, isAuthCookieValid } from '@/lib/auth-cookie';
 import { pointsView, type PointRow } from '@/lib/referrals';
 import { parseCareLog } from '@/lib/care-log';
+import { isSkipped } from '@/lib/followups';
 import { careGuidesFor, CARE_COMMON_LINE } from '@/config/care-guide';
 
 export const runtime = 'nodejs';
@@ -94,7 +95,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // 내 차 관리법 (2026-11-22): 시공 종류 + 작업 내역서 항목 묶음(PPF·썬팅·컬러PPF·랩핑·코팅)으로 해당하는 안내만
     careGuide: { guides: careGuidesFor((services || []).map((s) => s.service_type as string), warranties.flatMap((w) => w.items.map((i) => i.group))), common: CARE_COMMON_LINE },
     // 2026-11-18 "기한 지나 정리"로 일괄 완료 처리된 건(실제 점검 기록 아님)은 손님에게 "받으셨습니다"로 보이면 안 되므로 뺀다 (2026-11-19 사장님). CRM 에는 그대로
-    care: (followUps || []).filter((f) => !(f.is_completed && /기한 지나 정리/.test((f.memo as string | null) || ''))).map((f) => { const log = parseCareLog(f.memo as string | null); return { type: f.follow_up_type, date: f.scheduled_date, done: f.is_completed, doneAt: f.completed_date, serviceId: (f.service_id as string | null) || null, note: log?.note || null, photos: log?.photos || [] }; }), // note·photos: 점검 기록 (2026-11-22, src/lib/care-log.ts) // serviceId: 시공 건별로 묶어 보이기 (2026-11-19 사장님 "기존 작업과 새 작업은 따로 분류")
+    care: (followUps || []).filter((f) => !(f.is_completed && /기한 지나 정리/.test((f.memo as string | null) || ''))).map((f) => { const log = parseCareLog(f.memo as string | null); return { type: f.follow_up_type, date: f.scheduled_date, done: f.is_completed, skipped: isSkipped(f.memo as string | null), doneAt: f.completed_date, serviceId: (f.service_id as string | null) || null, note: log?.note || null, photos: log?.photos || [] }; }), // note·photos: 점검 기록 (2026-11-22, src/lib/care-log.ts) // serviceId: 시공 건별로 묶어 보이기 (2026-11-19 사장님 "기존 작업과 새 작업은 따로 분류")
     upcoming,
     warranties,
     referrals: {

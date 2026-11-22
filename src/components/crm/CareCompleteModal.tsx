@@ -9,11 +9,13 @@ import { CARE_NOTE_PRESETS } from '@/lib/care-log';
  * - 기록은 follow_ups.memo 에 붙고(src/lib/care-log.ts) 손님 회원 페이지 관리 탭에 그대로 보인다
  * - "기록 없이 완료"도 남겨 둔다 (급할 때)
  */
-export default function CareCompleteModal({ type, customerName, onClose, onDone, services }: {
+export default function CareCompleteModal({ type, customerName, onClose, onDone, services, onSkip }: {
   type: string;
   customerName: string;
   onClose: () => void;
   onDone: (note: string, photos: string[], serviceId?: string | null) => Promise<void> | void;
+  /** 연락했는데 안 오신 분 — '미방문'으로 정리 (QC·메인터넌스만). 사유는 아래 글자 칸에 적은 것 */
+  onSkip?: (reason: string) => Promise<void> | void;
   /** 리터치(2026-11-22): 어느 시공 기록 밑에 붙일지. 하나면 자동, 여럿이면 고르게 */
   services?: { id: string; label: string }[];
 }) {
@@ -110,6 +112,9 @@ export default function CareCompleteModal({ type, customerName, onClose, onDone,
         </div>
         <div className="px-5 py-4 border-t border-[var(--c-border)] flex items-center gap-2">
           <button type="button" onClick={() => finish(false)} disabled={saving} className="text-xs text-[var(--c-text-3)] hover:text-[var(--c-text-1)] px-2 py-2">기록 없이 완료</button>
+          {onSkip && !isRetouch && (
+            <button type="button" onClick={async () => { if (!confirm('연락했지만 오지 않으신 걸로 정리할까요? 손님 페이지에는 "미방문"으로 보이고, 메인터넌스면 다음 회차는 그대로 잡힙니다.')) return; setSaving(true); try { await onSkip(extra); } finally { setSaving(false); } }} disabled={saving} className="text-xs text-[var(--c-text-3)] hover:text-danger px-2 py-2">안 오심</button>
+          )}
           <button type="button" onClick={() => finish(true)} disabled={saving || busy || (!note && photos.length === 0)} className="ml-auto bg-brand hover:bg-brand-dark disabled:opacity-40 text-white text-sm font-medium rounded-lg px-5 py-2">{saving ? '저장 중…' : '기록 남기고 완료'}</button>
         </div>
       </div>
