@@ -33,7 +33,8 @@ export function followUpMessage(type: string, memo: string | null | undefined): 
     // 회차 문구 (2026-11-22 점검 6-1): 2회차부터 "시공 후 12개월이 되어 두 번째 메인터넌스"
     const m = (memo || '').match(/(\d+)회차 메인터넌스/);
     const n = m ? Number(m[1]) : 1;
-    if (n >= 2) return MAINT_SMS.replace('시공 후 6개월이 되어 메인터넌스 안내드립니다.', `시공 후 ${n * 6}개월이 되어 ${['', '첫', '두', '세', '네', '다섯', '여섯', '일곱', '여덟', '아홉', '열'][n] || `${n}`} 번째 메인터넌스 안내드립니다.`);
+    // 손님에게 회차는 보이지 않게 (2026-11-22 사장님) — 개월 수만 맞춘다
+    if (n >= 2) return MAINT_SMS.replace('시공 후 6개월이 되어 메인터넌스 안내드립니다.', `시공 후 ${n * 6}개월이 되어 메인터넌스 안내드립니다.`);
     return MAINT_SMS;
   }
   if (type === '후기요청') return REVIEW_SMS.proism;
