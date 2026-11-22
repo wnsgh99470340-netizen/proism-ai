@@ -17,7 +17,7 @@ interface Data {
   customer: { name: string; car: string; color: string | null; memberSince: string | null; registered: string };
   membership: { name: string; common: string[]; referrerReward: string; referredRewardOptions: string[]; referredCondition: string };
   services: { id?: string; type: string; date: string | null; done: string | null; area: string | null; film: string | null }[];
-  care: { type: string; date: string; done: boolean; doneAt: string | null; serviceId?: string | null }[];
+  care: { type: string; date: string; done: boolean; doneAt: string | null; serviceId?: string | null; note?: string | null; photos?: string[] }[];
   upcoming: { date: string; end: string | null; service: string | null; status: string }[];
   warranties: { date: string; end: string | null; work: string; period: string; url: string | null; items: { group: string; text: string; product?: string }[]; certNo: string }[];
   referrals: { gave: { name: string; date: string; state: string; reward: string | null; rewardAt: string | null }[]; received: { from: string; date: string; reward: string | null; rewardAt: string | null } | null };
@@ -277,15 +277,28 @@ export default function MemberPage() {
                       {careGroups.length > 1 && <div className={`${micro} mb-2 pb-1.5 border-b border-white/10`}>{g.title} 시공</div>}
                       <ul className="space-y-3">
                         {g.rows.map((f, i) => (
-                          <li key={i} className="flex items-center justify-between text-sm">
-                            <div className="flex items-center gap-2.5">
-                              <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[11px] ${f.done ? 'bg-[#22c55e]/15 text-[#22c55e]' : 'border border-white/20 text-white/40'}`}>{f.done ? '✓' : g.rows.length - i}</span>
-                              <span className={f.done ? '' : 'text-white/80'}>{careName(f.type)}</span>
+                          <li key={i} className="text-sm">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2.5">
+                                <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[11px] ${f.done ? 'bg-[#22c55e]/15 text-[#22c55e]' : 'border border-white/20 text-white/40'}`}>{f.done ? '✓' : g.rows.length - i}</span>
+                                <span className={f.done ? '' : 'text-white/80'}>{careName(f.type)}</span>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-white/75 tabular-nums">{fmt(f.done ? f.doneAt || f.date : f.date)}</div>
+                                <div className={`text-[10px] ${f.done ? 'text-[#22c55e]' : 'text-white/40'}`}>{f.done ? '받으셨습니다' : '예정'}</div>
+                              </div>
                             </div>
-                            <div className="text-right">
-                              <div className="text-white/75 tabular-nums">{fmt(f.done ? f.doneAt || f.date : f.date)}</div>
-                              <div className={`text-[10px] ${f.done ? 'text-[#22c55e]' : 'text-white/40'}`}>{f.done ? '받으셨습니다' : '예정'}</div>
-                            </div>
+                            {/* 점검 기록 (2026-11-22): 그날 무엇을 봤는지 한 줄 + 사진. "받으셨습니다"보다 이게 관리의 증거 */}
+                            {f.done && (f.note || (f.photos && f.photos.length > 0)) && (
+                              <div className="ml-[30px] mt-1.5 rounded-xl bg-white/[0.05] px-3 py-2">
+                                {f.note && <div className="text-[12px] text-white/80 leading-relaxed break-keep">{f.note}</div>}
+                                {f.photos && f.photos.length > 0 && (
+                                  <div className="flex gap-1.5 mt-1.5 overflow-x-auto">
+                                    {f.photos.map((u) => <a key={u} href={u} target="_blank" rel="noreferrer" className="shrink-0"><img src={u} alt="점검 사진" className="w-16 h-16 object-cover rounded-lg border border-white/10" /></a>)}
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </li>
                         ))}
                       </ul>

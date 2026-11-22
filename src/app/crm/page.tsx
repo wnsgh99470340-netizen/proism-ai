@@ -23,7 +23,9 @@ import CustomerFormModal, { EMPTY_CUSTOMER_FORM, loadCustomerForm, saveCustomerE
 import { linkReferral, loadReferralsFor, markThanksSent, grantPointForReferred, loadPoints } from '@/lib/referrals';
 import { MEMBERSHIP, POINTS } from '@/config/membership';
 import { getOrCreateMemberLink, memberLinkSms } from '@/lib/member-links';
-import { workDetailsText, type WorkOrderJson } from '@/lib/work-order';
+import { workDetailsText, workItems, ppfProduct, type WorkOrderJson } from '@/lib/work-order';
+import CareCompleteModal from '@/components/crm/CareCompleteModal';
+import { appendCareLog, parseCareLog, stripCareLog } from '@/lib/care-log';
 
 // ─── Types ───────────────────────────────────────────────
 interface Customer {
@@ -890,6 +892,18 @@ export default function CRMPage() {
     const appointment = workOrderAppointment;
     const completionDate = todaySeoul();
 
+    // 빠진 칸 한 번 묻기 (2026-11-22 사장님): 차량번호·금액·PPF 제품·썬팅 농도가 비면 회원 페이지 증명서 제품 줄과 월말 숫자가 비어 나온다
+    {
+      const wo = workOrder as WorkOrderJson & { amount?: string };
+      const missing: string[] = [];
+      if (!wo.car_number?.trim()) missing.push('차량번호');
+      if (!(wo.amount && Number(wo.amount) > 0) && !appointment.amount) missing.push('금액');
+      if ((wo.ppf || []).length > 0 && !ppfProduct(wo.ppf_etc)) missing.push('PPF 제품(기타 칸에 50·100·150·PRO200)');
+      const tintNoDensity = Object.values(wo.tinting || {}).some((t) => (t?.selected || []).length > 0 && !t?.density?.trim());
+      if (tintNoDensity) missing.push('썬팅 농도');
+      if (missing.length > 0 && !confirm(`작업 내역서에 빠진 칸이 있습니다.\n- ${missing.join('\n- ')}\n\n빠진 채로 완료할까요? (취소하면 채우러 돌아갑니다)`)) return;
+    }
+
     // 기존 memo에서 warranty 관련 데이터 보존
     let existingExtra: Record<string, unknown> = {};
     if (appointment.memo) {
@@ -917,6 +931,10 @@ export default function CRMPage() {
     const mergedMemo = JSON.stringify(memoObj);
 
     // 시공 이력 생성 (작업 내역서 데이터를 memo에 JSON으로 저장)
+    // film_used·service_area 도 작업 내역서에서 채운다 (2026-11-22: 그동안 67건 중 4건만 채워져 회원 페이지 시공 줄에 제품이 비어 있었음)
+    const woItems = workItems(workOrder as WorkOrderJson);
+    const filmUsed = woItems.map((i) => i.product).filter(Boolean).join(' / ') || null;
+    const serviceArea = woItems.map((i) => `${i.group} ${i.text}`).join(' / ').slice(0, 200) || null;
     const { data: service } = await supabase
       .from('services')
       .insert({
@@ -925,6 +943,8 @@ export default function CRMPage() {
         service_date: appointment.appointment_date,
         completion_date: completionDate,
         amount: finalAmount,
+        film_used: filmUsed,
+        service_area: serviceArea,
         memo: mergedMemo,
       })
       .select()
@@ -1268,13 +1288,29 @@ export default function CRMPage() {
     fetchStats(statsMonth);
   };
 
+  // QC·메인터넌스 완료는 점검 기록 창을 거친다 (2026-11-22 사장님 "QC 완료가 체크 하나뿐 → 사진·한 줄을 남겨 손님 페이지에 보이게")
+  const [careTarget, setCareTarget] = useState<FollowUp | null>(null);
+  const handleCareDone = async (f: FollowUp, note: string, photos: string[]) => {
+    const date = todaySeoul();
+    const memo = note || photos.length ? appendCareLog(f.memo, { date, note, photos }) : (f.memo || null);
+    await supabase.from('follow_ups').update({ is_completed: true, completed_date: date, memo }).eq('id', f.id);
+    setCareTarget(null);
+    fetchFollowUps();
+  };
+
   const handleToggleFollowUp = async (followUp: FollowUp) => {
     const newCompleted = !followUp.is_completed;
+    if (newCompleted && (followUp.follow_up_type === 'QC점검' || followUp.follow_up_type === '메인터넌스')) {
+      setCareTarget(followUp);
+      return;
+    }
     await supabase
       .from('follow_ups')
       .update({
         is_completed: newCompleted,
         completed_date: newCompleted ? todaySeoul() : null,
+        // 완료를 되돌리면 점검 기록도 같이 지운다 (잘못 눌렀을 때)
+        ...(newCompleted ? {} : { memo: stripCareLog(followUp.memo) || null }),
       })
       .eq('id', followUp.id);
     fetchFollowUps();
@@ -2284,7 +2320,17 @@ export default function CRMPage() {
                           <span>{formatDate(f.scheduled_date)}</span>
                           {f.scheduled_date === today && <span className="text-warn font-medium">(오늘)</span>}
                         </div>
-                        {f.memo && !isQuote && <div className="text-xs text-[var(--c-text-4)] mt-1">{f.memo}</div>}
+                        {f.memo && !isQuote && stripCareLog(f.memo) && <div className="text-xs text-[var(--c-text-4)] mt-1">{stripCareLog(f.memo)}</div>}
+                        {(() => {
+                          const log = parseCareLog(f.memo);
+                          if (!log) return null;
+                          return (
+                            <div className="mt-1.5 rounded-lg bg-ok/10 px-2.5 py-1.5">
+                              <div className="text-xs text-ok font-medium">점검 기록{log.date ? ` ${formatDate(log.date)}` : ''}{log.note ? ` · ${log.note}` : ''}</div>
+                              {log.photos.length > 0 && <div className="flex gap-1.5 mt-1.5">{log.photos.map((u) => <a key={u} href={u} target="_blank" rel="noreferrer"><img src={u} alt="" className="w-12 h-12 object-cover rounded-md border border-[var(--c-border)]" /></a>)}</div>}
+                            </div>
+                          );
+                        })()}
                         {isQuote && (
                           <div className="text-xs text-[var(--c-text-4)] mt-1">
                             {quoteHead}
@@ -2836,6 +2882,14 @@ export default function CRMPage() {
         </div>
       )}
       {/* ─── Modal: 작업 내역서 ──────────────────────────────── */}
+      {careTarget && (
+        <CareCompleteModal
+          type={careTarget.follow_up_type}
+          customerName={careTarget.customer?.name || '고객'}
+          onClose={() => setCareTarget(null)}
+          onDone={(note, photos) => handleCareDone(careTarget, note, photos)}
+        />
+      )}
       {showWorkOrder && workOrderAppointment && (
         <WorkOrderModal
           appointment={workOrderAppointment}
@@ -3012,8 +3066,8 @@ function WorkOrderModal({ appointment, workOrder, setWorkOrder, onSubmit, onSave
               </div>
             </div>
             <div>
-              <label className="text-xs text-[var(--c-text-3)] mb-1 block">유입경로</label>
-              <div className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-2)]">-</div>
+              <label className="text-xs text-[var(--c-text-3)] mb-1 block">금액 (원)</label>
+              <input type="text" inputMode="numeric" value={workOrder.amount ? Number(String(workOrder.amount).replace(/[^\d]/g, '') || 0).toLocaleString() : ''} onChange={(e) => setWorkOrder({ ...workOrder, amount: e.target.value.replace(/[^\d]/g, '') })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder={appointment.amount ? Number(appointment.amount).toLocaleString() : '예: 5,500,000'} />
             </div>
             <div>
               <label className="text-xs text-[var(--c-text-3)] mb-1 block">연락처</label>
