@@ -7,6 +7,7 @@
 import { supabase } from './supabase';
 import { todaySeoul, addDaysISO } from './local-date';
 import { arrivalSms } from '@/config/sms-templates';
+import { linkReferral } from './referrals';
 
 const CARE_VISIT_TYPES = ['QC점검', '메인터넌스'];
 
@@ -51,14 +52,30 @@ export function overdueAppointments<T extends { appointment_date: string; end_da
 }
 
 /** 고객 등록 때: 같은 번호로 남은 미연결 상담 기록·견적 재연락을 이 고객에 붙인다 (견적 문자 경로에만 있던 것을 공통으로) */
-export async function linkOrphanRecordsByPhone(customerId: string, phone: string | null | undefined): Promise<{ consultations: number; followUps: number }> {
+export async function linkOrphanRecordsByPhone(customerId: string, phone: string | null | undefined, opts: { alreadyReferrer?: string | null } = {}): Promise<{ consultations: number; followUps: number; referrerLinked: string | null }> {
   const digits = (phone || '').replace(/\D/g, '');
-  if (digits.length < 10) return { consultations: 0, followUps: 0 };
+  if (digits.length < 10) return { consultations: 0, followUps: 0, referrerLinked: null };
   const { data: cons } = await supabase.from('consultations').select('id, memo, content').is('customer_id', null);
-  const consIds = (cons || []).filter((c) => `${c.memo || ''} ${c.content || ''}`.replace(/\D/g, '').includes(digits)).map((c) => c.id as string);
+  const mine = (cons || []).filter((c) => `${c.memo || ''} ${c.content || ''}`.replace(/\D/g, '').includes(digits));
+  const consIds = mine.map((c) => c.id as string);
   if (consIds.length) await supabase.from('consultations').update({ customer_id: customerId }).in('id', consIds);
+  // 상담 기록에 "소개: 이름 [ref:id]" 가 있으면 소개 관계를 자동으로 잇고 유입경로를 소개/재방문으로 (2026-11-22 점검 9-2). 등록 창에서 이미 골랐으면 건너뜀
+  let referrerLinked: string | null = null;
+  if (!opts.alreadyReferrer) {
+    for (const c of mine) {
+      const m = `${c.memo || ''}`.match(/소개: ([^\[·]+?) \[ref:([0-9a-f-]{36})\]/);
+      if (!m || m[2] === customerId) continue;
+      const err = await linkReferral(customerId, m[2]);
+      if (!err) {
+        referrerLinked = m[1].trim();
+        const { data: cu } = await supabase.from('customers').select('source').eq('id', customerId).maybeSingle();
+        if (!cu?.source || cu.source === '경로X' || cu.source === '기타') await supabase.from('customers').update({ source: '소개/재방문' }).eq('id', customerId);
+      }
+      break;
+    }
+  }
   const { data: fus } = await supabase.from('follow_ups').select('id, memo').is('customer_id', null);
   const fuIds = (fus || []).filter((f) => ((f.memo as string | null) || '').split('\n')[0].replace(/\D/g, '').includes(digits)).map((f) => f.id as string);
   if (fuIds.length) await supabase.from('follow_ups').update({ customer_id: customerId }).in('id', fuIds);
-  return { consultations: consIds.length, followUps: fuIds.length };
+  return { consultations: consIds.length, followUps: fuIds.length, referrerLinked };
 }

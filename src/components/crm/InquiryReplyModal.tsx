@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { todaySeoul, addDaysISO } from '@/lib/local-date';
 import { supabase } from '@/lib/supabase';
 import type { InquiryAnswer } from '@/lib/inquiry';
+import ReferrerPicker, { referrerToken } from '@/components/crm/ReferrerPicker';
+import { BlacklistWarning } from '@/components/crm/BlacklistModal';
 import { FIRST_LINK, CARD_URL, STORE_KEY, type ServiceKey } from '@/components/crm/QuoteSmsModal';
 
 /**
@@ -32,6 +34,7 @@ export default function InquiryReplyModal({ onClose, onDone }: { onClose: () => 
   const [reply, setReply] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [referrer, setReferrer] = useState<{ id: string; name: string; phone: string | null; car_brand: string | null; car_model: string | null } | null>(null); // 소개한 분 (2026-11-22 점검 9-2)
   const [car, setCar] = useState('');
   const [withFollowUp, setWithFollowUp] = useState(true);
   // 링크 전송(2026-11-12 사장님): 글 링크 하나 + 명함 링크, 견적 문자와 같은 형식으로 답장 끝에 붙인다
@@ -92,7 +95,7 @@ export default function InquiryReplyModal({ onClose, onDone }: { onClose: () => 
         content: `[문의 답변]${customerId ? '' : ` ${who}`}\n${fullText}`,
         estimate: ans?.total ? `대략 ${ans.total.typical.toLocaleString()}만원 안팎` : null,
         interested_services: summary || null,
-        memo: [customerId ? '' : who, car, '문의 답변'].filter(Boolean).join(' · '),
+        memo: [customerId ? '' : who, car, '문의 답변', referrerToken(referrer)].filter(Boolean).join(' · '),
       });
       if (error) throw new Error(`상담 기록 실패: ${error.message}`);
       let followNote = '';
@@ -134,6 +137,8 @@ export default function InquiryReplyModal({ onClose, onDone }: { onClose: () => 
           <div className="space-y-3">
             <label className="block text-xs text-[var(--c-text-3)]">고객 문의 글</label>
             <textarea value={text} onChange={(e) => setText(e.target.value)} rows={7} placeholder="카페 댓글·문자·톡 내용을 그대로 붙여 넣으세요" className={input} />
+            <div className="mt-2"><ReferrerPicker compact value={referrer} onChange={setReferrer} /></div>
+            <BlacklistWarning phone={phone || ans?.phone} />
             <button onClick={generate} disabled={busy} className="w-full bg-brand hover:bg-brand-dark text-white text-sm font-medium rounded-lg py-2.5 disabled:opacity-50 transition-colors">
               {busy ? '읽고 가격 맞추는 중…' : ans ? '다시 만들기' : '답변 만들기'}
             </button>

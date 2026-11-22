@@ -31,6 +31,9 @@ import { scheduleNextMaintenance, markFollowUpSkipped, closeQuoteFollowUpsFor, i
 import { loadVehicles, loadAllVehicles, ensurePrimaryVehicle, fillPlateIfEmpty, vehicleLabel, addVehicle, type Vehicle } from '@/lib/vehicles';
 import { advanceAppointmentsForToday, overdueAppointments, linkOrphanRecordsByPhone, ensureArrivalNotice, resyncArrivalNotice } from '@/lib/appointments-flow';
 import { formatPhoneInput } from '@/lib/phone';
+import ReferrerPicker, { referrerToken, hideRefToken } from '@/components/crm/ReferrerPicker';
+import BlacklistModal, { BlacklistWarning } from '@/components/crm/BlacklistModal';
+import { isBlacklisted, blacklistInfo } from '@/lib/blacklist';
 import { careGuidesFor } from '@/config/care-guide';
 
 // ─── Types ───────────────────────────────────────────────
@@ -357,6 +360,7 @@ export default function CRMPage() {
   // 상담은 아직 고객이 아닌 분이 대부분 → 고객 선택 없이 이름·전화만 적어도 저장 (2026-11-11 사장님 지적)
   const [consultationForm, setConsultationForm] = useState({
     customer_id: '', consultation_date: '', content: '', estimate: '', interested_services: '', memo: '', name: '', phone: '', car: '', photos: [] as string[],
+    referrer: null as { id: string; name: string; phone: string | null; car_brand: string | null; car_model: string | null } | null, // 소개한 분 (2026-11-22 점검 9-2)
   });
   const [consultPhotoBusy, setConsultPhotoBusy] = useState(false);
   const consultPhotoRef = useRef<HTMLInputElement>(null);
@@ -430,7 +434,8 @@ export default function CRMPage() {
 
 
   // Customer picker state (shared)
-  const [allCustomers, setAllCustomers] = useState<{ id: string; name: string; phone: string | null; car_brand?: string | null; car_model?: string | null; car_color?: string | null }[]>([]);
+  const [allCustomers, setAllCustomers] = useState<{ id: string; name: string; phone: string | null; car_brand?: string | null; car_model?: string | null; car_color?: string | null; memo?: string | null }[]>([]);
+  const [showBlacklist, setShowBlacklist] = useState(false); // 블랙리스트 창 (2026-11-22)
   const [customerPickerSearch, setCustomerPickerSearch] = useState('');
 
   // ─── Data Fetching ──────────────────────────────────────
@@ -462,7 +467,7 @@ export default function CRMPage() {
   }, []);
 
   const fetchAllCustomers = useCallback(async () => {
-    const { data } = await supabase.from('customers').select('id, name, phone, car_brand, car_model, car_color').order('name');
+    const { data } = await supabase.from('customers').select('id, name, phone, car_brand, car_model, car_color, memo').order('name');
     if (data) setAllCustomers(data);
   }, []);
 
@@ -600,7 +605,7 @@ export default function CRMPage() {
 
     console.log('[CRM] customerId:', customerId);
     // 같은 번호로 남은 미연결 상담 기록·견적 재연락을 이 고객에 붙인다 (2026-11-22 점검 1-1. 견적 문자 경로에만 있던 것)
-    linkOrphanRecordsByPhone(customerId, formData.phone).then((n) => { if (n.consultations || n.followUps) { fetchConsultations(); fetchFollowUps(); } }).catch(() => {});
+    linkOrphanRecordsByPhone(customerId, formData.phone, { alreadyReferrer: customerReferrerId }).then((n) => { if (n.consultations || n.followUps || n.referrerLinked) { fetchConsultations(); fetchFollowUps(); fetchCustomers(); } if (n.referrerLinked) alert(`상담 기록에 적어 둔 소개한 분(${n.referrerLinked})과 자동으로 연결했습니다. 유입경로는 소개/재방문으로 두었습니다.`); }).catch(() => {});
     // 멤버십(2026-11-18): 소개한 분이 골라져 있으면 연결하고 감사 문자 제안
     if (customerReferrerId) {
       const refErr = await linkReferral(customerId, customerReferrerId);
@@ -1644,9 +1649,10 @@ export default function CRMPage() {
     const phoneFmt = phoneDigits.length === 11 ? `${phoneDigits.slice(0, 3)}-${phoneDigits.slice(3, 7)}-${phoneDigits.slice(7)}` : f.phone.trim();
     const who = f.customer_id ? '' : `${f.name.trim() || '전화문의'} ${phoneFmt}`.trim();
     const photoPart = f.photos.length ? `사진: ${f.photos.join(' ')}` : '';
+    const refPart = referrerToken(f.referrer); // "소개: 이름 [ref:id]" — 고객 등록 때 자동 연결 (2026-11-22)
     const memo = f.customer_id
-      ? [f.memo.trim(), photoPart].filter(Boolean).join(' · ') || null
-      : [who, f.car.trim(), f.memo.trim(), photoPart].filter(Boolean).join(' · ');
+      ? [f.memo.trim(), refPart, photoPart].filter(Boolean).join(' · ') || null
+      : [who, f.car.trim(), f.memo.trim(), refPart, photoPart].filter(Boolean).join(' · ');
     const { error } = await supabase.from('consultations').insert({
       customer_id: f.customer_id || null,
       consultation_date: date,
@@ -1675,7 +1681,7 @@ export default function CRMPage() {
         .catch((err) => console.warn('[CRM] Notion 상담 기록 실패:', err));
     }
 
-    setConsultationForm({ customer_id: '', consultation_date: '', content: '', estimate: '', interested_services: '', memo: '', name: '', phone: '', car: '', photos: [] });
+    setConsultationForm({ customer_id: '', consultation_date: '', content: '', estimate: '', interested_services: '', memo: '', name: '', phone: '', car: '', photos: [], referrer: null });
     setShowAddConsultation(false);
     fetchConsultations();
   };
@@ -1720,7 +1726,7 @@ export default function CRMPage() {
                 onClick={() => { onChange(c.id); setOpen(false); }}
                 className="w-full text-left px-3 py-2 text-sm text-[var(--c-text-1)] hover:bg-[var(--c-subtle)] transition-colors"
               >
-                {c.name} {c.phone && <span className="text-[var(--c-text-3)]">({c.phone})</span>}
+                {isBlacklisted(c.memo) && <span className="text-danger mr-1" title={`블랙리스트: ${blacklistInfo(c.memo)?.reason || ''}`}>⛔</span>}{c.name} {c.phone && <span className="text-[var(--c-text-3)]">({c.phone})</span>}
                 {(() => { const cars = (vehiclesByCustomer.get(c.id) || []).map((v) => vehicleLabel(v)).filter(Boolean); const label = cars.length ? cars.join(' · ') : `${c.car_brand || ''} ${c.car_model || ''}`.trim(); return label ? <span className="ml-2 text-xs text-[var(--c-text-3)]">{label}</span> : null; })()}
               </button>
             ))}
@@ -2147,6 +2153,7 @@ export default function CRMPage() {
                 />
                 <span className="text-xs text-[var(--c-text-3)]">{filteredCustomers.length}명</span>
               </div>
+              <button onClick={() => setShowBlacklist(true)} className="text-sm font-medium rounded-lg px-3 py-2 border border-danger/40 text-danger hover:bg-danger/10 transition-colors mr-2" title="블랙리스트 보기·추가·해제">⛔ 블랙리스트{customers.filter((c) => isBlacklisted(c.memo)).length ? ` ${customers.filter((c) => isBlacklisted(c.memo)).length}` : ''}</button>
               <button
                 onClick={() => { setEditCustomerId(null); setCustomerForm({ name: '', phone: '', car_brand: '', car_model: '', car_year: '', car_color: '', source: '', memo: '', appointment_start_date: '', appointment_end_date: '', appointment_service_type: '', appointment_amount: '', appointment_memo: '' }); setShowAddCustomer(true); }}
                 className="bg-brand hover:bg-brand-dark text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors"
@@ -2176,6 +2183,7 @@ export default function CRMPage() {
                     >
                       <td className="px-4 py-3 text-sm text-[var(--c-text-1)] font-medium">
                         {c.name}
+                        {isBlacklisted(c.memo) && <span className="ml-1.5 text-[9px] bg-danger/15 text-danger px-1.5 py-0.5 rounded-full font-semibold" title={blacklistInfo(c.memo)?.reason || ''}>⛔ 블랙리스트</span>}
                         {c.service_count >= 2 && <span className="ml-1.5 text-[9px] bg-gold/20 text-gold px-1.5 py-0.5 rounded-full font-medium">재방문</span>}
                         {(vehiclesByCustomer.get(c.id)?.length || 0) > 1 && <span className="ml-1 text-[9px] bg-info/15 text-info px-1.5 py-0.5 rounded-full font-medium">차 {vehiclesByCustomer.get(c.id)!.length}대</span>}
                       </td>
@@ -2987,7 +2995,7 @@ export default function CRMPage() {
                   <div className="flex items-center gap-3 text-xs text-[var(--c-text-3)]">
                     {c.estimate && <span>견적: <span className="text-gold">{c.estimate}</span></span>}
                     {c.interested_services && <span>관심: <span className="text-[var(--c-text-2)]">{c.interested_services}</span></span>}
-                    {c.memo && <span>메모: {c.memo.split(' · ').filter((seg) => !seg.startsWith('사진: ')).join(' · ') || '-'}</span>}
+                    {c.memo && <span>메모: {hideRefToken(c.memo).split(' · ').filter((seg) => !seg.startsWith('사진: ')).join(' · ') || '-'}</span>}
                   </div>
                   {c.memo && c.memo.includes('사진: ') && (
                     <div className="flex flex-wrap gap-2 mt-2">
@@ -3166,7 +3174,9 @@ export default function CRMPage() {
                   <div className="grid grid-cols-3 gap-2">
                     <input type="text" placeholder="이름" value={consultationForm.name} onChange={(e) => setConsultationForm({ ...consultationForm, name: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[var(--c-text-1)]" />
                     <input type="tel" inputMode="numeric" placeholder="010-0000-0000 *" value={consultationForm.phone} onChange={(e) => setConsultationForm({ ...consultationForm, phone: formatPhoneInput(e.target.value) })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[var(--c-text-1)]" />
+                    <BlacklistWarning phone={consultationForm.phone} />
                     <input type="text" placeholder="차종 (예: 포르쉐 카이엔)" value={consultationForm.car} onChange={(e) => setConsultationForm({ ...consultationForm, car: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[var(--c-text-1)]" />
+                    <ReferrerPicker compact value={consultationForm.referrer} onChange={(p) => setConsultationForm({ ...consultationForm, referrer: p })} excludeCustomerId={consultationForm.customer_id || null} />
                   </div>
                   <div className="text-[11px] text-[var(--c-text-3)] mt-2">계약으로 이어지면 상담 기록 줄의 "＋ 고객 목록에 추가"로 등록하면 이 기록이 자동으로 연결됩니다</div>
                 </div>
@@ -3243,6 +3253,7 @@ export default function CRMPage() {
           </div>
         </div>
       )}
+      {showBlacklist && <BlacklistModal onClose={() => setShowBlacklist(false)} onChanged={() => { fetchCustomers(); fetchAllCustomers(); }} />}
       {careBook && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-end sm:items-center justify-center p-3" onClick={() => setCareBook(null)}>
           <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-2xl w-full max-w-sm p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>

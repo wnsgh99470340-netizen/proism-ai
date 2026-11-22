@@ -8,6 +8,7 @@ import { MEMBERSHIP, POINTS } from '@/config/membership';
 import MemberSmsButtons from '@/components/crm/MemberSmsButtons';
 import VehicleList from '@/components/crm/VehicleList';
 import { vehicleLabel, type Vehicle } from '@/lib/vehicles';
+import { blacklistInfo, clearBlacklist } from '@/lib/blacklist';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -212,6 +213,13 @@ export default function CustomerDetailPage() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-6">
+        {blacklistInfo(customer.memo) && (
+          <div className="mb-4 rounded-xl border border-danger/40 bg-danger/10 px-4 py-3 flex items-center gap-3">
+            <span className="text-danger font-semibold text-sm">⛔ 블랙리스트 고객</span>
+            <span className="text-sm text-[var(--c-text-2)]">{blacklistInfo(customer.memo)?.reason} <span className="text-[var(--c-text-4)]">· {blacklistInfo(customer.memo)?.date}</span></span>
+            <button onClick={async () => { if (!confirm('블랙리스트에서 뺄까요?')) return; const e = await clearBlacklist(customer.id); if (e) alert(e); else fetchData(); }} className="ml-auto text-xs text-[var(--c-text-3)] hover:text-ok">해제</button>
+          </div>
+        )}
         {/* 차량 (2026-11-22 차량 N대) */}
         <VehicleList customerId={id} onChange={setVehicles} />
         {/* Customer Info Card */}
@@ -471,7 +479,7 @@ export default function CustomerDetailPage() {
                 {c.content && <p className="text-sm text-[var(--c-text-2)] mb-2">{c.content}</p>}
                 <div className="flex gap-3 text-xs text-[var(--c-text-3)]">
                   {c.interested_services && <span>관심 시공: {c.interested_services}</span>}
-                  {c.memo && <span>메모: {c.memo}</span>}
+                  {c.memo && <span>메모: {c.memo.replace(/\s*\[ref:[0-9a-f-]{36}\]/g, '')}</span>}
                 </div>
               </div>
             ))}
