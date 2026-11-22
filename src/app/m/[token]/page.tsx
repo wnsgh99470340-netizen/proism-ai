@@ -16,11 +16,12 @@ interface Data {
   owner?: boolean;
   customer: { name: string; car: string; color: string | null; memberSince: string | null; registered: string };
   membership: { name: string; common: string[]; referrerReward: string; referredRewardOptions: string[]; referredCondition: string };
-  services: { id?: string; type: string; date: string | null; done: string | null; area: string | null; film: string | null }[];
+  services: { id?: string; type: string; date: string | null; done: string | null; area: string | null; film: string | null; vehicle?: string | null }[];
+  vehicles?: { id: string; label: string; year: string | null; color: string | null; plate: string | null; primary: boolean }[];
   care: { type: string; date: string; done: boolean; skipped?: boolean; doneAt: string | null; serviceId?: string | null; note?: string | null; photos?: string[] }[];
   upcoming: { date: string; end: string | null; service: string | null; status: string }[];
   careGuide?: { guides: { key: string; title: string; after: string[]; daily: string[]; contact: string[] }[]; common: string };
-  warranties: { date: string; end: string | null; work: string; period: string; url: string | null; items: { group: string; text: string; product?: string }[]; certNo: string }[];
+  warranties: { date: string; end: string | null; work: string; period: string; url: string | null; items: { group: string; text: string; product?: string }[]; certNo: string; vehicle?: string | null }[];
   referrals: { gave: { name: string; date: string; state: string; reward: string | null; rewardAt: string | null }[]; received: { from: string; date: string; reward: string | null; rewardAt: string | null } | null };
   points: { balance: number; expiresAt: string | null; expired: boolean; history: { date: string; delta: number; reason: string }[]; unit: string; earnRule: string; menu: { cost: number; label: string; detail: string }[]; conditions: string[] };
   shop: { name: string; phone: string; address: string; card: string; map: string; talk: string };
@@ -119,7 +120,8 @@ export default function MemberPage() {
   // 시공 건별로 묶기 (2026-11-19 사장님 "기존 작업과 새 작업은 같은 분이 맡겼어도 따로 분류"): 시공이 2건 이상일 때만 건마다 머리줄
   const careGroups = (() => {
     const svcs = [...data.services].sort((x, y) => (y.date || '').localeCompare(x.date || ''));
-    const groups = svcs.map((sv) => ({ key: sv.id || '', title: `${fmtDot(sv.date)} ${sv.type}${sv.area ? ` · ${sv.area}` : ''}`, rows: careSorted.filter((f) => f.serviceId && f.serviceId === sv.id) }));
+    const multiCar = (data.vehicles?.length || 0) > 1;
+    const groups = svcs.map((sv) => ({ key: sv.id || '', title: `${fmtDot(sv.date)} ${sv.type}${multiCar && sv.vehicle ? ` · ${sv.vehicle}` : ''}${sv.area ? ` · ${sv.area}` : ''}`, rows: careSorted.filter((f) => f.serviceId && f.serviceId === sv.id) }));
     const rest = careSorted.filter((f) => !f.serviceId || !svcs.some((sv) => sv.id === f.serviceId));
     if (rest.length) groups.push({ key: 'rest', title: '그 외', rows: rest });
     return groups.filter((g) => g.rows.length > 0);
@@ -193,7 +195,7 @@ export default function MemberPage() {
 
               <div className="mt-6">
                 <div className="text-[28px] leading-none font-bold tracking-tight">{c.name} <span className="text-[17px] font-medium text-white/60">고객님</span></div>
-                <div className="text-sm text-white/65 mt-2.5">{c.car || '차량 미등록'}{c.color ? <span className="text-white/40"> · {c.color}</span> : null}</div>
+                <div className="text-sm text-white/65 mt-2.5">{(cert && cert.vehicle) || c.car || '차량 미등록'}{c.color ? <span className="text-white/40"> · {c.color}</span> : null}</div>
               </div>
 
               <div className="my-5 h-px bg-gradient-to-r from-white/20 via-white/10 to-transparent" />
@@ -429,7 +431,7 @@ export default function MemberPage() {
             <div className={box}>
               <div className="text-sm font-bold mb-2">시공 기록</div>
               {data.services.length === 0 ? <div className="text-sm text-white/60">아직 시공 기록이 없습니다.</div> : (
-                <ul className="space-y-2">{data.services.map((s, i) => <li key={i} className="text-sm flex items-center justify-between"><div>{s.type}{s.area ? <span className="text-white/50 text-xs ml-1">{s.area}</span> : null}</div><div className="text-white/70 tabular-nums">{fmt(s.date)}</div></li>)}</ul>
+                <ul className="space-y-2">{data.services.map((s, i) => <li key={i} className="text-sm flex items-center justify-between"><div>{s.type}{(data.vehicles?.length || 0) > 1 && s.vehicle ? <span className="text-white/60 text-xs ml-1">{s.vehicle}</span> : null}{s.area ? <span className="text-white/50 text-xs ml-1">{s.area}</span> : null}</div><div className="text-white/70 tabular-nums">{fmt(s.date)}</div></li>)}</ul>
               )}
             </div>
             <div className={box}>

@@ -6,6 +6,8 @@ import { todaySeoul } from '@/lib/local-date';
 import { linkReferral, loadReferralsFor, markThanksSent, updateReferral, unlinkReferral, loadPoints, usePoints, grantPointForReferral, deletePointRow, type Referral, type PointSummary } from '@/lib/referrals';
 import { MEMBERSHIP, POINTS } from '@/config/membership';
 import MemberSmsButtons from '@/components/crm/MemberSmsButtons';
+import VehicleList from '@/components/crm/VehicleList';
+import { vehicleLabel, type Vehicle } from '@/lib/vehicles';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -25,6 +27,7 @@ interface Customer {
 
 interface Service {
   id: string;
+  vehicle_id?: string | null;
   service_type: string;
   film_used: string | null;
   service_area: string | null;
@@ -76,6 +79,7 @@ export default function CustomerDetailPage() {
 
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [services, setServices] = useState<Service[]>([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]); // 차량 N대 (2026-11-22) — 시공 줄에 어느 차인지 표시용
   // 예약(보증서 발급 여부·다음 예약 표시용, 2026-11-18 사장님: 상세 화면에서도 보증서 보냈는지 보이게)
   const [appts, setAppts] = useState<{ id: string; appointment_date: string; end_date: string | null; service_type: string | null; status: string; memo: string | null }[]>([]);
   const [consultations, setConsultations] = useState<Consultation[]>([]);
@@ -208,6 +212,8 @@ export default function CustomerDetailPage() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-6">
+        {/* 차량 (2026-11-22 차량 N대) */}
+        <VehicleList customerId={id} onChange={setVehicles} />
         {/* Customer Info Card */}
         <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-5 mb-6">
           <div className="flex items-center justify-between mb-3">
@@ -405,6 +411,7 @@ export default function CustomerDetailPage() {
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-[var(--c-text-1)]">{s.service_type}</span>
+                    {vehicles.length > 1 && s.vehicle_id && <span className="text-xs text-[var(--c-text-3)]">{vehicleLabel(vehicles.find((v) => v.id === s.vehicle_id))}</span>}
                     {s.amount != null && s.amount > 0 && <span className="text-xs text-gold">{s.amount.toLocaleString()}원</span>}
                   </div>
                   <div className="flex items-center gap-2">

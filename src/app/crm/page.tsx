@@ -28,6 +28,7 @@ import CareCompleteModal from '@/components/crm/CareCompleteModal';
 import { appendCareLog, parseCareLog, stripCareLog } from '@/lib/care-log';
 import { isDemoClient } from '@/lib/demo';
 import { scheduleNextMaintenance, markFollowUpSkipped, closeQuoteFollowUpsFor, isSkipped } from '@/lib/followups';
+import { loadVehicles, loadAllVehicles, ensurePrimaryVehicle, fillPlateIfEmpty, vehicleLabel, type Vehicle } from '@/lib/vehicles';
 
 // ─── Types ───────────────────────────────────────────────
 interface Customer {
@@ -53,6 +54,9 @@ interface Customer {
 interface Appointment {
   id: string;
   customer_id: string;
+  /** 어느 차에 한 작업인지 (2026-11-22 차량 N대). 표가 없으면 undefined */
+  vehicle_id?: string | null;
+  vehicle?: { brand: string | null; model: string | null; plate: string | null } | null;
   appointment_date: string;
   end_date?: string | null;
   service_type: string | null;
@@ -271,8 +275,23 @@ export default function CRMPage() {
   const [shotMonth, setShotMonth] = useState<string>(() => todaySeoul().slice(0, 7));
   const shotFileRef = useRef<HTMLInputElement>(null);
   const [appointmentForm, setAppointmentForm] = useState({
-    customer_id: '', appointment_date: '', end_date: '', service_type: '', amount: '', memo: '',
+    customer_id: '', appointment_date: '', end_date: '', service_type: '', amount: '', memo: '', vehicle_id: '',
   });
+  // 예약 추가 창: 고른 고객의 차량 목록 (2026-11-22 차량 N대). 한 대면 자동, 여러 대면 고르게
+  const [apptVehicles, setApptVehicles] = useState<Vehicle[]>([]);
+  useEffect(() => {
+    let alive = true;
+    if (!appointmentForm.customer_id) { setApptVehicles([]); return; }
+    loadVehicles(appointmentForm.customer_id).then((v) => {
+      if (!alive) return;
+      setApptVehicles(v);
+      const primary = v.find((x) => x.is_primary) || v[0];
+      setAppointmentForm((f) => (f.customer_id ? { ...f, vehicle_id: primary ? primary.id : '' } : f));
+    });
+    return () => { alive = false; };
+  }, [appointmentForm.customer_id]);
+  // 고객 목록 "외 N대" 표시용
+  const [vehiclesByCustomer, setVehiclesByCustomer] = useState<Map<string, Vehicle[]>>(new Map());
   const [calendarView, setCalendarView] = useState<'calendar' | 'list'>('calendar');
   const [managerFilter] = useState<'전체' | '대표' | '이팀장님' | '김막내'>('전체');
   const [calendarMonth, setCalendarMonth] = useState(() => { const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() }; });
@@ -398,6 +417,7 @@ export default function CRMPage() {
 
   // ─── Data Fetching ──────────────────────────────────────
   const fetchCustomers = useCallback(async () => {
+    loadAllVehicles().then(setVehiclesByCustomer);
     const { data } = await supabase
       .from('customers')
       .select('*')
@@ -429,10 +449,14 @@ export default function CRMPage() {
   }, []);
 
   const fetchAppointments = useCallback(async () => {
-    const { data } = await supabase
+    let { data } = await supabase
       .from('appointments')
-      .select('*, customer:customers(name, phone)')
+      .select('*, customer:customers(name, phone), vehicle:vehicles(brand, model, plate)')
       .order('appointment_date', { ascending: true });
+    if (!data) { // vehicles 표가 아직 없으면 join 이 실패 → 예전 쿼리로
+      const r = await supabase.from('appointments').select('*, customer:customers(name, phone)').order('appointment_date', { ascending: true });
+      data = r.data;
+    }
     if (data) {
       // 오늘 기준 가까운 예약이 위로: 오늘/미래 → 날짜 오름차순, 과거 → 날짜 내림차순 (아래로)
       const todayStr = todaySeoul();
@@ -497,6 +521,7 @@ export default function CRMPage() {
       .single();
 
     console.log('[CRM] customer insert result:', JSON.stringify(insertData), JSON.stringify(insertError));
+    if (insertData?.id) ensurePrimaryVehicle(insertData.id as string, { brand: formData.car_brand || null, model: formData.car_model || null, year: formData.car_year || null, color: formData.car_color || null }); // 차량 N대 (2026-11-22)
 
     let customerId = insertData?.id;
 
@@ -822,6 +847,7 @@ export default function CRMPage() {
             const { data: c, error } = await supabase.from('customers').insert({ name, phone: r.phone || null, car_brand: r.brand || null, car_model: r.car || null, memo: `스크린샷 일정에서 가져온 고객(${todaySeoul()}). 전화·유입경로를 채워 주세요` }).select('id').single();
             if (error || !c) { alert(`${name} 고객 등록 실패: ${error?.message || ''}`); continue; }
             customerId = c.id as string; createdByName.set(name, customerId); newCus++;
+            ensurePrimaryVehicle(customerId, { brand: r.brand || null, model: r.car || null });
           }
         }
         const memo = [r.label, r.time, r.note].filter(Boolean).join(' · ') + ` · 스크린샷에서 가져옴 ${todaySeoul()}`;
@@ -852,6 +878,7 @@ export default function CRMPage() {
       service_type: appointmentForm.service_type || null,
       amount: appointmentForm.amount ? Number(appointmentForm.amount) : null,
       memo: appointmentForm.memo || null,
+      ...(appointmentForm.vehicle_id ? { vehicle_id: appointmentForm.vehicle_id } : {}), // 차량 표가 있을 때만 값이 생긴다
     });
     // 예약이 잡혔으니 이 손님의 열린 견적 재연락·마무리는 닫는다 (2026-11-22)
     closeQuoteFollowUpsFor(appointmentForm.customer_id, allCustomers.find((c) => c.id === appointmentForm.customer_id)?.phone).then((n) => { if (n) fetchFollowUps(); });
@@ -875,7 +902,7 @@ export default function CRMPage() {
         .catch((err) => console.warn('[CRM] Notion 예약 동기화 실패:', err));
     }
 
-    setAppointmentForm({ customer_id: '', appointment_date: '', end_date: '', service_type: '', amount: '', memo: '' });
+    setAppointmentForm({ customer_id: '', appointment_date: '', end_date: '', service_type: '', amount: '', memo: '', vehicle_id: '' });
     setShowAddAppointment(false);
     fetchAppointments();
   };
@@ -949,7 +976,7 @@ export default function CRMPage() {
     if (!memoObj.warranty) {
       memoObj.warranty = {
         date: appointment.appointment_date, customer_name: cust?.name || appointment.customer?.name || '', phone: cust?.phone || appointment.customer?.phone || '',
-        car_type: [cust?.car_brand, cust?.car_model].filter(Boolean).join(' '), car_number: workOrder.car_number || '',
+        car_type: (appointment.vehicle && vehicleLabel(appointment.vehicle)) || [cust?.car_brand, cust?.car_model].filter(Boolean).join(' '), car_number: workOrder.car_number || '',
         work_details: workDetailsText(workOrder as WorkOrderJson, appointment.service_type || '시공'), warranty_period: '시공일로부터 1년',
         price: finalAmount ? `₩${Number(finalAmount).toLocaleString()}` : '',
       };
@@ -991,6 +1018,7 @@ export default function CRMPage() {
         film_used: filmUsed,
         service_area: serviceArea,
         memo: mergedMemo,
+        ...(appointment.vehicle_id ? { vehicle_id: appointment.vehicle_id } : {}),
       })
       .select()
       .single();
@@ -1001,6 +1029,7 @@ export default function CRMPage() {
       service = again && again.length > 0 ? again[0] : null;
     }
 
+    fillPlateIfEmpty(appointment.vehicle_id, workOrder.car_number); // 작업 내역서의 차량번호를 그 차에 적어 둔다
     // 사후관리 자동 생성 (시공 기록당 한 벌만 — createAutoFollowUps 안에서 이미 있는 유형은 건너뜀)
     if (service && appointment.service_type) {
       const hasPpf = (workOrder.ppf || []).length > 0 || !!workOrder.ppf_etc?.trim();
@@ -1143,10 +1172,11 @@ export default function CRMPage() {
       } catch { /* not JSON, ignore */ }
     }
     resetWorkOrder();
-    // 예약 금액을 작업내역서 기본값으로 설정
+    // 예약 금액·그 차의 차량번호를 작업내역서 기본값으로
     if (appointment.amount) {
       setWorkOrder((prev) => ({ ...prev, amount: String(appointment.amount) }));
     }
+    if (appointment.vehicle?.plate) setWorkOrder((prev) => ({ ...prev, car_number: prev.car_number || appointment.vehicle?.plate || '' }));
     setWorkOrderAppointment(appointment);
     setShowWorkOrder(true);
   };
@@ -1971,6 +2001,7 @@ export default function CRMPage() {
                         {c.car_brand || c.car_model
                           ? `${c.car_brand || ''} ${c.car_model || ''}`.trim()
                           : '-'}
+                        {(vehiclesByCustomer.get(c.id)?.length || 0) > 1 && <span className="ml-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[var(--c-subtle)] text-[var(--c-text-3)]">외 {(vehiclesByCustomer.get(c.id)?.length || 1) - 1}대</span>}
                       </td>
                       <td className="px-4 py-3 text-sm text-[var(--c-text-2)]">
                         {c.latest_service
@@ -2183,6 +2214,7 @@ export default function CRMPage() {
                               </div>
                               <div className="text-sm text-[var(--c-text-3)] mt-0.5 truncate">
                                 {a.service_type || '시공 미정'}
+                                {a.vehicle && vehicleLabel(a.vehicle) ? <span className="ml-2 text-[var(--c-text-2)]">{vehicleLabel(a.vehicle)}</span> : null}
                                 {a.amount ? <span className="ml-2 text-[var(--c-text-1)] font-medium">{a.amount.toLocaleString()}원</span> : null}
                                 {memoDisplay && <span className="ml-2">· {memoDisplay}</span>}
                               </div>
@@ -2876,6 +2908,15 @@ export default function CRMPage() {
                 <label className="text-xs text-[var(--c-text-3)] mb-1 block">고객 *</label>
                 <CustomerPicker value={appointmentForm.customer_id} onChange={(id) => setAppointmentForm({ ...appointmentForm, customer_id: id })} />
               </div>
+              {apptVehicles.length > 1 && (
+                <div>
+                  <label className="text-xs text-[var(--c-text-3)] mb-1 block">어느 차 *</label>
+                  <select value={appointmentForm.vehicle_id} onChange={(e) => setAppointmentForm({ ...appointmentForm, vehicle_id: e.target.value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50">
+                    {apptVehicles.map((v) => <option key={v.id} value={v.id}>{vehicleLabel(v, true) || '차량'}{v.is_primary ? ' (대표)' : ''}</option>)}
+                  </select>
+                </div>
+              )}
+              {apptVehicles.length === 1 && <div className="text-xs text-[var(--c-text-3)]">차량: {vehicleLabel(apptVehicles[0], true)}</div>}
               <div>
                 <label className="text-xs text-[var(--c-text-3)] mb-1 block">시공 시작일 *</label>
                 <input type="date" value={appointmentForm.appointment_date} onChange={(e) => setAppointmentForm({ ...appointmentForm, appointment_date: e.target.value })} onInput={(e) => setAppointmentForm({ ...appointmentForm, appointment_date: (e.target as HTMLInputElement).value })} className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50" />

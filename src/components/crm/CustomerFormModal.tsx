@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { MEMBERSHIP } from '@/config/membership';
 import { closeQuoteFollowUpsFor } from '@/lib/followups';
+import { ensurePrimaryVehicle } from '@/lib/vehicles';
 
 /**
  * 고객 등록·수정 창 하나 (2026-11-18 사장님: "왜 자꾸 등록 창이랑 수정 창이 달라" → 어디서 열든 같은 창, 같은 칸)
@@ -46,6 +47,7 @@ export async function saveCustomerEdit(customerId: string, form: CustomerFormVal
     car_year: form.car_year.trim() || null, car_color: form.car_color.trim() || null, source: form.source || null, memo: form.memo.trim() || null,
   }).eq('id', customerId);
   if (error) return '수정 실패: ' + error.message;
+  ensurePrimaryVehicle(customerId, { brand: form.car_brand.trim() || null, model: form.car_model.trim() || null, year: form.car_year.trim() || null, color: form.car_color.trim() || null }).catch(() => {}); // 대표 차량과 맞춤 (2026-11-22)
 
   const amount = form.appointment_amount ? Number(form.appointment_amount) : null;
   if (latestApptId) {
