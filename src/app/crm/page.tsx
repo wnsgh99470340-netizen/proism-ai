@@ -159,7 +159,11 @@ async function createAutoFollowUps(
   });
 
   if (followUps.length > 0) {
-    await supabase.from('follow_ups').insert(followUps);
+    // 같은 시공 기록에 이미 사후관리가 있으면 만들지 않는다 (2026-11-22 "한 작업당 무조건 한 번만"). 유형별로 빠진 것만 채운다
+    const { data: have } = await supabase.from('follow_ups').select('follow_up_type').eq('service_id', serviceId);
+    const haveTypes = new Set((have || []).map((h) => h.follow_up_type as string));
+    const missing = followUps.filter((f) => !haveTypes.has(f.follow_up_type));
+    if (missing.length > 0) await supabase.from('follow_ups').insert(missing);
   }
 }
 
@@ -966,7 +970,7 @@ export default function CRMPage() {
         return;
       }
     }
-    const { data: service } = await supabase
+    let { data: service } = await supabase
       .from('services')
       .insert({
         customer_id: appointment.customer_id,
@@ -980,8 +984,14 @@ export default function CRMPage() {
       })
       .select()
       .single();
+    if (!service) {
+      // DB 제약(docs/시공기록-한예약당-한줄-제약.sql)에 걸렸거나 동시에 두 번 들어온 경우: 방금 생긴 줄을 찾아 그걸 쓴다 → 절대 두 줄이 되지 않는다
+      const { data: again } = await supabase.from('services').select('*').eq('customer_id', appointment.customer_id)
+        .eq('service_date', appointment.appointment_date).eq('service_type', appointment.service_type || '기타').order('created_at', { ascending: true }).limit(1);
+      service = again && again.length > 0 ? again[0] : null;
+    }
 
-    // 사후관리 자동 생성
+    // 사후관리 자동 생성 (시공 기록당 한 벌만 — createAutoFollowUps 안에서 이미 있는 유형은 건너뜀)
     if (service && appointment.service_type) {
       const hasPpf = (workOrder.ppf || []).length > 0 || !!workOrder.ppf_etc?.trim();
       await createAutoFollowUps(service.id, appointment.customer_id, appointment.service_type, completionDate, hasPpf);
