@@ -30,7 +30,12 @@ export async function POST(request: NextRequest) {
       supabase.from('customers').select('id, name, phone, car_brand, car_model, created_at'),
       supabase.from('appointments').select('id, customer_id, appointment_date, end_date, memo, status').lte('appointment_date', dates[dates.length - 1]).gte('appointment_date', dates[0] < '2000-01-01' ? '2000-01-01' : addMonths(dates[0], -1)),
     ]);
-    const candidates = matchCandidates(extracted.events, (customers || []) as KnownCustomer[], (appts || []) as KnownAppointment[], today);
+    // 차량 N대 (2026-11-22): 두 번째 차로도 고객을 찾는다. 표가 없으면 빈 목록
+    const { data: vrows } = await supabase.from('vehicles').select('customer_id, brand, model');
+    const carsBy = new Map<string, string[]>();
+    for (const v of (vrows || []) as { customer_id: string; brand: string | null; model: string | null }[]) { const arr = carsBy.get(v.customer_id) || []; arr.push([v.brand, v.model].filter(Boolean).join(' ')); carsBy.set(v.customer_id, arr); }
+    const withCars = ((customers || []) as KnownCustomer[]).map((c) => ({ ...c, cars: carsBy.get(c.id) || [] }));
+    const candidates = matchCandidates(extracted.events, withCars, (appts || []) as KnownAppointment[], today);
     return Response.json({ month: extracted.month, candidates, hidden: extracted.hidden });
   } catch (e) {
     return Response.json({ error: e instanceof Error ? e.message : '읽기 실패' }, { status: 500 });

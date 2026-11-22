@@ -18,7 +18,7 @@ interface Data {
   membership: { name: string; common: string[]; referrerReward: string; referredRewardOptions: string[]; referredCondition: string };
   services: { id?: string; type: string; date: string | null; done: string | null; area: string | null; film: string | null; vehicle?: string | null }[];
   vehicles?: { id: string; label: string; year: string | null; color: string | null; plate: string | null; primary: boolean }[];
-  care: { type: string; date: string; done: boolean; skipped?: boolean; doneAt: string | null; serviceId?: string | null; note?: string | null; photos?: string[] }[];
+  care: { type: string; date: string; done: boolean; skipped?: boolean; visitDate?: string | null; doneAt: string | null; serviceId?: string | null; note?: string | null; photos?: string[] }[];
   upcoming: { date: string; end: string | null; service: string | null; status: string }[];
   careGuide?: { guides: { key: string; title: string; after: string[]; daily: string[]; contact: string[] }[]; common: string };
   warranties: { date: string; end: string | null; work: string; period: string; url: string | null; items: { group: string; text: string; product?: string }[]; certNo: string; vehicle?: string | null }[];
@@ -38,6 +38,8 @@ const box = 'rounded-2xl bg-white/[0.04] border border-white/10 p-4';
 const btn = 'flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-colors';
 const micro = 'text-[10px] tracking-[0.22em] uppercase text-white/40';
 const careName = (t: string) => (t === 'QC점검' ? 'QC 점검' : t);
+/** 방문이 잡히기 전의 예정일은 '연락드릴 때'다 — 손님이 방문일로 읽지 않게 "12월 초에 연락드립니다"로 (2026-11-22) */
+const roughWhen = (d: string | null | undefined) => { const x = toDate(d); if (!x) return ''; const day = x.getDate(); return `${x.getMonth() + 1}월 ${day <= 10 ? '초' : day <= 20 ? '중순' : '말'}`; };
 
 /** 시공 증명서 아래 "이 시공의 기준" — 확인된 사실만, 짧게 (differentiators.ts confirmed 항목 기준) */
 function standardsFor() {
@@ -114,7 +116,7 @@ export default function MemberPage() {
   const c = data.customer;
   const nextCare = data.care.find((f) => !f.done);
   const doneCare = data.care.filter((f) => f.done && !f.skipped); // 미방문은 받은 관리에 안 센다
-  const nextDays = nextCare ? daysUntil(nextCare.date) : null;
+  const nextDays = nextCare ? daysUntil(nextCare.visitDate || nextCare.date) : null;
   // 최근 것이 위로: 완료는 완료일, 예정은 예정일 기준
   const careSorted = [...data.care].sort((a, b) => ((b.done ? b.doneAt || b.date : b.date) || '').localeCompare((a.done ? a.doneAt || a.date : a.date) || ''));
   // 시공 건별로 묶기 (2026-11-19 사장님 "기존 작업과 새 작업은 같은 분이 맡겼어도 따로 분류"): 시공이 2건 이상일 때만 건마다 머리줄
@@ -257,7 +259,7 @@ export default function MemberPage() {
         {/* 다음 일정 요약 */}
         {(nextCare || data.upcoming.length > 0) && (
           <div className="grid grid-cols-1 gap-2">
-            {nextCare && <div className="rounded-2xl bg-white/[0.04] border border-white/10 px-4 py-3 flex items-center justify-between"><div><div className={micro}>다음 관리</div><div className="text-sm font-semibold mt-0.5">{careName(nextCare.type)}</div></div><div className="text-sm text-white/75 tabular-nums">{fmt(nextCare.date)}</div></div>}
+            {nextCare && <div className="rounded-2xl bg-white/[0.04] border border-white/10 px-4 py-3 flex items-center justify-between"><div><div className={micro}>다음 관리</div><div className="text-sm font-semibold mt-0.5">{careName(nextCare.type)}</div></div><div className="text-right"><div className="text-sm text-white/75 tabular-nums">{nextCare.visitDate ? fmt(nextCare.visitDate) : roughWhen(nextCare.date)}</div><div className="text-[10px] text-white/40">{nextCare.visitDate ? '방문 예정' : '연락드립니다'}</div></div></div>}
             {data.upcoming.length > 0 && <div className="rounded-2xl bg-white/[0.04] border border-white/10 px-4 py-3 flex items-center justify-between"><div><div className={micro}>예약</div><div className="text-sm font-semibold mt-0.5">{data.upcoming[0].service || '시공'}</div></div><div className="text-sm text-white/75 tabular-nums">{fmt(data.upcoming[0].date)} · {data.upcoming[0].status}</div></div>}
           </div>
         )}
@@ -268,7 +270,7 @@ export default function MemberPage() {
             {/* 받은 관리 한눈에 (2026-11-19 사장님: 손님이 몇 번 관리 받았는지 보이게) */}
             <div className="grid grid-cols-3 gap-2">
               <div className={`${box} text-center`}><div className="text-[22px] font-bold leading-none tabular-nums pt-0.5">{doneCare.length}<span className="text-sm font-medium text-white/60 ml-0.5">회</span></div><div className={`${micro} mt-2`}>받으신 관리</div></div>
-              <div className={`${box} text-center`}><div className="text-[22px] font-bold leading-none tabular-nums whitespace-nowrap pt-0.5">{nextDays === null ? '-' : nextDays <= 0 ? '지금' : <>D-{nextDays}</>}</div><div className={`${micro} mt-2`}>다음 관리</div></div>
+              <div className={`${box} text-center`}><div className={`font-bold leading-none tabular-nums whitespace-nowrap pt-0.5 ${nextCare && !nextCare.visitDate ? 'text-[15px]' : 'text-[22px]'}`}>{nextDays === null ? '-' : nextCare && !nextCare.visitDate ? roughWhen(nextCare.date) : nextDays <= 0 ? '오늘' : <>D-{nextDays}</>}</div><div className={`${micro} mt-2`}>{nextCare && !nextCare.visitDate ? '다음 연락' : '다음 방문'}</div></div>
               <div className={`${box} text-center`}><div className="text-[22px] font-bold leading-none tabular-nums pt-0.5">{data.services.length}<span className="text-sm font-medium text-white/60 ml-0.5">건</span></div><div className={`${micro} mt-2`}>시공</div></div>
             </div>
             <div className={box}>
@@ -287,8 +289,8 @@ export default function MemberPage() {
                                 <span className={f.done ? '' : 'text-white/80'}>{careName(f.type)}</span>
                               </div>
                               <div className="text-right">
-                                <div className="text-white/75 tabular-nums">{fmt(f.done ? f.doneAt || f.date : f.date)}</div>
-                                <div className={`text-[10px] ${f.done && !f.skipped ? 'text-[#22c55e]' : 'text-white/40'}`}>{f.skipped ? '미방문' : f.done ? '받으셨습니다' : '예정'}</div>
+                                <div className="text-white/75 tabular-nums">{f.done ? fmt(f.doneAt || f.date) : f.visitDate ? fmt(f.visitDate) : roughWhen(f.date)}</div>
+                                <div className={`text-[10px] ${f.done && !f.skipped ? 'text-[#22c55e]' : 'text-white/40'}`}>{f.skipped ? '미방문' : f.done ? '받으셨습니다' : f.visitDate ? '방문 예정' : '연락 예정'}</div>
                               </div>
                             </div>
                             {/* 점검 기록 (2026-11-22): 그날 무엇을 봤는지 한 줄 + 사진. "받으셨습니다"보다 이게 관리의 증거 */}

@@ -803,7 +803,8 @@ export default function CRMPage() {
     return (
       c.name.toLowerCase().includes(q) ||
       (c.car_brand?.toLowerCase().includes(q)) ||
-      (c.car_model?.toLowerCase().includes(q))
+      (c.car_model?.toLowerCase().includes(q)) ||
+      (vehiclesByCustomer.get(c.id) || []).some((v) => `${v.brand || ''} ${v.model || ''} ${v.plate || ''}`.toLowerCase().includes(q)) // 두 번째 차로도 찾기 (2026-11-22)
     );
   });
 
@@ -1622,7 +1623,8 @@ export default function CRMPage() {
   const filteredPickerCustomers = allCustomers.filter((c) => {
     const q = customerPickerSearch.toLowerCase();
     if (!q) return true;
-    return c.name.toLowerCase().includes(q) || (c.phone?.includes(q));
+    // 이름·전화 + 차종(대표 차와 두 번째 차, 2026-11-22)
+    return c.name.toLowerCase().includes(q) || (c.phone?.includes(q)) || `${c.car_brand || ''} ${c.car_model || ''}`.toLowerCase().includes(q) || (vehiclesByCustomer.get(c.id) || []).some((v) => `${v.brand || ''} ${v.model || ''}`.toLowerCase().includes(q));
   });
 
   const CustomerPicker = ({ value, onChange }: { value: string; onChange: (id: string) => void }) => {
@@ -1643,7 +1645,7 @@ export default function CRMPage() {
             <div className="p-2 border-b border-[var(--c-border)]">
               <input
                 type="text"
-                placeholder="이름 또는 연락처 검색..."
+                placeholder="이름·연락처·차종 검색..."
                 value={customerPickerSearch}
                 onChange={(e) => setCustomerPickerSearch(e.target.value)}
                 className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded px-2 py-1.5 text-xs text-[var(--c-text-1)] outline-none focus:border-gold/50"
@@ -1658,6 +1660,7 @@ export default function CRMPage() {
                 className="w-full text-left px-3 py-2 text-sm text-[var(--c-text-1)] hover:bg-[var(--c-subtle)] transition-colors"
               >
                 {c.name} {c.phone && <span className="text-[var(--c-text-3)]">({c.phone})</span>}
+                {(() => { const cars = (vehiclesByCustomer.get(c.id) || []).map((v) => vehicleLabel(v)).filter(Boolean); const label = cars.length ? cars.join(' · ') : `${c.car_brand || ''} ${c.car_model || ''}`.trim(); return label ? <span className="ml-2 text-xs text-[var(--c-text-3)]">{label}</span> : null; })()}
               </button>
             ))}
             {filteredPickerCustomers.length === 0 && (
@@ -2634,7 +2637,8 @@ export default function CRMPage() {
               const dayList = base.filter((f) => f.scheduled_date === followDate);
               const overdue = base.filter((f) => !f.is_completed && f.scheduled_date < today);
               const countByDate: Record<string, number> = {};
-              base.forEach((f) => { if (!f.is_completed) countByDate[f.scheduled_date] = (countByDate[f.scheduled_date] || 0) + 1; });
+              base.forEach((f) => { if (!f.is_completed && !f.visit) countByDate[f.scheduled_date] = (countByDate[f.scheduled_date] || 0) + 1; }); // 방문 잡힌 건은 문자 대상이 아니라 숫자에서 뺌 (2026-11-22)
+              const visitsOnDay = base.filter((f) => !f.is_completed && f.visit && f.visit.appointment_date === followDate);
               // 달력 셀
               const first = new Date(followMonth.y, followMonth.m, 1);
               const startPad = first.getDay();
@@ -2697,7 +2701,7 @@ export default function CRMPage() {
                       ) : (
                         <>
                           <div className="flex items-center justify-between">
-                            <div className="text-sm font-semibold text-[var(--c-text-1)]">{dateLabel(followDate)}{followDate === today ? ' (오늘)' : ''} <span className="text-gold">{dayList.length}</span>건</div>
+                            <div className="text-sm font-semibold text-[var(--c-text-1)]">{dateLabel(followDate)}{followDate === today ? ' (오늘)' : ''} <span className="text-gold">{dayList.filter((f) => !f.visit || f.is_completed).length}</span>건{visitsOnDay.length > 0 && <span className="ml-2 text-xs font-medium text-info">📅 방문 {visitsOnDay.length}건</span>}</div>
                           </div>
                           {dayList.map(renderFollowUp)}
                           {dayList.length === 0 && <div className="text-center py-10 text-sm text-[var(--c-text-3)]">이 날 보낼 사후관리 문자가 없습니다</div>}

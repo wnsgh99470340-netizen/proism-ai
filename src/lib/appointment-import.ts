@@ -118,7 +118,7 @@ export async function extractEventsFromImage(base64: string, mediaType: string, 
   return { month: j.month && /^\d{4}-\d{2}$/.test(j.month) ? j.month : baseMonth, events, hidden: Array.isArray(j.hidden) ? j.hidden : [] };
 }
 
-export interface KnownCustomer { id: string; name: string; phone: string | null; car_brand?: string | null; car_model?: string | null; created_at?: string }
+export interface KnownCustomer { id: string; name: string; phone: string | null; car_brand?: string | null; car_model?: string | null; created_at?: string; /** 차량 N대 (2026-11-22): 대표 차 말고 다른 차들 */ cars?: string[] }
 export interface KnownAppointment { id: string; customer_id: string | null; appointment_date: string; end_date: string | null; memo: string | null; status: string }
 
 const norm = (s: string | null | undefined) => (s || '').replace(/[\s\-_.]/g, '').toLowerCase();
@@ -144,7 +144,7 @@ export function matchCandidates(events: ExtractedEvent[], customers: KnownCustom
       const key = normCar(e.car);
       // "테슬라 YL" ↔ "모델YL" 처럼 한쪽이 끝말로 포함돼도 같은 차로 본다
       const sameCar = (m: string | null | undefined) => { const k = normCar(m); return !!k && k.length >= 2 && (k === key || k.endsWith(key) || key.endsWith(k)); };
-      let hits = customers.filter((c) => sameCar(c.car_model) || normCar(c.name).startsWith(key));
+      let hits = customers.filter((c) => sameCar(c.car_model) || (c.cars || []).some(sameCar) || normCar(c.name).startsWith(key));
       if (hits.length > 1) hits = hits.filter((c) => appointments.some((a) => a.customer_id === c.id && overlaps(a)));
       if (hits.length === 1) { customerId = hits[0].id; customerName = hits[0].name; matchBy = 'car'; }
     }

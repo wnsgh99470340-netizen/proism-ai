@@ -102,7 +102,20 @@ export async function buildDailyBrief(date = todaySeoul()): Promise<DailyBrief> 
     .lte('scheduled_date', date)
     .order('scheduled_date', { ascending: false });
   if (error) throw new Error(`사후관리 조회 실패: ${error.message}`);
-  const rows = (data || []) as unknown as FollowUpRow[];
+  const rows0 = (data || []) as unknown as FollowUpRow[];
+
+  // 방문 예약이 잡힌 QC·메인터넌스(2026-11-22 방문 예약 흐름)는 "문자 보낼 것"이 아니라 "오늘 방문"이다 — 이미 오기로 한 손님에게 "QC 시기가 되어 연락드립니다"가 나가면 안 된다
+  const visitByFollowUp = new Map<string, { date: string; memo: string }>();
+  {
+    let va = (await supabase.from('appointments').select('id, appointment_date, status, follow_up_id, memo').in('service_type', ['QC점검', '메인터넌스']).in('status', ['예약확정', '시공중', '상담중'])).data as { appointment_date: string; follow_up_id?: string | null; memo: string | null }[] | null;
+    if (!va) va = (await supabase.from('appointments').select('id, appointment_date, status, memo').in('service_type', ['QC점검', '메인터넌스']).in('status', ['예약확정', '시공중', '상담중'])).data as typeof va;
+    for (const a of va || []) {
+      const fid = a.follow_up_id || (a.memo || '').match(/사후관리:([0-9a-f-]{36})/)?.[1];
+      if (fid) visitByFollowUp.set(fid, { date: a.appointment_date, memo: (a.memo || '').replace(/ · 사후관리:[0-9a-f-]{36}/, '') });
+    }
+  }
+  const visitsToday = rows0.filter(r => visitByFollowUp.get(r.id)?.date === date);
+  const rows = rows0.filter(r => !visitByFollowUp.has(r.id));
 
   const isConsult = (t: string) => t === '견적재연락' || t === '견적마무리';
   const recent = rows.filter(r => r.scheduled_date >= since);
@@ -133,6 +146,7 @@ export async function buildDailyBrief(date = todaySeoul()): Promise<DailyBrief> 
           : `오늘 보낼 문자 ${u.length}건 준비 (${countBy(u)})`,
       items: aftercareItems,
       olderCount: older.filter(r => !isConsult(r.follow_up_type)).length,
+      notes: visitsToday.length ? [{ label: `오늘 방문 ${visitsToday.length}건`, where: '예약/일정 → 점검 완료', lines: visitsToday.map(r => `${r.customer?.name || '고객'} · ${followUpLabel(r.follow_up_type)}${visitByFollowUp.get(r.id)?.memo ? ` · ${visitByFollowUp.get(r.id)!.memo}` : ''}`) }] : undefined,
     });
   }
   {

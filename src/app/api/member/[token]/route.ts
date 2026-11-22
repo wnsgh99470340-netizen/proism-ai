@@ -51,7 +51,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const [{ data: services }, { data: followUps }, { data: appts }, { data: gave }, { data: received }, { data: pointRows }] = await Promise.all([
     supabase.from('services').select('id, service_type, service_date, completion_date, service_area, film_used').eq('customer_id', c.id).order('service_date', { ascending: false }),
-    supabase.from('follow_ups').select('follow_up_type, scheduled_date, is_completed, completed_date, service_id, memo').eq('customer_id', c.id).in('follow_up_type', ['QC점검', '메인터넌스', '리터치']).order('scheduled_date', { ascending: true }),
+    supabase.from('follow_ups').select('id, follow_up_type, scheduled_date, is_completed, completed_date, service_id, memo').eq('customer_id', c.id).in('follow_up_type', ['QC점검', '메인터넌스', '리터치']).order('scheduled_date', { ascending: true }),
     supabase.from('appointments').select('id, appointment_date, end_date, service_type, status, memo').eq('customer_id', c.id).neq('status', '취소').order('appointment_date', { ascending: false }),
     supabase.from('referrals').select('id, referred_id, created_at, referrer_reward, referrer_reward_used_at, referred:customers!referrals_referred_id_fkey(name)').eq('referrer_id', c.id).order('created_at', { ascending: false }),
     supabase.from('referrals').select('id, referrer_id, created_at, referred_reward, referred_reward_used_at, referrer:customers!referrals_referrer_id_fkey(name)').eq('referred_id', c.id).maybeSingle(),
@@ -78,7 +78,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       url: (w.warranty_url || '').replace(/\s+/g, '') || null, items: workItems(w), certNo: `PZ-${String(a.id).replace(/-/g, '').slice(0, 8).toUpperCase()}`,
     }));
 
-  const upcoming = (appts || []).filter((a) => a.status !== '완료').map((a) => ({ date: a.appointment_date, end: a.end_date, service: a.service_type, status: a.status }));
+  // QC·메인터넌스 방문 예약(2026-11-22)은 '다음 관리'에 방문일로 보이게 하고, 예약 목록에서는 뺀다 (두 번 보이지 않게)
+  const visitByFollowUp = new Map<string, string>();
+  for (const a of (appts || []) as { appointment_date: string; status: string; service_type: string | null; follow_up_id?: string | null; memo: string | null }[]) {
+    if (!['QC점검', '메인터넌스'].includes(a.service_type || '') || a.status === '완료' || a.status === '취소') continue;
+    const fid = a.follow_up_id || (a.memo || '').match(/사후관리:([0-9a-f-]{36})/)?.[1];
+    if (fid) visitByFollowUp.set(fid, a.appointment_date);
+  }
+  const isCareVisit = (a: { service_type: string | null; follow_up_id?: string | null; memo: string | null }) => ['QC점검', '메인터넌스'].includes(a.service_type || '') && !!(a.follow_up_id || /사후관리:[0-9a-f-]{36}/.test(a.memo || ''));
+  const upcoming = (appts || []).filter((a) => a.status !== '완료' && !isCareVisit(a as { service_type: string | null; follow_up_id?: string | null; memo: string | null })).map((a) => ({ date: a.appointment_date, end: a.end_date, service: a.service_type, status: a.status }));
   const memberSince = (services || []).map((s) => s.service_date || s.completion_date || '').filter(Boolean).sort()[0] || null;
 
   // 방문 기록 (실패해도 페이지는 그대로). 사장님이 열어 본 것은 손님 방문 수에 넣지 않는다
@@ -95,7 +103,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // 내 차 관리법 (2026-11-22): 시공 종류 + 작업 내역서 항목 묶음(PPF·썬팅·컬러PPF·랩핑·코팅)으로 해당하는 안내만
     careGuide: { guides: careGuidesFor((services || []).map((s) => s.service_type as string), warranties.flatMap((w) => w.items.map((i) => i.group))), common: CARE_COMMON_LINE },
     // 2026-11-18 "기한 지나 정리"로 일괄 완료 처리된 건(실제 점검 기록 아님)은 손님에게 "받으셨습니다"로 보이면 안 되므로 뺀다 (2026-11-19 사장님). CRM 에는 그대로
-    care: (followUps || []).filter((f) => !(f.is_completed && /기한 지나 정리/.test((f.memo as string | null) || ''))).map((f) => { const log = parseCareLog(f.memo as string | null); return { type: f.follow_up_type, date: f.scheduled_date, done: f.is_completed, skipped: isSkipped(f.memo as string | null), doneAt: f.completed_date, serviceId: (f.service_id as string | null) || null, note: log?.note || null, photos: log?.photos || [] }; }), // note·photos: 점검 기록 (2026-11-22, src/lib/care-log.ts) // serviceId: 시공 건별로 묶어 보이기 (2026-11-19 사장님 "기존 작업과 새 작업은 따로 분류")
+    care: (followUps || []).filter((f) => !(f.is_completed && /기한 지나 정리/.test((f.memo as string | null) || ''))).map((f) => { const log = parseCareLog(f.memo as string | null); return { type: f.follow_up_type, date: f.scheduled_date, done: f.is_completed, skipped: isSkipped(f.memo as string | null), visitDate: visitByFollowUp.get(f.id as string) || null, doneAt: f.completed_date, serviceId: (f.service_id as string | null) || null, note: log?.note || null, photos: log?.photos || [] }; }), // note·photos: 점검 기록 (2026-11-22, src/lib/care-log.ts) // serviceId: 시공 건별로 묶어 보이기 (2026-11-19 사장님 "기존 작업과 새 작업은 따로 분류")
     upcoming,
     warranties,
     referrals: {
