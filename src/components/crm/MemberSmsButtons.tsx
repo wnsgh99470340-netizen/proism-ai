@@ -7,6 +7,7 @@ import { todaySeoul } from '@/lib/local-date';
 import { MEMBERSHIP } from '@/config/membership';
 import { getOrCreateMemberLink, memberLinkSms, logMemberSms } from '@/lib/member-links';
 import { checkMemberReady, memberBlockMessage } from '@/lib/member-ready';
+import { shareTextOnPhone, copyText } from '@/lib/device';
 
 /**
  * 회원 문자 버튼 (2026-11-18): 회원 페이지 목록과 고객 상세 멤버십 카드에서 같은 버튼
@@ -47,6 +48,24 @@ export default function MemberSmsButtons({ customerId, name, phone, size = 'sm',
     await logMemberSms(customerId, `[회원 문자] 회원 페이지 링크\n${r.url}`);
     onSent?.();
   };
+  // 링크를 카톡으로 (2026-11-23 사장님 "링크 카톡도 가능해?"): 폰이면 기기 공유창에서 카카오톡을 고르고, PC 면 글을 복사해 붙여 넣게
+  const sendLinkKakao = async () => {
+    setBusy('kakao');
+    const missing = await checkMemberReady(customerId);
+    if (missing.length > 0) { setBusy(null); alert(memberBlockMessage(missing)); return; }
+    const r = await getOrCreateMemberLink(customerId);
+    setBusy(null);
+    if ('error' in r) { alert(r.error); return; }
+    const text = memberLinkSms(name, r.url);
+    if (await shareTextOnPhone(text)) {
+      if (!(await confirmAfterSms('카톡으로 보내셨나요? (기록으로 남깁니다)'))) return;
+    } else {
+      if (!(await copyText(text))) { alert('복사하지 못했습니다.'); return; }
+      if (!confirm('문구를 복사했습니다. 카카오톡에 붙여 넣어 보낸 뒤 확인을 누르면 기록으로 남깁니다.')) return;
+    }
+    await logMemberSms(customerId, `[회원 문자] 회원 페이지 링크 (카톡)\n${r.url}`);
+    onSent?.();
+  };
   // 사장님이 손님 화면을 그대로 열어 보기 (2026-11-19): 로그인된 기기는 뒷자리 없이 열린다 (API 가 crm_auth 쿠키로 확인)
   const openPage = async () => {
     setBusy('open');
@@ -60,6 +79,7 @@ export default function MemberSmsButtons({ customerId, name, phone, size = 'sm',
       <button disabled={!!busy} onClick={openPage} className={cls} title="손님이 보는 회원 페이지를 그대로 엽니다 (로그인된 기기는 뒷자리 없이 열림)">{busy === 'open' ? '…' : '👁 회원 페이지 보기'}</button>
       {TEMPLATES.map((t) => <button key={t.key} disabled={!!busy} onClick={() => send(t)} className={cls} title={t.build(name)}>{busy === t.key ? '…' : `💬 ${t.label}`}</button>)}
       <button disabled={!!busy} onClick={sendLink} className={cls} title="손님이 직접 보는 회원 페이지 주소를 문자로 보냅니다 (전화 뒷자리 4개로 확인)">{busy === 'link' ? '…' : '🔗 링크 문자'}</button>
+      <button disabled={!!busy} onClick={sendLinkKakao} className={`${cls} !bg-[#FEE500] !text-[#191919] !border-[#FEE500] hover:!bg-[#FDD835]`} title="회원 페이지 주소를 카카오톡으로 보냅니다 (폰: 공유창에서 카카오톡 선택)">{busy === 'kakao' ? '…' : '💛 링크 카톡'}</button>
     </span>
   );
 }
