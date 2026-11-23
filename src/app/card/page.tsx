@@ -57,7 +57,7 @@ export default function CardPage() {
           <div className="text-xs text-white/50 mb-2">3M Car Wrap Film Preferred Installer 인증</div>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/card/3m-preferred-installer.jpg" alt="3M Preferred Installer 인증서 — Junho Jin" className="w-full rounded-2xl shadow-xl bg-white" />
-          <div className="text-[11px] text-white/40 mt-2">3M 필름 인스톨 트레이닝 센터 검증 · 3M 랩마스터 · 자동차정비산업기사(국가기술자격) 보유</div>
+          <div className="text-[11px] text-white/40 mt-2">3M 필름 인스톨 트레이닝 센터 검증 · 3M 랩마스터 · 자동차정비기사(국가기술자격) 보유</div>
         </div>
 
         <div className="text-center text-[11px] text-white/30 pt-4 pb-8">© 3M 프로이즘 강남서초점</div>
