@@ -131,6 +131,15 @@ export default function CustomerFormModal({ mode, form, setForm, latestApptId, b
   const [dealerOk, setDealerOk] = useState<boolean | null>(null);
   useEffect(() => { dealerSupport().then((ok) => { setDealerOk(ok); if (ok) loadDealers().then(setDealers); }); }, []);
   const isDealerForm = form.kind === DEALER_KIND;
+  // 딜러 검색 (2026-11-23 사장님 "딜러 검색 가능하게"): 이름·직급·전시장·전화 뒷자리로 거르고 위 8명
+  const [dealerQuery, setDealerQuery] = useState('');
+  const [dealerOpen, setDealerOpen] = useState(false);
+  const dealerSelected = (dealers || []).find((d) => d.id === form.dealer_id) || null;
+  const dealerLabel = (d: DealerRef) => `${d.name}${d.memo ? ` · ${d.memo.split('\n')[0].slice(0, 24)}` : ''}${d.phone ? ` · ${d.phone.replace(/\D/g, '').slice(-4)}` : ''}`;
+  const dealerMatches = (() => {
+    const q = dealerQuery.trim().toLowerCase(); const qd = q.replace(/\D/g, '');
+    return (dealers || []).filter((d) => !q || d.name.toLowerCase().includes(q) || (d.memo || '').toLowerCase().includes(q) || (qd.length >= 2 && (d.phone || '').replace(/\D/g, '').includes(qd))).slice(0, 8);
+  })();
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl w-full max-w-lg p-6 shadow-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
@@ -159,11 +168,24 @@ export default function CustomerFormModal({ mode, form, setForm, latestApptId, b
           {dealerOk && !isDealerForm && (
             <div className="col-span-2">
               <label className={label}>넣어 주신 딜러 <span className="text-[var(--c-text-4)]">(딜러가 맡긴 차면 선택 — 입고·출고 안내가 딜러에게 갑니다)</span></label>
-              <select value={form.dealer_id} onChange={(e) => { const v = e.target.value; setForm({ ...form, dealer_id: v, source: v && !form.source ? '고정' : form.source }); }} className={input}>
-                <option value="">없음 (고객이 직접)</option>
-                {(dealers || []).map((d) => <option key={d.id} value={d.id}>{d.name}{d.memo ? ` · ${d.memo.split('\n')[0].slice(0, 20)}` : ''}</option>)}
-              </select>
-              {dealers && dealers.length === 0 && <div className="text-[11px] text-[var(--c-text-4)] mt-1">딜러가 아직 없습니다. 고객 추가에서 종류를 '딜러'로 두고 먼저 등록해 주세요</div>}
+              {dealerSelected ? (
+                <div className={`${input} flex items-center justify-between gap-2`}>
+                  <span className="truncate">{dealerLabel(dealerSelected)}</span>
+                  <button type="button" onClick={() => { setForm({ ...form, dealer_id: '' }); setDealerQuery(''); setDealerOpen(true); }} className="shrink-0 text-xs text-[var(--c-text-3)] hover:text-danger">✕ 바꾸기</button>
+                </div>
+              ) : (
+                <div className="relative">
+                  <input type="text" value={dealerQuery} onChange={(e) => { setDealerQuery(e.target.value); setDealerOpen(true); }} onFocus={() => setDealerOpen(true)} onBlur={() => setTimeout(() => setDealerOpen(false), 150)} className={input} placeholder={dealers ? (dealers.length ? '이름·전시장·전화 뒷자리로 검색 (고객이 직접 오셨으면 비워 둠)' : '딜러가 아직 없습니다 — 종류를 딜러로 두고 먼저 등록') : '불러오는 중…'} />
+                  {dealerOpen && dealers && dealers.length > 0 && (
+                    <ul className="absolute left-0 right-0 top-full mt-1 z-10 max-h-56 overflow-y-auto bg-[var(--c-card)] border border-[var(--c-border)] rounded-lg shadow-lg py-1">
+                      {dealerMatches.length === 0 ? <li className="px-3 py-2 text-xs text-[var(--c-text-4)]">맞는 딜러가 없습니다</li> : dealerMatches.map((d) => (
+                        <li key={d.id}><button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { setForm({ ...form, dealer_id: d.id, source: form.source || '고정' }); setDealerOpen(false); }} className="w-full text-left px-3 py-2 text-sm text-[var(--c-text-1)] hover:bg-[var(--c-hover)]">{dealerLabel(d)}</button></li>
+                      ))}
+                      {!dealerQuery && dealers.length > 8 && <li className="px-3 py-1.5 text-[11px] text-[var(--c-text-4)]">전체 {dealers.length}명 중 8명만 표시 · 이름이나 전시장을 입력해 주세요</li>}
+                    </ul>
+                  )}
+                </div>
+              )}
             </div>
           )}
           {showReferrer && (
