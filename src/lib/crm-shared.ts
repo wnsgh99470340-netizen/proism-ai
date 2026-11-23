@@ -16,6 +16,9 @@ export interface Customer {
   car_color: string | null;
   source: string | null;
   memo: string | null;
+  /** '일반' | '딜러' (2026-11-23, 열이 없으면 undefined) */
+  kind?: string | null;
+  dealer_id?: string | null;
   created_at: string;
   updated_at: string;
   latest_service: string | null;

@@ -62,6 +62,7 @@ export function buildTimeline(input: TimelineInput): { upcoming: TimelineEvent[]
     if (head.startsWith('[견적 문자 발송]')) push({ date: d, kind: 'quote', title: '견적 문자 보냄', detail: short(body.find((l) => /견적|만원|원$/.test(l)) || body[0] || ''), tone: 'normal' });
     else if (head.startsWith('[문의 답변]')) push({ date: d, kind: 'inquiry', title: '문의 답변 보냄', detail: short(body[0] || ''), tone: 'normal' });
     else if (head.startsWith('[회원 문자]')) push({ date: d, kind: 'member', title: `회원 문자 · ${head.replace('[회원 문자]', '').trim() || '안내'}`, tone: 'muted' });
+    else if (head.startsWith('[딜러 문자]')) push({ date: d, kind: 'member', title: `딜러 문자 · ${head.replace('[딜러 문자]', '').trim()}`, tone: 'muted' });
     else {
       const parts = [short(head || cleanMemo(c.memo), 70)];
       if (c.estimate) parts.push(`견적 ${c.estimate}`);

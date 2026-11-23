@@ -75,9 +75,11 @@ const daysBetween = (a: string, b: string) => Math.round((new Date(b + 'T00:00:0
 
 function toItem(f: FollowUpRow, today: string): TeamItem | null {
   const head = (f.memo || '').split('\n')[0];
-  const phone = f.customer?.phone || head.match(/01[016789][-\s]?\d{3,4}[-\s]?\d{4}/)?.[0] || '';
+  const headPhone = head.match(/01[016789][-\s]?\d{3,4}[-\s]?\d{4}/)?.[0] || '';
+  const toDealer = f.follow_up_type === '입고안내' && /\(딜러\)/.test(head); // 딜러가 넣어 준 차의 입고 안내는 딜러 번호로 (2026-11-23)
+  const phone = (toDealer ? headPhone : '') || f.customer?.phone || headPhone;
   if (!phone) return null;
-  const name = f.customer?.name || head.split(' ')[0] || '고객';
+  const name = toDealer ? `${head.split(' ')[0].replace('(딜러)', '')} 딜러 (${f.customer?.name || '고객'})` : f.customer?.name || head.split(' ')[0] || '고객';
   const car = (head.includes('·') ? head.split('·')[1].trim() : '') || f.service?.service_type || '';
   const key = followUpSmsKey(f.follow_up_type);
   return {

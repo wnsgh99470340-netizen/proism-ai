@@ -6,7 +6,8 @@
  */
 import { supabase } from './supabase';
 import { todaySeoul, addDaysISO } from './local-date';
-import { arrivalSms } from '@/config/sms-templates';
+import { arrivalSms, dealerArrivalSms } from '@/config/sms-templates';
+import { dealerFor } from './dealers';
 import { linkReferral } from './referrals';
 
 const CARE_VISIT_TYPES = ['QC점검', '메인터넌스'];
@@ -25,15 +26,22 @@ export async function advanceAppointmentsForToday(date = todaySeoul()): Promise<
 // ─── 입고 전날 안내 (2026-11-22 점검 3-2): 예약이 잡히면 D-1 에 '입고안내' 사후관리 → 아침 브리핑·홈 카드에 문자 버튼으로 ───
 export const ARRIVAL_TYPE = '입고안내';
 const SKIP_ARRIVAL_TYPES = ['QC점검', '메인터넌스'];
-export async function ensureArrivalNotice(input: { customerId: string; name: string; phone: string | null | undefined; date: string; serviceType: string | null | undefined }): Promise<boolean> {
+export async function ensureArrivalNotice(input: { customerId: string; name: string; phone: string | null | undefined; date: string; serviceType: string | null | undefined; car?: string | null }): Promise<boolean> {
   if (!input.customerId || !input.date || SKIP_ARRIVAL_TYPES.includes(input.serviceType || '')) return false;
   const today = todaySeoul();
   const noticeDate = addDaysISO(input.date, -1);
   if (noticeDate < today) return false; // 내일이거나 지난 예약이면 안내할 전날이 없다
   const { data: existing } = await supabase.from('follow_ups').select('id, memo').eq('customer_id', input.customerId).eq('follow_up_type', ARRIVAL_TYPE).eq('is_completed', false);
   if ((existing || []).some((r) => ((r.memo as string | null) || '').includes(`${input.date} 입고`))) return false;
-  const head = `${input.name} ${input.phone || ''} · ${input.serviceType || '시공'} ${input.date} 입고`.replace(/\s+·/, ' ·');
-  await supabase.from('follow_ups').insert({ customer_id: input.customerId, follow_up_type: ARRIVAL_TYPE, scheduled_date: noticeDate, is_completed: false, memo: `${head}\n${arrivalSms(input.name, input.date, input.serviceType || null)}` });
+  // 딜러가 넣어 준 차면 입고 안내는 딜러에게 (2026-11-23 사장님). memo 첫 줄 "딜러이름(딜러) 전화 · 고객이름 시공 날짜 입고" → 홈·브리핑·사후관리 탭이 이 번호로 연다
+  const dealer = await dealerFor(input.customerId);
+  let car = input.car ?? null;
+  if (dealer && car === null) { const { data: c } = await supabase.from('customers').select('car_brand, car_model').eq('id', input.customerId).maybeSingle(); car = [c?.car_brand, c?.car_model].filter(Boolean).join(' ') || null; }
+  const head = dealer
+    ? `${dealer.name}(딜러) ${dealer.phone || ''} · ${input.name} ${input.serviceType || '시공'} ${input.date} 입고`.replace(/\s+·/, ' ·')
+    : `${input.name} ${input.phone || ''} · ${input.serviceType || '시공'} ${input.date} 입고`.replace(/\s+·/, ' ·');
+  const body = dealer ? dealerArrivalSms(dealer.name, input.name, car, input.date, input.serviceType || null) : arrivalSms(input.name, input.date, input.serviceType || null);
+  await supabase.from('follow_ups').insert({ customer_id: input.customerId, follow_up_type: ARRIVAL_TYPE, scheduled_date: noticeDate, is_completed: false, memo: `${head}\n${body}` });
   return true;
 }
 /** 예약 날짜가 바뀌거나 취소되면 그 날짜의 열린 입고 안내를 지우고(취소) 새 날짜로 다시 만든다(변경) */

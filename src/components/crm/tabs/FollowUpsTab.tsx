@@ -92,8 +92,9 @@ export default function FollowUpsTab({
         const renderFollowUp = (f: FollowUp) => {
           const isQuote = f.follow_up_type === '견적재연락' || f.follow_up_type === '견적마무리';
           // 견적 재연락은 고객 등록이 없을 수 있어 메모 첫 줄("이름 전화 · 차종 시공")에서 전화를 읽는다
-          const memoPhone = isQuote ? (f.memo || '').split('\n')[0].match(/01[016789]-?\d{3,4}-?\d{4}/)?.[0] : undefined;
-          const phone = f.customer?.phone || memoPhone;
+          const memoPhone = isQuote || f.follow_up_type === '입고안내' ? (f.memo || '').split('\n')[0].match(/01[016789]-?\d{3,4}-?\d{4}/)?.[0] : undefined;
+          const arrivalToDealer = f.follow_up_type === '입고안내' && /\(딜러\)/.test((f.memo || '').split('\n')[0]); // 딜러가 넣어 준 차 → 딜러 번호로 (2026-11-23)
+          const phone = (arrivalToDealer ? memoPhone : undefined) || f.customer?.phone || memoPhone;
           const quoteHead = isQuote ? (f.memo || '').split('\n')[0] : '';
           const quoteBody = isQuote ? (f.memo || '').split('\n').slice(1).join('\n') : '';
           const daysUntil = Math.ceil((new Date(f.scheduled_date).getTime() - new Date(today).getTime()) / 86400000);
@@ -208,6 +209,7 @@ export default function FollowUpsTab({
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-semibold text-[var(--c-text-1)]">{f.customer?.name || '-'}</span>
+                    {arrivalToDealer && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-info/15 text-info" title="딜러가 넣어 준 차 — 입고 안내는 딜러에게">→ 딜러 {(f.memo || '').split(' ')[0].replace('(딜러)', '')}</span>}
                     {phone && <span className="text-xs text-[var(--c-text-4)]">{phone}</span>}
                   </div>
                   <div className="flex items-center gap-2 text-xs text-[var(--c-text-3)]">

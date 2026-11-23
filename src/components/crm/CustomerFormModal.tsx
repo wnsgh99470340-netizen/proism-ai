@@ -7,6 +7,7 @@ import { closeQuoteFollowUpsFor } from '@/lib/followups';
 import { ensurePrimaryVehicle } from '@/lib/vehicles';
 import { formatPhoneInput } from '@/lib/phone';
 import { ensureArrivalNotice } from '@/lib/appointments-flow';
+import { dealerSupport, loadDealers, DEALER_KIND, type DealerRef } from '@/lib/dealers';
 
 /**
  * 고객 등록·수정 창 하나 (2026-11-18 사장님: "왜 자꾸 등록 창이랑 수정 창이 달라" → 어디서 열든 같은 창, 같은 칸)
@@ -19,10 +20,13 @@ export const SOURCE_OPTIONS = ['카페', '블로그', '소개/재방문', '유�
 export interface CustomerFormValues {
   name: string; phone: string; car_brand: string; car_model: string; car_year: string; car_color: string; source: string; memo: string;
   appointment_start_date: string; appointment_end_date: string; appointment_service_type: string; appointment_amount: string; appointment_memo: string;
+  /** 고객 종류 '일반' | '딜러' + 넣어 주신 딜러(고객 id) — 2026-11-23. 열이 없으면 저장하지 않음 */
+  kind: string; dealer_id: string;
 }
 export const EMPTY_CUSTOMER_FORM: CustomerFormValues = {
   name: '', phone: '', car_brand: '', car_model: '', car_year: '', car_color: '', source: '', memo: '',
   appointment_start_date: '', appointment_end_date: '', appointment_service_type: '', appointment_amount: '', appointment_memo: '',
+  kind: '일반', dealer_id: '',
 };
 
 /** 고객 한 명과 가장 최근 예약을 읽어 폼 값으로 */
@@ -36,6 +40,7 @@ export async function loadCustomerForm(customerId: string): Promise<{ form: Cust
     form: {
       name: c.name || '', phone: c.phone || '', car_brand: c.car_brand || '', car_model: c.car_model || '', car_year: c.car_year || '', car_color: c.car_color || '', source: c.source || '', memo: c.memo || '',
       appointment_start_date: a?.appointment_date || '', appointment_end_date: a?.end_date || '', appointment_service_type: a?.service_type || '', appointment_amount: a?.amount ? String(a.amount) : '', appointment_memo: apptMemo,
+      kind: (c.kind as string | null) || '일반', dealer_id: (c.dealer_id as string | null) || '',
     },
     latestApptId: a?.id || null,
   };
@@ -56,6 +61,7 @@ export async function saveCustomerEdit(customerId: string, form: CustomerFormVal
   const { error } = await supabase.from('customers').update({
     name: form.name.trim(), phone: normalizePhoneForSave(form.phone), car_brand: form.car_brand.trim() || null, car_model: form.car_model.trim() || null,
     car_year: form.car_year.trim() || null, car_color: form.car_color.trim() || null, source: form.source || null, memo: form.memo.trim() || null,
+    ...(await dealerSupport() ? { kind: form.kind || '일반', dealer_id: form.kind === DEALER_KIND ? null : (form.dealer_id || null) } : {}), // 딜러 구분 (2026-11-23)
   }).eq('id', customerId);
   if (error) return '수정 실패: ' + error.message;
   ensurePrimaryVehicle(customerId, { brand: form.car_brand.trim() || null, model: form.car_model.trim() || null, year: form.car_year.trim() || null, color: form.car_color.trim() || null }).catch(() => {}); // 대표 차량과 맞춤 (2026-11-22)
@@ -120,12 +126,28 @@ export default function CustomerFormModal({ mode, form, setForm, latestApptId, b
     }).slice(0, 8);
   })();
   const apptTitle = mode === 'add' ? '예약 정보 (선택)' : latestApptId ? '최근 예약 (고치면 그 예약이 바뀝니다)' : '예약 정보 (시작일을 넣으면 새 예약이 생깁니다)';
+  // 딜러 구분 (2026-11-23 사장님 "차를 넣어 주는 건 딜러, 실제 고객은 따로"): 종류 선택 + 일반 고객이면 "넣어 주신 딜러"
+  const [dealers, setDealers] = useState<DealerRef[] | null>(null);
+  const [dealerOk, setDealerOk] = useState<boolean | null>(null);
+  useEffect(() => { dealerSupport().then((ok) => { setDealerOk(ok); if (ok) loadDealers().then(setDealers); }); }, []);
+  const isDealerForm = form.kind === DEALER_KIND;
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl w-full max-w-lg p-6 shadow-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <h3 className="text-[var(--c-text-1)] font-semibold text-base mb-4">{mode === 'edit' ? '고객 수정' : '고객 추가'}</h3>
         <div className="grid grid-cols-2 gap-3">
-          <div className="col-span-2"><label className={label}>이름 *</label><input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} className={input} placeholder="고객 이름" /></div>
+          {dealerOk && (
+            <div className="col-span-2 flex items-center gap-2">
+              <span className={label + ' mb-0'}>종류</span>
+              <div className="inline-flex rounded-lg border border-[var(--c-border)] overflow-hidden text-xs font-semibold">
+                {(['일반', DEALER_KIND] as const).map((k) => (
+                  <button key={k} type="button" onClick={() => setForm({ ...form, kind: k, dealer_id: k === DEALER_KIND ? '' : form.dealer_id })} className={`px-3 py-1.5 transition-colors ${form.kind === k ? 'bg-[var(--c-text-1)] text-[var(--c-card)]' : 'text-[var(--c-text-2)] hover:bg-[var(--c-subtle)]'}`}>{k === DEALER_KIND ? '딜러' : '일반 고객'}</button>
+                ))}
+              </div>
+              {isDealerForm && <span className="text-[11px] text-[var(--c-text-4)]">딜러는 입고·출고 안내만 받고, 보증서·관리 안내는 실제 고객에게 갑니다</span>}
+            </div>
+          )}
+          <div className="col-span-2"><label className={label}>{isDealerForm ? '딜러 이름 *' : '이름 *'}</label><input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} className={input} placeholder={isDealerForm ? '예: 조중용 부장' : '고객 이름'} /></div>
           <div><label className={label}>연락처</label><input type="tel" inputMode="numeric" value={form.phone} onChange={(e) => set('phone', formatPhoneInput(e.target.value))} className={input} placeholder="010-0000-0000" /></div>
           <div>
             <label className={label}>유입경로</label>
@@ -134,6 +156,16 @@ export default function CustomerFormModal({ mode, form, setForm, latestApptId, b
               {SOURCE_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
+          {dealerOk && !isDealerForm && (
+            <div className="col-span-2">
+              <label className={label}>넣어 주신 딜러 <span className="text-[var(--c-text-4)]">(딜러가 맡긴 차면 선택 — 입고·출고 안내가 딜러에게 갑니다)</span></label>
+              <select value={form.dealer_id} onChange={(e) => { const v = e.target.value; setForm({ ...form, dealer_id: v, source: v && !form.source ? '고정' : form.source }); }} className={input}>
+                <option value="">없음 (고객이 직접)</option>
+                {(dealers || []).map((d) => <option key={d.id} value={d.id}>{d.name}{d.memo ? ` · ${d.memo.split('\n')[0].slice(0, 20)}` : ''}</option>)}
+              </select>
+              {dealers && dealers.length === 0 && <div className="text-[11px] text-[var(--c-text-4)] mt-1">딜러가 아직 없습니다. 고객 추가에서 종류를 '딜러'로 두고 먼저 등록해 주세요</div>}
+            </div>
+          )}
           {showReferrer && (
             <div className="col-span-2">
               <label className={label}>소개한 분 <span className="text-[var(--c-text-4)]">(회원 혜택: 소개한 분 {MEMBERSHIP.referrerReward} · 소개받은 분 {MEMBERSHIP.referredCondition}일 때 혜택)</span></label>
@@ -157,6 +189,9 @@ export default function CustomerFormModal({ mode, form, setForm, latestApptId, b
               )}
             </div>
           )}
+          {isDealerForm ? (
+            <div className="col-span-2"><label className={label}>소속 (전시장·브랜드)</label><input type="text" value={form.memo} onChange={(e) => set('memo', e.target.value)} className={input} placeholder="예: BMW 성수전시장" /></div>
+          ) : (<>
           <div><label className={label}>차량 브랜드</label><input type="text" value={form.car_brand} onChange={(e) => set('car_brand', e.target.value)} className={input} placeholder="BMW, 벤츠, 포르쉐 등" /></div>
           <div><label className={label}>차량 모델</label><input type="text" value={form.car_model} onChange={(e) => set('car_model', e.target.value)} className={input} placeholder="X5, GLE, 카이엔 등" /></div>
           <div><label className={label}>연식</label><input type="text" value={form.car_year} onChange={(e) => set('car_year', e.target.value)} className={input} placeholder="2024" /></div>
@@ -175,6 +210,7 @@ export default function CustomerFormModal({ mode, form, setForm, latestApptId, b
           </div>
           <div className="col-span-2"><label className={label}>예상 금액</label><input type="text" inputMode="numeric" value={form.appointment_amount ? Number(form.appointment_amount).toLocaleString() : ''} onChange={(e) => set('appointment_amount', e.target.value.replace(/[^0-9]/g, ''))} className={input} placeholder="2,500,000" /></div>
           <div className="col-span-2"><label className={label}>예약 메모</label><textarea value={form.appointment_memo} onChange={(e) => set('appointment_memo', e.target.value)} className={`${input} resize-none h-16`} placeholder="예약 관련 메모" /></div>
+          </>)}
         </div>
         <div className="flex justify-end gap-2 mt-4">
           <button onClick={onClose} disabled={busy} className="px-4 py-2 text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-2)] transition-colors disabled:opacity-50">취소</button>

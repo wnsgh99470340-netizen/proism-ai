@@ -107,6 +107,28 @@ describe('입고 전날 안내 (ensureArrivalNotice)', () => {
   });
 });
 
+describe('딜러가 넣어 준 차의 입고 안내는 딜러에게 (2026-11-23)', () => {
+  const DEALER = '88888888-8888-4888-8888-888888888888';
+  it('memo 첫 줄이 딜러 번호, 본문은 고객 이름·차종이 든 딜러 문구', async () => {
+    h.fake = createFakeSupabase({
+      customers: [
+        { id: DEALER, name: '조중용', phone: '010-9999-8888', kind: '딜러', dealer_id: null },
+        { id: CUST, name: '홍길동', phone: '010-1111-2222', car_brand: 'BMW', car_model: 'X5', kind: '일반', dealer_id: DEALER },
+      ],
+    });
+    const in5 = addDaysISO(today, 5);
+    expect(await ensureArrivalNotice({ customerId: CUST, name: '홍길동', phone: '010-1111-2222', date: in5, serviceType: 'PPF' })).toBe(true);
+    const memo = String(h.fake.tables.follow_ups[0].memo);
+    expect(memo.split('\n')[0]).toBe(`조중용(딜러) 010-9999-8888 · 홍길동 PPF ${in5} 입고`);
+    expect(memo).toContain('조중용 님, 내일');
+    expect(memo).toContain('홍길동 고객님 BMW X5 PPF 입고 예정');
+    // 딜러가 없는 손님은 예전 그대로
+    h.fake = createFakeSupabase({ customers: [{ id: CUST, name: '김영희', phone: '010-3333-4444', kind: '일반', dealer_id: null }] });
+    await ensureArrivalNotice({ customerId: CUST, name: '김영희', phone: '010-3333-4444', date: in5, serviceType: '랩핑' });
+    expect(String(h.fake.tables.follow_ups[0].memo).split('\n')[0]).toBe(`김영희 010-3333-4444 · 랩핑 ${in5} 입고`);
+  });
+});
+
 describe('시작일이 되면 시공중 (advanceAppointmentsForToday)', () => {
   it('오늘 범위의 예약확정만 시공중으로, QC 방문은 제외, 지난 입고 안내는 닫힘', async () => {
     h.fake = createFakeSupabase({

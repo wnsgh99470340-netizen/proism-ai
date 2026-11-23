@@ -10,6 +10,7 @@ import MemberSmsButtons from '@/components/crm/MemberSmsButtons';
 import VehicleList from '@/components/crm/VehicleList';
 import CustomerTimeline from '@/components/crm/CustomerTimeline';
 import { buildTimeline } from '@/lib/timeline';
+import { isDealer, dealerFor, customersOfDealer, type DealerRef, type DealerJob } from '@/lib/dealers';
 import { vehicleLabel, type Vehicle } from '@/lib/vehicles';
 import { blacklistInfo, clearBlacklist } from '@/lib/blacklist';
 import { supabase } from '@/lib/supabase';
@@ -26,6 +27,8 @@ interface Customer {
   car_color: string | null;
   source: string | null;
   memo: string | null;
+  kind?: string | null;
+  dealer_id?: string | null;
   created_at: string;
 }
 
@@ -103,6 +106,8 @@ export default function CustomerDetailPage() {
   // 소개 포인트 (2026-11-19): 잔액·내역·사용
   const [pts, setPts] = useState<PointSummary>({ balance: 0, rows: [], lastEarnAt: null, expiresAt: null, expired: false, tableMissing: false });
   const [ptsOpen, setPtsOpen] = useState(false);
+  const [dealer, setDealer] = useState<DealerRef | null>(null); // 이 손님 차를 넣어 준 딜러 (2026-11-23)
+  const [dealerJobs, setDealerJobs] = useState<DealerJob[]>([]); // 이 기록이 딜러면 넣어 준 손님들
   const [memberLink, setMemberLink] = useState<{ created_at: string; last_seen_at: string | null; visits: number } | null>(null); // 타임라인 '회원 페이지 열어 봄' 줄용
   const [editReferrerId, setEditReferrerId] = useState<string | null>(null);
   const openSms = (phone: string, msg: string) => openSmsApp(phone, msg);
@@ -168,6 +173,7 @@ export default function CustomerDetailPage() {
       supabase.from('appointments').select('id, appointment_date, end_date, service_type, status, memo').eq('customer_id', id).order('appointment_date', { ascending: false }),
     ]);
     if (c) setCustomer(c);
+    if (c) { if (isDealer(c)) { setDealer(null); setDealerJobs(await customersOfDealer(id)); } else { setDealerJobs([]); setDealer(await dealerFor(id)); } }
     if (ap) setAppts(ap);
     if (s) setServices(s);
     if (con) setConsultations(con);
@@ -209,6 +215,7 @@ export default function CustomerDetailPage() {
           </Link>
           <span className="text-[var(--c-border)]">|</span>
           <span className="text-[var(--c-text-1)] font-semibold text-sm">{customer.name}</span>
+          {isDealer(customer) && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[var(--c-text-1)] text-[var(--c-card)]">딜러</span>}
           {customer.phone && <span className="text-[var(--c-text-3)] text-xs">{customer.phone}</span>}
         </div>
       </div>
@@ -223,8 +230,30 @@ export default function CustomerDetailPage() {
         )}
         {/* 타임라인 (2026-11-23 사장님 "이카운트처럼 한 손님의 모든 일을 한 화면에 날짜순으로") */}
         {(() => { const tl = buildTimeline({ today: todaySeoul(), customer, appointments: appts, services, consultations, followUps, referrals: refs.tableMissing ? undefined : refs, points: pts.tableMissing ? [] : pts.rows, memberLink }); return <CustomerTimeline upcoming={tl.upcoming} past={tl.past} today={todaySeoul()} />; })()}
-        {/* 차량 (2026-11-22 차량 N대) */}
-        <VehicleList customerId={id} onChange={setVehicles} />
+        {/* 딜러 기록: 넣어 주신 손님들 (2026-11-23) */}
+        {isDealer(customer) && (
+          <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-5 mb-6">
+            <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
+              <div className="text-xs font-semibold text-[var(--c-text-3)]">이 딜러가 넣어 준 차 <b className="text-[var(--c-text-1)]">{dealerJobs.length}대</b></div>
+              <div className="text-[11px] text-[var(--c-text-4)]">입고·출고 안내는 이 분께 · 보증서·관리 안내는 각 고객님께</div>
+            </div>
+            {dealerJobs.length === 0 ? (
+              <div className="text-sm text-[var(--c-text-3)]">아직 없습니다. 고객 추가·수정 창의 "넣어 주신 딜러"에서 이 분을 고르면 여기에 모입니다</div>
+            ) : (
+              <ul className="divide-y divide-[var(--c-border)]">
+                {dealerJobs.map(({ customer: c, latest }) => (
+                  <li key={c.id} className="py-2 flex items-center gap-3 flex-wrap">
+                    <Link href={`/crm/${c.id}`} className="font-semibold text-sm text-[var(--c-text-1)] hover:underline">{c.name}</Link>
+                    <span className="text-xs text-[var(--c-text-3)]">{[c.car_brand, c.car_model].filter(Boolean).join(' ') || '-'}</span>
+                    {latest && <span className="text-xs text-[var(--c-text-2)] ml-auto">{latest.service_type || '시공 미정'} · {formatDate(latest.date)} · <span className={latest.status === '완료' ? 'text-ok' : 'text-info'}>{latest.status}</span></span>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+        {/* 차량 (2026-11-22 차량 N대) — 딜러 기록에는 차가 없다 */}
+        {!isDealer(customer) && <VehicleList customerId={id} onChange={setVehicles} />}
         {/* Customer Info Card */}
         <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-5 mb-6">
           <div className="flex items-center justify-between mb-3">
@@ -238,6 +267,12 @@ export default function CustomerDetailPage() {
             <InfoItem label="연식" value={customer.car_year || '-'} />
             <InfoItem label="색상" value={customer.car_color || '-'} />
             <InfoItem label="유입경로" value={customer.source || '-'} />
+            {dealer && (
+              <div>
+                <div className="text-xs text-[var(--c-text-3)] mb-0.5">넣어 주신 딜러</div>
+                <div className="text-sm text-[var(--c-text-1)]"><Link href={`/crm/${dealer.id}`} className="font-semibold hover:underline">{dealer.name}</Link> <span className="text-[11px] text-[var(--c-text-4)]">· 입고·출고 안내는 딜러에게</span></div>
+              </div>
+            )}
             <InfoItem label="등록일" value={formatDate(customer.created_at)} />
             <InfoItem label="시공 횟수" value={`${services.length}회`} />
             <InfoItem label="총 매출" value={
@@ -285,8 +320,8 @@ export default function CustomerDetailPage() {
           <CustomerFormModal mode="edit" form={editForm} setForm={setEditForm} latestApptId={editLatestApptId} busy={editBusy} referrerId={editReferrerId} setReferrerId={setEditReferrerId} excludeCustomerId={id} onSubmit={saveInfo} onClose={() => { if (!editBusy) setEditOpen(false); }} />
         )}
 
-        {/* 멤버십 카드 (2026-11-18): 회원 여부(시공 완료면 자동), 소개받음·소개함과 혜택 사용 */}
-        <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-5 mb-6">
+        {/* 멤버십 카드 (2026-11-18): 회원 여부(시공 완료면 자동), 소개받음·소개함과 혜택 사용. 딜러 기록에는 없음 (2026-11-23) */}
+        {!isDealer(customer) && <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-5 mb-6">
           <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
             <div className="flex items-center gap-2 flex-wrap">
               <div className="text-xs font-semibold text-[var(--c-text-3)]">{MEMBERSHIP.name}</div>
@@ -396,7 +431,7 @@ export default function CustomerDetailPage() {
               )}
             </div>
           )}
-        </div>
+        </div>}
 
         {/* Detail Tabs */}
         <div className="border-b border-[var(--c-border)] flex gap-0 mb-4">

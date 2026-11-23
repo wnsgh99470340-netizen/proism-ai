@@ -8,14 +8,15 @@ import { BLOG_PREFILL_KEY, CRM_SERVICE_TO_KEY, type BlogPrefill } from '@/config
 import { useTheme } from '@/components/ThemeProvider';
 import QuoteSmsModal, { type QuoteSmsInitial } from '@/components/crm/QuoteSmsModal';
 import InquiryReplyModal from '@/components/crm/InquiryReplyModal';
-import { QC_SMS, MAINT_SMS, REVIEW_SMS } from '@/config/sms-templates';
+import { QC_SMS, MAINT_SMS, REVIEW_SMS, dealerDoneSms, followUpSmsKey } from '@/config/sms-templates';
+import { dealerSupport, dealerFor, DEALER_KIND } from '@/lib/dealers';
 import type { TeamItem } from '@/lib/team';
 import type { ImportCandidate } from '@/lib/appointment-import';
 import BlogWorkspace from '@/components/BlogWorkspace';
 import HelpModal from '@/components/HelpModal';
 import PushToggle from '@/components/PushToggle';
 import Link from 'next/link';
-import CustomerFormModal, { EMPTY_CUSTOMER_FORM, loadCustomerForm, saveCustomerEdit } from '@/components/crm/CustomerFormModal';
+import CustomerFormModal, { type CustomerFormValues, EMPTY_CUSTOMER_FORM, loadCustomerForm, saveCustomerEdit } from '@/components/crm/CustomerFormModal';
 import { linkReferral, loadReferralsFor, markThanksSent, grantPointForReferred, loadPoints, usePoints, updateReferral } from '@/lib/referrals';
 import { MEMBERSHIP, POINTS } from '@/config/membership';
 import { getOrCreateMemberLink, memberLinkSms, logMemberSms } from '@/lib/member-links';
@@ -109,10 +110,7 @@ export default function CRMPage() {
   const [editLatestApptId, setEditLatestApptId] = useState<string | null>(null);
   // 멤버십(2026-11-18): 고객 창에서 고른 "소개한 분". 저장 때 referrals 에 연결
   const [customerReferrerId, setCustomerReferrerId] = useState<string | null>(null);
-  const [customerForm, setCustomerForm] = useState({
-    name: '', phone: '', car_brand: '', car_model: '', car_year: '', car_color: '', source: '', memo: '',
-    appointment_start_date: '', appointment_end_date: '', appointment_service_type: '', appointment_amount: '', appointment_memo: '',
-  });
+  const [customerForm, setCustomerForm] = useState<CustomerFormValues>({ ...EMPTY_CUSTOMER_FORM });
 
   // Appointment state
   const [showAddAppointment, setShowAddAppointment] = useState(false);
@@ -293,6 +291,7 @@ export default function CRMPage() {
         car_color: formData.car_color || null,
         source: formData.source || null,
         memo: formData.memo || null,
+        ...(await dealerSupport() ? { kind: formData.kind || '일반', dealer_id: formData.kind === DEALER_KIND ? null : (formData.dealer_id || null) } : {}), // 딜러 구분 (2026-11-23)
       })
       .select()
       .single();
@@ -426,7 +425,7 @@ export default function CRMPage() {
       .catch((err) => console.warn('[CRM] Notion 요청 실패:', err));
 
     // 3. 폼 리셋 + 모달 닫기
-    setCustomerForm({ name: '', phone: '', car_brand: '', car_model: '', car_year: '', car_color: '', source: '', memo: '', appointment_start_date: '', appointment_end_date: '', appointment_service_type: '', appointment_amount: '', appointment_memo: '' });
+    setCustomerForm({ ...EMPTY_CUSTOMER_FORM });
     setShowAddCustomer(false);
     fetchCustomers();
     fetchAllCustomers();
@@ -474,11 +473,12 @@ export default function CRMPage() {
   // 홈 탭 '연락할 사후관리'에서 문자 보내기: 유형별 문구, 보냈다고 하면 보낸 표시
   const handleHomeFollowSms = async (f: FollowUp) => {
     const memoPhone = (f.memo || '').split('\n')[0].match(/01[016789][-\s]?\d{3,4}[-\s]?\d{4}/)?.[0] || '';
-    const phone = f.customer?.phone || memoPhone;
+    const arrivalToDealer = f.follow_up_type === '입고안내' && /\(딜러\)/.test((f.memo || '').split('\n')[0]); // 딜러 번호로 (2026-11-23)
+    const phone = (arrivalToDealer ? memoPhone : '') || f.customer?.phone || memoPhone;
     if (!phone) { alert('전화번호가 없는 고객입니다.'); return; }
     const t = f.follow_up_type;
     const msg = t === 'QC점검' ? QC_SMS : t === '메인터넌스' ? MAINT_SMS : t === '후기요청' ? REVIEW_SMS.proism : (f.memo || '').split('\n').slice(1).join('\n') || `안녕하세요 3M 프로이즘 대표 진준호입니다.\n${f.memo || ''}`;
-    const key = t === 'QC점검' ? 'qc' : t === '메인터넌스' ? 'maintenance' : t === '후기요청' ? 'proism' : 'quote';
+    const key = followUpSmsKey(t); // 입고안내는 'arrival' (예전엔 quote 로 적혔음)
     openSmsApp(phone, msg);
     if (!(await confirmAfterSms('문자를 전송하셨나요?'))) return;
     await supabase.from('follow_ups').update({ sms_sent: { ...(f.sms_sent || {}), [key]: true } }).eq('id', f.id);
@@ -867,6 +867,16 @@ export default function CRMPage() {
     if ('url' in link && custPhone && confirm(`${custName} 고객님을 회원으로 등록하고 보증서를 발급했습니다.\n시공 증명서·보증·관리 일정이 담긴 회원 페이지 링크를 문자로 보낼까요?`)) {
       openSmsApp(custPhone, memberLinkSms(custName, link.url, careGuidesFor([appointment.service_type || ''], woItems.map((i) => i.group))[0]?.after[0] || null)); // 관리법 첫 줄 (2026-11-22)
       await logMemberSms(appointment.customer_id, `[회원 문자] 회원 등록·보증서 발급 링크\n${link.url}`); // 같은 날 같은 기록은 한 번만 (2026-11-23)
+    }
+
+    // 출고 안내 → 딜러 (2026-11-23 사장님 "작업 상황은 딜러한테, 보증서는 고객한테"): 딜러가 넣어 준 차면 딜러에게 작업 마침 문자
+    const dealer = await dealerFor(appointment.customer_id);
+    if (dealer?.phone) {
+      const car = [cust?.car_brand, cust?.car_model].filter(Boolean).join(' ') || null;
+      if (confirm(`${dealer.name} 님(딜러)이 넣어 주신 차입니다.\n출고 안내 문자를 딜러에게 보낼까요?`)) {
+        openSmsApp(dealer.phone, dealerDoneSms(dealer.name, custName, car, appointment.service_type || null));
+        await logMemberSms(dealer.id, `[딜러 문자] 출고 안내 · ${custName} ${car || ''} ${appointment.service_type || ''}`.trim());
+      }
     }
 
     // 소개 포인트 (2026-11-19): 이 손님이 소개받고 온 분이면 소개한 분에게 1포인트 (소개 1건당 한 번)
@@ -1585,7 +1595,7 @@ export default function CRMPage() {
         {/* ─── TAB: 고객 목록 ──────────────────────────────── */}
         {activeTab === 'customers' && (
           <CustomersTab
-            customerSearch={customerSearch} setCustomerSearch={setCustomerSearch} filteredCustomers={filteredCustomers} vehiclesByCustomer={vehiclesByCustomer} router={router}
+            customerSearch={customerSearch} setCustomerSearch={setCustomerSearch} filteredCustomers={filteredCustomers} dealerNames={new Map(customers.filter((c) => c.kind === DEALER_KIND).map((c) => [c.id, c.name]))} vehiclesByCustomer={vehiclesByCustomer} router={router}
             setCustomerForm={setCustomerForm} setEditCustomerId={setEditCustomerId} setShowAddCustomer={setShowAddCustomer}
             handleEditCustomer={handleEditCustomer} handleDeleteCustomer={handleDeleteCustomer}
           />
