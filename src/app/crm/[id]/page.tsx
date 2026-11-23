@@ -8,6 +8,8 @@ import { linkReferral, loadReferralsFor, markThanksSent, updateReferral, unlinkR
 import { MEMBERSHIP, POINTS } from '@/config/membership';
 import MemberSmsButtons from '@/components/crm/MemberSmsButtons';
 import VehicleList from '@/components/crm/VehicleList';
+import CustomerTimeline from '@/components/crm/CustomerTimeline';
+import { buildTimeline } from '@/lib/timeline';
 import { vehicleLabel, type Vehicle } from '@/lib/vehicles';
 import { blacklistInfo, clearBlacklist } from '@/lib/blacklist';
 import { supabase } from '@/lib/supabase';
@@ -101,6 +103,7 @@ export default function CustomerDetailPage() {
   // 소개 포인트 (2026-11-19): 잔액·내역·사용
   const [pts, setPts] = useState<PointSummary>({ balance: 0, rows: [], lastEarnAt: null, expiresAt: null, expired: false, tableMissing: false });
   const [ptsOpen, setPtsOpen] = useState(false);
+  const [memberLink, setMemberLink] = useState<{ created_at: string; last_seen_at: string | null; visits: number } | null>(null); // 타임라인 '회원 페이지 열어 봄' 줄용
   const [editReferrerId, setEditReferrerId] = useState<string | null>(null);
   const openSms = (phone: string, msg: string) => openSmsApp(phone, msg);
   const startEditInfo = async () => {
@@ -176,6 +179,7 @@ export default function CustomerDetailPage() {
     } catch { /* ignore */ }
     setRefs(await loadReferralsFor(id));
     setPts(await loadPoints(id));
+    try { const { data: ml } = await supabase.from('member_links').select('created_at, last_seen_at, visits').eq('customer_id', id).maybeSingle(); setMemberLink((ml as typeof memberLink) || null); } catch { /* 표 없음 */ }
   }, [id]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
@@ -217,6 +221,8 @@ export default function CustomerDetailPage() {
             <button onClick={async () => { if (!confirm('블랙리스트에서 뺄까요?')) return; const e = await clearBlacklist(customer.id); if (e) alert(e); else fetchData(); }} className="ml-auto text-xs text-[var(--c-text-3)] hover:text-ok">해제</button>
           </div>
         )}
+        {/* 타임라인 (2026-11-23 사장님 "이카운트처럼 한 손님의 모든 일을 한 화면에 날짜순으로") */}
+        {(() => { const tl = buildTimeline({ today: todaySeoul(), customer, appointments: appts, services, consultations, followUps, referrals: refs.tableMissing ? undefined : refs, points: pts.tableMissing ? [] : pts.rows, memberLink }); return <CustomerTimeline upcoming={tl.upcoming} past={tl.past} today={todaySeoul()} />; })()}
         {/* 차량 (2026-11-22 차량 N대) */}
         <VehicleList customerId={id} onChange={setVehicles} />
         {/* Customer Info Card */}
