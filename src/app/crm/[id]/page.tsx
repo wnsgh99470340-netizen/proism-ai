@@ -10,7 +10,7 @@ import MemberSmsButtons from '@/components/crm/MemberSmsButtons';
 import VehicleList from '@/components/crm/VehicleList';
 import CustomerTimeline from '@/components/crm/CustomerTimeline';
 import { buildTimeline } from '@/lib/timeline';
-import { isDealer, dealerFor, customersOfDealer, type DealerRef, type DealerJob } from '@/lib/dealers';
+import { isDealer, dealerFor, customersOfDealer, isRetiredDealer, retiredDate, type DealerRef, type DealerJob } from '@/lib/dealers';
 import { buildVCard, deliverVcf, VCF_HINT, isContactSaved, markContactsSaved } from '@/lib/vcard';
 import { memberMissing } from '@/lib/member-ready';
 import { vehicleLabel, type Vehicle } from '@/lib/vehicles';
@@ -220,6 +220,7 @@ export default function CustomerDetailPage() {
           <span className="text-[var(--c-border)]">|</span>
           <span className="text-[var(--c-text-1)] font-semibold text-sm">{customer.name}</span>
           {isDealer(customer) && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[var(--c-text-1)] text-[var(--c-card)]">딜러</span>}
+          {isDealer(customer) && isRetiredDealer(customer.memo) && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[var(--c-subtle)] text-[var(--c-text-3)]" title="조직도에 없어 퇴사 표시 — 딜러 고르기·입고/출고 문자에서 빠짐">퇴사 {retiredDate(customer.memo)}</span>}
           {customer.phone && <span className="text-[var(--c-text-3)] text-xs">{customer.phone}</span>}
         </div>
         {customer.phone && (() => {

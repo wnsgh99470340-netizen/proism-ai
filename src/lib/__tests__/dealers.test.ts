@@ -1,6 +1,6 @@
 // 딜러 ↔ 실제 고객 (2026-11-23): 입고 안내 받는 사람 읽기, 딜러용 문구
 import { describe, it, expect } from 'vitest';
-import { arrivalRecipient, isDealer } from '@/lib/dealers';
+import { arrivalRecipient, isDealer, isRetiredDealer, retiredDate } from '@/lib/dealers';
 import { dealerArrivalSms, dealerDoneSms, arrivalSms } from '@/config/sms-templates';
 
 describe('딜러 구분 (dealers)', () => {
@@ -24,5 +24,10 @@ describe('딜러 구분 (dealers)', () => {
     expect(isDealer({ kind: null })).toBe(false);
     expect(isDealer({})).toBe(false);
     expect(isDealer(null)).toBe(false);
+  });
+  it('퇴사 표시 토큰', () => {
+    expect(isRetiredDealer('BMW 남양주\n[퇴사 2026-11-23]')).toBe(true);
+    expect(retiredDate('BMW 남양주\n[퇴사 2026-11-23]')).toBe('2026-11-23');
+    expect(isRetiredDealer('BMW 남양주')).toBe(false);
   });
 });

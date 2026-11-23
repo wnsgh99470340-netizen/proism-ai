@@ -3,7 +3,7 @@
 /** 고객 목록 탭 (2026-11-23 page.tsx 에서 분리 — 동작 변경 없음). 상태·핸들러는 page.tsx 에 있고 props 로 받는다 */
 import { EMPTY_CUSTOMER_FORM, type CustomerFormValues } from '@/components/crm/CustomerFormModal';
 import { useState } from 'react';
-import { DEALER_KIND } from '@/lib/dealers';
+import { DEALER_KIND, isRetiredDealer } from '@/lib/dealers';
 import { buildVCards, deliverVcf, VCF_HINT, loadSavedContacts, markContactsSaved, unsavedContacts, type SavedContacts } from '@/lib/vcard';
 import { useEffect } from 'react';
 import { isBlacklisted, blacklistInfo } from '@/lib/blacklist';
@@ -119,6 +119,7 @@ export default function CustomersTab({
                 <td className="px-4 py-3 text-sm text-[var(--c-text-1)] font-medium">
                   {c.name}
                   {c.kind === DEALER_KIND && <span className="ml-1.5 text-[9px] bg-[var(--c-text-1)] text-[var(--c-card)] px-1.5 py-0.5 rounded-full font-semibold">딜러</span>}
+                  {c.kind === DEALER_KIND && isRetiredDealer(c.memo) && <span className="ml-1 text-[9px] bg-[var(--c-subtle)] text-[var(--c-text-3)] px-1.5 py-0.5 rounded-full font-medium line-through">퇴사</span>}
                   {c.dealer_id && dealerNames?.get(c.dealer_id) && <span className="ml-1.5 text-[9px] bg-[var(--c-subtle)] text-[var(--c-text-3)] px-1.5 py-0.5 rounded-full font-medium" title="이 차를 넣어 준 딜러">딜러 {dealerNames.get(c.dealer_id)}</span>}
                   {isBlacklisted(c.memo) && <span className="ml-1.5 text-[9px] bg-danger/15 text-danger px-1.5 py-0.5 rounded-full font-semibold" title={blacklistInfo(c.memo)?.reason || ''}>⛔ 블랙리스트</span>}
                   {c.service_count >= 2 && <span className="ml-1.5 text-[9px] bg-gold/20 text-gold px-1.5 py-0.5 rounded-full font-medium">재방문</span>}

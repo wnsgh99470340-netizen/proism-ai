@@ -30,11 +30,16 @@ export function _resetDealerSupport() { supported = null; }
 
 export const isDealer = (c: { kind?: string | null } | null | undefined) => (c?.kind || '일반') === DEALER_KIND;
 
+/** 퇴사 딜러 (2026-11-23 사장님 "조직도에 없는 분은 퇴사 표시"): memo 에 "[퇴사 날짜]" 토큰. 기록은 남기되 고객 창의 딜러 고르기·입고/출고 문자 대상에서 뺀다 */
+export const RETIRED_RE = /\[퇴사 (\d{4}-\d{2}-\d{2})\]/;
+export const isRetiredDealer = (memo: string | null | undefined) => RETIRED_RE.test(memo || '');
+export const retiredDate = (memo: string | null | undefined) => (memo || '').match(RETIRED_RE)?.[1] || null;
+
 /** 딜러 목록(고객 기록 중 종류가 딜러인 것) */
 export async function loadDealers(): Promise<DealerRef[]> {
   if (!(await dealerSupport())) return [];
   const { data } = await supabase.from('customers').select('id, name, phone, memo').eq('kind', DEALER_KIND).order('name');
-  return (data || []) as DealerRef[];
+  return ((data || []) as DealerRef[]).filter((d) => !isRetiredDealer(d.memo)); // 퇴사한 분은 고르기 목록에서 뺌
 }
 
 /** 이 손님의 차를 넣어 준 딜러. 없으면 null */
@@ -44,7 +49,8 @@ export async function dealerFor(customerId: string | null | undefined): Promise<
   const dealerId = (c?.dealer_id as string | null) || null;
   if (!dealerId) return null;
   const { data: d } = await supabase.from('customers').select('id, name, phone, memo').eq('id', dealerId).maybeSingle();
-  return (d as DealerRef | null) || null;
+  if (!d || isRetiredDealer((d as DealerRef).memo)) return null; // 퇴사한 딜러에겐 입고·출고 안내를 보내지 않는다 → 고객에게
+  return d as DealerRef;
 }
 
 export interface DealerJob {
