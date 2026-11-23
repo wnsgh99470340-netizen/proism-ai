@@ -33,7 +33,7 @@ export async function ensureArrivalNotice(input: { customerId: string; name: str
   const { data: existing } = await supabase.from('follow_ups').select('id, memo').eq('customer_id', input.customerId).eq('follow_up_type', ARRIVAL_TYPE).eq('is_completed', false);
   if ((existing || []).some((r) => ((r.memo as string | null) || '').includes(`${input.date} 입고`))) return false;
   const head = `${input.name} ${input.phone || ''} · ${input.serviceType || '시공'} ${input.date} 입고`.replace(/\s+·/, ' ·');
-  await supabase.from('follow_ups').insert({ customer_id: input.customerId, follow_up_type: ARRIVAL_TYPE, scheduled_date: noticeDate, memo: `${head}\n${arrivalSms(input.name, input.date, input.serviceType || null)}` });
+  await supabase.from('follow_ups').insert({ customer_id: input.customerId, follow_up_type: ARRIVAL_TYPE, scheduled_date: noticeDate, is_completed: false, memo: `${head}\n${arrivalSms(input.name, input.date, input.serviceType || null)}` });
   return true;
 }
 /** 예약 날짜가 바뀌거나 취소되면 그 날짜의 열린 입고 안내를 지우고(취소) 새 날짜로 다시 만든다(변경) */
