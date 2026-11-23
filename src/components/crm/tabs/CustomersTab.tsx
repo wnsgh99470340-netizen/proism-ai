@@ -61,26 +61,27 @@ export default function CustomersTab({
   };
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
+      {/* 폰(375px)에서 검색칸·버튼이 한 줄에 못 들어가 글자가 세로로 깨지던 것 → 줄바꿈 허용, 검색칸은 폰에서 꽉 차게 (2026-11-23 갤럭시 점검) */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <input
             type="text"
             placeholder="이름, 차종으로 검색..."
             value={customerSearch}
             onChange={(e) => setCustomerSearch(e.target.value)}
-            className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] w-64 outline-none focus:border-gold/50 transition-colors placeholder:text-[var(--c-text-3)]"
+            className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] w-full sm:w-64 outline-none focus:border-gold/50 transition-colors placeholder:text-[var(--c-text-3)]"
           />
           <span className="text-xs text-[var(--c-text-3)]">{rows.length}명</span>
           {hasDealers && (
             <div className="inline-flex rounded-lg border border-[var(--c-border)] overflow-hidden text-[11px] font-semibold">
               {([['customer', '고객'], ['dealer', '딜러'], ['all', '전체']] as const).map(([k, l]) => (
-                <button key={k} onClick={() => setKindFilter(k)} className={`px-2.5 py-1.5 transition-colors ${kindFilter === k ? 'bg-[var(--c-text-1)] text-[var(--c-card)]' : 'text-[var(--c-text-2)] hover:bg-[var(--c-subtle)]'}`}>{l}</button>
+                <button key={k} onClick={() => setKindFilter(k)} className={`px-2.5 py-1.5 whitespace-nowrap transition-colors ${kindFilter === k ? 'bg-[var(--c-text-1)] text-[var(--c-card)]' : 'text-[var(--c-text-2)] hover:bg-[var(--c-subtle)]'}`}>{l}</button>
               ))}
             </div>
           )}
         </div>
-        <div className="flex items-center gap-2">
-        <button onClick={saveContacts} disabled={vcfBusy || rows.length === 0} title={fresh.length > 0 ? `아직 폰 연락처에 없는 ${fresh.length}명을 저장` : '지금 보이는 분은 모두 폰 연락처에 있음'} className={`inline-flex items-center gap-1.5 text-sm font-semibold rounded-full pl-3 pr-2 py-2 border transition-colors disabled:opacity-50 ${fresh.length > 0 ? 'border-[var(--c-text-1)] text-[var(--c-text-1)] hover:bg-[var(--c-subtle)]' : 'border-[var(--c-border)] text-[var(--c-text-3)]'}`}>
+        <div className="flex items-center gap-2 shrink-0 sm:ml-auto">
+        <button onClick={saveContacts} disabled={vcfBusy || rows.length === 0} title={fresh.length > 0 ? `아직 폰 연락처에 없는 ${fresh.length}명을 저장` : '지금 보이는 분은 모두 폰 연락처에 있음'} className={`inline-flex items-center gap-1.5 text-sm font-semibold rounded-full pl-3 pr-2 py-2 border transition-colors disabled:opacity-50 whitespace-nowrap ${fresh.length > 0 ? 'border-[var(--c-text-1)] text-[var(--c-text-1)] hover:bg-[var(--c-subtle)]' : 'border-[var(--c-border)] text-[var(--c-text-3)]'}`}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="19" y1="8" x2="19" y2="14" /><line x1="22" y1="11" x2="16" y2="11" /></svg>
           연락처
           {fresh.length > 0
@@ -89,7 +90,7 @@ export default function CustomersTab({
         </button>
         <button
           onClick={() => { setEditCustomerId(null); setCustomerForm({ ...EMPTY_CUSTOMER_FORM }); setShowAddCustomer(true); }}
-          className="bg-brand hover:bg-brand-dark text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors"
+          className="bg-brand hover:bg-brand-dark text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors whitespace-nowrap"
         >
           + 고객 추가
         </button>

@@ -35,7 +35,7 @@ export default function SourceChart({ table }: { table: SourceTable }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-6 items-center">
       {/* 도넛 + 범례: 선 없이 조각 안에 이름·비율, 옆에 색 네모 범례 (2026-11-23 사장님 "너무 난해, 깔끔하게") */}
-      <div className="flex items-center gap-5 justify-center">
+      <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-5 justify-center">
         <svg viewBox="0 0 250 250" className="w-[210px] h-[210px] shrink-0" role="img" aria-label="유입경로 비율">
           {total === 0 ? <circle cx={CX} cy={CY} r={(R + r) / 2} fill="none" stroke="var(--c-border)" strokeWidth={R - r} /> : segs.map((s) => (
             <g key={s.i}>

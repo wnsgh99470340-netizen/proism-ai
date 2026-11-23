@@ -63,8 +63,8 @@ export default function FollowUpsTab({
         ))}
       </div>
 
-      {/* 필터 버튼 (유형별) */}
-      <div className="flex items-center gap-2 mb-4">
+      {/* 필터 버튼 (유형별) — 폰에서는 가로 스크롤, 글자 줄바꿈 없음 (2026-11-23 갤럭시 점검) */}
+      <div className="flex items-center gap-2 mb-4 overflow-x-auto [scrollbar-width:none]">
         {([
           { key: 'all' as const, label: '전체', count: followUps.length, style: 'bg-gold/20 text-gold' },
           { key: 'QC점검' as const, label: 'QC', count: followUps.filter((f) => f.follow_up_type === 'QC점검').length, style: 'bg-info/20 text-info' },
@@ -75,7 +75,7 @@ export default function FollowUpsTab({
           <button
             key={f.key}
             onClick={() => setFollowUpFilter(f.key)}
-            className={`text-sm px-3 py-1.5 rounded-lg transition-colors font-medium ${
+            className={`text-sm px-3 py-1.5 rounded-lg transition-colors font-medium whitespace-nowrap shrink-0 ${
               followUpFilter === f.key
                 ? f.style
                 : 'bg-[var(--c-subtle)] text-[var(--c-text-3)] hover:text-[var(--c-text-2)]'
@@ -423,8 +423,8 @@ export default function FollowUpsTab({
                     </div>
                   </div>
                   <p className="text-xs text-[var(--c-text-3)] mb-3 leading-relaxed">{promo.tpl('{고객명}')}</p>
-                  <div className="flex items-center gap-2">
-                    <select id={`promo-cust-${promo.label}`} className="flex-1 bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-1.5 text-xs text-[var(--c-text-1)] outline-none">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <select id={`promo-cust-${promo.label}`} className="flex-1 min-w-[160px] bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-1.5 text-xs text-[var(--c-text-1)] outline-none">
                       <option value="">고객 선택</option>
                       {allCustomers.map((c) => <option key={c.id} value={c.id}>{c.name}{c.phone ? ` (${c.phone})` : ''}</option>)}
                     </select>

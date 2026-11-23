@@ -455,12 +455,12 @@ export default function CustomerDetailPage() {
         </div>}
 
         {/* Detail Tabs */}
-        <div className="border-b border-[var(--c-border)] flex gap-0 mb-4">
+        <div className="border-b border-[var(--c-border)] flex gap-0 mb-4 overflow-x-auto">{/* 폰에서 탭 글자가 두 줄로 깨지던 것 (2026-11-23) */}
           {tabs.map((tab) => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`px-4 py-2.5 text-sm font-medium transition-colors relative ${
+              className={`px-4 py-2.5 text-sm font-medium transition-colors relative whitespace-nowrap shrink-0 ${
                 activeTab === tab.key ? 'text-gold' : 'text-[var(--c-text-3)] hover:text-[var(--c-text-2)]'
               }`}
             >
@@ -475,9 +475,9 @@ export default function CustomerDetailPage() {
           <div className="space-y-2">
             {services.map((s) => (
               <div key={s.id} className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-4 group">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-[var(--c-text-1)]">{s.service_type}</span>
+                <div className="flex items-center justify-between mb-2 flex-wrap gap-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-medium text-[var(--c-text-1)] whitespace-nowrap">{s.service_type}</span>
                     {vehicles.length > 1 && s.vehicle_id && <span className="text-xs text-[var(--c-text-3)]">{vehicleLabel(vehicles.find((v) => v.id === s.vehicle_id))}</span>}
                     {s.amount != null && s.amount > 0 && <span className="text-xs text-gold">{s.amount.toLocaleString()}원</span>}
                   </div>

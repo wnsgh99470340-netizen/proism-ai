@@ -17,8 +17,8 @@ interface ConsultationsTabProps {
 export default function ConsultationsTab({ consultations, customers, handleAddCustomerFromQuote, setQuoteSms, setShowInquiry, setShowAddConsultation }: ConsultationsTabProps) {
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm text-[var(--c-text-3)]">{consultations.length}건의 상담</h2>
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">{/* 폰에서 버튼 글자가 세로로 깨지던 것 (2026-11-23) */}
+        <h2 className="text-sm text-[var(--c-text-3)] whitespace-nowrap">{consultations.length}건의 상담</h2>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowInquiry(true)}
