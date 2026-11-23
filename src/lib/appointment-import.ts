@@ -87,11 +87,20 @@ const PROMPT = (baseMonth: string) => `이 이미지는 자동차 시공점 사�
 {"month":"YYYY-MM","events":[{"label":"","days":["YYYY-MM-DD"],"time":null,"name":null,"phone":null,"car":null,"service":null,"note":null}],"hidden":[{"date":"YYYY-MM-DD","count":1}]}`;
 
 export async function extractEventsFromImage(base64: string, mediaType: string, baseMonth: string): Promise<{ month: string; events: ExtractedEvent[]; hidden: { date: string; count: number }[] }> {
-  const raw = await analyzeImageWithClaude(base64, mediaType, PROMPT(baseMonth), 4000, 'claude-sonnet-5-5');
-  const m = raw.match(/\{[\s\S]*\}/);
+  // 한 달에 30건 넘는 달(기간 막대는 날짜를 하루씩 다 적음)은 4,000 토큰에서 JSON 이 잘렸다(2026-11-23 타임트리 5~10월 캡처 5장 중 4장 실패) → 16,000 + 잘린 JSON 살리기
+  const raw = await analyzeImageWithClaude(base64, mediaType, PROMPT(baseMonth), 16000, 'claude-sonnet-5-5');
+  const m = raw.match(/\{[\s\S]*\}?/);
   if (!m) throw new Error('이미지에서 일정을 읽지 못했습니다');
   type RawEvent = Partial<ExtractedEvent> & { days?: unknown };
-  const j = JSON.parse(m[0]) as { month?: string; events?: RawEvent[]; hidden?: { date: string; count: number }[] };
+  type RawDoc = { month?: string; events?: RawEvent[]; hidden?: { date: string; count: number }[] };
+  const parseLoose = (text: string): RawDoc => {
+    try { return JSON.parse(text) as RawDoc; } catch { /* 아래 */ }
+    // 출력이 중간에 끊긴 경우: 마지막으로 완전히 닫힌 일정 객체까지만 살린다
+    const i = text.lastIndexOf('},');
+    if (i > 0) { try { return JSON.parse(text.slice(0, i + 1) + ']}') as RawDoc; } catch { /* 아래 */ } }
+    throw new Error('일정 JSON 을 읽지 못했습니다 (출력이 잘렸을 수 있음)');
+  };
+  const j = parseLoose(m[0]);
   const isDate = (s: unknown): s is string => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
   const events: ExtractedEvent[] = [];
   for (const e of j.events || []) {
