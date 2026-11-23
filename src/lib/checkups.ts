@@ -7,6 +7,7 @@
  * 2026-11-23 추가: 중복 기록 / 지난 QC·메인터넌스(방문도 안 잡힘) / 고객과 안 묶인 상담 / 메인터넌스 기간 끝나가는 차. 멈춘 예약 기준 7일 → 끝난 다음 날
  */
 import { supabase } from './supabase';
+import { isImportedCustomer } from './crm-shared';
 import { todaySeoul, addDaysISO } from './local-date';
 
 export interface MissedGroup {
@@ -139,8 +140,9 @@ export async function buildMissedReport(date = todaySeoul()): Promise<MissedRepo
 
   // 4) 채워야 할 고객 (2026-11-22 점검 10): 유입경로나 차종이 비어 있는 분 — 월말 유입경로 표와 차량 연결이 틀어진다
   try {
-    const { data } = await supabase.from('customers').select('name, source, car_model, car_brand').neq('kind', '딜러').order('created_at', { ascending: false }); // 딜러 기록은 유입경로·차종이 없는 게 정상 (2026-11-23)
+    const { data } = await supabase.from('customers').select('name, source, car_model, car_brand, memo').neq('kind', '딜러').order('created_at', { ascending: false }); // 딜러 기록은 유입경로·차종이 없는 게 정상 (2026-11-23)
     const lines = (data || [])
+      .filter((c) => !isImportedCustomer(c.memo as string | null)) // 이카운트·타임트리에서 가져온 기록은 비어 있는 게 정상 (2026-11-23)
       .filter((c) => !c.source || (!c.car_model && !c.car_brand))
       .map((c) => `${c.name} · ${[!c.source ? '유입경로' : '', !c.car_model && !c.car_brand ? '차종' : ''].filter(Boolean).join('·')} 비어 있음`);
     if (lines.length) groups.push({ key: 'fill', label: '채워야 할 고객', count: lines.length, lines, where: '고객 목록 → 이름 눌러 수정' });

@@ -185,6 +185,9 @@ export async function createAutoFollowUps(
 
 // ─── Helper ──────────────────────────────────────────────
 /** 전화번호 저장 형식 통일 010-0000-0000 (2026-11-22 점검 10). 11자리·10자리가 아니면 적은 그대로 */
+/** 과거 장부·캡처에서 한 번에 가져온 고객인가 (2026-11-23 이카운트 거래처 95명·타임트리). 이달 '새 고객' 숫자·'채워야 할 고객' 점검에서 뺀다 — 실제로 이달 온 손님이 아니고, 유입경로·차종이 비어 있는 게 정상 */
+export const isImportedCustomer = (memo: string | null | undefined) => /가져옴|타임트리/.test(memo || '');
+
 export function normalizePhone(raw: string | null | undefined): string | null {
   const t = (raw || '').trim(); if (!t) return null;
   const d = t.replace(/\D/g, '');

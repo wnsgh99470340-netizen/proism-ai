@@ -10,6 +10,7 @@
  * - 홈 "이번 주 숫자" 카드(/api/stats)와 월요일 브리핑(team.ts)이 쓴다
  */
 import { supabase } from './supabase';
+import { isImportedCustomer } from './crm-shared';
 import { listJobs } from './jobs';
 import { fetchOwnerPostList } from './blog-import';
 import { todaySeoul, addDaysISO, toSeoulISO } from './local-date';
@@ -133,10 +134,11 @@ export async function buildWeeklyStats(to = todaySeoul(), days = 7, fromOverride
   let newCustomers = 0;
   const sourceCounts = SOURCE_LABELS.map(() => 0);
   try {
-    const { data, error } = await supabase.from('customers').select('source, created_at').neq('kind', '딜러').gte('created_at', start).lte('created_at', end); // 새 고객·유입경로에 딜러 제외 (2026-11-23)
+    const { data, error } = await supabase.from('customers').select('source, created_at, memo').neq('kind', '딜러').gte('created_at', start).lte('created_at', end); // 새 고객·유입경로에 딜러 제외 (2026-11-23)
     if (error) throw error;
-    newCustomers = data?.length || 0;
-    for (const r of data || []) sourceCounts[sourceIndex(r.source as string | null)]++;
+    const real = (data || []).filter((r) => !isImportedCustomer(r.memo as string | null)); // 장부에서 한 번에 가져온 기록은 이달 새 고객이 아님 (2026-11-23)
+    newCustomers = real.length;
+    for (const r of real) sourceCounts[sourceIndex(r.source as string | null)]++;
   } catch { errors.push('고객'); }
 
   let reviewRequested = 0, reviewReceived = 0, qcDone = 0, maintenanceDone = 0;
@@ -186,9 +188,9 @@ export async function buildSourceTable(month = todaySeoul().slice(0, 7)): Promis
   const { start, end } = seoulRange(from, to);
   const rows = Array.from({ length: daysInMonth }, (_, i) => ({ day: i + 1, counts: SOURCE_LABELS.map(() => 0), total: 0 }));
   let blankSource = 0;
-  const { data, error } = await supabase.from('customers').select('source, created_at').neq('kind', '딜러').gte('created_at', start).lte('created_at', end); // 새 고객·유입경로에 딜러 제외 (2026-11-23)
+  const { data, error } = await supabase.from('customers').select('source, created_at, memo').neq('kind', '딜러').gte('created_at', start).lte('created_at', end); // 새 고객·유입경로에 딜러 제외 (2026-11-23)
   if (error) throw new Error(`고객 조회 실패: ${error.message}`);
-  for (const r of data || []) {
+  for (const r of (data || []).filter((x) => !isImportedCustomer(x.memo as string | null))) {
     const day = Number(toSeoulISO(new Date(r.created_at as string)).slice(8, 10));
     const row = rows[day - 1];
     if (!row) continue;
