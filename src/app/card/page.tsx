@@ -17,8 +17,8 @@ const btn = 'flex items-center justify-center gap-2 rounded-xl py-3.5 text-sm fo
 
 export default function CardPage() {
   return (
-    <main className="min-h-screen bg-[#0f0f12] text-white">
-      <div className="mx-auto max-w-md px-4 py-6 space-y-4">
+    <main className="h-dvh overflow-y-auto overscroll-contain bg-[#0f0f12] text-white">
+      <div className="mx-auto max-w-md px-4 pt-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] space-y-4">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/card/front.jpg" alt="3M 프로이즘 명함 앞면" className="w-full rounded-2xl shadow-2xl" />
         {/* eslint-disable-next-line @next/next/no-img-element */}
