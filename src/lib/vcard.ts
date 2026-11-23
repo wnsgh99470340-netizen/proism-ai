@@ -11,8 +11,12 @@ export interface ContactInput {
   id?: string;
   name: string;
   phone: string | null | undefined;
-  /** 차종 등 이름 뒤에 붙일 말 */
+  /** 이름 앞에 붙일 말 (딜러: 전시장 이름 → "BMW 잠실 이규정 주임") */
+  prefix?: string | null;
+  /** 차종 등 이름 뒤에 붙일 말 ("김수희 기아 EV3") */
   tag?: string | null;
+  /** 직함 칸 (딜러) */
+  title?: string | null;
   /** 회사 칸 (기본 '프로이즘 고객') */
   org?: string | null;
   note?: string | null;
@@ -25,13 +29,15 @@ export function buildVCard(c: ContactInput): string | null {
   const digits = (c.phone || '').replace(/\D/g, '');
   if (digits.length < 9) return null;
   const name = (c.name || '').trim() || '고객';
-  const fn = [name, (c.tag || '').trim()].filter(Boolean).join(' ');
+  const fn = [(c.prefix || '').trim(), name, (c.tag || '').trim()].filter(Boolean).join(' ');
+  // 삼성 연락처는 FN 이 아니라 N(성 칸)을 이름으로 보여 준다(2026-11-23 갤럭시 확인: 차종·전시장이 안 보였음) → N 에도 합친 글자를 통째로 넣는다
   const lines = [
     'BEGIN:VCARD', 'VERSION:3.0',
     ...(c.id ? [`UID:proism-${c.id}`] : []), // 같은 사람을 다시 넣어도 UID 를 보는 연락처 앱(구글 주소록 등)은 합친다
-    `N:${esc(name)};;;;`,
+    `N:${esc(fn)};;;;`,
     `FN:${esc(fn)}`,
     `ORG:${esc((c.org || '프로이즘 고객').trim())}`,
+    ...(c.title && c.title.trim() ? [`TITLE:${esc(c.title.trim())}`] : []),
     `TEL;TYPE=CELL:${digits}`,
   ];
   if (c.note && c.note.trim()) lines.push(`NOTE:${esc(c.note.trim())}`);

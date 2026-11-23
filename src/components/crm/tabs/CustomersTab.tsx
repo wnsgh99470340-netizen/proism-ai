@@ -39,7 +39,7 @@ export default function CustomersTab({
   const [saved, setSaved] = useState<SavedContacts>({});
   useEffect(() => { setSaved(loadSavedContacts()); }, []);
   const contactList = rows.map((c) => c.kind === DEALER_KIND
-    ? { id: c.id, name: c.name, phone: c.phone, tag: (c.memo || '').split('\n')[0], org: '딜러' }
+    ? { id: c.id, name: c.name, phone: c.phone, prefix: (c.memo || '').split('\n')[0], org: (c.memo || '').split('\n')[0] || '딜러', title: '딜러' }
     : { id: c.id, name: c.name, phone: c.phone, tag: [c.car_brand, c.car_model].filter(Boolean).join(' '), org: '프로이즘 고객', note: c.source ? `유입경로 ${c.source}` : null });
   const fresh = unsavedContacts(contactList, saved); // 이 기기에서 아직 안 넘긴 분(번호 바뀐 분 포함)만 — 중복 저장 방지 (2026-11-23)
   const saveContacts = async () => {

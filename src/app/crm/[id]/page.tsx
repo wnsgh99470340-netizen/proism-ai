@@ -227,7 +227,7 @@ export default function CustomerDetailPage() {
             <button onClick={async () => {
               if (already && !confirm('이 기기에서 이미 연락처로 넘긴 분입니다. 다시 만들까요?')) return;
               const c = isDealer(customer)
-                ? { id: customer.id, name: customer.name, phone: customer.phone, tag: (customer.memo || '').split('\n')[0], org: '딜러' }
+                ? { id: customer.id, name: customer.name, phone: customer.phone, prefix: (customer.memo || '').split('\n')[0], org: (customer.memo || '').split('\n')[0] || '딜러', title: '딜러' }
                 : { id: customer.id, name: customer.name, phone: customer.phone, tag: [customer.car_brand, customer.car_model].filter(Boolean).join(' '), org: '프로이즘 고객', note: customer.source ? `유입경로 ${customer.source}` : null };
               const v = buildVCard(c); if (!v) return;
               const how = await deliverVcf(v, `${customer.name}.vcf`);

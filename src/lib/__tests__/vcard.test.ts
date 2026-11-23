@@ -6,7 +6,7 @@ describe('vCard', () => {
   it('이름 뒤에 차종, 회사 칸 프로이즘 고객, 전화는 숫자만', () => {
     const v = buildVCard({ name: '김수희', phone: '010-5165-8780', tag: '기아 EV3', note: '유입경로 기타' })!;
     expect(v).toContain('FN:김수희 기아 EV3');
-    expect(v).toContain('N:김수희;;;;');
+    expect(v).toContain('N:김수희 기아 EV3;;;;'); // 삼성 연락처는 N 을 보여 준다
     expect(v).toContain('ORG:프로이즘 고객');
     expect(v).toContain('TEL;TYPE=CELL:01051658780');
     expect(v).toContain('NOTE:유입경로 기타');
@@ -21,6 +21,11 @@ describe('vCard', () => {
     expect(all.count).toBe(2);
     expect(all.text.match(/BEGIN:VCARD/g)).toHaveLength(2);
     expect(all.text).toContain('ORG:딜러');
+    const d = buildVCard({ name: '이규정 주임', phone: '010-9194-2660', prefix: 'BMW 잠실', org: 'BMW 잠실', title: '딜러' })!;
+    expect(d).toContain('N:BMW 잠실 이규정 주임;;;;');
+    expect(d).toContain('FN:BMW 잠실 이규정 주임');
+    expect(d).toContain('ORG:BMW 잠실');
+    expect(d).toContain('TITLE:딜러');
   });
   it('중복 저장 방지: 넘긴 사람은 다음에 빠지고, 번호가 바뀌면 다시 들어간다', () => {
     const list = [
