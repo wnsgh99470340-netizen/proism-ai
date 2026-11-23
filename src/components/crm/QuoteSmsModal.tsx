@@ -494,11 +494,12 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
           </div>
         </div>
         {(!car.trim() || !phone.replace(/[^\d]/g, '')) && <div className="px-6 pt-2 text-[11px] text-warn">{!car.trim() ? '차종을 적어야 복사·문자 보내기가 됩니다. ' : ''}{!phone.replace(/[^\d]/g, '') ? '전화번호가 없으면 [복사]로만 보낼 수 있습니다.' : ''}</div>}
-        <div className="px-6 py-4 border-t border-[var(--c-border)] flex justify-end gap-2">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-2)]">닫기</button>
-          <button onClick={shareCard} disabled={busy} className="bg-[var(--c-subtle)] hover:bg-[var(--c-hover)] text-[var(--c-text-1)] text-sm font-medium rounded-lg px-4 py-2 disabled:opacity-50" title="문자를 보낸 뒤 명함 사진을 같은 번호로 보낼 때">📇 명함 이미지</button>
-          <button onClick={() => send('copy')} disabled={busy} className="bg-[var(--c-subtle)] hover:bg-[var(--c-hover)] text-[var(--c-text-1)] text-sm font-medium rounded-lg px-4 py-2 disabled:opacity-50">📋 복사</button>
-          <button onClick={() => send('sms')} disabled={busy} className="bg-brand hover:bg-brand-dark text-white text-sm font-medium rounded-lg px-4 py-2 disabled:opacity-50">💬 문자 보내기</button>
+        {/* 폰(375px)에서 버튼 4개가 한 줄에 못 들어가 '닫'·'명함 이미지' 글자가 깨지던 것 → 줄바꿈 허용 + 글자 안 깨지게, 폰에선 '명함'만 (2026-11-23) */}
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-[var(--c-border)] flex flex-wrap justify-end gap-2">
+          <button onClick={onClose} className="px-3 sm:px-4 py-2 text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-2)] whitespace-nowrap mr-auto sm:mr-0">닫기</button>
+          <button onClick={shareCard} disabled={busy} className="bg-[var(--c-subtle)] hover:bg-[var(--c-hover)] text-[var(--c-text-1)] text-sm font-medium rounded-lg px-3 sm:px-4 py-2 disabled:opacity-50 whitespace-nowrap" title="문자를 보낸 뒤 명함 사진을 같은 번호로 보낼 때">📇 명함<span className="hidden sm:inline"> 이미지</span></button>
+          <button onClick={() => send('copy')} disabled={busy} className="bg-[var(--c-subtle)] hover:bg-[var(--c-hover)] text-[var(--c-text-1)] text-sm font-medium rounded-lg px-3 sm:px-4 py-2 disabled:opacity-50 whitespace-nowrap">📋 복사</button>
+          <button onClick={() => send('sms')} disabled={busy} className="bg-brand hover:bg-brand-dark text-white text-sm font-medium rounded-lg px-3 sm:px-4 py-2 disabled:opacity-50 whitespace-nowrap">💬 문자 보내기</button>
         </div>
       </div>
     </div>
