@@ -13,6 +13,7 @@ import { referrerToken, hideRefToken } from '@/components/crm/ReferrerPicker';
 import { overdueAppointments } from '@/lib/appointments-flow';
 import { vehicleLabel } from '@/lib/vehicles';
 import { normalizeService } from '@/lib/appointment-import';
+import { memberMissing } from '@/lib/member-ready';
 
 describe('점검 기록 memo (care-log)', () => {
   it('붙이고 읽고 떼기가 원래 메모를 보존한다', () => {
@@ -164,5 +165,14 @@ describe('스크린샷 일정 → 시공 종류 (normalizeService)', () => {
     expect(normalizeService('5시리즈 루프스킨 제거 및 재시공')).toBe('랩핑');
     expect(normalizeService('BMW X6 PWF 매트블랙')).toBe('컬러PPF');
     expect(normalizeService('랜드로버 보험수리')).toBeNull();
+  });
+});
+
+describe('회원 등록 전 빠진 것 (memberMissing)', () => {
+  it('성함·전화·차종·작업이 다 있어야 비어 있다', () => {
+    expect(memberMissing({ name: '김수희', phone: '010-5165-8780', car: '기아 EV3', workCount: 1 })).toEqual([]);
+    expect(memberMissing({ name: '', phone: null, car: '', workCount: 0 })).toEqual(['성함', '전화번호', '차종', '작업 내역']);
+    expect(memberMissing({ name: 'BMW X4 고객', phone: '010-1111-2222', car: 'BMW X4', workCount: 1 })).toEqual(['성함']); // 차종 임시 고객
+    expect(memberMissing({ name: '홍길동', phone: '010-123', car: 'X5', workCount: 2 })).toEqual(['전화번호']);
   });
 });

@@ -6,6 +6,7 @@ import { confirmAfterSms, openSmsApp } from '@/lib/crm-shared';
 import { todaySeoul } from '@/lib/local-date';
 import { MEMBERSHIP } from '@/config/membership';
 import { getOrCreateMemberLink, memberLinkSms, logMemberSms } from '@/lib/member-links';
+import { checkMemberReady, memberBlockMessage } from '@/lib/member-ready';
 
 /**
  * 회원 문자 버튼 (2026-11-18): 회원 페이지 목록과 고객 상세 멤버십 카드에서 같은 버튼
@@ -35,6 +36,8 @@ export default function MemberSmsButtons({ customerId, name, phone, size = 'sm',
   // 손님용 회원 페이지 링크 (2026-11-18): 개인 링크를 만들어(없으면) 문자로 보내고 주소도 복사
   const sendLink = async () => {
     setBusy('link');
+    const missing = await checkMemberReady(customerId); // 성함·전화·차종·작업 중 하나라도 없으면 안 보냄 (2026-11-23)
+    if (missing.length > 0) { setBusy(null); alert(memberBlockMessage(missing)); return; }
     const r = await getOrCreateMemberLink(customerId);
     setBusy(null);
     if ('error' in r) { alert(r.error); return; }

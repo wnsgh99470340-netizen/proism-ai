@@ -10,6 +10,7 @@ import QuoteSmsModal, { type QuoteSmsInitial } from '@/components/crm/QuoteSmsMo
 import InquiryReplyModal from '@/components/crm/InquiryReplyModal';
 import { QC_SMS, MAINT_SMS, REVIEW_SMS, dealerDoneSms, followUpSmsKey } from '@/config/sms-templates';
 import { dealerSupport, dealerFor, DEALER_KIND } from '@/lib/dealers';
+import { checkMemberReady, memberBlockMessage } from '@/lib/member-ready';
 import type { TeamItem } from '@/lib/team';
 import type { ImportCandidate } from '@/lib/appointment-import';
 import BlogWorkspace from '@/components/BlogWorkspace';
@@ -763,6 +764,12 @@ export default function CRMPage() {
     // 완료일 = 출고일(예약 종료일, 없으면 예약일). 버튼 누른 날이 아니다 (2026-11-22: 11/13 출고 차의 QC 가 12/6, 메인터넌스가 5/22 로 잡혔던 일 — 완료 처리를 11/22 에 눌렀기 때문)
     // 아직 끝나지 않은 예약을 미리 완료하면 오늘
     const completionDate = (() => { const end = appointment.end_date || appointment.appointment_date; const today = todaySeoul(); return end && end < today ? end : today; })();
+
+    // 회원 등록 막기 (2026-11-23 사장님 "성함·차종·전화번호·작업 중 하나라도 빠지면 회원 등록 안 되게"): 완료 = 보증서 발급 = 회원 등록이므로 여기서 멈춘다
+    {
+      const missing = await checkMemberReady(appointment.customer_id, workItems(workOrder as WorkOrderJson).length);
+      if (missing.length > 0) { alert(memberBlockMessage(missing)); return; }
+    }
 
     // 빠진 칸 한 번 묻기 (2026-11-22 사장님): 차량번호·금액·PPF 제품·썬팅 농도가 비면 회원 페이지 증명서 제품 줄과 월말 숫자가 비어 나온다
     {
