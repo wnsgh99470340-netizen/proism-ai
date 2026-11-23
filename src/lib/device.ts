@@ -21,3 +21,13 @@ export async function copyText(text: string): Promise<boolean> {
     const ok = document.execCommand('copy'); ta.remove(); return ok;
   } catch { return false; }
 }
+
+/**
+ * 글을 카톡으로 보내기. 폰이면 기기 공유창을 띄워 카카오톡(또는 문자·메일)을 고르게 한다 — 카카오 SDK 공유는 삼성 인터넷 홈 화면 앱에서 안 열렸음(2026-11-23).
+ * 공유창을 띄웠으면 true(그 뒤 "보냈나요?"는 호출한 쪽에서), 못 띄우면 false(호출한 쪽이 SDK·복사로 폴백).
+ */
+export async function shareTextOnPhone(text: string): Promise<boolean> {
+  if (!isMobileDevice() || typeof navigator === 'undefined' || !('share' in navigator)) return false;
+  try { await navigator.share({ text }); return true; }
+  catch (e) { return e instanceof Error && e.name === 'AbortError'; } // 사용자가 공유창을 닫은 것도 "띄우긴 했다"
+}

@@ -4,7 +4,7 @@
 import type { Dispatch, SetStateAction } from 'react';
 import { supabase } from '@/lib/supabase';
 import { confirmAfterSms, openSmsApp } from '@/lib/crm-shared';
-import { copyText } from '@/lib/device';
+import { copyText, shareTextOnPhone } from '@/lib/device';
 import { QC_SMS, REVIEW_SMS, followUpMessage } from '@/config/sms-templates';
 import { parseCareLog, stripCareLog } from '@/lib/care-log';
 import { isSkipped, closeQuoteAs, quoteCloseReason, QUOTE_CLOSE_REASONS } from '@/lib/followups';
@@ -120,7 +120,9 @@ export default function FollowUpsTab({
             if (!phone) return;
             // \n 리터럴을 실제 줄바꿈으로, 연속 줄바꿈 정리
             const cleanMsg = msg.replace(/\\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
-            if (window.Kakao?.isInitialized()) {
+            if (await shareTextOnPhone(cleanMsg)) {
+              // 폰: 공유창에서 카카오톡을 골라 보냄
+            } else if (window.Kakao?.isInitialized()) {
               try {
                 window.Kakao.Share.sendDefault({
                   objectType: 'text',
@@ -442,11 +444,13 @@ export default function FollowUpsTab({
                       return (
                         <>
                           <button
-                            onClick={() => {
+                            onClick={async () => {
                               const cust = getPromoCustomer();
                               if (!cust) return;
                               const msg = promo.tpl(cust.name).replace(/\\n/g, '\n').trim();
-                              if (window.Kakao?.isInitialized()) {
+                              if (await shareTextOnPhone(msg)) {
+                                // 폰: 공유창에서 카카오톡을 골라 보냄
+                              } else if (window.Kakao?.isInitialized()) {
                                 try {
                                   window.Kakao.Share.sendDefault({
                                     objectType: 'text',
