@@ -32,7 +32,7 @@ import { BlacklistWarning } from '@/components/crm/BlacklistModal';
 import { isBlacklisted, blacklistInfo } from '@/lib/blacklist';
 import { careGuidesFor } from '@/config/care-guide';
 
-import { type Customer, type Appointment, type FollowUp, type Tab, TAB_KEYS, SERVICE_TYPES, CARE_VISIT_TYPES, RETOUCH_TYPE, FOLLOW_UP_TYPES, openSmsApp, TEMPLATE_KEYS, createAutoFollowUps, normalizePhone } from '@/lib/crm-shared';
+import { type Customer, type Appointment, type FollowUp, type Tab, TAB_KEYS, SERVICE_TYPES, CARE_VISIT_TYPES, RETOUCH_TYPE, FOLLOW_UP_TYPES, openSmsApp, confirmAfterSms, TEMPLATE_KEYS, createAutoFollowUps, normalizePhone } from '@/lib/crm-shared';
 import WorkOrderModal from '@/components/crm/WorkOrderModal';
 import WarrantyModal from '@/components/crm/WarrantyModal';
 import HomeTab from '@/components/crm/tabs/HomeTab';
@@ -479,14 +479,14 @@ export default function CRMPage() {
     const msg = t === 'QC점검' ? QC_SMS : t === '메인터넌스' ? MAINT_SMS : t === '후기요청' ? REVIEW_SMS.proism : (f.memo || '').split('\n').slice(1).join('\n') || `안녕하세요 3M 프로이즘 대표 진준호입니다.\n${f.memo || ''}`;
     const key = t === 'QC점검' ? 'qc' : t === '메인터넌스' ? 'maintenance' : t === '후기요청' ? 'proism' : 'quote';
     openSmsApp(phone, msg);
-    if (!confirm('문자를 전송하셨나요?')) return;
+    if (!(await confirmAfterSms('문자를 전송하셨나요?'))) return;
     await supabase.from('follow_ups').update({ sms_sent: { ...(f.sms_sent || {}), [key]: true } }).eq('id', f.id);
     fetchFollowUps();
   };
   // 홈 "오늘 AI가 한 일"에서 준비된 문자 보내기 (건마다 개별 전송, 2026-11-12 사장님 결정)
   const handleTeamSms = async (item: TeamItem) => {
     openSmsApp(item.phone, item.message);
-    if (!confirm('문자를 전송하셨나요?')) return;
+    if (!(await confirmAfterSms('문자를 전송하셨나요?'))) return;
     const { data } = await supabase.from('follow_ups').select('sms_sent').eq('id', item.followUpId).single();
     await supabase.from('follow_ups').update({ sms_sent: { ...((data?.sms_sent as Record<string, boolean> | null) || {}), [item.smsKey]: true } }).eq('id', item.followUpId);
     fetchFollowUps();
@@ -497,7 +497,7 @@ export default function CRMPage() {
     const phone = a.customer?.phone;
     if (!phone) return;
     openSmsApp(phone, REVIEW_SMS[key]);
-    if (!confirm('문자를 전송하셨나요?')) return;
+    if (!(await confirmAfterSms('문자를 전송하셨나요?'))) return;
     const { data } = await supabase.from('follow_ups').select('id, sms_sent').eq('customer_id', a.customer_id).eq('follow_up_type', '후기요청').eq('is_completed', false);
     for (const f of data || []) {
       await supabase.from('follow_ups').update({ sms_sent: { ...((f.sms_sent as Record<string, boolean> | null) || {}), [key]: true } }).eq('id', f.id);

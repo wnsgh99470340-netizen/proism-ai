@@ -97,6 +97,24 @@ export function openSmsApp(phone: string, msg: string) {
 
 
 
+/**
+ * 문자(또는 카톡) 앱을 연 뒤 "보냈나요?"를 묻는다 (2026-11-23 사장님 "맥은 되는데 폰은 보낸 표시가 안 남").
+ * 폰에서는 sms: 로 넘어가는 순간 화면이 숨겨지고 그때 뜬 confirm 은 자동으로 취소되어 false 가 됐다.
+ * → 화면이 숨겨졌으면 돌아올 때까지 기다렸다가 묻는다. 맥처럼 화면이 그대로면 바로 묻는다.
+ */
+export async function confirmAfterSms(msg: string): Promise<boolean> {
+  if (typeof document === 'undefined') return false;
+  await new Promise((r) => setTimeout(r, 600));
+  if (document.visibilityState === 'hidden') {
+    await new Promise<void>((resolve) => {
+      const on = () => { if (document.visibilityState === 'visible') { document.removeEventListener('visibilitychange', on); resolve(); } };
+      document.addEventListener('visibilitychange', on);
+    });
+    await new Promise((r) => setTimeout(r, 300));
+  }
+  return confirm(msg);
+}
+
 export const TEMPLATE_KEYS = ['크롬죽이기', 'PPF', '신차패키지', '랩핑'];
 
 // 사후관리 자동 생성 로직

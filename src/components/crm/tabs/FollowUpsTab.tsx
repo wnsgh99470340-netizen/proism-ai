@@ -3,6 +3,7 @@
 /** 사후관리 탭 (2026-11-23 page.tsx 에서 분리 — 동작 변경 없음). 상태·핸들러는 page.tsx 에 있고 props 로 받는다 */
 import type { Dispatch, SetStateAction } from 'react';
 import { supabase } from '@/lib/supabase';
+import { confirmAfterSms } from '@/lib/crm-shared';
 import { QC_SMS, REVIEW_SMS, followUpMessage } from '@/config/sms-templates';
 import { parseCareLog, stripCareLog } from '@/lib/care-log';
 import { isSkipped, closeQuoteAs, quoteCloseReason, QUOTE_CLOSE_REASONS } from '@/lib/followups';
@@ -109,7 +110,7 @@ export default function FollowUpsTab({
             await supabase.from('follow_ups').update({ sms_sent: updated }).eq('id', f.id);
             fetchFollowUps();
           };
-          const sendSms = (msg: string, key: string) => {
+          const sendSms = async (msg: string, key: string) => {
             if (!phone) return;
             const cleanMsg = msg.replace(/\\n/g, '\n').trim();
             // iOS: sms:번호&body= / Android: sms:번호?body=
@@ -118,9 +119,9 @@ export default function FollowUpsTab({
               ? `sms:${phone}&body=${encodeURIComponent(cleanMsg)}`
               : `sms:${phone}?body=${encodeURIComponent(cleanMsg)}`;
             window.open(smsUrl);
-            if (confirm('문자를 전송하셨나요?')) markSent(key);
+            if (await confirmAfterSms('문자를 전송하셨나요?')) markSent(key);
           };
-          const sendKakao = (msg: string, key: string) => {
+          const sendKakao = async (msg: string, key: string) => {
             if (!phone) return;
             // \n 리터럴을 실제 줄바꿈으로, 연속 줄바꿈 정리
             const cleanMsg = msg.replace(/\\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
@@ -141,7 +142,7 @@ export default function FollowUpsTab({
               navigator.clipboard.writeText(cleanMsg);
               alert('카카오 SDK 로딩 중입니다. 문구가 복사되었으니 카톡에 직접 붙여넣기 해주세요.');
             }
-            if (confirm('카톡을 전송하셨나요?')) markSent(key);
+            if (await confirmAfterSms('카톡을 전송하셨나요?')) markSent(key);
           };
           const copyMsg = (msg: string) => {
             navigator.clipboard.writeText(msg);

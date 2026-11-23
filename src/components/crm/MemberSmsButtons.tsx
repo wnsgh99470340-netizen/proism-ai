@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { confirmAfterSms } from '@/lib/crm-shared';
 import { todaySeoul } from '@/lib/local-date';
 import { MEMBERSHIP } from '@/config/membership';
 import { getOrCreateMemberLink, memberLinkSms, logMemberSms } from '@/lib/member-links';
@@ -29,7 +30,7 @@ export default function MemberSmsButtons({ customerId, name, phone, size = 'sm',
     : 'text-xs font-semibold px-3 py-1.5 rounded-full border border-[var(--c-border)] bg-[var(--c-card)] hover:bg-[var(--c-subtle)] text-[var(--c-text-1)] whitespace-nowrap disabled:opacity-50';
   const send = async (t: (typeof TEMPLATES)[number]) => {
     openSmsApp(phone, t.build(name));
-    if (!confirm('문자를 전송하셨나요? (기록으로 남깁니다)')) return;
+    if (!(await confirmAfterSms('문자를 전송하셨나요? (기록으로 남깁니다)'))) return;
     setBusy(t.key);
     await logMemberSms(customerId, `[회원 문자] ${t.label}\n${t.build(name)}`); // 같은 날 같은 기록은 한 번만 (2026-11-23)
     setBusy(null);
@@ -43,7 +44,7 @@ export default function MemberSmsButtons({ customerId, name, phone, size = 'sm',
     if ('error' in r) { alert(r.error); return; }
     try { await navigator.clipboard?.writeText(r.url); } catch { /* 복사 실패는 무시 */ }
     openSmsApp(phone, memberLinkSms(name, r.url));
-    if (!confirm('회원 페이지 링크 문자를 전송하셨나요? (기록으로 남깁니다. 주소는 복사해 두었습니다)')) return;
+    if (!(await confirmAfterSms('회원 페이지 링크 문자를 전송하셨나요? (기록으로 남깁니다. 주소는 복사해 두었습니다)'))) return;
     await logMemberSms(customerId, `[회원 문자] 회원 페이지 링크\n${r.url}`);
     onSent?.();
   };
