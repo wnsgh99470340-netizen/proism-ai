@@ -3,7 +3,7 @@ import { put } from '@vercel/blob';
 import { buildDailyBrief, saveTeamLog } from '@/lib/team';
 import { advanceAppointmentsForToday } from '@/lib/appointments-flow';
 import { sendPushToAll as sendPush } from '@/lib/push';
-import { missedPushBody } from '@/lib/checkups';
+import { missedPushBody, urgentSummaryLine } from '@/lib/checkups';
 import { buildMonthlyReport, monthlySummaryLines } from '@/lib/weekly-stats';
 import { addDaysISO } from '@/lib/local-date';
 
@@ -40,6 +40,7 @@ export async function GET(request: NextRequest) {
       after && after.status === 'ready' ? after.summary : '',
       consult && consult.status === 'ready' ? consult.summary : '',
       brief.weeklyLine || '',
+      brief.missed ? urgentSummaryLine(brief.missed) : '', // 급한 점검(중복·지난 QC·끝난 예약)은 매일 (2026-11-23 "먼저 말 걸어 줘")
     ].filter(Boolean);
     const body = parts.length ? parts.join('\n') : '오늘 보낼 문자가 없습니다. 좋은 하루 되세요';
     const push = await sendPushToAll({ title: '☀️ 마케팅팀이 오늘 준비한 일', body, url: '/crm', tag: `team-${brief.date}` }).catch(() => ({ sent: 0, removed: 0 }));
