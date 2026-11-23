@@ -18,6 +18,7 @@ export async function middleware(request: NextRequest) {
   if (
     pathname === '/login' ||
     pathname === '/api/auth/login' ||
+    pathname === '/api/version' || // 새 배포 감지 (VersionWatcher)
     pathname.startsWith('/api/cron/') ||
     pathname === '/sw.js' ||
     pathname === '/manifest.webmanifest' ||

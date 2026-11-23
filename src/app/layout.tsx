@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import PwaRegister from '@/components/PwaRegister';
+import VersionWatcher from '@/components/VersionWatcher';
 import ThemeProvider from '@/components/ThemeProvider';
 import './globals.css';
 
@@ -48,6 +49,7 @@ export default function RootLayout({
       <body className="h-full">
         <ThemeProvider>{children}</ThemeProvider>
         <PwaRegister />
+        <VersionWatcher />
       </body>
     </html>
   );

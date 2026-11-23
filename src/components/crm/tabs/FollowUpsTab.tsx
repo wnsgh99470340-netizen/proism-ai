@@ -4,6 +4,7 @@
 import type { Dispatch, SetStateAction } from 'react';
 import { supabase } from '@/lib/supabase';
 import { confirmAfterSms, openSmsApp } from '@/lib/crm-shared';
+import { copyText } from '@/lib/device';
 import { QC_SMS, REVIEW_SMS, followUpMessage } from '@/config/sms-templates';
 import { parseCareLog, stripCareLog } from '@/lib/care-log';
 import { isSkipped, closeQuoteAs, quoteCloseReason, QUOTE_CLOSE_REASONS } from '@/lib/followups';
@@ -133,14 +134,13 @@ export default function FollowUpsTab({
                 window.open(kakaoLink, '_blank', 'width=480,height=600');
               }
             } else {
-              navigator.clipboard.writeText(cleanMsg);
+              copyText(cleanMsg);
               alert('카카오 SDK 로딩 중입니다. 문구가 복사되었으니 카톡에 직접 붙여넣기 해주세요.');
             }
             if (await confirmAfterSms('카톡을 전송하셨나요?')) markSent(key);
           };
-          const copyMsg = (msg: string) => {
-            navigator.clipboard.writeText(msg);
-            alert('문구가 복사되었습니다.');
+          const copyMsg = async (msg: string) => {
+            alert((await copyText(msg)) ? '문구가 복사되었습니다.' : '복사하지 못했습니다.');
           };
 
           const typeBadgeClass = f.follow_up_type === 'QC점검'
@@ -459,7 +459,7 @@ export default function FollowUpsTab({
                                   window.open(kakaoLink, '_blank', 'width=480,height=600');
                                 }
                               } else {
-                                navigator.clipboard.writeText(msg);
+                                copyText(msg);
                                 alert('카카오 SDK 로딩 중입니다. 문구가 복사되었으니 카톡에 직접 붙여넣기 해주세요.');
                               }
                               trackPromo(cust, msg);
@@ -485,7 +485,7 @@ export default function FollowUpsTab({
                               const cust = getPromoCustomer();
                               if (!cust) return;
                               const msg = promo.tpl(cust.name);
-                              navigator.clipboard.writeText(msg);
+                              copyText(msg);
                               trackPromo(cust, msg);
                               alert(`${cust.name}님 문구가 복사되었습니다.`);
                             }}

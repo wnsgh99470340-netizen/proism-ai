@@ -106,7 +106,7 @@ export default function CareCompleteModal({ type, customerName, onClose, onDone,
                 <button type="button" onClick={() => fileRef.current?.click()} disabled={busy} className="w-20 h-20 rounded-lg border border-dashed border-[var(--c-border)] text-[var(--c-text-3)] text-xs hover:bg-[var(--c-hover)] disabled:opacity-50">{busy ? '올리는 중…' : '📷 찍기 · 고르기'}</button>
               )}
             </div>
-            <input ref={fileRef} type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={(e) => upload(e.target.files)} />
+            <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => upload(e.target.files)} />
           </div>
           {note && <div className="text-xs text-[var(--c-text-2)] bg-[var(--c-subtle)] rounded-lg px-3 py-2">손님에게 보이는 줄: <span className="font-medium text-[var(--c-text-1)]">{note}</span></div>}
         </div>

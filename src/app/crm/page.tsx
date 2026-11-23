@@ -32,6 +32,7 @@ import { BlacklistWarning } from '@/components/crm/BlacklistModal';
 import { isBlacklisted, blacklistInfo } from '@/lib/blacklist';
 import { careGuidesFor } from '@/config/care-guide';
 
+import { isMobileDevice, copyText } from '@/lib/device';
 import { type Customer, type Appointment, type FollowUp, type Tab, TAB_KEYS, SERVICE_TYPES, CARE_VISIT_TYPES, RETOUCH_TYPE, FOLLOW_UP_TYPES, openSmsApp, confirmAfterSms, TEMPLATE_KEYS, createAutoFollowUps, normalizePhone } from '@/lib/crm-shared';
 import WorkOrderModal from '@/components/crm/WorkOrderModal';
 import WarrantyModal from '@/components/crm/WarrantyModal';
@@ -432,7 +433,7 @@ export default function CRMPage() {
     fetchAppointments();
 
     // 4. .ics 캘린더 파일 자동 다운로드
-    if (formData.appointment_start_date && appointmentForWorkOrder) {
+    if (formData.appointment_start_date && appointmentForWorkOrder && !isMobileDevice()) { // 폰은 파일만 쌓여 끔 (2026-11-23 갤럭시)
       handleDownloadICS(appointmentForWorkOrder);
     }
 
@@ -1906,7 +1907,7 @@ export default function CRMPage() {
             <p className="text-xs text-[var(--c-text-3)] mb-3">아래 URL을 캘린더 앱에서 구독하면 예약 일정이 자동으로 동기화됩니다.</p>
             <div className="flex items-center gap-2 mb-4">
               <input readOnly value="https://proism-ai.vercel.app/api/calendar?token=proism2026" className="flex-1 bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-xs text-[var(--c-text-1)] outline-none select-all" onFocus={(e) => e.target.select()} />
-              <button onClick={() => { navigator.clipboard.writeText('https://proism-ai.vercel.app/api/calendar?token=proism2026'); alert('URL이 복사되었습니다!'); }} className="bg-info hover:bg-info text-white text-xs font-medium rounded-lg px-3 py-2 transition-colors whitespace-nowrap">URL 복사</button>
+              <button onClick={() => { copyText('https://proism-ai.vercel.app/api/calendar?token=proism2026').then((ok) => alert(ok ? 'URL이 복사되었습니다!' : '복사하지 못했습니다. 주소를 길게 눌러 복사해 주세요.')); }} className="bg-info hover:bg-info text-white text-xs font-medium rounded-lg px-3 py-2 transition-colors whitespace-nowrap">URL 복사</button>
             </div>
             <div className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg p-4 text-xs text-[var(--c-text-2)] space-y-1.5">
               <div className="text-gold font-medium mb-1">구독 방법</div>
