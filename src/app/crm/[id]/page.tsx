@@ -11,6 +11,7 @@ import VehicleList from '@/components/crm/VehicleList';
 import CustomerTimeline from '@/components/crm/CustomerTimeline';
 import { buildTimeline } from '@/lib/timeline';
 import { isDealer, dealerFor, customersOfDealer, type DealerRef, type DealerJob } from '@/lib/dealers';
+import { buildVCard, deliverVcf, VCF_HINT } from '@/lib/vcard';
 import { vehicleLabel, type Vehicle } from '@/lib/vehicles';
 import { blacklistInfo, clearBlacklist } from '@/lib/blacklist';
 import { supabase } from '@/lib/supabase';
@@ -218,6 +219,14 @@ export default function CustomerDetailPage() {
           {isDealer(customer) && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[var(--c-text-1)] text-[var(--c-card)]">딜러</span>}
           {customer.phone && <span className="text-[var(--c-text-3)] text-xs">{customer.phone}</span>}
         </div>
+        {customer.phone && (
+          <button onClick={async () => {
+            const v = buildVCard(isDealer(customer)
+              ? { name: customer.name, phone: customer.phone, tag: (customer.memo || '').split('\n')[0], org: '딜러' }
+              : { name: customer.name, phone: customer.phone, tag: [customer.car_brand, customer.car_model].filter(Boolean).join(' '), org: '프로이즘 고객', note: customer.source ? `유입경로 ${customer.source}` : null });
+            if (!v) return; const how = await deliverVcf(v, `${customer.name}.vcf`); alert(VCF_HINT[how]);
+          }} className="text-xs font-semibold rounded-full px-3 py-1.5 border border-[var(--c-border)] bg-[var(--c-card)] hover:bg-[var(--c-subtle)] text-[var(--c-text-1)] transition-colors" title="내 폰 연락처에 저장">📇 연락처 저장</button>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-6">

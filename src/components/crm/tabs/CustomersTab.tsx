@@ -4,6 +4,7 @@
 import { EMPTY_CUSTOMER_FORM, type CustomerFormValues } from '@/components/crm/CustomerFormModal';
 import { useState } from 'react';
 import { DEALER_KIND } from '@/lib/dealers';
+import { buildVCards, deliverVcf, VCF_HINT } from '@/lib/vcard';
 import { isBlacklisted, blacklistInfo } from '@/lib/blacklist';
 import type { Vehicle } from '@/lib/vehicles';
 import { type Customer, formatDate } from '@/lib/crm-shared';
@@ -32,6 +33,18 @@ export default function CustomersTab({
   const [kindFilter, setKindFilter] = useState<'all' | 'customer' | 'dealer'>('customer'); // 기본은 고객만 — 딜러 31명이 목록 맨 위를 차지하지 않게 (2026-11-23)
   const hasDealers = filteredCustomers.some((c) => c.kind === DEALER_KIND) || kindFilter !== 'customer';
   const rows = kindFilter === 'all' ? filteredCustomers : filteredCustomers.filter((c) => (c.kind === DEALER_KIND) === (kindFilter === 'dealer'));
+  // 연락처 저장 (2026-11-23 사장님 "버튼 한 번이면 내 연락처에"): 지금 보이는 줄(검색·필터 적용)을 vCard 한 파일로
+  const [vcfBusy, setVcfBusy] = useState(false);
+  const saveContacts = async () => {
+    const list = rows.map((c) => c.kind === DEALER_KIND
+      ? { name: c.name, phone: c.phone, tag: (c.memo || '').split('\n')[0], org: '딜러' }
+      : { name: c.name, phone: c.phone, tag: [c.car_brand, c.car_model].filter(Boolean).join(' '), org: '프로이즘 고객', note: c.source ? `유입경로 ${c.source}` : null });
+    const { text, count } = buildVCards(list);
+    if (!count) { alert('전화번호가 있는 고객이 없습니다.'); return; }
+    if (!confirm(`${count}명을 연락처 파일로 만들까요?\n(전화번호 없는 ${rows.length - count}명은 빠집니다. 이미 있는 번호는 연락처 앱이 합치거나 중복으로 물어봅니다)`)) return;
+    setVcfBusy(true);
+    try { const how = await deliverVcf(text, `프로이즘-고객-${count}명.vcf`); alert(`${count}명 — ${VCF_HINT[how]}`); } finally { setVcfBusy(false); }
+  };
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -52,12 +65,15 @@ export default function CustomersTab({
             </div>
           )}
         </div>
+        <div className="flex items-center gap-2">
+        <button onClick={saveContacts} disabled={vcfBusy || rows.length === 0} title="지금 보이는 고객을 내 폰 연락처에 저장 (.vcf)" className="text-sm font-medium rounded-lg px-3 py-2 border border-[var(--c-border)] bg-[var(--c-card)] hover:bg-[var(--c-subtle)] text-[var(--c-text-1)] transition-colors disabled:opacity-50">📇 연락처 저장{rows.length > 0 ? ` ${rows.length}명` : ''}</button>
         <button
           onClick={() => { setEditCustomerId(null); setCustomerForm({ ...EMPTY_CUSTOMER_FORM }); setShowAddCustomer(true); }}
           className="bg-brand hover:bg-brand-dark text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors"
         >
           + 고객 추가
         </button>
+        </div>
       </div>
 
       <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl overflow-x-auto">
