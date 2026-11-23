@@ -80,7 +80,13 @@ export default function CustomersTab({
           )}
         </div>
         <div className="flex items-center gap-2">
-        <button onClick={saveContacts} disabled={vcfBusy || rows.length === 0} title="지금 보이는 고객을 내 폰 연락처에 저장 (.vcf)" className="text-sm font-medium rounded-lg px-3 py-2 border border-[var(--c-border)] bg-[var(--c-card)] hover:bg-[var(--c-subtle)] text-[var(--c-text-1)] transition-colors disabled:opacity-50">📇 연락처 저장{fresh.length > 0 ? ` · 새로 ${fresh.length}명` : rows.length > 0 ? ' · 모두 저장됨' : ''}</button>
+        <button onClick={saveContacts} disabled={vcfBusy || rows.length === 0} title={fresh.length > 0 ? `아직 폰 연락처에 없는 ${fresh.length}명을 저장` : '지금 보이는 분은 모두 폰 연락처에 있음'} className={`inline-flex items-center gap-1.5 text-sm font-semibold rounded-full pl-3 pr-2 py-2 border transition-colors disabled:opacity-50 ${fresh.length > 0 ? 'border-[var(--c-text-1)] text-[var(--c-text-1)] hover:bg-[var(--c-subtle)]' : 'border-[var(--c-border)] text-[var(--c-text-3)]'}`}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="19" y1="8" x2="19" y2="14" /><line x1="22" y1="11" x2="16" y2="11" /></svg>
+          연락처
+          {fresh.length > 0
+            ? <span className="min-w-[22px] h-[22px] px-1.5 rounded-full bg-brand text-white text-[11px] font-bold inline-flex items-center justify-center tabular-nums">{fresh.length}</span>
+            : <span className="text-ok text-xs font-bold px-1">✓</span>}
+        </button>
         <button
           onClick={() => { setEditCustomerId(null); setCustomerForm({ ...EMPTY_CUSTOMER_FORM }); setShowAddCustomer(true); }}
           className="bg-brand hover:bg-brand-dark text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors"

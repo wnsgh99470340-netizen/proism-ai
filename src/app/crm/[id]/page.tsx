@@ -233,7 +233,10 @@ export default function CustomerDetailPage() {
               const how = await deliverVcf(v, `${customer.name}.vcf`);
               if (how === 'shared' || how === 'downloaded') { markContactsSaved([c]); setContactSavedTick((t) => t + 1); }
               alert(VCF_HINT[how]);
-            }} className={`text-xs font-semibold rounded-full px-3 py-1.5 border transition-colors ${already ? 'border-ok/40 text-ok bg-ok/5' : 'border-[var(--c-border)] bg-[var(--c-card)] hover:bg-[var(--c-subtle)] text-[var(--c-text-1)]'}`} title={already ? '이 기기에서 이미 연락처로 넘김' : '내 폰 연락처에 저장'}>{already ? '✓ 연락처에 있음' : '📇 연락처 저장'}</button>
+            }} className={`inline-flex items-center gap-1.5 text-xs font-semibold rounded-full px-3 py-1.5 border transition-colors ${already ? 'border-[var(--c-border)] text-[var(--c-text-3)]' : 'border-[var(--c-text-1)] text-[var(--c-text-1)] hover:bg-[var(--c-subtle)]'}`} title={already ? '이 기기에서 이미 연락처로 넘김 (누르면 다시 만들기)' : '내 폰 연락처에 저장'}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="19" y1="8" x2="19" y2="14" /><line x1="22" y1="11" x2="16" y2="11" /></svg>
+              {already ? <>연락처 <span className="text-ok">✓</span></> : '연락처 저장'}
+            </button>
           );
         })()}
       </div>
