@@ -44,7 +44,7 @@ export default function MembershipPage() {
 
   const load = useCallback(async () => {
     const [{ data: c }, { data: s }, { data: a }, { data: r, error: re }] = await Promise.all([
-      supabase.from('customers').select('id, name, phone, car_brand, car_model, source, created_at').order('name'),
+      supabase.from('customers').select('id, name, phone, car_brand, car_model, source, created_at').neq('kind', '딜러').order('name'), // 딜러는 회원 아님 (2026-11-23)
       supabase.from('services').select('customer_id, service_type, service_date, completion_date, amount'),
       supabase.from('appointments').select('customer_id, appointment_date, status, service_type').neq('status', '취소'),
       supabase.from('referrals').select('*, referrer:customers!referrals_referrer_id_fkey(name, phone), referred:customers!referrals_referred_id_fkey(name, phone)').order('created_at', { ascending: false }),

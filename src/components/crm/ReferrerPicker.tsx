@@ -23,7 +23,7 @@ export default function ReferrerPicker({ value, onChange, excludeCustomerId, com
   const [people, setPeople] = useState<Person[] | null>(null);
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
-  useEffect(() => { supabase.from('customers').select('id, name, phone, car_brand, car_model').order('name').then(({ data }) => setPeople((data || []) as Person[])); }, []);
+  useEffect(() => { supabase.from('customers').select('id, name, phone, car_brand, car_model').neq('kind', '딜러').order('name').then(({ data }) => setPeople((data || []) as Person[])); }, []);
   const label = (p: Person) => `${p.name}${p.car_brand || p.car_model ? ` · ${[p.car_brand, p.car_model].filter(Boolean).join(' ')}` : ''}${p.phone ? ` · ${p.phone.replace(/\D/g, '').slice(-4)}` : ''}`;
   const list = (people || []).filter((p) => p.id !== excludeCustomerId).filter((p) => {
     const t = q.trim().toLowerCase(); const d = t.replace(/\D/g, '');

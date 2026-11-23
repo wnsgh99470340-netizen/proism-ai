@@ -133,7 +133,7 @@ export async function buildWeeklyStats(to = todaySeoul(), days = 7, fromOverride
   let newCustomers = 0;
   const sourceCounts = SOURCE_LABELS.map(() => 0);
   try {
-    const { data, error } = await supabase.from('customers').select('source, created_at').gte('created_at', start).lte('created_at', end);
+    const { data, error } = await supabase.from('customers').select('source, created_at').neq('kind', '딜러').gte('created_at', start).lte('created_at', end); // 새 고객·유입경로에 딜러 제외 (2026-11-23)
     if (error) throw error;
     newCustomers = data?.length || 0;
     for (const r of data || []) sourceCounts[sourceIndex(r.source as string | null)]++;
@@ -186,7 +186,7 @@ export async function buildSourceTable(month = todaySeoul().slice(0, 7)): Promis
   const { start, end } = seoulRange(from, to);
   const rows = Array.from({ length: daysInMonth }, (_, i) => ({ day: i + 1, counts: SOURCE_LABELS.map(() => 0), total: 0 }));
   let blankSource = 0;
-  const { data, error } = await supabase.from('customers').select('source, created_at').gte('created_at', start).lte('created_at', end);
+  const { data, error } = await supabase.from('customers').select('source, created_at').neq('kind', '딜러').gte('created_at', start).lte('created_at', end); // 새 고객·유입경로에 딜러 제외 (2026-11-23)
   if (error) throw new Error(`고객 조회 실패: ${error.message}`);
   for (const r of data || []) {
     const day = Number(toSeoulISO(new Date(r.created_at as string)).slice(8, 10));

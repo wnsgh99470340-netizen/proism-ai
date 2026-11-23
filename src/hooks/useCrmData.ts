@@ -86,7 +86,7 @@ export function useCrmData(activeTab: Tab) {
   }, []);
 
   const fetchAllCustomers = useCallback(async () => {
-    const { data } = await supabase.from('customers').select('id, name, phone, car_brand, car_model, car_color, memo').order('name');
+    const { data } = await supabase.from('customers').select('id, name, phone, car_brand, car_model, car_color, memo').neq('kind', '딜러').order('name'); // 딜러는 예약·소개 고르기에 안 나옴 (2026-11-23)
     if (data) setAllCustomers(data);
   }, []);
 

@@ -110,7 +110,7 @@ export default function CustomerFormModal({ mode, form, setForm, latestApptId, b
   const [people, setPeople] = useState<Person[] | null>(null);
   useEffect(() => {
     if (!showReferrer || people) return;
-    supabase.from('customers').select('id, name, phone, car_brand, car_model').order('name').then(({ data }) => setPeople((data || []) as Person[]));
+    supabase.from('customers').select('id, name, phone, car_brand, car_model').neq('kind', '딜러').order('name').then(({ data }) => setPeople((data || []) as Person[]));
   }, [showReferrer, people]);
   // 소개한 분 검색 (2026-11-19 사장님 "고객이 많아지면 하나하나 찾기 힘드니 검색도 되게"): 이름·전화 숫자·차종으로 거르고 위 8명만
   const [refQuery, setRefQuery] = useState('');

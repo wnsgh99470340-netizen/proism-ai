@@ -139,7 +139,7 @@ export async function buildMissedReport(date = todaySeoul()): Promise<MissedRepo
 
   // 4) 채워야 할 고객 (2026-11-22 점검 10): 유입경로나 차종이 비어 있는 분 — 월말 유입경로 표와 차량 연결이 틀어진다
   try {
-    const { data } = await supabase.from('customers').select('name, source, car_model, car_brand').order('created_at', { ascending: false });
+    const { data } = await supabase.from('customers').select('name, source, car_model, car_brand').neq('kind', '딜러').order('created_at', { ascending: false }); // 딜러 기록은 유입경로·차종이 없는 게 정상 (2026-11-23)
     const lines = (data || [])
       .filter((c) => !c.source || (!c.car_model && !c.car_brand))
       .map((c) => `${c.name} · ${[!c.source ? '유입경로' : '', !c.car_model && !c.car_brand ? '차종' : ''].filter(Boolean).join('·')} 비어 있음`);

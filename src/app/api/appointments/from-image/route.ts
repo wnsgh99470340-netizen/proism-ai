@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
 
     const dates = extracted.events.flatMap((e) => [e.start, e.end || e.start]).sort();
     const [{ data: customers }, { data: appts }] = await Promise.all([
-      supabase.from('customers').select('id, name, phone, car_brand, car_model, created_at'),
+      supabase.from('customers').select('id, name, phone, car_brand, car_model, created_at').neq('kind', '딜러'),
       supabase.from('appointments').select('id, customer_id, appointment_date, end_date, memo, status').lte('appointment_date', dates[dates.length - 1]).gte('appointment_date', dates[0] < '2000-01-01' ? '2000-01-01' : addMonths(dates[0], -1)),
     ]);
     // 차량 N대 (2026-11-22): 두 번째 차로도 고객을 찾는다. 표가 없으면 빈 목록

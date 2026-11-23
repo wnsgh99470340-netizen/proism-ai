@@ -29,8 +29,8 @@ export default function CustomersTab({
   setCustomerForm, setEditCustomerId, setShowAddCustomer, handleEditCustomer, handleDeleteCustomer,
 }: CustomersTabProps) {
   // 종류 필터 (2026-11-23): 전체 / 고객만 / 딜러만. 딜러가 한 명도 없으면 숨김
-  const [kindFilter, setKindFilter] = useState<'all' | 'customer' | 'dealer'>('all');
-  const hasDealers = filteredCustomers.some((c) => c.kind === DEALER_KIND) || kindFilter !== 'all';
+  const [kindFilter, setKindFilter] = useState<'all' | 'customer' | 'dealer'>('customer'); // 기본은 고객만 — 딜러 31명이 목록 맨 위를 차지하지 않게 (2026-11-23)
+  const hasDealers = filteredCustomers.some((c) => c.kind === DEALER_KIND) || kindFilter !== 'customer';
   const rows = kindFilter === 'all' ? filteredCustomers : filteredCustomers.filter((c) => (c.kind === DEALER_KIND) === (kindFilter === 'dealer'));
   return (
     <div>
@@ -46,7 +46,7 @@ export default function CustomersTab({
           <span className="text-xs text-[var(--c-text-3)]">{rows.length}명</span>
           {hasDealers && (
             <div className="inline-flex rounded-lg border border-[var(--c-border)] overflow-hidden text-[11px] font-semibold">
-              {([['all', '전체'], ['customer', '고객'], ['dealer', '딜러']] as const).map(([k, l]) => (
+              {([['customer', '고객'], ['dealer', '딜러'], ['all', '전체']] as const).map(([k, l]) => (
                 <button key={k} onClick={() => setKindFilter(k)} className={`px-2.5 py-1.5 transition-colors ${kindFilter === k ? 'bg-[var(--c-text-1)] text-[var(--c-card)]' : 'text-[var(--c-text-2)] hover:bg-[var(--c-subtle)]'}`}>{l}</button>
               ))}
             </div>
@@ -89,7 +89,9 @@ export default function CustomersTab({
                 </td>
                 <td className="px-4 py-3 text-sm text-[var(--c-text-2)]">{c.phone || '-'}</td>
                 <td className="px-4 py-3 text-sm text-[var(--c-text-2)]">
-                  {c.car_brand || c.car_model
+                  {c.kind === DEALER_KIND
+                    ? <span className="text-[var(--c-text-3)]">{(c.memo || '').split('\n')[0] || '-'}</span>
+                    : c.car_brand || c.car_model
                     ? `${c.car_brand || ''} ${c.car_model || ''}`.trim()
                     : '-'}
                   {(vehiclesByCustomer.get(c.id)?.length || 0) > 1 && <span className="ml-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[var(--c-subtle)] text-[var(--c-text-3)]">외 {(vehiclesByCustomer.get(c.id)?.length || 1) - 1}대</span>}
