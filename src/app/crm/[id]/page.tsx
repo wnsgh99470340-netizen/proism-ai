@@ -12,6 +12,7 @@ import CustomerTimeline from '@/components/crm/CustomerTimeline';
 import { buildTimeline } from '@/lib/timeline';
 import { isDealer, dealerFor, customersOfDealer, type DealerRef, type DealerJob } from '@/lib/dealers';
 import { buildVCard, deliverVcf, VCF_HINT, isContactSaved, markContactsSaved } from '@/lib/vcard';
+import { memberMissing } from '@/lib/member-ready';
 import { vehicleLabel, type Vehicle } from '@/lib/vehicles';
 import { blacklistInfo, clearBlacklist } from '@/lib/blacklist';
 import { supabase } from '@/lib/supabase';
@@ -346,9 +347,12 @@ export default function CustomerDetailPage() {
           <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
             <div className="flex items-center gap-2 flex-wrap">
               <div className="text-xs font-semibold text-[var(--c-text-3)]">{MEMBERSHIP.name}</div>
-              {services.length > 0
-                ? <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-ok/10 text-ok">회원 · 가입 {formatDate(services[services.length - 1].service_date)}</span>
-                : <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[var(--c-subtle)] text-[var(--c-text-3)]">비회원 · 시공 완료 시 자동 가입</span>}
+              {(() => { // 회원 = 시공 기록 + 성함·전화·차종 (2026-11-23 사장님 "다 갖춘 분만")
+                const miss = memberMissing({ name: customer.name, phone: customer.phone, car: [customer.car_brand, customer.car_model].filter(Boolean).join(' ') || vehicles.map((v) => [v.brand, v.model].filter(Boolean).join(' ')).find(Boolean) || '', workCount: services.length });
+                if (services.length === 0) return <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[var(--c-subtle)] text-[var(--c-text-3)]">비회원 · 시공 완료 시 자동 가입</span>;
+                if (miss.length > 0) return <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-warn/10 text-warn" title="채우면 회원으로 바뀝니다">회원 조건 미충족 · {miss.join('·')} 없음</span>;
+                return <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-ok/10 text-ok">회원 · 가입 {formatDate(services[services.length - 1].service_date)}</span>;
+              })()}
             </div>
             <MemberSmsButtons customerId={customer.id} name={customer.name} phone={customer.phone} onSent={fetchData} />
           </div>

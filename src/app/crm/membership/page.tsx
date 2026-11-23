@@ -4,6 +4,7 @@ import { openSmsApp } from '@/lib/crm-shared';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import { memberMissing } from '@/lib/member-ready';
 import { todaySeoul } from '@/lib/local-date';
 import { MEMBERSHIP } from '@/config/membership';
 import { markThanksSent, updateReferral, type Referral } from '@/lib/referrals';
@@ -72,7 +73,10 @@ export default function MembershipPage() {
   }, [services, referrals, appts]);
 
   const joinedAt = (id: string) => { const list = byCust.svc.get(id) || []; const dates = list.map((s) => s.service_date || s.completion_date || '').filter(Boolean).sort(); return dates[0] || null; };
-  const members = useMemo(() => customers.filter((c) => (byCust.svc.get(c.id) || []).length > 0), [customers, byCust]);
+  // 회원 = 시공 기록 + 성함·전화·차종이 다 있는 분 (2026-11-23 사장님 "다 갖춘 64명만"). 빠진 분은 '조건 미충족'으로 따로 보여 주고 회원 수·링크 대상에서 뺀다
+  const missingOf = useCallback((c: Cust) => memberMissing({ name: c.name, phone: c.phone, car: [c.car_brand, c.car_model].filter(Boolean).join(' '), workCount: (byCust.svc.get(c.id) || []).length }), [byCust]);
+  const members = useMemo(() => customers.filter((c) => (byCust.svc.get(c.id) || []).length > 0 && missingOf(c).length === 0), [customers, byCust, missingOf]);
+  const incomplete = useMemo(() => customers.filter((c) => (byCust.svc.get(c.id) || []).length > 0 && missingOf(c).length > 0).map((c) => ({ c, miss: missingOf(c) })), [customers, byCust, missingOf]);
   const today = todaySeoul();
   const thisMonth = today.slice(0, 7);
   const joinedThisMonth = members.filter((c) => (joinedAt(c.id) || '').startsWith(thisMonth)).length;
@@ -116,7 +120,7 @@ export default function MembershipPage() {
             {/* 숫자 타일 */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5 mb-5">
               {[
-                { k: '회원', v: members.length, sub: `전체 고객 ${customers.length}명 중` },
+                { k: '회원', v: members.length, sub: `전체 고객 ${customers.length}명 중${incomplete.length ? ` · 조건 미충족 ${incomplete.length}` : ''}` },
                 { k: '이달 가입', v: joinedThisMonth, sub: `${Number(thisMonth.slice(5))}월 첫 시공` },
                 { k: '소개 연결', v: referrals.length, sub: `성사 ${succeeded.length}건` },
                 { k: '혜택 줄 차례', v: todo.referredReward + todo.referrerReward, sub: `소개받은 분 ${todo.referredReward} · 소개한 분 ${todo.referrerReward}` },
@@ -229,6 +233,16 @@ export default function MembershipPage() {
                   </table>
                   {filteredMembers.length === 0 && <div className="py-8 text-center text-sm text-[var(--c-text-3)]">해당하는 회원이 없습니다</div>}
                 </div>
+                {incomplete.length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-[var(--c-border)]">
+                    <div className="text-xs font-semibold text-warn mb-2">회원 조건 미충족 {incomplete.length}명 — 시공 기록은 있지만 빠진 게 있어 회원으로 세지 않고 회원 페이지도 보내지 않습니다</div>
+                    <ul className="flex flex-wrap gap-1.5">
+                      {incomplete.map(({ c, miss }) => (
+                        <li key={c.id}><Link href={`/crm/${c.id}`} className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-warn/40 text-[var(--c-text-1)] hover:bg-warn/5"><span className="font-semibold">{c.name}</span><span className="text-warn">{miss.join('·')} 없음</span></Link></li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </section>
             </div>
             <div className="mt-10 flex justify-between">
