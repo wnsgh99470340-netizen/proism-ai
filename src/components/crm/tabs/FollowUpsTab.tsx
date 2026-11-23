@@ -3,7 +3,7 @@
 /** 사후관리 탭 (2026-11-23 page.tsx 에서 분리 — 동작 변경 없음). 상태·핸들러는 page.tsx 에 있고 props 로 받는다 */
 import type { Dispatch, SetStateAction } from 'react';
 import { supabase } from '@/lib/supabase';
-import { confirmAfterSms } from '@/lib/crm-shared';
+import { confirmAfterSms, openSmsApp } from '@/lib/crm-shared';
 import { QC_SMS, REVIEW_SMS, followUpMessage } from '@/config/sms-templates';
 import { parseCareLog, stripCareLog } from '@/lib/care-log';
 import { isSkipped, closeQuoteAs, quoteCloseReason, QUOTE_CLOSE_REASONS } from '@/lib/followups';
@@ -112,13 +112,7 @@ export default function FollowUpsTab({
           };
           const sendSms = async (msg: string, key: string) => {
             if (!phone) return;
-            const cleanMsg = msg.replace(/\\n/g, '\n').trim();
-            // iOS: sms:번호&body= / Android: sms:번호?body=
-            const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-            const smsUrl = isIOS
-              ? `sms:${phone}&body=${encodeURIComponent(cleanMsg)}`
-              : `sms:${phone}?body=${encodeURIComponent(cleanMsg)}`;
-            window.open(smsUrl);
+            openSmsApp(phone, msg);
             if (await confirmAfterSms('문자를 전송하셨나요?')) markSent(key);
           };
           const sendKakao = async (msg: string, key: string) => {
@@ -479,7 +473,7 @@ export default function FollowUpsTab({
                               const cust = getPromoCustomer();
                               if (!cust || !cust.phone) { if (cust) alert('전화번호가 없습니다.'); return; }
                               const msg = promo.tpl(cust.name);
-                              window.open(`sms:${cust.phone}&body=${encodeURIComponent(msg)}`);
+                              openSmsApp(cust.phone, msg);
                               trackPromo(cust, msg);
                             }}
                             className="text-xs bg-info hover:bg-info text-white font-semibold rounded-lg px-3 py-1.5 transition-colors whitespace-nowrap"

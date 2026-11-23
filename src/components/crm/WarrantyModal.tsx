@@ -1,5 +1,6 @@
 'use client';
 
+import { openSmsApp } from '@/lib/crm-shared';
 import { useRef, useState } from 'react';
 import { todaySeoul } from '@/lib/local-date';
 
@@ -70,8 +71,8 @@ export default function WarrantyModal({ warrantyForm, setWarrantyForm, onSave, o
     setTimeout(() => {
       if (confirm('PNG가 다운로드되었습니다. 보증서를 문자로 보내시겠습니까?\n(문자 앱에서 다운로드된 이미지를 직접 첨부해주세요)')) {
         const phone = warrantyForm.phone?.replace(/-/g, '') || '';
-        const msg = encodeURIComponent(`안녕하세요, 3M프로이즘입니다 ^^\n시공해드린 차량의 시공내역서 및 보증서를 송부드립니다.\n\n꼼꼼하게 확인해주시고, 궁금하신 사항이나 추가 문의는 언제든 편하게 연락 주세요.\n시공 후에도 저희가 꾸준히 관리해드리겠습니다.\n\n항상 감사합니다!\n3M 프로이즘 ☎ 010-7287-7140`);
-        window.open(`sms:${phone}?body=${msg}`, '_self');
+        const msg = (`안녕하세요, 3M프로이즘입니다 ^^\n시공해드린 차량의 시공내역서 및 보증서를 송부드립니다.\n\n꼼꼼하게 확인해주시고, 궁금하신 사항이나 추가 문의는 언제든 편하게 연락 주세요.\n시공 후에도 저희가 꾸준히 관리해드리겠습니다.\n\n항상 감사합니다!\n3M 프로이즘 ☎ 010-7287-7140`);
+        openSmsApp(phone, msg);
       }
     }, 500);
   };

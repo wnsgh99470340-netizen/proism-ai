@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { confirmAfterSms } from '@/lib/crm-shared';
+import { confirmAfterSms, openSmsApp } from '@/lib/crm-shared';
 import { todaySeoul } from '@/lib/local-date';
 import { MEMBERSHIP } from '@/config/membership';
 import { getOrCreateMemberLink, memberLinkSms, logMemberSms } from '@/lib/member-links';
@@ -11,11 +11,7 @@ import { getOrCreateMemberLink, memberLinkSms, logMemberSms } from '@/lib/member
  * 회원 문자 버튼 (2026-11-18): 회원 페이지 목록과 고객 상세 멤버십 카드에서 같은 버튼
  * - 회원 안내 / 소개 안내 두 가지. 문자 앱을 열고, 보냈다고 하면 상담 기록에 "[회원 문자] ..." 한 줄 남김
  */
-export function openSmsApp(phone: string, msg: string) {
-  const p = phone.replace(/[^\d]/g, '');
-  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-  window.open(isIOS ? `sms:${p}&body=${encodeURIComponent(msg)}` : `sms:${p}?body=${encodeURIComponent(msg)}`);
-}
+export { openSmsApp };
 
 const TEMPLATES = [
   { key: 'member', label: '회원 안내', build: (n: string) => MEMBERSHIP.memberInfoSms(n) },

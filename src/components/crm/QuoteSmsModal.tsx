@@ -1,5 +1,6 @@
 'use client';
 
+import { openSmsApp } from '@/lib/crm-shared';
 import { formatPhoneInput } from '@/lib/phone';
 import { BlacklistWarning } from '@/components/crm/BlacklistModal';
 import { useEffect, useMemo, useState } from 'react';
@@ -321,8 +322,7 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
   const openSms = () => {
     const p = phone.replace(/[^\d]/g, '');
     if (!p) { setNote('전화번호가 필요합니다.'); return; }
-    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-    window.open(isIOS ? `sms:${p}&body=${encodeURIComponent(text)}` : `sms:${p}?body=${encodeURIComponent(text)}`);
+    openSmsApp(p, text);
   };
 
   /** 명함 이미지 보내기: 폰 공유 창에 명함 앞뒷면을 들고 열어 메시지 앱으로 사진 문자 전송 */

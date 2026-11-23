@@ -1,5 +1,6 @@
 'use client';
 
+import { openSmsApp } from '@/lib/crm-shared';
 import { useState } from 'react';
 import { todaySeoul, addDaysISO } from '@/lib/local-date';
 import { supabase } from '@/lib/supabase';
@@ -84,9 +85,7 @@ export default function InquiryReplyModal({ onClose, onDone }: { onClose: () => 
     try {
       if (how === 'copy') await navigator.clipboard.writeText(fullText);
       if (how === 'sms') {
-        const p = phone.replace(/[^\d]/g, '');
-        const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-        window.open(isIOS ? `sms:${p}&body=${encodeURIComponent(fullText)}` : `sms:${p}?body=${encodeURIComponent(fullText)}`);
+        openSmsApp(phone, fullText);
       }
       const customerId = await findCustomer();
       const { error } = await supabase.from('consultations').insert({

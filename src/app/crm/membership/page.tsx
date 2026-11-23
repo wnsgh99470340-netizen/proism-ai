@@ -1,5 +1,6 @@
 'use client';
 
+import { openSmsApp } from '@/lib/crm-shared';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
@@ -88,7 +89,7 @@ export default function MembershipPage() {
   };
   const topReferrers = [...byCust.gave.entries()].map(([id, n]) => ({ c: customers.find((x) => x.id === id), n })).filter((x) => x.c).sort((a, b) => b.n - a.n).slice(0, 5);
 
-  const sms = (phone: string, msg: string) => { const p = phone.replace(/[^\d]/g, ''); const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent); window.open(ios ? `sms:${p}&body=${encodeURIComponent(msg)}` : `sms:${p}?body=${encodeURIComponent(msg)}`); };
+  const sms = (phone: string, msg: string) => openSmsApp(phone, msg);
 
   // 보낸 것으로 치는 기준: 상담 기록에 링크 문자가 있거나, 손님이 한 번이라도 열어 봤으면(기록 없이 보낸 경우)
   const linkDelivered = (id: string) => linkSent.has(id) || (linkVisits.get(id) || 0) > 0;

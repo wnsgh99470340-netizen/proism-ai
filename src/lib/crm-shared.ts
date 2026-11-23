@@ -92,7 +92,11 @@ export function openSmsApp(phone: string, msg: string) {
   const p = phone.replace(/[^\d]/g, '');
   const cleanMsg = msg.replace(/\\n/g, '\n').trim();
   const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-  window.open(isIOS ? `sms:${p}&body=${encodeURIComponent(cleanMsg)}` : `sms:${p}?body=${encodeURIComponent(cleanMsg)}`);
+  const url = isIOS ? `sms:${p}&body=${encodeURIComponent(cleanMsg)}` : `sms:${p}?body=${encodeURIComponent(cleanMsg)}`;
+  // 같은 창에서 연다 (2026-11-23 갤럭시: window.open 은 빈 탭을 하나 더 열어 문자 앱에서 돌아오면 그 빈 탭이 보이고 CRM 은 뒤에 숨어 confirm 을 못 봄)
+  const a = document.createElement('a');
+  a.href = url; a.style.display = 'none';
+  document.body.appendChild(a); a.click(); a.remove();
 }
 
 
@@ -104,7 +108,8 @@ export function openSmsApp(phone: string, msg: string) {
  */
 export async function confirmAfterSms(msg: string): Promise<boolean> {
   if (typeof document === 'undefined') return false;
-  await new Promise((r) => setTimeout(r, 600));
+  // 폰은 문자 앱이 뜨기까지 잠깐 걸린다: 최대 1.5초 동안 화면이 숨겨지는지 본다 (맥은 안 숨겨져 1.5초 뒤 바로 묻는다)
+  for (let i = 0; i < 15 && document.visibilityState !== 'hidden'; i++) await new Promise((r) => setTimeout(r, 100));
   if (document.visibilityState === 'hidden') {
     await new Promise<void>((resolve) => {
       const on = () => { if (document.visibilityState === 'visible') { document.removeEventListener('visibilitychange', on); resolve(); } };

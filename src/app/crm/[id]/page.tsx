@@ -1,5 +1,6 @@
 'use client';
 
+import { openSmsApp } from '@/lib/crm-shared';
 import { useState, useEffect, useCallback } from 'react';
 import CustomerFormModal, { EMPTY_CUSTOMER_FORM, loadCustomerForm, saveCustomerEdit, type CustomerFormValues } from '@/components/crm/CustomerFormModal';
 import { todaySeoul } from '@/lib/local-date';
@@ -101,11 +102,7 @@ export default function CustomerDetailPage() {
   const [pts, setPts] = useState<PointSummary>({ balance: 0, rows: [], lastEarnAt: null, expiresAt: null, expired: false, tableMissing: false });
   const [ptsOpen, setPtsOpen] = useState(false);
   const [editReferrerId, setEditReferrerId] = useState<string | null>(null);
-  const openSms = (phone: string, msg: string) => {
-    const p = phone.replace(/[^\d]/g, '');
-    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-    window.open(isIOS ? `sms:${p}&body=${encodeURIComponent(msg)}` : `sms:${p}?body=${encodeURIComponent(msg)}`);
-  };
+  const openSms = (phone: string, msg: string) => openSmsApp(phone, msg);
   const startEditInfo = async () => {
     const loaded = await loadCustomerForm(id);
     if (!loaded) { alert('고객 정보를 불러오지 못했습니다'); return; }
