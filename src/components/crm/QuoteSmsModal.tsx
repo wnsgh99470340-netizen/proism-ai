@@ -1,9 +1,10 @@
 'use client';
 
 import { openSmsApp } from '@/lib/crm-shared';
+import { copyText } from '@/lib/device';
 import { formatPhoneInput } from '@/lib/phone';
 import { BlacklistWarning } from '@/components/crm/BlacklistModal';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { todaySeoul, addDaysISO } from '@/lib/local-date';
 import { supabase } from '@/lib/supabase';
 
@@ -224,6 +225,7 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
   const [name, setName] = useState(initial.name || '');
   const [phone, setPhone] = useState(initial.phone || '');
   const [car, setCar] = useState(initial.car || '');
+  const carRef = useRef<HTMLInputElement>(null);
   const [service, setService] = useState<ServiceKey>(normalizeService(initial.service));
   const [range, setRange] = useState<string>(() => rangesOf(normalizeService(initial.service))[0]);
   const [summary, setSummary] = useState('');
@@ -381,10 +383,12 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
   };
 
   const send = async (how: 'sms' | 'copy') => {
+    if (!car.trim()) { setNote('⚠️ 차종을 적어 주세요. 문자 둘째 줄 "방금 통화한 ○○ 견적입니다"에 들어갑니다.'); carRef.current?.focus(); carRef.current?.scrollIntoView({ block: 'center' }); return; }
+    if (how === 'sms' && !phone.replace(/[^\d]/g, '')) { setNote('⚠️ 전화번호가 없어 문자 앱을 열 수 없습니다. 번호를 적거나 [복사]로 보내 주세요.'); return; }
     setBusy(true); setNote(null);
     try {
       remember();
-      if (how === 'copy') { await navigator.clipboard.writeText(text); } else { openSms(); }
+      if (how === 'copy') { if (!(await copyText(text))) throw new Error('복사하지 못했습니다. 미리보기 글을 길게 눌러 복사해 주세요.'); } else { openSms(); }
       const customerId = await ensureCustomer();
       await logConsultation(customerId);
       if (withFollowUps) await registerFollowUps(customerId);
@@ -408,7 +412,7 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
             <div className="grid grid-cols-2 gap-3">
               <div><label className={labelCls}>고객</label><input value={name} onChange={(e) => setName(e.target.value)} className={inputCls} placeholder="이름" /></div>
               <div><label className={labelCls}>전화 *</label><input type="tel" inputMode="numeric" value={phone} onChange={(e) => setPhone(formatPhoneInput(e.target.value))} className={inputCls} placeholder="010-0000-0000" /><BlacklistWarning phone={phone} /></div>
-              <div><label className={labelCls}>차종 *</label><input value={car} onChange={(e) => setCar(e.target.value)} className={inputCls} placeholder="예: 포르쉐 카이엔" /></div>
+              <div><label className={labelCls}>차종 *</label><input ref={carRef} value={car} onChange={(e) => setCar(e.target.value)} className={inputCls} placeholder="예: 포르쉐 카이엔" /></div>
               <div><label className={labelCls}>시공</label>
                 <div className="flex gap-2">
                   <select value={service} onChange={(e) => setService(e.target.value as ServiceKey)} className={inputCls}>{SERVICES.map((s) => <option key={s}>{s}</option>)}</select>
@@ -489,11 +493,12 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
             {note && <div className="text-xs text-[var(--c-text-2)]">{note}</div>}
           </div>
         </div>
+        {(!car.trim() || !phone.replace(/[^\d]/g, '')) && <div className="px-6 pt-2 text-[11px] text-warn">{!car.trim() ? '차종을 적어야 복사·문자 보내기가 됩니다. ' : ''}{!phone.replace(/[^\d]/g, '') ? '전화번호가 없으면 [복사]로만 보낼 수 있습니다.' : ''}</div>}
         <div className="px-6 py-4 border-t border-[var(--c-border)] flex justify-end gap-2">
           <button onClick={onClose} className="px-4 py-2 text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-2)]">닫기</button>
           <button onClick={shareCard} disabled={busy} className="bg-[var(--c-subtle)] hover:bg-[var(--c-hover)] text-[var(--c-text-1)] text-sm font-medium rounded-lg px-4 py-2 disabled:opacity-50" title="문자를 보낸 뒤 명함 사진을 같은 번호로 보낼 때">📇 명함 이미지</button>
-          <button onClick={() => send('copy')} disabled={busy || !car} className="bg-[var(--c-subtle)] hover:bg-[var(--c-hover)] text-[var(--c-text-1)] text-sm font-medium rounded-lg px-4 py-2 disabled:opacity-50">📋 복사</button>
-          <button onClick={() => send('sms')} disabled={busy || !car || !phone} className="bg-brand hover:bg-brand-dark text-white text-sm font-medium rounded-lg px-4 py-2 disabled:opacity-50">💬 문자 보내기</button>
+          <button onClick={() => send('copy')} disabled={busy} className="bg-[var(--c-subtle)] hover:bg-[var(--c-hover)] text-[var(--c-text-1)] text-sm font-medium rounded-lg px-4 py-2 disabled:opacity-50">📋 복사</button>
+          <button onClick={() => send('sms')} disabled={busy} className="bg-brand hover:bg-brand-dark text-white text-sm font-medium rounded-lg px-4 py-2 disabled:opacity-50">💬 문자 보내기</button>
         </div>
       </div>
     </div>
