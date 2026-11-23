@@ -12,6 +12,7 @@ import { ppfProduct, workItems, workDetailsText } from '@/lib/work-order';
 import { referrerToken, hideRefToken } from '@/components/crm/ReferrerPicker';
 import { overdueAppointments } from '@/lib/appointments-flow';
 import { vehicleLabel } from '@/lib/vehicles';
+import { normalizeService } from '@/lib/appointment-import';
 
 describe('점검 기록 memo (care-log)', () => {
   it('붙이고 읽고 떼기가 원래 메모를 보존한다', () => {
@@ -152,5 +153,16 @@ describe('예약 흐름 판정 (appointments-flow)', () => {
   it('차량 라벨', () => {
     expect(vehicleLabel({ brand: '포르쉐', model: '타이칸', plate: '12가 3456' }, true)).toBe('포르쉐 타이칸 (12가 3456)');
     expect(vehicleLabel(null)).toBe('');
+  });
+});
+
+describe('스크린샷 일정 → 시공 종류 (normalizeService)', () => {
+  it('필름 이름·루프스킨만 적혀도 종류를 잡는다', () => {
+    expect(normalizeService('5시리즈 전면 크리스탈라인')).toBe('썬팅');
+    expect(normalizeService('GLS 썬팅 IS200')).toBe('썬팅');
+    expect(normalizeService('e300 버텍스 900')).toBe('썬팅');
+    expect(normalizeService('5시리즈 루프스킨 제거 및 재시공')).toBe('랩핑');
+    expect(normalizeService('BMW X6 PWF 매트블랙')).toBe('컬러PPF');
+    expect(normalizeService('랜드로버 보험수리')).toBeNull();
   });
 });

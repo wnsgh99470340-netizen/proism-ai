@@ -44,8 +44,8 @@ export function normalizeService(text: string): string | null {
   if (/실내ppf|실내/.test(t)) return '실내PPF';
   if (/컬러ppf|pwf|컬러피피에프/.test(t)) return '컬러PPF';
   if (/크롬/.test(t)) return '크롬죽이기';
-  if (/랩핑|래핑|투톤|wrap/.test(t)) return '랩핑';
-  if (/썬팅|선팅|틴팅|tint/.test(t)) return '썬팅';
+  if (/랩핑|래핑|투톤|wrap|루프스킨|루프랩|그릴랩/.test(t)) return '랩핑'; // 루프스킨·루프랩(2026-11-23 타임트리 가져오기에서 '기타'로 빠졌음)
+  if (/썬팅|선팅|틴팅|tint|크리스탈라인|버텍스|is200|vs200|레인보우|열선/.test(t)) return '썬팅'; // 필름 이름만 적힌 일정도 썬팅
   if (/유리막|코팅/.test(t)) return '유리막코팅';
   if (/ppf|피피에프|프론트|전체/.test(t)) return 'PPF';
   return null;
