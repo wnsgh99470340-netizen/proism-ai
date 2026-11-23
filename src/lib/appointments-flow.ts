@@ -8,6 +8,7 @@ import { supabase } from './supabase';
 import { todaySeoul, addDaysISO } from './local-date';
 import { arrivalSms, dealerArrivalSms } from '@/config/sms-templates';
 import { dealerFor } from './dealers';
+import { isCustomerBlacklisted } from './blacklist';
 import { linkReferral } from './referrals';
 
 const CARE_VISIT_TYPES = ['QC점검', '메인터넌스'];
@@ -31,6 +32,7 @@ export async function ensureArrivalNotice(input: { customerId: string; name: str
   const today = todaySeoul();
   const noticeDate = addDaysISO(input.date, -1);
   if (noticeDate < today) return false; // 내일이거나 지난 예약이면 안내할 전날이 없다
+  if (await isCustomerBlacklisted(input.customerId)) return false; // 블랙리스트는 관리 없음 (2026-11-23)
   const { data: existing } = await supabase.from('follow_ups').select('id, memo').eq('customer_id', input.customerId).eq('follow_up_type', ARRIVAL_TYPE).eq('is_completed', false);
   if ((existing || []).some((r) => ((r.memo as string | null) || '').includes(`${input.date} 입고`))) return false;
   // 딜러가 넣어 준 차면 입고 안내는 딜러에게 (2026-11-23 사장님). memo 첫 줄 "딜러이름(딜러) 전화 · 고객이름 시공 날짜 입고" → 홈·브리핑·사후관리 탭이 이 번호로 연다

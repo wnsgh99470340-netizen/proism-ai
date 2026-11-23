@@ -16,7 +16,7 @@ export default function BlacklistModal({ onClose, onChanged }: { onClose: () => 
   const add = async () => {
     if (!pick) return;
     setBusy(true);
-    try { const err = await setBlacklist(pick.id, reason); if (err) alert(err); else { setPick(null); setReason(''); await reload(); onChanged?.(); } } finally { setBusy(false); }
+    try { const r = await setBlacklist(pick.id, reason); if (r.error) alert(r.error); else { if (r.closed > 0) alert(`열린 관리 ${r.closed}건을 닫았습니다. 블랙리스트 고객에게는 QC·메인터넌스·후기 요청이 더 이상 생기지 않습니다.`); setPick(null); setReason(''); await reload(); onChanged?.(); } } finally { setBusy(false); }
   };
   const remove = async (c: BlacklistedCustomer) => {
     if (!confirm(`${c.name} 님을 블랙리스트에서 뺄까요?`)) return;
@@ -25,7 +25,7 @@ export default function BlacklistModal({ onClose, onChanged }: { onClose: () => 
   const editReason = async (c: BlacklistedCustomer) => {
     const r = window.prompt('사유를 적어 주세요', c.reason === '사유 미기입' ? '' : c.reason);
     if (r === null) return;
-    const err = await setBlacklist(c.id, r); if (err) alert(err); else { await reload(); onChanged?.(); }
+    const res = await setBlacklist(c.id, r); if (res.error) alert(res.error); else { if (res.closed > 0) alert(`열린 관리 ${res.closed}건을 닫았습니다. 블랙리스트 고객에게는 QC·메인터넌스·후기 요청이 더 이상 생기지 않습니다.`); await reload(); onChanged?.(); }
   };
   const input = 'w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50';
 

@@ -153,7 +153,7 @@ export async function buildWeeklyStats(to = todaySeoul(), days = 7, fromOverride
       // memo 에 "기한 지나 정리"가 있거나, 예정일보다 60일 넘게 지나 완료 처리된 것(11-11 에 3~5월 후기요청 10건을 한 번에 닫은 일)
       const sched = r.scheduled_date as string, comp = r.completed_date as string | null;
       const lateDays = comp ? Math.round((new Date(comp).getTime() - new Date(sched).getTime()) / 86400000) : 0;
-      const bulkClosed = /기한 지나 정리|^미방문 /m.test((r.memo as string | null) || '') || lateDays > 60; // 미방문(2026-11-22)도 실제 점검이 아니다
+      const bulkClosed = /기한 지나 정리|^미방문 |^블랙리스트로 정리 /m.test((r.memo as string | null) || '') || lateDays > 60; // 미방문(2026-11-22)도 실제 점검이 아니다
       const doneIn = inRange(comp) && !bulkClosed;
       if (t === '후기요청') {
         if (sent && inRange(r.scheduled_date as string)) reviewRequested++;

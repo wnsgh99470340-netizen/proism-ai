@@ -3,6 +3,7 @@
  * page.tsx 에 있던 39~213줄을 그대로 옮김. 자동 시험(src/lib/__tests__)이 이 파일을 본다
  */
 import { supabase } from './supabase';
+import { isCustomerBlacklisted } from './blacklist';
 import { toSeoulISO } from './local-date';
 
 // ─── Types ───────────────────────────────────────────────
@@ -137,6 +138,7 @@ export async function createAutoFollowUps(
   const base = new Date(completionDate + 'T00:00:00+09:00');
   const followUps: { service_id: string; customer_id: string; follow_up_type: string; scheduled_date: string; memo: string }[] = [];
 
+  if (await isCustomerBlacklisted(customerId)) return; // 블랙리스트는 관리 없음 (2026-11-23 사장님)
   const needsQC = ['PPF', '컬러PPF', 'PWF'].includes(serviceType) || hasPpf;
 
   if (needsQC) {

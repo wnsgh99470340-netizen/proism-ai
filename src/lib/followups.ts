@@ -6,6 +6,7 @@
  */
 import { supabase } from './supabase';
 import { todaySeoul } from './local-date';
+import { isCustomerBlacklisted } from './blacklist';
 
 export const SKIP_RE = /^미방문 (\d{4}-\d{2}-\d{2})(?::\s*(.*))?$/m;
 export function isSkipped(memo: string | null | undefined): boolean {
@@ -30,6 +31,7 @@ export function maintenanceYears(memo: string | null | undefined): number | null
 /** 메인터넌스 한 건이 끝나면(완료·미방문) 같은 시공 기록에 다음 6개월 메인터넌스. 이미 열린 메인터넌스가 있으면 만들지 않는다. 기간(maintenanceYears) 안에서만 */
 export async function scheduleNextMaintenance(f: { service_id: string | null; customer_id: string; follow_up_type: string }, fromDate: string): Promise<string | null> {
   if (f.follow_up_type !== '메인터넌스' || !f.service_id) return null;
+  if (await isCustomerBlacklisted(f.customer_id)) return null; // 블랙리스트는 다음 회차 없음 (2026-11-23)
   const { data: open } = await supabase.from('follow_ups').select('id').eq('service_id', f.service_id).eq('follow_up_type', '메인터넌스').eq('is_completed', false).limit(1);
   if (open && open.length > 0) return null;
   const { data: svc } = await supabase.from('services').select('service_type, service_date, memo').eq('id', f.service_id).maybeSingle();

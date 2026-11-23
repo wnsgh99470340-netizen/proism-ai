@@ -11,6 +11,7 @@ import { scheduleNextMaintenance, markFollowUpSkipped, closeQuoteFollowUpsFor, c
 import { ensureArrivalNotice, resyncArrivalNotice, advanceAppointmentsForToday, linkOrphanRecordsByPhone } from '@/lib/appointments-flow';
 import { createAutoFollowUps } from '@/lib/crm-shared';
 import { logMemberSms } from '@/lib/member-links';
+import { setBlacklist, cutCareForBlacklisted } from '@/lib/blacklist';
 import { linkReferral } from '@/lib/referrals';
 
 const today = todaySeoul();
@@ -126,6 +127,35 @@ describe('딜러가 넣어 준 차의 입고 안내는 딜러에게 (2026-11-23)
     h.fake = createFakeSupabase({ customers: [{ id: CUST, name: '김영희', phone: '010-3333-4444', kind: '일반', dealer_id: null }] });
     await ensureArrivalNotice({ customerId: CUST, name: '김영희', phone: '010-3333-4444', date: in5, serviceType: '랩핑' });
     expect(String(h.fake.tables.follow_ups[0].memo).split('\n')[0]).toBe(`김영희 010-3333-4444 · 랩핑 ${in5} 입고`);
+  });
+});
+
+describe('블랙리스트는 관리 다 끊기 (2026-11-23)', () => {
+  it('등록하면 열린 사후관리가 전부 닫히고, 그 뒤 시공 완료·메인터넌스 반복·입고 안내가 새 관리를 만들지 않는다', async () => {
+    const in5 = addDaysISO(today, 5);
+    h.fake = createFakeSupabase({
+      customers: [{ id: CUST, name: '임권', phone: '010-0000-0000', memo: '파나메라' }],
+      services: [{ id: SVC, customer_id: CUST, service_type: 'PPF', service_date: '2026-06-01', memo: null }],
+      follow_ups: [
+        { customer_id: CUST, service_id: SVC, follow_up_type: 'QC점검', scheduled_date: in5, is_completed: false, memo: 'PPF QC' },
+        { customer_id: CUST, service_id: SVC, follow_up_type: '메인터넌스', scheduled_date: in5, is_completed: false, memo: 'PPF 메인터넌스' },
+        { customer_id: CUST, service_id: null, follow_up_type: '견적재연락', scheduled_date: in5, is_completed: false, memo: '임권 010' },
+        { customer_id: CUST, service_id: SVC, follow_up_type: '후기요청', scheduled_date: '2026-06-04', is_completed: true, completed_date: '2026-06-05', memo: '후기 받음 2026-06-05' },
+      ],
+    });
+    const r = await setBlacklist(CUST, '결제 미이행');
+    expect(r).toEqual({ error: null, closed: 3 });
+    const rows = h.fake.tables.follow_ups;
+    expect(rows.filter((f) => !f.is_completed)).toHaveLength(0);
+    expect(rows.filter((f) => /^블랙리스트로 정리 /m.test(String(f.memo)))).toHaveLength(3);
+    expect(String(rows[3].memo)).toBe('후기 받음 2026-06-05'); // 이미 끝난 기록은 그대로
+    expect(String(h.fake.tables.customers[0].memo)).toContain('[블랙리스트 ');
+    // 새 관리가 생기지 않는다
+    await createAutoFollowUps(SVC, CUST, 'PPF', today, true);
+    expect(await scheduleNextMaintenance({ service_id: SVC, customer_id: CUST, follow_up_type: '메인터넌스' }, today)).toBeNull();
+    expect(await ensureArrivalNotice({ customerId: CUST, name: '임권', phone: '010-0000-0000', date: in5, serviceType: 'PPF' })).toBe(false);
+    expect(h.fake.tables.follow_ups).toHaveLength(4);
+    expect(await cutCareForBlacklisted(CUST)).toBe(0);
   });
 });
 

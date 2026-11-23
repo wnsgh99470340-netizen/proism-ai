@@ -108,6 +108,7 @@ export function buildTimeline(input: TimelineInput): { upcoming: TimelineEvent[]
     const sched = toDate(f.scheduled_date);
     const done = toDate(f.completed_date) || sched;
     if (!sched || !done) continue;
+    if (/^블랙리스트로 정리 /m.test(f.memo || '')) { push({ date: done, kind: 'care', title: `${label} 블랙리스트로 정리${svc}`, tone: 'muted' }); continue; }
     if (t === '입고안내') {
       if (!f.is_completed) push({ date: sched, kind: 'arrival', title: '입고 안내 문자 보낼 날', tone: 'future' });
       continue; // 보낸 뒤에는 예약 줄로 충분
