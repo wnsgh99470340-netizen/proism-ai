@@ -7,6 +7,8 @@
 import { isMobileDevice } from './device';
 
 export interface ContactInput {
+  /** 고객 id — 저장한 사람 기억용(중복 저장 방지) */
+  id?: string;
   name: string;
   phone: string | null | undefined;
   /** 차종 등 이름 뒤에 붙일 말 */
@@ -26,6 +28,7 @@ export function buildVCard(c: ContactInput): string | null {
   const fn = [name, (c.tag || '').trim()].filter(Boolean).join(' ');
   const lines = [
     'BEGIN:VCARD', 'VERSION:3.0',
+    ...(c.id ? [`UID:proism-${c.id}`] : []), // 같은 사람을 다시 넣어도 UID 를 보는 연락처 앱(구글 주소록 등)은 합친다
     `N:${esc(name)};;;;`,
     `FN:${esc(fn)}`,
     `ORG:${esc((c.org || '프로이즘 고객').trim())}`,
@@ -43,7 +46,7 @@ export function buildVCards(list: ContactInput[]): { text: string; count: number
 }
 
 /** .vcf 를 폰에 넘긴다: 폰이면 공유창(연락처 앱 고르기), 아니면 내려받기. 돌려준 값 = 어떻게 넘겼는지 */
-export async function deliverVcf(text: string, filename: string): Promise<'shared' | 'downloaded' | 'failed'> {
+export async function deliverVcf(text: string, filename: string): Promise<'shared' | 'downloaded' | 'cancelled' | 'failed'> {
   if (typeof window === 'undefined' || !text) return 'failed';
   const file = new File([text], filename, { type: 'text/vcard' });
   try {
@@ -52,7 +55,7 @@ export async function deliverVcf(text: string, filename: string): Promise<'share
       return 'shared';
     }
   } catch (e) {
-    if (e instanceof Error && e.name === 'AbortError') return 'shared'; // 공유창을 닫은 것
+    if (e instanceof Error && e.name === 'AbortError') return 'cancelled'; // 공유창을 닫은 것 — 저장한 것으로 치지 않는다
     /* 아래 내려받기로 */
   }
   try {
@@ -66,6 +69,30 @@ export async function deliverVcf(text: string, filename: string): Promise<'share
 
 export const VCF_HINT = {
   shared: '공유창에서 "연락처"를 고르면 저장됩니다.',
+  cancelled: '공유창을 닫아 저장하지 않았습니다.',
   downloaded: '내려받은 .vcf 파일을 열면 연락처 앱이 저장을 묻습니다. (폰: 알림의 파일을 누르기 / PC: 파일을 열거나 구글 주소록에 가져오기)',
   failed: '파일을 만들지 못했습니다.',
 } as const;
+
+// ─── 중복 저장 방지 (2026-11-23 사장님 "중복 저장은 안 됐으면"): 이 기기에서 연락처 파일로 넘긴 사람을 기억해 두고, 다음엔 새로 생긴 분(또는 번호가 바뀐 분)만 넘긴다 ───
+// 브라우저가 폰 연락처를 읽을 수 없어 '넘긴 기록'으로 대신한다. 기록은 기기(localStorage)마다 따로다 — 사장님은 갤럭시에서 저장하므로 거기 기록이 기준
+const SAVED_KEY = 'crm_contacts_saved_v1';
+export type SavedContacts = Record<string, string>; // 고객 id → 넘긴 전화 숫자
+// Node 25 는 localStorage 전역이 있어도 setItem 이 없다(시험 환경) → 함수인지까지 본다
+const hasStorage = () => typeof localStorage !== 'undefined' && typeof localStorage.getItem === 'function' && typeof localStorage.setItem === 'function';
+export function loadSavedContacts(): SavedContacts {
+  if (!hasStorage()) return {};
+  try { return JSON.parse(localStorage.getItem(SAVED_KEY) || '{}') as SavedContacts; } catch { return {}; }
+}
+export function markContactsSaved(list: ContactInput[], saved: SavedContacts = loadSavedContacts()): SavedContacts {
+  const next = { ...saved };
+  for (const c of list) { const d = (c.phone || '').replace(/\D/g, ''); if (c.id && d.length >= 9) next[c.id] = d; }
+  if (hasStorage()) localStorage.setItem(SAVED_KEY, JSON.stringify(next));
+  return next;
+}
+export function clearSavedContacts() { if (hasStorage()) localStorage.removeItem(SAVED_KEY); }
+/** 아직 안 넘긴 사람(기록 없음 또는 번호가 바뀜)만 */
+export function unsavedContacts<T extends ContactInput>(list: T[], saved: SavedContacts = loadSavedContacts()): T[] {
+  return list.filter((c) => { const d = (c.phone || '').replace(/\D/g, ''); return d.length >= 9 && (!c.id || saved[c.id] !== d); });
+}
+export const isContactSaved = (id: string, phone: string | null | undefined, saved: SavedContacts = loadSavedContacts()) => saved[id] === (phone || '').replace(/\D/g, '') && !!saved[id];

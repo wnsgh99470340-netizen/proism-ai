@@ -11,7 +11,7 @@ import VehicleList from '@/components/crm/VehicleList';
 import CustomerTimeline from '@/components/crm/CustomerTimeline';
 import { buildTimeline } from '@/lib/timeline';
 import { isDealer, dealerFor, customersOfDealer, type DealerRef, type DealerJob } from '@/lib/dealers';
-import { buildVCard, deliverVcf, VCF_HINT } from '@/lib/vcard';
+import { buildVCard, deliverVcf, VCF_HINT, isContactSaved, markContactsSaved } from '@/lib/vcard';
 import { vehicleLabel, type Vehicle } from '@/lib/vehicles';
 import { blacklistInfo, clearBlacklist } from '@/lib/blacklist';
 import { supabase } from '@/lib/supabase';
@@ -109,6 +109,8 @@ export default function CustomerDetailPage() {
   const [ptsOpen, setPtsOpen] = useState(false);
   const [dealer, setDealer] = useState<DealerRef | null>(null); // 이 손님 차를 넣어 준 딜러 (2026-11-23)
   const [dealerJobs, setDealerJobs] = useState<DealerJob[]>([]); // 이 기록이 딜러면 넣어 준 손님들
+  const [contactSavedTick, setContactSavedTick] = useState(-1); // 연락처 저장 표시 갱신용 (-1 = 아직 클라이언트 아님)
+  useEffect(() => { setContactSavedTick(0); }, []);
   const [memberLink, setMemberLink] = useState<{ created_at: string; last_seen_at: string | null; visits: number } | null>(null); // 타임라인 '회원 페이지 열어 봄' 줄용
   const [editReferrerId, setEditReferrerId] = useState<string | null>(null);
   const openSms = (phone: string, msg: string) => openSmsApp(phone, msg);
@@ -219,14 +221,21 @@ export default function CustomerDetailPage() {
           {isDealer(customer) && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[var(--c-text-1)] text-[var(--c-card)]">딜러</span>}
           {customer.phone && <span className="text-[var(--c-text-3)] text-xs">{customer.phone}</span>}
         </div>
-        {customer.phone && (
-          <button onClick={async () => {
-            const v = buildVCard(isDealer(customer)
-              ? { name: customer.name, phone: customer.phone, tag: (customer.memo || '').split('\n')[0], org: '딜러' }
-              : { name: customer.name, phone: customer.phone, tag: [customer.car_brand, customer.car_model].filter(Boolean).join(' '), org: '프로이즘 고객', note: customer.source ? `유입경로 ${customer.source}` : null });
-            if (!v) return; const how = await deliverVcf(v, `${customer.name}.vcf`); alert(VCF_HINT[how]);
-          }} className="text-xs font-semibold rounded-full px-3 py-1.5 border border-[var(--c-border)] bg-[var(--c-card)] hover:bg-[var(--c-subtle)] text-[var(--c-text-1)] transition-colors" title="내 폰 연락처에 저장">📇 연락처 저장</button>
-        )}
+        {customer.phone && (() => {
+          const already = contactSavedTick >= 0 && isContactSaved(customer.id, customer.phone);
+          return (
+            <button onClick={async () => {
+              if (already && !confirm('이 기기에서 이미 연락처로 넘긴 분입니다. 다시 만들까요?')) return;
+              const c = isDealer(customer)
+                ? { id: customer.id, name: customer.name, phone: customer.phone, tag: (customer.memo || '').split('\n')[0], org: '딜러' }
+                : { id: customer.id, name: customer.name, phone: customer.phone, tag: [customer.car_brand, customer.car_model].filter(Boolean).join(' '), org: '프로이즘 고객', note: customer.source ? `유입경로 ${customer.source}` : null };
+              const v = buildVCard(c); if (!v) return;
+              const how = await deliverVcf(v, `${customer.name}.vcf`);
+              if (how === 'shared' || how === 'downloaded') { markContactsSaved([c]); setContactSavedTick((t) => t + 1); }
+              alert(VCF_HINT[how]);
+            }} className={`text-xs font-semibold rounded-full px-3 py-1.5 border transition-colors ${already ? 'border-ok/40 text-ok bg-ok/5' : 'border-[var(--c-border)] bg-[var(--c-card)] hover:bg-[var(--c-subtle)] text-[var(--c-text-1)]'}`} title={already ? '이 기기에서 이미 연락처로 넘김' : '내 폰 연락처에 저장'}>{already ? '✓ 연락처에 있음' : '📇 연락처 저장'}</button>
+          );
+        })()}
       </div>
 
       <div className="flex-1 overflow-y-auto p-6">

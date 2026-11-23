@@ -4,7 +4,8 @@
 import { EMPTY_CUSTOMER_FORM, type CustomerFormValues } from '@/components/crm/CustomerFormModal';
 import { useState } from 'react';
 import { DEALER_KIND } from '@/lib/dealers';
-import { buildVCards, deliverVcf, VCF_HINT } from '@/lib/vcard';
+import { buildVCards, deliverVcf, VCF_HINT, loadSavedContacts, markContactsSaved, unsavedContacts, type SavedContacts } from '@/lib/vcard';
+import { useEffect } from 'react';
 import { isBlacklisted, blacklistInfo } from '@/lib/blacklist';
 import type { Vehicle } from '@/lib/vehicles';
 import { type Customer, formatDate } from '@/lib/crm-shared';
@@ -35,15 +36,28 @@ export default function CustomersTab({
   const rows = kindFilter === 'all' ? filteredCustomers : filteredCustomers.filter((c) => (c.kind === DEALER_KIND) === (kindFilter === 'dealer'));
   // 연락처 저장 (2026-11-23 사장님 "버튼 한 번이면 내 연락처에"): 지금 보이는 줄(검색·필터 적용)을 vCard 한 파일로
   const [vcfBusy, setVcfBusy] = useState(false);
+  const [saved, setSaved] = useState<SavedContacts>({});
+  useEffect(() => { setSaved(loadSavedContacts()); }, []);
+  const contactList = rows.map((c) => c.kind === DEALER_KIND
+    ? { id: c.id, name: c.name, phone: c.phone, tag: (c.memo || '').split('\n')[0], org: '딜러' }
+    : { id: c.id, name: c.name, phone: c.phone, tag: [c.car_brand, c.car_model].filter(Boolean).join(' '), org: '프로이즘 고객', note: c.source ? `유입경로 ${c.source}` : null });
+  const fresh = unsavedContacts(contactList, saved); // 이 기기에서 아직 안 넘긴 분(번호 바뀐 분 포함)만 — 중복 저장 방지 (2026-11-23)
   const saveContacts = async () => {
-    const list = rows.map((c) => c.kind === DEALER_KIND
-      ? { name: c.name, phone: c.phone, tag: (c.memo || '').split('\n')[0], org: '딜러' }
-      : { name: c.name, phone: c.phone, tag: [c.car_brand, c.car_model].filter(Boolean).join(' '), org: '프로이즘 고객', note: c.source ? `유입경로 ${c.source}` : null });
+    let list = fresh;
+    if (list.length === 0) {
+      if (!confirm('지금 보이는 분은 이 기기에서 모두 연락처로 넘겼습니다.\n전부 다시 만들까요? (연락처 앱에 이미 있으면 중복이 생길 수 있습니다)')) return;
+      list = contactList;
+    }
     const { text, count } = buildVCards(list);
     if (!count) { alert('전화번호가 있는 고객이 없습니다.'); return; }
-    if (!confirm(`${count}명을 연락처 파일로 만들까요?\n(전화번호 없는 ${rows.length - count}명은 빠집니다. 이미 있는 번호는 연락처 앱이 합치거나 중복으로 물어봅니다)`)) return;
+    const skipped = rows.length - count;
+    if (!confirm(`${count}명을 연락처 파일로 만들까요?${skipped > 0 ? `\n(이미 넘긴 분·전화 없는 분 ${skipped}명은 뺍니다)` : ''}`)) return;
     setVcfBusy(true);
-    try { const how = await deliverVcf(text, `프로이즘-고객-${count}명.vcf`); alert(`${count}명 — ${VCF_HINT[how]}`); } finally { setVcfBusy(false); }
+    try {
+      const how = await deliverVcf(text, `프로이즘-고객-${count}명.vcf`);
+      if (how === 'shared' || how === 'downloaded') setSaved(markContactsSaved(list, saved));
+      alert(`${count}명 — ${VCF_HINT[how]}`);
+    } finally { setVcfBusy(false); }
   };
   return (
     <div>
@@ -66,7 +80,7 @@ export default function CustomersTab({
           )}
         </div>
         <div className="flex items-center gap-2">
-        <button onClick={saveContacts} disabled={vcfBusy || rows.length === 0} title="지금 보이는 고객을 내 폰 연락처에 저장 (.vcf)" className="text-sm font-medium rounded-lg px-3 py-2 border border-[var(--c-border)] bg-[var(--c-card)] hover:bg-[var(--c-subtle)] text-[var(--c-text-1)] transition-colors disabled:opacity-50">📇 연락처 저장{rows.length > 0 ? ` ${rows.length}명` : ''}</button>
+        <button onClick={saveContacts} disabled={vcfBusy || rows.length === 0} title="지금 보이는 고객을 내 폰 연락처에 저장 (.vcf)" className="text-sm font-medium rounded-lg px-3 py-2 border border-[var(--c-border)] bg-[var(--c-card)] hover:bg-[var(--c-subtle)] text-[var(--c-text-1)] transition-colors disabled:opacity-50">📇 연락처 저장{fresh.length > 0 ? ` · 새로 ${fresh.length}명` : rows.length > 0 ? ' · 모두 저장됨' : ''}</button>
         <button
           onClick={() => { setEditCustomerId(null); setCustomerForm({ ...EMPTY_CUSTOMER_FORM }); setShowAddCustomer(true); }}
           className="bg-brand hover:bg-brand-dark text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors"

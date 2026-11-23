@@ -1,6 +1,6 @@
 // 연락처 저장용 vCard (2026-11-23)
 import { describe, it, expect } from 'vitest';
-import { buildVCard, buildVCards } from '@/lib/vcard';
+import { buildVCard, buildVCards, unsavedContacts, markContactsSaved, isContactSaved } from '@/lib/vcard';
 
 describe('vCard', () => {
   it('이름 뒤에 차종, 회사 칸 프로이즘 고객, 전화는 숫자만', () => {
@@ -21,5 +21,20 @@ describe('vCard', () => {
     expect(all.count).toBe(2);
     expect(all.text.match(/BEGIN:VCARD/g)).toHaveLength(2);
     expect(all.text).toContain('ORG:딜러');
+  });
+  it('중복 저장 방지: 넘긴 사람은 다음에 빠지고, 번호가 바뀌면 다시 들어간다', () => {
+    const list = [
+      { id: 'a', name: '김수희', phone: '010-5165-8780' },
+      { id: 'b', name: '홍길동', phone: '010-1111-2222' },
+      { id: 'c', name: '전화없음', phone: '' },
+    ];
+    expect(unsavedContacts(list, {}).map((c) => c.id)).toEqual(['a', 'b']);
+    const saved = markContactsSaved([list[0]], {});
+    expect(saved).toEqual({ a: '01051658780' });
+    expect(unsavedContacts(list, saved).map((c) => c.id)).toEqual(['b']);
+    expect(unsavedContacts([{ id: 'a', name: '김수희', phone: '010-9999-0000' }], saved).map((c) => c.id)).toEqual(['a']);
+    expect(isContactSaved('a', '010-5165-8780', saved)).toBe(true);
+    expect(isContactSaved('b', '010-1111-2222', saved)).toBe(false);
+    expect(buildVCard({ id: 'a', name: '김수희', phone: '010-5165-8780' })).toContain('UID:proism-a');
   });
 });
