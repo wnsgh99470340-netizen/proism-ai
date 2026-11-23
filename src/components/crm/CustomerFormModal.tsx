@@ -149,13 +149,13 @@ export default function CustomerFormModal({ mode, form, setForm, latestApptId, b
           )}
           <div className="col-span-2"><label className={label}>{isDealerForm ? '딜러 이름 *' : '이름 *'}</label><input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} className={input} placeholder={isDealerForm ? '예: 조중용 부장' : '고객 이름'} /></div>
           <div><label className={label}>연락처</label><input type="tel" inputMode="numeric" value={form.phone} onChange={(e) => set('phone', formatPhoneInput(e.target.value))} className={input} placeholder="010-0000-0000" /></div>
-          <div>
+          {!isDealerForm && <div>
             <label className={label}>유입경로</label>
             <select value={form.source} onChange={(e) => set('source', e.target.value)} className={input}>
               <option value="">선택...</option>
               {SOURCE_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
-          </div>
+          </div>}
           {dealerOk && !isDealerForm && (
             <div className="col-span-2">
               <label className={label}>넣어 주신 딜러 <span className="text-[var(--c-text-4)]">(딜러가 맡긴 차면 선택 — 입고·출고 안내가 딜러에게 갑니다)</span></label>
