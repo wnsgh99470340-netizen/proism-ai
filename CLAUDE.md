@@ -190,7 +190,8 @@
 - 웹 푸시: 토글(src/components/PushToggle.tsx)은 권한 허용인데 구독이 없으면 자동 재구독·서버 재등록, 앱이 앞으로 올 때마다 확인, sw.js pushsubscriptionchange 재등록. 차단·미지원이면 버튼을 눌러 이유와 기기별 켜는 법(갤럭시: 폰 설정 → 앱 → 브라우저 알림 허용 + 사이트 알림 허용)을 보여 줌. 아이폰은 홈 화면 앱에서만 가능. 서버 구독은 Supabase push_subscriptions(기기별 endpoint)
 
 ## 배포 규칙
-- 코드 수정 후 반드시: 타입 체크(npx tsc --noEmit) → **자동 시험(npm test)** → 빌드(npm run build) → 커밋+푸시 → npx vercel --prod
+- 코드 수정 후 반드시: 타입 체크(npx tsc --noEmit) → **자동 시험(npm test)** → **화면 자동 점검(npm run smoke, CRM 화면을 고쳤을 때)** → 빌드(npm run build) → 커밋+푸시 → npx vercel --prod
+- **npm run smoke**(2026-11-25 사장님 "배포 전 자동 점검 스크립트"): scripts/smoke/run.py 가 dev 서버를 3100 포트에 켜고 scripts/smoke/smoke.py(Playwright 파이썬)로 홈·고객 목록(검색)·고객 상세(타임라인·탭)·예약 달력(리스트·날짜 상세)·작업 내역서 창(열고 취소)·사후관리(필터·달력)·상담 기록(견적 문자·통화 요약 창 열고 닫기)·블로그 탭(폼·미리보기 탭)·회원 탭·콘솔 오류·가로 넘침을 한 바퀴 돈다. `-- --mobile` 이면 375px 안드로이드로 한 번 더(22개 점검, 약 2분). **읽기만**: confirm/alert/prompt 는 전부 취소, 저장·문자 버튼은 안 누름, 로컬 서버에만 돌아감. 화면은 scripts/smoke/out/(깃 제외, 손님 이름 찍힘). 실패하면 fail-*.png 가 남고 종료 코드 1. 새 화면을 만들면 여기에 점검 한 줄 추가
 - .next 캐시 에러 시: rm -rf .next 후 재시도
 - 견적서 URL: NEXT_PUBLIC_BASE_URL 환경변수 사용
 - 네이버 검색 API: NCP_APIGW_KEY_ID / NCP_APIGW_KEY (네이버 클라우드 플랫폼 NAVER API HUB. 개발자센터 검색 API는 2026-07-31 신규 신청 종료). 없으면 리서치에서 네이버 블로그·카페 검색만 건너뜀. Vercel에도 같은 이름으로 등록 필요

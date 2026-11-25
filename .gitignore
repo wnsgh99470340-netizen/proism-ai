@@ -40,3 +40,6 @@ public/drafts/video/
 
 # 데이터 정리 전 백업(개인정보 포함, 커밋 금지)
 .backup/
+
+# 배포 전 자동 점검 화면 (손님 이름이 찍히므로 깃 제외)
+scripts/smoke/out/
