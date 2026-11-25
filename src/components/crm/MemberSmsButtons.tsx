@@ -1,5 +1,6 @@
 'use client';
 
+import Btn from '@/components/ui/Btn';
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { confirmAfterSms, openSmsApp } from '@/lib/crm-shared';
@@ -23,9 +24,7 @@ const TEMPLATES = [
 export default function MemberSmsButtons({ customerId, name, phone, size = 'sm', onSent }: { customerId: string; name: string; phone: string | null; size?: 'sm' | 'xs'; onSent?: () => void }) {
   const [busy, setBusy] = useState<string | null>(null);
   if (!phone) return <span className="text-[11px] text-[var(--c-text-4)]">전화 없음</span>;
-  const cls = size === 'xs'
-    ? 'text-[11px] font-medium px-2 py-0.5 rounded-full border border-[var(--c-border)] hover:bg-[var(--c-subtle)] text-[var(--c-text-1)] whitespace-nowrap disabled:opacity-50'
-    : 'text-xs font-semibold px-3 py-1.5 rounded-full border border-[var(--c-border)] bg-[var(--c-card)] hover:bg-[var(--c-subtle)] text-[var(--c-text-1)] whitespace-nowrap disabled:opacity-50';
+  const bs = size === 'xs' ? 'xs' : 'sm';
   const send = async (t: (typeof TEMPLATES)[number]) => {
     openSmsApp(phone, t.build(name));
     if (!(await confirmAfterSms('문자를 전송하셨나요? (기록으로 남깁니다)'))) return;
@@ -76,10 +75,10 @@ export default function MemberSmsButtons({ customerId, name, phone, size = 'sm',
   };
   return (
     <span className="inline-flex items-center gap-1.5 flex-wrap">
-      <button disabled={!!busy} onClick={openPage} className={cls} title="손님이 보는 회원 페이지를 그대로 엽니다 (로그인된 기기는 뒷자리 없이 열림)">{busy === 'open' ? '…' : '👁 회원 페이지 보기'}</button>
-      {TEMPLATES.map((t) => <button key={t.key} disabled={!!busy} onClick={() => send(t)} className={cls} title={t.build(name)}>{busy === t.key ? '…' : `💬 ${t.label}`}</button>)}
-      <button disabled={!!busy} onClick={sendLink} className={cls} title="손님이 직접 보는 회원 페이지 주소를 문자로 보냅니다 (전화 뒷자리 4개로 확인)">{busy === 'link' ? '…' : '🔗 링크 문자'}</button>
-      <button disabled={!!busy} onClick={sendLinkKakao} className={`${cls} !bg-[#FEE500] !text-[#191919] !border-[#FEE500] hover:!bg-[#FDD835]`} title="회원 페이지 주소를 카카오톡으로 보냅니다 (폰: 공유창에서 카카오톡 선택)">{busy === 'kakao' ? '…' : '💛 링크 카톡'}</button>
+      <Btn size={bs} icon="eye" disabled={!!busy} onClick={openPage} title="손님이 보는 회원 페이지를 그대로 엽니다 (로그인된 기기는 뒷자리 없이 열림)">{busy === 'open' ? '…' : '회원 페이지'}</Btn>
+      {TEMPLATES.map((t) => <Btn size={bs} icon={t.key === 'member' ? 'chat' : 'share'} key={t.key} disabled={!!busy} onClick={() => send(t)} title={t.build(name)}>{busy === t.key ? '…' : t.label}</Btn>)}
+      <Btn size={bs} icon="link" disabled={!!busy} onClick={sendLink} title="손님이 직접 보는 회원 페이지 주소를 문자로 보냅니다 (전화 뒷자리 4개로 확인)">{busy === 'link' ? '…' : '링크 문자'}</Btn>
+      <Btn size={bs} icon="kakao" variant="kakao" disabled={!!busy} onClick={sendLinkKakao} title="회원 페이지 주소를 카카오톡으로 보냅니다 (폰: 공유창에서 카카오톡 선택)">{busy === 'kakao' ? '…' : '링크 카톡'}</Btn>
     </span>
   );
 }

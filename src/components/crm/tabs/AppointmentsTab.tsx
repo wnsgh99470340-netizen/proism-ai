@@ -1,6 +1,7 @@
 'use client';
 
 /** 예약/일정 탭 (2026-11-23 page.tsx 에서 분리 — 동작 변경 없음). 상태·핸들러는 page.tsx 에 있고 props 로 받는다 */
+import Btn from '@/components/ui/Btn';
 import type { Dispatch, SetStateAction } from 'react';
 import { toSeoulISO } from '@/lib/local-date';
 import { CRM_SERVICE_TO_KEY } from '@/config/blog-options';
@@ -132,9 +133,9 @@ export default function AppointmentsTab({
           <span className="ml-2 text-sm text-[var(--c-text-3)]">오늘 <b className="text-[var(--c-text-1)]">{todayCount}</b>건 · 이번 주 <b className="text-[var(--c-text-1)]">{weekCount}</b>건</span>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => setShowCalendarSub(true)} className={`${pill} py-2 px-4 text-sm`}>캘린더 구독</button>
-          <button onClick={() => { setShowShotImport(true); setShotMonth(`${cY}-${String(cM + 1).padStart(2, '0')}`); }} className={`${pill} py-2 px-4 text-sm`} title="타임트리 캡처·카톡 대화 사진에서 일정을 읽어 예약으로 넣기">📷 스크린샷으로 추가</button>
-          <button onClick={() => setShowAddAppointment(true)} className="bg-brand hover:bg-brand-dark text-white text-sm font-semibold rounded-full px-4 py-2 transition-colors whitespace-nowrap">+ 예약 추가</button>
+          <Btn icon="rss" onClick={() => setShowCalendarSub(true)}>캘린더 구독</Btn>
+          <Btn icon="camera" onClick={() => { setShowShotImport(true); setShotMonth(`${cY}-${String(cM + 1).padStart(2, '0')}`); }} title="타임트리 캡처·카톡 대화 사진에서 일정을 읽어 예약으로 넣기">캡처로 추가</Btn>
+          <Btn icon="plus" variant="primary" onClick={() => setShowAddAppointment(true)}>예약 추가</Btn>
         </div>
       </div>
 
@@ -226,10 +227,10 @@ export default function AppointmentsTab({
                   <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
                     <span className={`text-xs font-semibold px-2.5 py-1.5 rounded-full ${chip(a.status)}`}>{a.status}</span>
                     {a.customer_id && (
-                      <button onClick={() => handleEditCustomerFromAppointment(a)} className={pill} title="이름·전화·차량·유입경로 수정">👤 고객 정보</button>
+                      <button onClick={() => handleEditCustomerFromAppointment(a)} className={pill} title="이름·전화·차량·유입경로 수정">고객 정보</button>
                     )}
                     {!isDemo && a.service_type && CRM_SERVICE_TO_KEY[a.service_type] && (
-                      <button onClick={() => handleWriteBlogFromAppointment(a)} className={pill} title="이 시공으로 블로그 시공기 폼 채우기">✍️ 시공기</button>
+                      <button onClick={() => handleWriteBlogFromAppointment(a)} className={pill} title="이 시공으로 블로그 시공기 폼 채우기">시공기</button>
                     )}
                     {CARE_VISIT_TYPES.includes(a.service_type || '') ? (
                       <button onClick={() => handleOpenCareVisit(a)} className={a.status === '완료' ? 'text-xs font-semibold rounded-full px-3 py-1.5 bg-ok text-white whitespace-nowrap' : pill} title="점검 기록을 남기면 사후관리도 함께 완료됩니다">{a.status === '완료' ? '✓ 점검 기록됨' : '점검 완료'}</button>
@@ -260,7 +261,7 @@ export default function AppointmentsTab({
                         {APPOINTMENT_STATUSES.filter((st) => st !== a.status).map((st) => (<option key={st} value={st}>{st}</option>))}
                       </select>
                     )}
-                    {a.status !== '완료' && a.status !== '취소' && <button onClick={() => openDateEdit(a)} className={pill} title="시작·종료일 바꾸기 (QC·메인터넌스 방문이면 사후관리 날짜도 함께)">📆 날짜</button>}
+                    {a.status !== '완료' && a.status !== '취소' && <button onClick={() => openDateEdit(a)} className={pill} title="시작·종료일 바꾸기 (QC·메인터넌스 방문이면 사후관리 날짜도 함께)">날짜</button>}
                     <button onClick={() => handleDeleteAppointment(a.id)} className="opacity-0 group-hover:opacity-100 w-7 h-7 rounded-full flex items-center justify-center text-[var(--c-text-3)] hover:text-danger hover:bg-danger/10 transition-all text-xs" title="삭제">✕</button>
                   </div>
                 </div>

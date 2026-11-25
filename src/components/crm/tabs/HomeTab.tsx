@@ -1,6 +1,7 @@
 'use client';
 
 /** 홈 탭 (2026-11-23 page.tsx 에서 분리 — 동작 변경 없음). 상태·핸들러는 page.tsx 에 있고 props 로 받는다 */
+import Btn from '@/components/ui/Btn';
 import type { Dispatch, SetStateAction } from 'react';
 import { addDaysISO } from '@/lib/local-date';
 import { quoteForDate } from '@/config/daily-quotes';
@@ -174,7 +175,7 @@ export default function HomeTab({
             <h2 className="text-lg font-bold text-[var(--c-text-1)]">마케팅팀 오늘 한 일 <span className="text-[var(--c-text-3)] text-sm font-medium ml-1">{fmtDot(today).slice(5)}</span></h2>
             <div className="flex items-center gap-2 shrink-0">
               {teamBrief && teamBrief.totals.toSend > 0 && <span className="text-xs font-semibold text-brand">보낼 문자 {teamBrief.totals.toSend}건</span>}
-              <button onClick={fetchTeamBrief} className="text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-1)] transition-colors">↻ 새로고침</button>
+              <Btn size="sm" variant="ghost" icon="refresh" onClick={fetchTeamBrief}>새로고침</Btn>
             </div>
           </div>
           {!teamBrief ? (
@@ -257,7 +258,7 @@ export default function HomeTab({
       <section className={`${card} p-5 md:p-6`}>
         <div className="flex items-center justify-between mb-4 gap-3">
           <h2 className="text-lg font-bold text-[var(--c-text-1)]">{Number(statsMonth.slice(5))}월 숫자 <span className="text-[var(--c-text-3)] text-sm font-medium ml-1">{stats ? `${stats.weekly.from.slice(5).replace('-', '.')}~${stats.weekly.to.slice(5).replace('-', '.')}` : ''}</span></h2>
-          <button onClick={() => fetchStats(statsMonth)} className="text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-1)] transition-colors">↻ 새로고침</button>
+          <Btn size="sm" variant="ghost" icon="refresh" onClick={() => fetchStats(statsMonth)}>새로고침</Btn>
         </div>
         {!stats ? (
           <div className="py-8 text-center text-sm text-[var(--c-text-3)]">{isDemo ? "둘러보기에서는 비어 있습니다" : "지난 7일 기록을 세는 중…"}</div>

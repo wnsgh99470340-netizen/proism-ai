@@ -1,6 +1,7 @@
 'use client';
 
 /** 고객 목록 탭 (2026-11-23 page.tsx 에서 분리 — 동작 변경 없음). 상태·핸들러는 page.tsx 에 있고 props 로 받는다 */
+import Btn from '@/components/ui/Btn';
 import { EMPTY_CUSTOMER_FORM, type CustomerFormValues } from '@/components/crm/CustomerFormModal';
 import { useState } from 'react';
 import { DEALER_KIND, isRetiredDealer } from '@/lib/dealers';
@@ -88,12 +89,7 @@ export default function CustomersTab({
             ? <span className="min-w-[22px] h-[22px] px-1.5 rounded-full bg-brand text-white text-[11px] font-bold inline-flex items-center justify-center tabular-nums">{fresh.length}</span>
             : <span className="text-ok text-xs font-bold px-1">✓</span>}
         </button>
-        <button
-          onClick={() => { setEditCustomerId(null); setCustomerForm({ ...EMPTY_CUSTOMER_FORM }); setShowAddCustomer(true); }}
-          className="bg-brand hover:bg-brand-dark text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors whitespace-nowrap"
-        >
-          + 고객 추가
-        </button>
+        <Btn icon="plus" variant="primary" onClick={() => { setEditCustomerId(null); setCustomerForm({ ...EMPTY_CUSTOMER_FORM }); setShowAddCustomer(true); }}>고객 추가</Btn>
         </div>
       </div>
 

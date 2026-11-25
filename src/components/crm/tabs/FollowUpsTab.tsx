@@ -285,7 +285,7 @@ export default function FollowUpsTab({
                 {(f.follow_up_type === 'QC점검' || f.follow_up_type === '메인터넌스') && !f.is_completed && (
                   f.visit
                     ? <button onClick={() => { setActiveTab('appointments'); }} className="text-[10px] font-medium px-2.5 py-1 rounded-lg bg-info/15 text-info" title="예약/일정 달력에 잡힌 방문">📅 {f.visit.appointment_date.slice(5).replace('-', '/')} 방문</button>
-                    : <button onClick={() => openCareBook(f)} className="text-[10px] font-medium px-2.5 py-1 rounded-lg bg-[var(--c-subtle)] text-[var(--c-text-2)] hover:bg-[var(--c-hover)]" title="손님과 잡은 날짜로 달력 예약을 만듭니다">📅 방문 잡기</button>
+                    : <button onClick={() => openCareBook(f)} className="text-[10px] font-medium px-2.5 py-1 rounded-lg bg-[var(--c-subtle)] text-[var(--c-text-2)] hover:bg-[var(--c-hover)]" title="손님과 잡은 날짜로 달력 예약을 만듭니다">방문 잡기</button>
                 )}
                 <button
                   onClick={() => handleToggleFollowUp(f)}

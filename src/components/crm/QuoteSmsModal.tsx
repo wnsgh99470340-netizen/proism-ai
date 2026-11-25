@@ -1,5 +1,6 @@
 'use client';
 
+import Btn from '@/components/ui/Btn';
 import { openSmsApp } from '@/lib/crm-shared';
 import { copyText } from '@/lib/device';
 import { formatPhoneInput } from '@/lib/phone';
@@ -404,7 +405,7 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
     <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-center justify-center p-3" onClick={onClose}>
       <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl w-full max-w-4xl max-h-[calc(100dvh-1.5rem)] flex flex-col shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="px-6 py-4 border-b border-[var(--c-border)] flex items-center justify-between">
-          <h3 className="text-[var(--c-text-1)] font-semibold text-base">📩 견적 문자</h3>
+          <h3 className="text-[var(--c-text-1)] font-semibold text-base">견적 문자</h3>
         </div>
         <div className="flex-1 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-0">
           {/* 입력 */}
@@ -496,10 +497,10 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
         {(!car.trim() || !phone.replace(/[^\d]/g, '')) && <div className="px-6 pt-2 text-[11px] text-warn">{!car.trim() ? '차종을 적어야 복사·문자 보내기가 됩니다. ' : ''}{!phone.replace(/[^\d]/g, '') ? '전화번호가 없으면 [복사]로만 보낼 수 있습니다.' : ''}</div>}
         {/* 폰(375px)에서 버튼 4개가 한 줄에 못 들어가 '닫'·'명함 이미지' 글자가 깨지던 것 → 줄바꿈 허용 + 글자 안 깨지게, 폰에선 '명함'만 (2026-11-23) */}
         <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-[var(--c-border)] flex flex-wrap justify-end gap-2">
-          <button onClick={onClose} className="px-3 sm:px-4 py-2 text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-2)] whitespace-nowrap mr-auto sm:mr-0">닫기</button>
-          <button onClick={shareCard} disabled={busy} className="bg-[var(--c-subtle)] hover:bg-[var(--c-hover)] text-[var(--c-text-1)] text-sm font-medium rounded-lg px-3 sm:px-4 py-2 disabled:opacity-50 whitespace-nowrap" title="문자를 보낸 뒤 명함 사진을 같은 번호로 보낼 때">📇 명함<span className="hidden sm:inline"> 이미지</span></button>
-          <button onClick={() => send('copy')} disabled={busy} className="bg-[var(--c-subtle)] hover:bg-[var(--c-hover)] text-[var(--c-text-1)] text-sm font-medium rounded-lg px-3 sm:px-4 py-2 disabled:opacity-50 whitespace-nowrap">📋 복사</button>
-          <button onClick={() => send('sms')} disabled={busy} className="bg-brand hover:bg-brand-dark text-white text-sm font-medium rounded-lg px-3 sm:px-4 py-2 disabled:opacity-50 whitespace-nowrap">💬 문자 보내기</button>
+          <Btn variant="ghost" onClick={onClose} className="mr-auto sm:mr-0">닫기</Btn>
+          <Btn icon="card" onClick={shareCard} disabled={busy} title="문자를 보낸 뒤 명함 사진을 같은 번호로 보낼 때">명함</Btn>
+          <Btn icon="copy" onClick={() => send('copy')} disabled={busy}>복사</Btn>
+          <Btn icon="chat" variant="primary" onClick={() => send('sms')} disabled={busy}>문자 보내기</Btn>
         </div>
       </div>
     </div>

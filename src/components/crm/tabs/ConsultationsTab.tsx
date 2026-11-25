@@ -1,6 +1,8 @@
 'use client';
 
 /** 상담 기록 탭 (2026-11-23 page.tsx 에서 분리 — 동작 변경 없음). 상태·핸들러는 page.tsx 에 있고 props 로 받는다 */
+import { Icon } from '@/components/ui/icons';
+import Btn from '@/components/ui/Btn';
 import type { QuoteSmsInitial } from '@/components/crm/QuoteSmsModal';
 import { hideRefToken } from '@/components/crm/ReferrerPicker';
 import { type Customer, type Consultation, formatDate } from '@/lib/crm-shared';
@@ -23,28 +25,11 @@ export default function ConsultationsTab({ consultations, customers, handleAddCu
         <h2 className="text-sm text-[var(--c-text-3)] whitespace-nowrap">{consultations.length}건의 상담</h2>
         <div className="flex items-center gap-2 flex-wrap">
           {setShowCallImport && (
-            <button onClick={() => setShowCallImport(true)} className="border border-[var(--c-border)] hover:bg-[var(--c-hover)] text-[var(--c-text-1)] text-sm font-medium rounded-lg px-4 py-2 transition-colors whitespace-nowrap" title="전화 앱의 통화 요약 캡처를 올리면 손님을 찾아 상담 기록으로 남깁니다 (예약은 만들지 않음)">📞 통화 요약</button>
+            <Btn icon="phone" onClick={() => setShowCallImport(true)} title="전화 앱의 통화 요약 캡처를 올리면 손님을 찾아 상담 기록으로 남깁니다 (예약은 만들지 않음)">통화 요약</Btn>
           )}
-          <button
-            onClick={() => setShowInquiry(true)}
-            className="border border-[var(--c-border)] hover:bg-[var(--c-hover)] text-[var(--c-text-1)] text-sm font-medium rounded-lg px-4 py-2 transition-colors"
-            title="카페·문자로 온 문의 글을 붙여 넣으면 시장 평균가 기준 답장을 만듭니다"
-          >
-            💬 문의 답변
-          </button>
-          <button
-            onClick={() => setQuoteSms({})}
-            className="bg-gold/15 hover:bg-gold/25 text-gold text-sm font-medium rounded-lg px-4 py-2 transition-colors"
-            title="전화 끊고 바로 보내는 견적 문자 (재연락 2회 자동 등록)"
-          >
-            📩 견적 문자
-          </button>
-          <button
-            onClick={() => setShowAddConsultation(true)}
-            className="bg-brand hover:bg-brand-dark text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors"
-          >
-            + 상담 추가
-          </button>
+          <Btn icon="chat" onClick={() => setShowInquiry(true)} title="카페·문자로 온 문의 글을 붙여 넣으면 시장 평균가 기준 답장을 만듭니다">문의 답변</Btn>
+          <Btn icon="mail" variant="dark" onClick={() => setQuoteSms({})} title="전화 끊고 바로 보내는 견적 문자 (재연락 2회 자동 등록)">견적 문자</Btn>
+          <Btn icon="plus" variant="primary" onClick={() => setShowAddConsultation(true)}>상담 추가</Btn>
         </div>
       </div>
 
@@ -68,9 +53,9 @@ export default function ConsultationsTab({ consultations, customers, handleAddCu
                     const headName = headPhone ? parts[0].replace(headPhone, '').trim() : '';
                     setQuoteSms({ customerId: c.customer_id, name: c.customer?.name || cu?.name || headName, phone: c.customer?.phone || cu?.phone || headPhone, car: cu ? [cu.car_brand, cu.car_model].filter(Boolean).join(' ') : (headPhone ? parts[1] || '' : ''), service: c.interested_services || '' });
                   }}
-                  className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-colors ${c.memo === '회원 문자' ? 'hidden' : 'bg-gold/10 hover:bg-gold/20 text-gold'}`}
+                  className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-[var(--c-border)] hover:bg-[var(--c-subtle)] text-[var(--c-text-1)] whitespace-nowrap ${c.memo === '회원 문자' ? 'hidden' : ''}`}
                 >
-                  📩 견적 문자
+                  <Icon name="mail" size={12} /> 견적 문자
                 </button>
                 {c.memo === '회원 문자' && <span className="text-[10px] font-medium px-2.5 py-1 rounded-lg bg-ok/10 text-ok" title="회원 링크·소개 감사 문자를 보내면 자동으로 남는 기록입니다">🔗 회원 문자</span>}
                 <span className="text-xs text-[var(--c-text-3)]">{formatDate(c.consultation_date)}</span>

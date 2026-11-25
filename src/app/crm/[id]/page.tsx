@@ -1,5 +1,6 @@
 'use client';
 
+import Btn from '@/components/ui/Btn';
 import { openSmsApp } from '@/lib/crm-shared';
 import { useState, useEffect, useCallback } from 'react';
 import CustomerFormModal, { EMPTY_CUSTOMER_FORM, loadCustomerForm, saveCustomerEdit, type CustomerFormValues } from '@/components/crm/CustomerFormModal';
@@ -281,7 +282,7 @@ export default function CustomerDetailPage() {
         <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-5 mb-6">
           <div className="flex items-center justify-between mb-3">
             <div className="text-xs font-semibold text-[var(--c-text-3)]">고객 정보</div>
-            <button onClick={startEditInfo} className="text-xs font-semibold rounded-full px-3 py-1.5 border border-[var(--c-border)] bg-[var(--c-card)] hover:bg-[var(--c-subtle)] text-[var(--c-text-1)] transition-colors">✎ 수정</button>
+            <Btn size="sm" icon="pencil" onClick={startEditInfo}>수정</Btn>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <InfoItem label="차량" value={

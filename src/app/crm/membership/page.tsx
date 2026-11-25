@@ -4,6 +4,7 @@ import { openSmsApp } from '@/lib/crm-shared';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import Btn from '@/components/ui/Btn';
 import { memberMissing } from '@/lib/member-ready';
 import { todaySeoul } from '@/lib/local-date';
 import { MEMBERSHIP } from '@/config/membership';
@@ -111,7 +112,7 @@ export default function MembershipPage() {
           <span className="text-[var(--c-border)]">|</span>
           <span className="text-[var(--c-text-1)] font-semibold text-sm">{MEMBERSHIP.name}</span>
         </div>
-        <button onClick={load} className="text-xs text-[var(--c-text-3)] hover:text-[var(--c-text-1)]">↻ 새로고침</button>
+        <Btn size="sm" variant="ghost" icon="refresh" onClick={load}>새로고침</Btn>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 md:p-6 max-w-[1360px] w-full mx-auto">

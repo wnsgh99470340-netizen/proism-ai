@@ -1,5 +1,6 @@
 'use client';
 
+import Btn from '@/components/ui/Btn';
 import { openSmsApp } from '@/lib/crm-shared';
 import { useState } from 'react';
 import { todaySeoul, addDaysISO } from '@/lib/local-date';
@@ -125,7 +126,7 @@ export default function InquiryReplyModal({ onClose, onDone }: { onClose: () => 
       <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl w-full max-w-4xl max-h-[calc(100dvh-1.5rem)] flex flex-col shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="px-5 py-4 border-b border-[var(--c-border)] flex items-center justify-between">
           <div>
-            <h3 className="text-[var(--c-text-1)] font-semibold text-base">💬 문의 답변</h3>
+            <h3 className="text-[var(--c-text-1)] font-semibold text-base">문의 답변</h3>
             <p className="text-xs text-[var(--c-text-3)] mt-0.5">문의 글을 붙여 넣으면 시장 평균가 기준으로 답장을 만듭니다. 고쳐서 보내세요</p>
           </div>
           <button onClick={onClose} className="text-[var(--c-text-3)] hover:text-[var(--c-text-1)] text-xl leading-none">×</button>
@@ -211,9 +212,9 @@ export default function InquiryReplyModal({ onClose, onDone }: { onClose: () => 
               <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked={withFollowUp} onChange={(e) => setWithFollowUp(e.target.checked)} className="accent-[var(--c-brand)]" />내일 견적 재연락 등록(전화 있을 때)</label>
             </div>
             <div className="flex flex-wrap gap-2">
-              <button onClick={() => save('copy')} disabled={!reply || saving} className={pill}>📋 복사하고 기록</button>
-              <button onClick={() => save('sms')} disabled={!reply || saving || phone.replace(/[^\d]/g, '').length < 10} className={pill} title={phone ? '' : '전화번호를 넣으면 문자로 보낼 수 있어요'}>💬 문자로 보내기</button>
-              <button onClick={() => save('save')} disabled={!reply || saving} className={pill}>기록만</button>
+              <Btn icon="copy" onClick={() => save('copy')} disabled={!reply || saving}>복사하고 기록</Btn>
+              <Btn icon="chat" variant="primary" onClick={() => save('sms')} disabled={!reply || saving || phone.replace(/[^\d]/g, '').length < 10} title={phone ? '' : '전화번호를 넣으면 문자로 보낼 수 있어요'}>문자로 보내기</Btn>
+              <Btn icon="check" variant="ghost" onClick={() => save('save')} disabled={!reply || saving}>기록만</Btn>
             </div>
             {note && <p className={`text-xs ${note.startsWith('⚠️') ? 'text-warn' : 'text-ok'}`}>{note}</p>}
           </div>
