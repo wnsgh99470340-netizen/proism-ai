@@ -24,6 +24,11 @@ export interface WorkOrderJson {
   polish?: string[]; polish_etc?: string;
   package_options?: string[];
   tinting?: Record<string, TintPick>;
+  /** 특이사항 및 비고 (작업 내역서 PDF 아래 칸, 시공기 폼 참고 메모로도) */
+  notes?: string;
+  /** 작업 내역서 상단 체크 — 완료 처리 때 자동 true */
+  crm_recorded?: boolean;
+  amount?: string | number;
 }
 
 export interface WorkItem {

@@ -812,10 +812,16 @@ export default function CRMPage() {
         work_details: workDetailsText(workOrder as WorkOrderJson, appointment.service_type || '시공'), warranty_period: (workOrder as { maintenance_years?: string }).maintenance_years ? `시공일로부터 ${(workOrder as { maintenance_years?: string }).maintenance_years}년` : '시공일로부터 1년',
         price: finalAmount ? `₩${Number(finalAmount).toLocaleString()}` : '',
       };
-    } else if ((workOrder as { maintenance_years?: string }).maintenance_years) {
-      (memoObj.warranty as { warranty_period?: string }).warranty_period = `시공일로부터 ${(workOrder as { maintenance_years?: string }).maintenance_years}년`;
+    } else {
+      // 다시 완료 처리(내역 고침)하면 보증서의 빈칸만 보충한다 — 번호·금액을 나중에 적은 경우 (2026-11-25 점검)
+      const w = memoObj.warranty as { warranty_period?: string; car_number?: string; price?: string; work_details?: string };
+      if ((workOrder as { maintenance_years?: string }).maintenance_years) w.warranty_period = `시공일로부터 ${(workOrder as { maintenance_years?: string }).maintenance_years}년`;
+      if (!w.car_number && workOrder.car_number) w.car_number = workOrder.car_number;
+      if (!w.price && finalAmount) w.price = `₩${Number(finalAmount).toLocaleString()}`;
+      if (!w.work_details) w.work_details = workDetailsText(workOrder as WorkOrderJson, appointment.service_type || '시공');
     }
     memoObj.warranty_issued = true;
+    memoObj.crm_recorded = true; // 완료 처리 = CRM 기재 (체크 안 해도 자동)
     const mergedMemo = JSON.stringify(memoObj);
 
     // 시공 이력 생성 (작업 내역서 데이터를 memo에 JSON으로 저장)
@@ -868,7 +874,9 @@ export default function CRMPage() {
     else if (workOrder.car_number?.trim()) { const vs = await loadVehicles(appointment.customer_id); const target = vs.find((v) => v.is_primary) || (vs.length === 1 ? vs[0] : null); if (target) await fillPlateIfEmpty(target.id, workOrder.car_number); }
     // 사후관리 자동 생성 (시공 기록당 한 벌만 — createAutoFollowUps 안에서 이미 있는 유형은 건너뜀)
     if (service && appointment.service_type) {
-      const hasPpf = (workOrder.ppf || []).length > 0 || !!workOrder.ppf_product || !!workOrder.ppf_etc?.trim();
+      // PPF·컬러PPF(PWF)면 2주 QC (2026-11-19 사장님). 신차패키지 안의 PWF 는 랩핑 칸에 'PWF/컬러PPF' 로 적히므로 그것도 본다 (2026-11-25 점검)
+      const wrapText = [...(workOrder.wrapping || []), workOrder.wrapping_etc || ''].join(' ');
+      const hasPpf = (workOrder.ppf || []).length > 0 || !!workOrder.ppf_product || !!workOrder.ppf_etc?.trim() || /pwf|컬러\s*ppf/i.test(wrapText);
       await createAutoFollowUps(service.id, appointment.customer_id, appointment.service_type, completionDate, hasPpf);
     }
 

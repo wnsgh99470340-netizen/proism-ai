@@ -345,6 +345,7 @@ export default function WorkOrderModal({ appointment, workOrder, setWorkOrder, o
                   <td style={{ border: '1px solid #ccc', padding: '6px 8px', backgroundColor: '#f5f5f5', fontWeight: 600, width: '70px' }}>PPF</td>
                   <td style={{ border: '1px solid #ccc', padding: '6px 8px' }}>
                     {['전체PPF', '프론트패키지', '생활보호패키지'].map((p) => <span key={p} style={{ marginRight: '16px', fontSize: '13px', display: 'inline-flex', alignItems: 'center' }}><PrintCheck checked={workOrder.ppf?.includes(p)} /> {p}</span>)}
+                    {workOrder.ppf_product && <span style={{ marginRight: '12px', fontWeight: 600 }}>제품: 3M {workOrder.ppf_product}</span>}
                     {workOrder.ppf_etc && <span>기타: {workOrder.ppf_etc}</span>}
                   </td>
                 </tr>

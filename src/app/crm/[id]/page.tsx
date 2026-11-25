@@ -19,6 +19,7 @@ import { memberMissing } from '@/lib/member-ready';
 import { vehicleLabel, type Vehicle } from '@/lib/vehicles';
 import { blacklistInfo, clearBlacklist } from '@/lib/blacklist';
 import { supabase } from '@/lib/supabase';
+import { parseWorkOrder } from '@/lib/work-order';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 
@@ -548,6 +549,11 @@ export default function CustomerDetailPage() {
                 <div className="flex flex-wrap gap-3 text-xs text-[var(--c-text-3)]">
                   {s.film_used && <span>필름: {s.film_used}</span>}
                   {s.service_area && <span>부위: {s.service_area}</span>}
+                  {(() => { const w = parseWorkOrder(s.memo); if (!w) return null; return (<>
+                    {w.field_note && <span className="basis-full text-[var(--c-text-2)]">현장 메모: {w.field_note}</span>}
+                    {w.notes && <span className="basis-full">특이사항: {w.notes}</span>}
+                    {w.photos && w.photos.length > 0 && <span className="basis-full flex gap-1.5 flex-wrap mt-1">{w.photos.map((u) => <a key={u} href={u} target="_blank" rel="noreferrer"><img src={u} alt="작업 사진" className="w-14 h-14 object-cover rounded-md border border-[var(--c-border)]" /></a>)}</span>}
+                  </>); })()}
                   {s.memo && (() => {
                     try {
                       const wo = JSON.parse(s.memo);
