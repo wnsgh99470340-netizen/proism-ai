@@ -8,6 +8,7 @@ import { todaySeoul } from '@/lib/local-date';
 import { linkReferral, loadReferralsFor, markThanksSent, updateReferral, unlinkReferral, loadPoints, usePoints, grantPointForReferral, deletePointRow, type Referral, type PointSummary } from '@/lib/referrals';
 import { MEMBERSHIP, POINTS } from '@/config/membership';
 import MemberSmsButtons from '@/components/crm/MemberSmsButtons';
+import DealerPageButtons from '@/components/crm/DealerPageButtons';
 import VehicleList from '@/components/crm/VehicleList';
 import CustomerTimeline from '@/components/crm/CustomerTimeline';
 import { buildTimeline } from '@/lib/timeline';
@@ -260,6 +261,11 @@ export default function CustomerDetailPage() {
             <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
               <div className="text-xs font-semibold text-[var(--c-text-3)]">이 딜러가 넣어 준 차 <b className="text-[var(--c-text-1)]">{dealerJobs.length}대</b></div>
               <div className="text-[11px] text-[var(--c-text-4)]">입고·출고 안내는 이 분께 · 보증서·관리 안내는 각 고객님께</div>
+            </div>
+            {/* 딜러용 현황 페이지 (2026-11-25): 넣어 준 차들의 입고 예정·작업 중·출고 완료를 딜러가 폰에서 보는 링크 */}
+            <div className="flex items-center justify-between gap-3 flex-wrap mb-3 pb-3 border-b border-[var(--c-border)]">
+              <div className="text-xs text-[var(--c-text-3)]">딜러가 보는 현황 페이지 — 입고·출고 문자에도 같은 링크가 붙습니다</div>
+              <DealerPageButtons dealerId={customer.id} name={customer.name} phone={customer.phone} onSent={fetchData} />
             </div>
             {dealerJobs.length === 0 ? (
               <div className="text-sm text-[var(--c-text-3)]">아직 없습니다. 고객 추가·수정 창의 "넣어 주신 딜러"에서 이 분을 고르면 여기에 모입니다</div>

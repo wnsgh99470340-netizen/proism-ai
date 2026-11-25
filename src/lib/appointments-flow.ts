@@ -7,6 +7,8 @@
 import { supabase } from './supabase';
 import { todaySeoul, addDaysISO } from './local-date';
 import { arrivalSms, dealerArrivalSms } from '@/config/sms-templates';
+import { getOrCreateMemberLink } from './member-links';
+import { dealerPageUrl } from './dealer-page';
 import { dealerFor } from './dealers';
 import { isCustomerBlacklisted } from './blacklist';
 import { linkReferral } from './referrals';
@@ -42,7 +44,9 @@ export async function ensureArrivalNotice(input: { customerId: string; name: str
   const head = dealer
     ? `${dealer.name}(딜러) ${dealer.phone || ''} · ${input.name} ${input.serviceType || '시공'} ${input.date} 입고`.replace(/\s+·/, ' ·')
     : `${input.name} ${input.phone || ''} · ${input.serviceType || '시공'} ${input.date} 입고`.replace(/\s+·/, ' ·');
-  const body = dealer ? dealerArrivalSms(dealer.name, input.name, car, input.date, input.serviceType || null) : arrivalSms(input.name, input.date, input.serviceType || null);
+  // 딜러에게는 현황 페이지 링크를 같이 (2026-11-25 딜러 현황 페이지)
+  const dealerUrl = dealer ? await (async () => { const r = await getOrCreateMemberLink(dealer.id); return 'token' in r ? dealerPageUrl(r.token) : null; })() : null;
+  const body = dealer ? dealerArrivalSms(dealer.name, input.name, car, input.date, input.serviceType || null, dealerUrl) : arrivalSms(input.name, input.date, input.serviceType || null);
   await supabase.from('follow_ups').insert({ customer_id: input.customerId, follow_up_type: ARRIVAL_TYPE, scheduled_date: noticeDate, is_completed: false, memo: `${head}\n${body}` });
   return true;
 }

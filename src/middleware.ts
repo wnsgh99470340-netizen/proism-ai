@@ -25,7 +25,9 @@ export async function middleware(request: NextRequest) {
     pathname === '/api/jobs/run' || // 서버 내부 단계 호출 (라우트에서 시크릿/쿠키 직접 검증)
     pathname === '/card' || pathname.startsWith('/card/') || // 공개 명함 페이지·명함 이미지·연락처 파일 (견적 문자 링크)
     /^\/m\/[A-Za-z0-9]{12,}$/.test(pathname) || // 손님용 회원 페이지: 개인 코드 + 전화 뒷자리 4개 확인 (2026-11-18 사장님 결정)
-    (request.method === 'GET' && /^\/api\/member\/[A-Za-z0-9]{12,}$/.test(pathname)) // 그 페이지가 읽는 API (읽기만, 뒷자리 확인은 API 안에서)
+    (request.method === 'GET' && /^\/api\/member\/[A-Za-z0-9]{12,}$/.test(pathname)) || // 그 페이지가 읽는 API (읽기만, 뒷자리 확인은 API 안에서)
+    /^\/d\/[A-Za-z0-9]{12,}$/.test(pathname) || // 딜러용 현황 페이지 (2026-11-25): 개인 코드 + 딜러 전화 뒷자리
+    (request.method === 'GET' && /^\/api\/dealer\/[A-Za-z0-9]{12,}$/.test(pathname))
   ) {
     return NextResponse.next();
   }

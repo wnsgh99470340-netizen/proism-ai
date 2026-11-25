@@ -22,16 +22,16 @@ export function arrivalSms(name: string, date: string, serviceType: string | nul
 }
 
 /** 딜러에게 가는 입고 안내 (2026-11-23 사장님 "작업 상황은 딜러한테"). 고객 이름·차종을 적어 어느 차인지 알게 */
-export function dealerArrivalSms(dealerName: string, customerName: string, car: string | null, date: string, serviceType: string | null): string {
+export function dealerArrivalSms(dealerName: string, customerName: string, car: string | null, date: string, serviceType: string | null, pageUrl?: string | null): string {
   const d = new Date(date + 'T00:00:00+09:00');
   const day = `${d.getMonth() + 1}월 ${d.getDate()}일 ${['일', '월', '화', '수', '목', '금', '토'][d.getDay()]}요일`;
   const who = `${customerName} 고객님${car ? ` ${car}` : ''}`;
-  return `안녕하세요 3M 프로이즘 대표 진준호입니다.\n${dealerName} 님, 내일 ${day} ${who} ${serviceType ? `${serviceType} ` : ''}입고 예정입니다.\n입고 시간 알려 주시면 준비해 두겠습니다.\n주소는 서울 서초구 서초중앙로8길 82 1동 1층입니다.`;
+  return `안녕하세요 3M 프로이즘 대표 진준호입니다.\n${dealerName} 님, 내일 ${day} ${who} ${serviceType ? `${serviceType} ` : ''}입고 예정입니다.\n입고 시간 알려 주시면 준비해 두겠습니다.\n주소는 서울 서초구 서초중앙로8길 82 1동 1층입니다.${pageUrl ? `\n작업 현황: ${pageUrl}` : ''}`;
 }
 /** 딜러에게 가는 출고 안내 (작업 완료 처리 때). 보증서·관리 안내는 고객에게 따로 간다 */
-export function dealerDoneSms(dealerName: string, customerName: string, car: string | null, serviceType: string | null): string {
+export function dealerDoneSms(dealerName: string, customerName: string, car: string | null, serviceType: string | null, pageUrl?: string | null): string {
   const who = `${customerName} 고객님${car ? ` ${car}` : ''}`;
-  return `안녕하세요 3M 프로이즘 대표 진준호입니다.\n${dealerName} 님, ${who} ${serviceType ? `${serviceType} ` : ''}작업 마쳤습니다.\n출고 가능하니 편한 시간 말씀 주세요.\n보증서와 관리 안내는 고객님께 문자로 따로 보내 드립니다.`;
+  return `안녕하세요 3M 프로이즘 대표 진준호입니다.\n${dealerName} 님, ${who} ${serviceType ? `${serviceType} ` : ''}작업 마쳤습니다.\n출고 가능하니 편한 시간 말씀 주세요.\n보증서와 관리 안내는 고객님께 문자로 따로 보내 드립니다.${pageUrl ? `\n작업 현황: ${pageUrl}` : ''}`;
 }
 
 /** follow_ups.sms_sent 에 기록하는 키 */

@@ -11,6 +11,7 @@ import QuoteSmsModal, { type QuoteSmsInitial } from '@/components/crm/QuoteSmsMo
 import InquiryReplyModal from '@/components/crm/InquiryReplyModal';
 import CallSummaryImportModal from '@/components/crm/CallSummaryImportModal';
 import { QC_SMS, MAINT_SMS, REVIEW_SMS, dealerDoneSms, followUpSmsKey } from '@/config/sms-templates';
+import { dealerPageUrl } from '@/lib/dealer-page';
 import { dealerSupport, dealerFor, DEALER_KIND } from '@/lib/dealers';
 import { checkMemberReady, memberBlockMessage } from '@/lib/member-ready';
 import type { TeamItem } from '@/lib/team';
@@ -884,7 +885,8 @@ export default function CRMPage() {
     if (dealer?.phone) {
       const car = [cust?.car_brand, cust?.car_model].filter(Boolean).join(' ') || null;
       if (confirm(`${dealer.name} 님(딜러)이 넣어 주신 차입니다.\n출고 안내 문자를 딜러에게 보낼까요?`)) {
-        openSmsApp(dealer.phone, dealerDoneSms(dealer.name, custName, car, appointment.service_type || null));
+        const dl = await getOrCreateMemberLink(dealer.id);
+        openSmsApp(dealer.phone, dealerDoneSms(dealer.name, custName, car, appointment.service_type || null, 'token' in dl ? dealerPageUrl(dl.token) : null));
         await logMemberSms(dealer.id, `[딜러 문자] 출고 안내 · ${custName} ${car || ''} ${appointment.service_type || ''}`.trim());
       }
     }
