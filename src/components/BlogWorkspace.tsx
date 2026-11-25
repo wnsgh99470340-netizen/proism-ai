@@ -683,13 +683,13 @@ export default function BlogWorkspace({ embedded = false, prefillNonce = 0 }: Bl
           onClick={() => setMobileView('chat')}
           className={`py-3 text-sm font-medium transition-colors ${mobileView === 'chat' ? 'text-gold border-t-2 border-gold -mt-px' : 'text-[var(--c-text-3)]'}`}
         >
-          💬 대화{loading ? ' …' : ''}
+          대화{loading ? ' …' : ''}
         </button>
         <button
           onClick={() => setMobileView('preview')}
           className={`py-3 text-sm font-medium transition-colors relative ${mobileView === 'preview' ? 'text-gold border-t-2 border-gold -mt-px' : 'text-[var(--c-text-3)]'}`}
         >
-          📄 미리보기
+          미리보기
           {draft && mobileView !== 'preview' && (
             <span className="absolute top-2.5 ml-1 w-2 h-2 rounded-full bg-brand" />
           )}

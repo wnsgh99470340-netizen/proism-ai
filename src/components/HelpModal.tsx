@@ -28,7 +28,7 @@ export default function HelpModal({ open, onClose }: HelpModalProps) {
 
             <div>
               <h3 className="text-gold font-semibold mb-1.5">2단계: 사진 올리기</h3>
-              <p>화면 아래쪽 <span className="text-[var(--c-text-1)]">"📷 사진을 드래그하거나 클릭"</span> 부분을 누르세요.</p>
+              <p>화면 아래쪽 <span className="text-[var(--c-text-1)]">"사진을 끌어다 놓거나 눌러서 올리기"</span> 부분을 누르세요.</p>
               <p className="mt-1">파일 선택 창이 뜨면 시공 사진을 선택합니다. 여러 장 한번에 가능!</p>
               <p className="mt-1">또는 바탕화면의 사진을 끌어다가 놓아도 됩니다.</p>
               <p className="mt-1 text-[var(--c-text-3)]">→ 사진을 자동으로 분석해서 차종, 시공 단계를 알려줍니다.</p>

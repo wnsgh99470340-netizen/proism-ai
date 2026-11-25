@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Icon } from '@/components/ui/icons';
 
 interface Props {
   /** 현재 미리보기 중인 초안 (최종본 저장의 기본값) */
@@ -96,7 +97,7 @@ export default function PostLibrary({ draftTitle, draftBody, onSaveFinal, onSave
   return (
     <div className="mx-3 mb-3 bg-[var(--c-page)] border border-[var(--c-border)] rounded-xl p-3">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-medium text-[var(--c-text-1)]">📚 사장님 글 DB</span>
+        <span className="text-xs font-semibold text-[var(--c-text-1)]">사장님 글 DB</span>
         <span className="text-[10px] text-[var(--c-text-3)]">쌓일수록 내 말투에 가까워짐</span>
       </div>
 
@@ -105,30 +106,30 @@ export default function PostLibrary({ draftTitle, draftBody, onSaveFinal, onSave
           <button
             onClick={importBlog}
             disabled={importing || building}
-            className="bg-[#03C75A]/10 hover:bg-[#03C75A]/20 text-[#03C75A] text-xs py-2.5 rounded-lg font-medium disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-1.5 bg-[var(--c-card)] border border-[var(--c-border)] hover:bg-[var(--c-subtle)] text-[var(--c-text-1)] text-xs py-2.5 rounded-full font-semibold disabled:opacity-50"
           >
-            {importing ? '⬇️ 가져오는 중…' : '⬇️ 내 블로그 전체 글 불러오기'}
+            <Icon name="download" size={13} />{importing ? '가져오는 중…' : '내 블로그 글 불러오기'}
           </button>
           <button
             onClick={buildStyle}
             disabled={importing || building}
-            className="bg-[var(--c-text-1)] text-[var(--c-card)] hover:opacity-90 text-xs py-2.5 rounded-lg font-medium disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-1.5 bg-[var(--c-text-1)] text-[var(--c-card)] hover:opacity-90 text-xs py-2.5 rounded-full font-semibold disabled:opacity-50"
             title="불러온 글 전체에서 쓰는 말·문체 기준을 다시 정리합니다"
           >
-            {building ? '📚 정리하는 중…' : '📚 사장님 글 기준 만들기'}
+            <Icon name="refresh" size={13} />{building ? '정리하는 중…' : '글 기준 만들기'}
           </button>
           <button
             onClick={() => open('final')}
             disabled={!draftBody}
-            className="bg-gold/10 hover:bg-gold/20 text-gold text-xs py-2.5 rounded-lg font-medium disabled:opacity-40"
+            className="inline-flex items-center justify-center gap-1.5 bg-[var(--c-card)] border border-[var(--c-border)] hover:bg-[var(--c-subtle)] text-[var(--c-text-1)] text-xs py-2.5 rounded-full font-semibold disabled:opacity-40"
           >
-            ✅ 이 글 고쳐서 최종본 저장
+            <Icon name="check" size={13} />이 글 최종본으로 저장
           </button>
           <button
             onClick={() => open('owner')}
-            className="bg-[var(--c-subtle)] hover:bg-[var(--c-hover)] text-[var(--c-text-1)] text-xs py-2.5 rounded-lg font-medium"
+            className="inline-flex items-center justify-center gap-1.5 bg-[var(--c-card)] border border-[var(--c-border)] hover:bg-[var(--c-subtle)] text-[var(--c-text-1)] text-xs py-2.5 rounded-full font-semibold"
           >
-            ✍️ 내가 쓴 글 추가
+            <Icon name="pencil" size={13} />내가 쓴 글 추가
           </button>
         </div>
       )}

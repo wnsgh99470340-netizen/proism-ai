@@ -178,11 +178,11 @@ export default function PreviewPanel({
     <div className="flex flex-col h-full bg-[var(--c-card)] md:border-l border-[var(--c-border)]">
       {/* 탭 */}
       <div className="flex border-b border-[var(--c-border)] shrink-0">
-        <button onClick={() => setActiveTab('preview')} className={tabCls('preview')}>📄 블로그</button>
-        <button onClick={() => setActiveTab('instagram')} className={tabCls('instagram')}>📸 인스타{channelsLoading ? ' …' : ''}</button>
-        <button onClick={() => setActiveTab('cafe')} className={tabCls('cafe')}>☕ 카페{channelsLoading ? ' …' : ''}</button>
-        <button onClick={() => setActiveTab('video')} className={tabCls('video')}>🎬 영상{videoBusy ? ' …' : ''}</button>
-        <button onClick={() => setActiveTab('insight')} className={tabCls('insight')}>📊 인사이트</button>
+        <button onClick={() => setActiveTab('preview')} className={tabCls('preview')}>블로그</button>
+        <button onClick={() => setActiveTab('instagram')} className={tabCls('instagram')}>인스타{channelsLoading ? ' …' : ''}</button>
+        <button onClick={() => setActiveTab('cafe')} className={tabCls('cafe')}>카페{channelsLoading ? ' …' : ''}</button>
+        <button onClick={() => setActiveTab('video')} className={tabCls('video')}>영상{videoBusy ? ' …' : ''}</button>
+        <button onClick={() => setActiveTab('insight')} className={tabCls('insight')}>인사이트</button>
       </div>
 
       {/* 영상 탭 */}
@@ -344,9 +344,9 @@ export default function PreviewPanel({
               </div>
               <button
                 onClick={() => window.open('https://cafe.naver.com/3mproism', '_blank')}
-                className="w-full bg-[#03C75A]/10 hover:bg-[#03C75A]/20 text-[#03C75A] text-xs py-2.5 rounded-lg font-medium"
+                className="w-full bg-[var(--c-card)] border border-[var(--c-border)] hover:bg-[var(--c-subtle)] text-[var(--c-text-1)] text-xs py-2.5 rounded-full font-semibold"
               >
-                ☕ 카페 열기
+                카페 열기
               </button>
             </>
           )}

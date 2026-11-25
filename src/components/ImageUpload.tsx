@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useState, useRef } from 'react';
+import { Icon } from '@/components/ui/icons';
 
 interface UploadedImage {
   url: string;
@@ -129,8 +130,8 @@ export default function ImageUpload({ images, onImagesChange }: ImageUploadProps
           {uploading ? (
             <div className="text-gold text-xs">업로드 중...</div>
           ) : (
-            <div className="text-[var(--c-text-3)] text-xs">
-              📷 사진을 드래그하거나 클릭하여 업로드 (여러 장 가능)
+            <div className="inline-flex items-center gap-1.5 text-[var(--c-text-3)] text-xs">
+              <Icon name="camera" size={14} />사진을 끌어다 놓거나 눌러서 올리기 (여러 장 가능)
             </div>
           )}
         </div>

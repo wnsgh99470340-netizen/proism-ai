@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { Icon } from '@/components/ui/icons';
 import FactSheetCard from './FactSheetCard';
 import type { BlogPost } from '@/lib/posts';
 import type { BlogJob } from '@/lib/jobs';
@@ -132,10 +133,10 @@ export default function SavedPosts({ refreshKey, activeId, onOpen, jobs, onRetry
           onClick={() => setOpen((v) => !v)}
           className="text-xs font-medium text-[var(--c-text-1)] hover:text-gold"
         >
-          {open ? '▾' : '▸'} 📂 저장된 글 {loading ? '' : `(${posts.length})`}
+          {open ? '▾' : '▸'} 저장된 글 {loading ? '' : `(${posts.length})`}
         </button>
-        <button onClick={load} disabled={loading} className="text-[10px] text-[var(--c-text-3)] hover:text-[var(--c-text-1)] disabled:opacity-50">
-          {loading ? '불러오는 중…' : '↻ 새로고침'}
+        <button onClick={load} disabled={loading} className="inline-flex items-center gap-1 text-[10px] text-[var(--c-text-3)] hover:text-[var(--c-text-1)] disabled:opacity-50">
+          <Icon name="refresh" size={11} />{loading ? '불러오는 중…' : '새로고침'}
         </button>
       </div>
 

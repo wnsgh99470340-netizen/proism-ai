@@ -100,11 +100,11 @@ export default function BlogRequestForm({ disabled, onSubmit, initial = null }: 
   };
 
   return (
-    <div className="@container mx-3 md:mx-4 mt-3 mb-1 bg-[var(--c-card)] border border-gold/30 rounded-xl p-3">
+    <div className="@container mx-3 md:mx-4 mt-3 mb-1 bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-3">
       <div className="flex items-center justify-between mb-2 gap-2">
         <div className="flex items-center gap-1 shrink-0">
-          <button type="button" onClick={() => setMode('faq')} className={`text-xs font-semibold px-2.5 py-1 rounded-full ${mode === 'faq' ? 'bg-gold text-[var(--c-page)]' : 'text-[var(--c-text-2)] hover:text-[var(--c-text-1)]'}`}>❓ FAQ·공지 글</button>
-          <button type="button" onClick={() => setMode('work')} className={`text-xs font-semibold px-2.5 py-1 rounded-full ${mode === 'work' ? 'bg-gold text-[var(--c-page)]' : 'text-[var(--c-text-2)] hover:text-[var(--c-text-1)]'}`}>⚡ 시공기</button>
+          <button type="button" onClick={() => setMode('faq')} className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${mode === 'faq' ? 'bg-[var(--c-text-1)] text-[var(--c-card)] border-transparent' : 'border-[var(--c-border)] text-[var(--c-text-2)] hover:bg-[var(--c-subtle)]'}`}>FAQ·공지 글</button>
+          <button type="button" onClick={() => setMode('work')} className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${mode === 'work' ? 'bg-[var(--c-text-1)] text-[var(--c-card)] border-transparent' : 'border-[var(--c-border)] text-[var(--c-text-2)] hover:bg-[var(--c-subtle)]'}`}>시공기</button>
         </div>
         <span className="text-[10px] text-[var(--c-text-3)] hidden @sm:inline truncate">{mode === 'faq' ? '손님 질문 하나를 적으면 조사 → 사실표 확인 → 글' : '차량·시공·제품만 고르면 조사부터 초안까지 자동'}</span>
       </div>
@@ -277,9 +277,9 @@ export default function BlogRequestForm({ disabled, onSubmit, initial = null }: 
       <button
         onClick={submit}
         disabled={!canSubmit}
-        className="w-full bg-brand hover:bg-brand-dark disabled:bg-[var(--c-subtle)] disabled:text-[var(--c-text-3)] text-white text-xs font-semibold py-3 rounded-lg transition-colors"
+        className="w-full bg-brand hover:bg-brand-dark disabled:bg-[var(--c-subtle)] disabled:text-[var(--c-text-3)] text-white text-sm font-semibold py-3 rounded-full transition-colors"
       >
-        {disabled ? '작성 중...' : mode === 'faq' ? '🔎 조사 → 📝 사실표 → FAQ 글' : '🔎 조사 → ✍️ 시공기 생성'}
+        {disabled ? '작성 중…' : mode === 'faq' ? '조사하고 사실표 만들기' : '조사하고 시공기 쓰기'}
       </button>
     </div>
   );

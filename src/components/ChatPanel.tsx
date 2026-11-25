@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { Icon } from '@/components/ui/icons';
 import ChatMessage from './ChatMessage';
 import ImageUpload from './ImageUpload';
 import type { UploadedImage } from './ImageUpload';
@@ -80,7 +81,7 @@ export default function ChatPanel({
           onClick={() => setFormOpen((v) => !v)}
           className="w-full flex items-center justify-between px-4 py-2 text-[11px] text-[var(--c-text-3)] hover:text-[var(--c-text-1)]"
         >
-          <span>{formOpen ? '▾' : '▸'} 시공기 빠른 생성 폼</span>
+          <span>{formOpen ? '▾' : '▸'} 글 요청 폼</span>
           <span>{formOpen ? '접기' : '펼치기'}</span>
         </button>
       </div>
@@ -102,17 +103,17 @@ export default function ChatPanel({
         )}
         {messages.length === 0 && (
           <div className={`flex flex-col items-center justify-center text-center ${formOpen ? 'py-6' : 'h-full'}`}>
-            <div className="text-4xl mb-3">◆</div>
-            <h2 className="text-[var(--c-text-1)] font-semibold text-base mb-1">3M 프로이즘 블로그</h2>
-            <p className="text-[var(--c-text-3)] text-xs mb-6 max-w-xs">
-              사진을 올리고 대화하면 네이버 블로그 글이 자동으로 완성됩니다
+            <div className="w-12 h-12 rounded-full bg-[var(--c-subtle)] text-[var(--c-text-1)] flex items-center justify-center mb-3"><Icon name="pencil" size={20} /></div>
+            <h2 className="text-[var(--c-text-1)] font-semibold text-base mb-1">블로그 글 쓰기</h2>
+            <p className="text-[var(--c-text-3)] text-xs mb-6 max-w-xs leading-relaxed">
+              손님 질문 하나나 현장 메모를 적으면 조사하고 사실표를 보여 드린 뒤 글을 씁니다. 글이 열려 있으면 메시지는 그 글을 고치는 지시가 됩니다
             </p>
             <div className="grid grid-cols-2 gap-2 max-w-sm w-full">
               {[
+                'FAQ 글 써줘. 주제: 앞유리 썬팅 농도 몇 퍼센트가 좋나요',
+                'FAQ 글 써줘. 주제: PPF 하고 세차는 언제부터 해도 되나요',
                 'BMW M4 전체 PPF 시공기 써줘',
                 '벤츠 GLC 윈도우몰딩 크롬죽이기 시공기 써줘',
-                '이번 달 콘텐츠 캘린더 짜줘',
-                '강남 PPF 키워드 분석해줘',
               ].map((prompt) => (
                 <button
                   key={prompt}
@@ -120,7 +121,7 @@ export default function ChatPanel({
                     setInput(prompt);
                     inputRef.current?.focus();
                   }}
-                  className="text-left bg-[var(--c-page)] border border-[var(--c-border)] rounded-xl px-3 py-2.5 text-xs text-[var(--c-text-2)] hover:border-gold/50 hover:text-[var(--c-text-1)] transition-colors"
+                  className="text-left bg-[var(--c-page)] border border-[var(--c-border)] rounded-xl px-3 py-2.5 text-xs text-[var(--c-text-2)] hover:border-[var(--c-text-1)] hover:text-[var(--c-text-1)] transition-colors"
                 >
                   {prompt}
                 </button>

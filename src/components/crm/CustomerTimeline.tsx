@@ -23,7 +23,7 @@ const TEXT: Record<TimelineTone, string> = {
 
 const fmt = (iso: string, today: string) => {
   const y = iso.slice(0, 4), m = Number(iso.slice(5, 7)), d = Number(iso.slice(8, 10));
-  return y === today.slice(0, 4) ? `${m}/${d}` : `${y.slice(2)}.${m}.${d}`;
+  return y === today.slice(0, 4) ? `${m}/${d}` : `${y}.${m}.${d}`;
 };
 
 function Row({ e, today }: { e: TimelineEvent; today: string }) {
@@ -31,7 +31,7 @@ function Row({ e, today }: { e: TimelineEvent; today: string }) {
   return (
     <li className="relative pl-5 py-1.5 flex gap-2">
       <span className={`absolute left-0 top-[11px] w-2.5 h-2.5 rounded-full ring-2 ring-[var(--c-card)] ${DOT[e.tone]}`} />
-      <span className="text-[11px] tabular-nums text-[var(--c-text-4)] w-11 shrink-0 pt-0.5">{fmt(e.date, today)}</span>
+      <span className="text-[11px] tabular-nums text-[var(--c-text-4)] min-w-11 shrink-0 pt-0.5">{fmt(e.date, today)}</span>
       <div className="min-w-0 flex-1">
         <div className={`text-sm font-medium break-keep ${TEXT[e.tone]}`}>
           {e.title}
