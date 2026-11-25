@@ -9,7 +9,7 @@
 import { supabase } from './supabase';
 import { isImportedCustomer } from './crm-shared';
 import { todaySeoul, addDaysISO } from './local-date';
-import { isSettled, won } from './dealer-settlement';
+import { settleState, won } from './dealer-settlement';
 
 export interface MissedGroup {
   key: 'link' | 'stuck' | 'review' | 'fill' | 'dup' | 'careLate' | 'orphan' | 'careEnding' | 'dealerDue';
@@ -160,9 +160,9 @@ export async function buildMissedReport(date = todaySeoul()): Promise<MissedRepo
       ]);
       const dname = new Map((dealers || []).map((d) => [d.id as string, d.name as string]));
       const per = new Map<string, { n: number; sum: number }>();
-      for (const s of (svcs || []) as { customer_id: string; amount: number | null; memo: string | null }[]) {
-        if (isSettled(s.memo) || !s.amount || s.amount <= 0) continue;
-        const d = byCust.get(s.customer_id)!; const cur = per.get(d) || { n: 0, sum: 0 }; cur.n += 1; cur.sum += s.amount; per.set(d, cur);
+      for (const s of (svcs || []) as { customer_id: string; service_date: string | null; amount: number | null; memo: string | null }[]) {
+        if (settleState(s) !== 'unpaid') continue; // 정산·금액 없음·시작일(2026-11-25) 이전은 제외
+        const d = byCust.get(s.customer_id)!; const cur = per.get(d) || { n: 0, sum: 0 }; cur.n += 1; cur.sum += s.amount || 0; per.set(d, cur);
       }
       const lines = [...per.entries()].sort((a, b) => b[1].sum - a[1].sum).map(([d, v]) => `${dname.get(d) || '딜러'} · 미수 ${v.n}건 ${won(v.sum)}`);
       if (lines.length) groups.push({ key: 'dealerDue', label: '딜러 정산 안 된 건', count: [...per.values()].reduce((a, v) => a + v.n, 0), lines, where: '고객 목록 → 딜러 → 넣어 준 차 카드에서 정산 받음' });

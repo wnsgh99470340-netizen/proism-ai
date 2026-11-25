@@ -4,6 +4,9 @@
  * - 딜러가 넣어 준 차의 시공 기록은 표시가 없으면 '미수'다 (정산 받은 날을 적어야 '정산')
  * - 금액은 우리가 받을 금액(services.amount). 딜러가 손님께 안내한 금액은 다를 수 있으니(마진) 손님 페이지·딜러 페이지 어디에도 내려보내지 않는다
  */
+/** 미수 체크 시작일 (2026-11-25 사장님 "이전 기록은 냅두고 지금 이 순간부터"): 이 날 이전 시공 기록은 표시가 없어도 미수로 세지 않는다 */
+export const SETTLEMENT_START = '2026-11-25';
+
 export interface DealerSettlement { paid_at?: string | null; amount?: number | null; note?: string | null }
 
 export interface SettleableService { id: string; service_date: string | null; service_type: string; amount: number | null; memo: string | null }
@@ -22,6 +25,19 @@ export function parseSettlement(memo: string | null | undefined): DealerSettleme
 
 export const isSettled = (memo: string | null | undefined) => !!parseSettlement(memo)?.paid_at;
 
+/** 미수 체크 대상인지: 시작일 이후 시공 기록, 또는 (날짜와 상관없이) 정산 표시를 직접 적은 기록 */
+export const isTracked = (s: { service_date: string | null; memo: string | null }) => !!parseSettlement(s.memo) || ((s.service_date || '') >= SETTLEMENT_START);
+
+export type SettleState = 'paid' | 'unpaid' | 'unknown' | 'legacy';
+/** 한 건의 상태: 정산 / 미수(금액 있음) / 금액 미입력 / 시작일 이전(체크 안 함) */
+export function settleState(s: { service_date: string | null; amount: number | null; memo: string | null }): SettleState {
+  const st = parseSettlement(s.memo);
+  if (st?.paid_at) return 'paid';
+  if (!isTracked(s)) return 'legacy';
+  const amt = st?.amount ?? s.amount ?? null;
+  return amt && amt > 0 ? 'unpaid' : 'unknown';
+}
+
 /** 정산 받음 표시를 넣은 새 memo. memo 가 JSON 이 아니면(옛 글자 메모) 그 글자는 note 로 보존 */
 export function withSettlement(memo: string | null | undefined, s: DealerSettlement | null): string {
   const j = parseMemo(memo);
@@ -32,16 +48,18 @@ export function withSettlement(memo: string | null | undefined, s: DealerSettlem
   return JSON.stringify(j);
 }
 
-export interface SettlementSummary { unpaidCount: number; unpaidTotal: number; paidCount: number; paidTotal: number; unknownCount: number }
-/** 딜러 한 명의 시공 기록 묶음 → 미수 건수·합계. 금액이 없는 기록은 unknown 으로 따로 센다(합계에 못 넣음) */
+export interface SettlementSummary { unpaidCount: number; unpaidTotal: number; paidCount: number; paidTotal: number; unknownCount: number; legacyCount: number }
+/** 딜러 한 명의 시공 기록 묶음 → 미수 건수·합계. 금액 없는 기록은 unknown, 시작일 이전 기록은 legacy 로 따로 센다(합계에 안 넣음) */
 export function summarizeSettlement(services: SettleableService[]): SettlementSummary {
-  const out: SettlementSummary = { unpaidCount: 0, unpaidTotal: 0, paidCount: 0, paidTotal: 0, unknownCount: 0 };
+  const out: SettlementSummary = { unpaidCount: 0, unpaidTotal: 0, paidCount: 0, paidTotal: 0, unknownCount: 0, legacyCount: 0 };
   for (const s of services) {
     const st = parseSettlement(s.memo);
     const amt = st?.amount ?? s.amount ?? null;
-    if (st?.paid_at) { out.paidCount += 1; out.paidTotal += amt || 0; }
-    else if (amt == null || amt <= 0) out.unknownCount += 1;
-    else { out.unpaidCount += 1; out.unpaidTotal += amt; }
+    const state = settleState(s);
+    if (state === 'paid') { out.paidCount += 1; out.paidTotal += amt || 0; }
+    else if (state === 'legacy') out.legacyCount += 1;
+    else if (state === 'unknown') out.unknownCount += 1;
+    else { out.unpaidCount += 1; out.unpaidTotal += amt || 0; }
   }
   return out;
 }

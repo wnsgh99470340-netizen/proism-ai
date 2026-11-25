@@ -13,7 +13,7 @@ import VehicleList from '@/components/crm/VehicleList';
 import CustomerTimeline from '@/components/crm/CustomerTimeline';
 import { buildTimeline } from '@/lib/timeline';
 import { isDealer, dealerFor, customersOfDealer, isRetiredDealer, retiredDate, type DealerRef, type DealerJob } from '@/lib/dealers';
-import { parseSettlement, withSettlement, summarizeSettlement, won } from '@/lib/dealer-settlement';
+import { parseSettlement, withSettlement, summarizeSettlement, settleState, won, SETTLEMENT_START } from '@/lib/dealer-settlement';
 import { buildVCard, deliverVcf, VCF_HINT, isContactSaved, markContactsSaved } from '@/lib/vcard';
 import { memberMissing } from '@/lib/member-ready';
 import { vehicleLabel, type Vehicle } from '@/lib/vehicles';
@@ -291,6 +291,7 @@ export default function CustomerDetailPage() {
                     <span className={`font-semibold px-2 py-0.5 rounded-full ${sum.unpaidCount ? 'bg-danger/10 text-danger' : 'bg-ok/10 text-ok'}`}>{sum.unpaidCount ? `미수 ${sum.unpaidCount}건 · ${won(sum.unpaidTotal)}` : '미수 없음'}</span>
                     {sum.paidCount > 0 && <span className="text-[var(--c-text-3)]">정산 {sum.paidCount}건 · {won(sum.paidTotal)}</span>}
                     {sum.unknownCount > 0 && <span className="text-[var(--c-text-4)]">금액 없는 기록 {sum.unknownCount}건</span>}
+                    {sum.legacyCount > 0 && <span className="text-[var(--c-text-4)]" title={`${SETTLEMENT_START} 이전 시공은 미수 체크를 하지 않습니다 (사장님 결정). 필요하면 정산 받음을 눌러 표시만 남길 수 있습니다`}>{SETTLEMENT_START.slice(5).replace('-', '/')} 이전 {sum.legacyCount}건은 체크 안 함</span>}
                     <span className="text-[var(--c-text-4)] ml-auto">우리가 받을 금액 기준 · 딜러가 손님께 안내한 금액과 다를 수 있음</span>
                   </div>
                   <ul className="divide-y divide-[var(--c-border)]">
@@ -303,14 +304,16 @@ export default function CustomerDetailPage() {
                         </div>
                         {svcs.length > 0 && (
                           <ul className="mt-1.5 space-y-1">
-                            {svcs.map((svc) => { const st = parseSettlement(svc.memo); const paid = !!st?.paid_at; return (
+                            {svcs.map((svc) => { const st = parseSettlement(svc.memo); const state = settleState(svc); const paid = state === 'paid'; return (
                               <li key={svc.id} className="flex items-center gap-2 flex-wrap text-xs pl-3 border-l-2 border-[var(--c-border)]">
                                 <span className="text-[var(--c-text-2)]">{formatDate(svc.service_date)} {svc.service_type}</span>
                                 <span className="text-[var(--c-text-1)] font-medium tabular-nums">{svc.amount ? won(svc.amount) : '금액 없음'}</span>
-                                <span className={`px-1.5 py-0.5 rounded-full font-semibold ${paid ? 'bg-ok/10 text-ok' : svc.amount ? 'bg-danger/10 text-danger' : 'bg-[var(--c-subtle)] text-[var(--c-text-3)]'}`}>{paid ? `정산 ${formatDate(st!.paid_at!)}${st!.amount && st!.amount !== svc.amount ? ` · ${won(st!.amount)}` : ''}` : svc.amount ? '미수' : '금액 미입력'}</span>
+                                <span className={`px-1.5 py-0.5 rounded-full font-semibold ${paid ? 'bg-ok/10 text-ok' : state === 'unpaid' ? 'bg-danger/10 text-danger' : 'bg-[var(--c-subtle)] text-[var(--c-text-3)]'}`}>{paid ? `정산 ${formatDate(st!.paid_at!)}${st!.amount && st!.amount !== svc.amount ? ` · ${won(st!.amount)}` : ''}` : state === 'unpaid' ? '미수' : state === 'unknown' ? '금액 미입력' : '체크 안 함'}</span>
                                 {paid
                                   ? <button onClick={() => settle(svc, false)} className="text-[11px] text-[var(--c-text-4)] hover:text-[var(--c-text-1)] underline-offset-2 hover:underline">되돌리기</button>
-                                  : <Btn size="xs" variant="outline" icon="check" onClick={() => settle(svc, true)}>정산 받음</Btn>}
+                                  : state === 'legacy'
+                                    ? <button onClick={() => settle(svc, true)} className="text-[11px] text-[var(--c-text-4)] hover:text-[var(--c-text-1)] underline-offset-2 hover:underline" title="이전 기록이라 체크하지 않지만, 원하면 정산 표시만 남길 수 있습니다">정산 표시</button>
+                                    : <Btn size="xs" variant="outline" icon="check" onClick={() => settle(svc, true)}>정산 받음</Btn>}
                               </li>
                             ); })}
                           </ul>
