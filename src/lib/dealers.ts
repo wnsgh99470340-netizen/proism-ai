@@ -56,6 +56,8 @@ export async function dealerFor(customerId: string | null | undefined): Promise<
 export interface DealerJob {
   customer: { id: string; name: string; phone: string | null; car_brand: string | null; car_model: string | null; created_at: string };
   latest: { date: string; service_type: string | null; status: string } | null; // 가장 최근 예약(취소 제외) 또는 시공
+  /** 이 손님의 시공 기록 (딜러 정산 표시용, 2026-11-25) */
+  services: { id: string; service_date: string | null; service_type: string; amount: number | null; memo: string | null }[];
 }
 /** 딜러가 넣어 준 손님들과 각자의 최근 작업 (딜러 상세 카드용) */
 export async function customersOfDealer(dealerId: string): Promise<DealerJob[]> {
@@ -66,13 +68,14 @@ export async function customersOfDealer(dealerId: string): Promise<DealerJob[]> 
   const ids = list.map((c) => c.id);
   const [{ data: appts }, { data: svcs }] = await Promise.all([
     supabase.from('appointments').select('customer_id, appointment_date, end_date, service_type, status').in('customer_id', ids).neq('status', '취소').order('appointment_date', { ascending: false }),
-    supabase.from('services').select('customer_id, service_date, service_type').in('customer_id', ids).order('service_date', { ascending: false }),
+    supabase.from('services').select('id, customer_id, service_date, service_type, amount, memo').in('customer_id', ids).order('service_date', { ascending: false }),
   ]);
   return list.map((c) => {
     const a = (appts || []).find((x) => x.customer_id === c.id) as { appointment_date: string; service_type: string | null; status: string } | undefined;
-    const s = (svcs || []).find((x) => x.customer_id === c.id) as { service_date: string | null; service_type: string } | undefined;
+    const mine = ((svcs || []) as { id: string; customer_id: string; service_date: string | null; service_type: string; amount: number | null; memo: string | null }[]).filter((x) => x.customer_id === c.id);
+    const s = mine[0];
     const latest = a ? { date: a.appointment_date, service_type: a.service_type, status: a.status } : s?.service_date ? { date: s.service_date, service_type: s.service_type, status: '완료' } : null;
-    return { customer: c, latest };
+    return { customer: c, latest, services: mine.map(({ id, service_date, service_type, amount, memo }) => ({ id, service_date, service_type, amount, memo })) };
   });
 }
 

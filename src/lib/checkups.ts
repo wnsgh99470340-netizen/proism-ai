@@ -9,9 +9,10 @@
 import { supabase } from './supabase';
 import { isImportedCustomer } from './crm-shared';
 import { todaySeoul, addDaysISO } from './local-date';
+import { isSettled, won } from './dealer-settlement';
 
 export interface MissedGroup {
-  key: 'link' | 'stuck' | 'review' | 'fill' | 'dup' | 'careLate' | 'orphan' | 'careEnding';
+  key: 'link' | 'stuck' | 'review' | 'fill' | 'dup' | 'careLate' | 'orphan' | 'careEnding' | 'dealerDue';
   label: string;
   count: number;
   /** 아침마다 바로 알려야 하는 것 (2026-11-23 사장님 "자비스처럼 먼저 말 걸어 줘"): 중복·지난 QC·끝난 예약 */
@@ -147,6 +148,26 @@ export async function buildMissedReport(date = todaySeoul()): Promise<MissedRepo
       .map((c) => `${c.name} · ${[!c.source ? '유입경로' : '', !c.car_model && !c.car_brand ? '차종' : ''].filter(Boolean).join('·')} 비어 있음`);
     if (lines.length) groups.push({ key: 'fill', label: '채워야 할 고객', count: lines.length, lines, where: '고객 목록 → 이름 눌러 수정' });
   } catch { /* 건너뜀 */ }
+
+  // 딜러 미수 (2026-11-25 사장님 "딜러들이 미수가 좀 심해"): 딜러가 넣어 준 차의 시공 기록 중 정산 표시가 없고 금액이 있는 것 — 딜러별 건수·합계
+  try {
+    const { data: dc } = await supabase.from('customers').select('id, dealer_id').not('dealer_id', 'is', null);
+    const byCust = new Map((dc || []).map((c) => [c.id as string, c.dealer_id as string]));
+    if (byCust.size) {
+      const [{ data: svcs }, { data: dealers }] = await Promise.all([
+        supabase.from('services').select('id, customer_id, service_date, service_type, amount, memo').in('customer_id', [...byCust.keys()]),
+        supabase.from('customers').select('id, name').in('id', [...new Set(byCust.values())]),
+      ]);
+      const dname = new Map((dealers || []).map((d) => [d.id as string, d.name as string]));
+      const per = new Map<string, { n: number; sum: number }>();
+      for (const s of (svcs || []) as { customer_id: string; amount: number | null; memo: string | null }[]) {
+        if (isSettled(s.memo) || !s.amount || s.amount <= 0) continue;
+        const d = byCust.get(s.customer_id)!; const cur = per.get(d) || { n: 0, sum: 0 }; cur.n += 1; cur.sum += s.amount; per.set(d, cur);
+      }
+      const lines = [...per.entries()].sort((a, b) => b[1].sum - a[1].sum).map(([d, v]) => `${dname.get(d) || '딜러'} · 미수 ${v.n}건 ${won(v.sum)}`);
+      if (lines.length) groups.push({ key: 'dealerDue', label: '딜러 정산 안 된 건', count: [...per.values()].reduce((a, v) => a + v.n, 0), lines, where: '고객 목록 → 딜러 → 넣어 준 차 카드에서 정산 받음' });
+    }
+  } catch { /* 딜러 열이 없으면 건너뜀 */ }
 
   return { date, groups, total: groups.reduce((a, g) => a + g.count, 0) };
 }

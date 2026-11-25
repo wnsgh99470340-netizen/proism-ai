@@ -13,6 +13,7 @@ import VehicleList from '@/components/crm/VehicleList';
 import CustomerTimeline from '@/components/crm/CustomerTimeline';
 import { buildTimeline } from '@/lib/timeline';
 import { isDealer, dealerFor, customersOfDealer, isRetiredDealer, retiredDate, type DealerRef, type DealerJob } from '@/lib/dealers';
+import { parseSettlement, withSettlement, summarizeSettlement, won } from '@/lib/dealer-settlement';
 import { buildVCard, deliverVcf, VCF_HINT, isContactSaved, markContactsSaved } from '@/lib/vcard';
 import { memberMissing } from '@/lib/member-ready';
 import { vehicleLabel, type Vehicle } from '@/lib/vehicles';
@@ -269,17 +270,57 @@ export default function CustomerDetailPage() {
             </div>
             {dealerJobs.length === 0 ? (
               <div className="text-sm text-[var(--c-text-3)]">아직 없습니다. 고객 추가·수정 창의 "넣어 주신 딜러"에서 이 분을 고르면 여기에 모입니다</div>
-            ) : (
-              <ul className="divide-y divide-[var(--c-border)]">
-                {dealerJobs.map(({ customer: c, latest }) => (
-                  <li key={c.id} className="py-2 flex items-center gap-3 flex-wrap">
-                    <Link href={`/crm/${c.id}`} className="font-semibold text-sm text-[var(--c-text-1)] hover:underline">{c.name}</Link>
-                    <span className="text-xs text-[var(--c-text-3)]">{[c.car_brand, c.car_model].filter(Boolean).join(' ') || '-'}</span>
-                    {latest && <span className="text-xs text-[var(--c-text-2)] ml-auto">{latest.service_type || '시공 미정'} · {formatDate(latest.date)} · <span className={latest.status === '완료' ? 'text-ok' : 'text-info'}>{latest.status}</span></span>}
-                  </li>
-                ))}
-              </ul>
-            )}
+            ) : (() => {
+              // 딜러 정산(미수) 표시 (2026-11-25 사장님 "딜러들이 미수가 좀 심해"): 시공 기록마다 미수/정산, 위에 합계
+              const sum = summarizeSettlement(dealerJobs.flatMap((j) => j.services));
+              const settle = async (svc: DealerJob['services'][number], paid: boolean) => {
+                let amount = svc.amount;
+                let paidAt = todaySeoul();
+                if (paid) {
+                  const d = prompt('정산 받은 날짜 (YYYY-MM-DD)', todaySeoul()); if (d === null) return; if (/^\d{4}-\d{2}-\d{2}$/.test(d.trim())) paidAt = d.trim();
+                  const a = prompt('정산 받은 금액 (원, 비우면 시공 금액 그대로)', svc.amount ? String(svc.amount) : ''); if (a === null) return;
+                  const n = Number((a || '').replace(/[^\d]/g, '')); if (n > 0) amount = n;
+                } else if (!confirm('이 건을 다시 미수로 돌릴까요?')) return;
+                const { error } = await supabase.from('services').update({ memo: withSettlement(svc.memo, paid ? { paid_at: paidAt, amount } : null) }).eq('id', svc.id);
+                if (error) { alert(`저장 실패: ${error.message}`); return; }
+                setDealerJobs(await customersOfDealer(id));
+              };
+              return (
+                <>
+                  <div className="flex items-center gap-3 flex-wrap text-xs mb-2">
+                    <span className={`font-semibold px-2 py-0.5 rounded-full ${sum.unpaidCount ? 'bg-danger/10 text-danger' : 'bg-ok/10 text-ok'}`}>{sum.unpaidCount ? `미수 ${sum.unpaidCount}건 · ${won(sum.unpaidTotal)}` : '미수 없음'}</span>
+                    {sum.paidCount > 0 && <span className="text-[var(--c-text-3)]">정산 {sum.paidCount}건 · {won(sum.paidTotal)}</span>}
+                    {sum.unknownCount > 0 && <span className="text-[var(--c-text-4)]">금액 없는 기록 {sum.unknownCount}건</span>}
+                    <span className="text-[var(--c-text-4)] ml-auto">우리가 받을 금액 기준 · 딜러가 손님께 안내한 금액과 다를 수 있음</span>
+                  </div>
+                  <ul className="divide-y divide-[var(--c-border)]">
+                    {dealerJobs.map(({ customer: c, latest, services: svcs }) => (
+                      <li key={c.id} className="py-2.5">
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <Link href={`/crm/${c.id}`} className="font-semibold text-sm text-[var(--c-text-1)] hover:underline">{c.name}</Link>
+                          <span className="text-xs text-[var(--c-text-3)]">{[c.car_brand, c.car_model].filter(Boolean).join(' ') || '-'}</span>
+                          {latest && <span className="text-xs text-[var(--c-text-2)] ml-auto">{latest.service_type || '시공 미정'} · {formatDate(latest.date)} · <span className={latest.status === '완료' ? 'text-ok' : 'text-info'}>{latest.status}</span></span>}
+                        </div>
+                        {svcs.length > 0 && (
+                          <ul className="mt-1.5 space-y-1">
+                            {svcs.map((svc) => { const st = parseSettlement(svc.memo); const paid = !!st?.paid_at; return (
+                              <li key={svc.id} className="flex items-center gap-2 flex-wrap text-xs pl-3 border-l-2 border-[var(--c-border)]">
+                                <span className="text-[var(--c-text-2)]">{formatDate(svc.service_date)} {svc.service_type}</span>
+                                <span className="text-[var(--c-text-1)] font-medium tabular-nums">{svc.amount ? won(svc.amount) : '금액 없음'}</span>
+                                <span className={`px-1.5 py-0.5 rounded-full font-semibold ${paid ? 'bg-ok/10 text-ok' : svc.amount ? 'bg-danger/10 text-danger' : 'bg-[var(--c-subtle)] text-[var(--c-text-3)]'}`}>{paid ? `정산 ${formatDate(st!.paid_at!)}${st!.amount && st!.amount !== svc.amount ? ` · ${won(st!.amount)}` : ''}` : svc.amount ? '미수' : '금액 미입력'}</span>
+                                {paid
+                                  ? <button onClick={() => settle(svc, false)} className="text-[11px] text-[var(--c-text-4)] hover:text-[var(--c-text-1)] underline-offset-2 hover:underline">되돌리기</button>
+                                  : <Btn size="xs" variant="outline" icon="check" onClick={() => settle(svc, true)}>정산 받음</Btn>}
+                              </li>
+                            ); })}
+                          </ul>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              );
+            })()}
           </div>
         )}
         {/* 차량 (2026-11-22 차량 N대) — 딜러 기록에는 차가 없다 */}
