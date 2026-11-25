@@ -8,6 +8,7 @@ import { BLOG_PREFILL_KEY, CRM_SERVICE_TO_KEY, type BlogPrefill } from '@/config
 import { useTheme } from '@/components/ThemeProvider';
 import QuoteSmsModal, { type QuoteSmsInitial } from '@/components/crm/QuoteSmsModal';
 import InquiryReplyModal from '@/components/crm/InquiryReplyModal';
+import CallSummaryImportModal from '@/components/crm/CallSummaryImportModal';
 import { QC_SMS, MAINT_SMS, REVIEW_SMS, dealerDoneSms, followUpSmsKey } from '@/config/sms-templates';
 import { dealerSupport, dealerFor, DEALER_KIND } from '@/lib/dealers';
 import { checkMemberReady, memberBlockMessage } from '@/lib/member-ready';
@@ -150,6 +151,7 @@ export default function CRMPage() {
   const [quoteSms, setQuoteSms] = useState<QuoteSmsInitial | null>(null);
   // 문의 답변 창 (2026-11-12): 카페·문자 문의 글 → 시장 평균가 기준 답장
   const [showInquiry, setShowInquiry] = useState(false);
+  const [showCallImport, setShowCallImport] = useState(false); // 통화 요약 캡처 → 상담 기록 (2026-11-25)
   // 사후관리 달력·검색 (2026-11-11): 기본은 오늘 보낼 사람만, 검색하면 날짜 무관, 밀린 건은 접어 둠
   const [followSearch, setFollowSearch] = useState('');
   const [followDate, setFollowDate] = useState<string>(() => todaySeoul());
@@ -1638,6 +1640,7 @@ export default function CRMPage() {
           <ConsultationsTab
             consultations={consultations} customers={customers} handleAddCustomerFromQuote={handleAddCustomerFromQuote}
             setQuoteSms={setQuoteSms} setShowInquiry={setShowInquiry} setShowAddConsultation={setShowAddConsultation}
+            setShowCallImport={(v) => { if (v) fetchCustomers(); setShowCallImport(v); }}
           />
         )}
       </div>
@@ -1942,6 +1945,15 @@ export default function CRMPage() {
       )}
       {quoteSms && (
         <QuoteSmsModal initial={quoteSms} onClose={() => setQuoteSms(null)} onDone={() => { fetchFollowUps(); if (activeTab === 'consultations') fetchConsultations(); }} />
+      )}
+      {showCallImport && (
+        <CallSummaryImportModal
+          customers={customers}
+          onClose={() => setShowCallImport(false)}
+          onDone={() => { fetchConsultations(); fetchFollowUps(); fetchTeamBrief(); }}
+          openQuote={(v) => setQuoteSms(v)}
+          openAppointment={(v) => { setAppointmentForm({ customer_id: v.customerId || '', appointment_date: v.date || '', end_date: '', service_type: v.serviceType || '', amount: '', memo: v.memo, vehicle_id: '' }); setShowAddAppointment(true); }}
+        />
       )}
       {showInquiry && (
         <InquiryReplyModal onClose={() => setShowInquiry(false)} onDone={() => { fetchFollowUps(); if (activeTab === 'consultations') fetchConsultations(); }} />

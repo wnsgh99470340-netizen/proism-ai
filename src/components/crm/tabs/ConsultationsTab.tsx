@@ -12,14 +12,19 @@ interface ConsultationsTabProps {
   setQuoteSms: (v: QuoteSmsInitial | null) => void;
   setShowInquiry: (v: boolean) => void;
   setShowAddConsultation: (v: boolean) => void;
+  /** 통화 요약 캡처로 상담 기록 (2026-11-25) */
+  setShowCallImport?: (v: boolean) => void;
 }
 
-export default function ConsultationsTab({ consultations, customers, handleAddCustomerFromQuote, setQuoteSms, setShowInquiry, setShowAddConsultation }: ConsultationsTabProps) {
+export default function ConsultationsTab({ consultations, customers, handleAddCustomerFromQuote, setQuoteSms, setShowInquiry, setShowAddConsultation, setShowCallImport }: ConsultationsTabProps) {
   return (
     <div>
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">{/* 폰에서 버튼 글자가 세로로 깨지던 것 (2026-11-23) */}
         <h2 className="text-sm text-[var(--c-text-3)] whitespace-nowrap">{consultations.length}건의 상담</h2>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {setShowCallImport && (
+            <button onClick={() => setShowCallImport(true)} className="border border-[var(--c-border)] hover:bg-[var(--c-hover)] text-[var(--c-text-1)] text-sm font-medium rounded-lg px-4 py-2 transition-colors whitespace-nowrap" title="전화 앱의 통화 요약 캡처를 올리면 손님을 찾아 상담 기록으로 남깁니다 (예약은 만들지 않음)">📞 통화 요약</button>
+          )}
           <button
             onClick={() => setShowInquiry(true)}
             className="border border-[var(--c-border)] hover:bg-[var(--c-hover)] text-[var(--c-text-1)] text-sm font-medium rounded-lg px-4 py-2 transition-colors"
@@ -71,7 +76,7 @@ export default function ConsultationsTab({ consultations, customers, handleAddCu
                 <span className="text-xs text-[var(--c-text-3)]">{formatDate(c.consultation_date)}</span>
               </div>
             </div>
-            {c.content && (/^\[(견적 문자 발송|문의 답변|회원 문자)\]/.test(c.content)
+            {c.content && (/^\[(견적 문자 발송|문의 답변|회원 문자|통화 요약|딜러 문자)\]/.test(c.content)
               ? <details className="mb-2 text-sm text-[var(--c-text-2)]"><summary className="cursor-pointer">{c.content.split('\n')[0]} — {c.content.startsWith('[회원 문자]') ? '자동 기록 · 링크 보기' : '보낸 문자 보기'}</summary><pre className="whitespace-pre-wrap font-sans mt-2 text-xs text-[var(--c-text-2)] bg-[var(--c-input)] rounded-lg p-3">{c.content.split('\n').slice(1).join('\n')}</pre></details>
               : <p className="text-sm text-[var(--c-text-2)] mb-2">{c.content}</p>)}
             <div className="flex items-center gap-3 text-xs text-[var(--c-text-3)]">
