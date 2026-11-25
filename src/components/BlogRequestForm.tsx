@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { CAR_BRANDS, REGIONS, SERVICES, buildBlogMessage, type BlogRequest, type BlogPrefill, type ServiceKey, FAQ_SERVICE_OPTIONS } from '@/config/blog-options';
 import { INQUIRY_FAQS } from '@/config/inquiry-faq';
 import { OPENING_IDEAS, pickOpeningIdeas, type OpeningIdea } from '@/config/blog-opening-ideas';
+import { loadRecentNotes, notesToMemo } from '@/lib/daily-notes';
 
 interface Props {
   disabled: boolean;
@@ -34,6 +35,7 @@ export default function BlogRequestForm({ disabled, onSubmit, initial = null }: 
   const [extra, setExtra] = useState(initial?.extra ?? '');
   const [region, setRegion] = useState<string>(REGIONS[0]);
   const [notes, setNotes] = useState(initial?.notes ?? '');
+  const [loadingNotes, setLoadingNotes] = useState(false);
   const [keyword, setKeyword] = useState('');
   const [photosUrl, setPhotosUrl] = useState('');
   const [refLinks, setRefLinks] = useState('');
@@ -247,7 +249,11 @@ export default function BlogRequestForm({ disabled, onSubmit, initial = null }: 
       </div>
 
       <div className="mb-2">
-        <label className={labelCls}>{mode === 'faq' ? '사장님 입장 메모 (선택) — 이 질문에 대한 사장님 기준·권하는 것·권하지 않는 것. 조사로 알 수 없는 건 이것뿐입니다' : '현장 메모 — 글의 몸통입니다. 이 차에서 있었던 일을 1분 말하듯'}</label>
+        <div className="flex items-center justify-between gap-2 mb-1">
+          <label className={`${labelCls} mb-0`}>{mode === 'faq' ? '사장님 입장 메모 (선택) — 이 질문에 대한 사장님 기준·권하는 것·권하지 않는 것. 조사로 알 수 없는 건 이것뿐입니다' : '현장 메모 — 글의 몸통입니다. 이 차에서 있었던 일을 1분 말하듯'}</label>
+          {/* 홈 '오늘 있었던 일' 메모를 재료로 (2026-11-25) */}
+          <button type="button" disabled={loadingNotes} onClick={async () => { setLoadingNotes(true); try { const list = await loadRecentNotes(14, 30); if (!list.length) { alert('지난 2주 동안 홈에 남긴 메모가 없습니다'); return; } const add = notesToMemo(list); setNotes((cur) => (cur.trim() ? `${cur.trim()}\n\n[홈 메모 지난 2주]\n${add}` : `[홈 메모 지난 2주]\n${add}`)); } finally { setLoadingNotes(false); } }} className="text-[11px] px-2 py-0.5 rounded-full border border-[var(--c-border)] text-[var(--c-text-3)] hover:text-[var(--c-text-1)] hover:bg-[var(--c-hover)] whitespace-nowrap disabled:opacity-50">{loadingNotes ? '불러오는 중…' : '홈 메모 불러오기'}</button>
+        </div>
         <textarea
           ref={notesRef}
           value={notes}

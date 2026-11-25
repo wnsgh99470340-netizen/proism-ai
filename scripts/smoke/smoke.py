@@ -76,6 +76,7 @@ class Smoke:
                 page.get_by_role('heading', name=re.compile('안녕하세요')).wait_for()
                 page.get_by_text('오늘 예약').first.wait_for()
                 page.get_by_text('마케팅팀 오늘 한 일').first.wait_for()
+                page.get_by_text('오늘 있었던 일').first.wait_for()  # 2026-11-25 메모 카드
                 self.shot('home'); return self.no_overflow()
             self.check('홈 — 인사·오늘 예약·마케팅팀 카드', home)
 

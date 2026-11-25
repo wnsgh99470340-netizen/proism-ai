@@ -63,6 +63,7 @@ export function buildTimeline(input: TimelineInput): { upcoming: TimelineEvent[]
     else if (head.startsWith('[문의 답변]')) push({ date: d, kind: 'inquiry', title: '문의 답변 보냄', detail: short(body[0] || ''), tone: 'normal' });
     else if (head.startsWith('[회원 문자]')) push({ date: d, kind: 'member', title: `회원 문자 · ${head.replace('[회원 문자]', '').trim() || '안내'}`, tone: 'muted' });
     else if (head.startsWith('[딜러 문자]')) push({ date: d, kind: 'member', title: `딜러 문자 · ${head.replace('[딜러 문자]', '').trim()}`, tone: 'muted' });
+    else if (head.startsWith('[오늘 메모]')) push({ date: d, kind: 'consult', title: `메모 · ${short(head.replace('[오늘 메모]', '').trim())}`, tone: 'normal' });
     else if (head.startsWith('[통화 요약]')) push({ date: d, kind: 'consult', title: `통화 · ${(head.split('·')[1] || '통화').trim()}`, detail: short(body[0] ? body[0].replace(/^-\s*/, '') : ''), tone: 'normal' });
     else {
       const parts = [short(head || cleanMemo(c.memo), 70)];

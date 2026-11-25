@@ -3,6 +3,7 @@
 /** 홈 탭 (2026-11-23 page.tsx 에서 분리 — 동작 변경 없음). 상태·핸들러는 page.tsx 에 있고 props 로 받는다 */
 import Btn from '@/components/ui/Btn';
 import { Icon, type IconName } from '@/components/ui/icons';
+import DailyNoteCard from '@/components/crm/DailyNoteCard';
 import type { Dispatch, SetStateAction } from 'react';
 import { addDaysISO } from '@/lib/local-date';
 import { quoteForDate } from '@/config/daily-quotes';
@@ -18,7 +19,7 @@ interface HomeTabProps {
   isDemo: boolean;
   appointments: Appointment[];
   followUps: FollowUp[];
-  allCustomers: { id: string }[];
+  allCustomers: { id: string; name?: string; phone?: string | null; car_brand?: string | null; car_model?: string | null; kind?: string | null }[];
   teamBrief: DailyBrief | null;
   teamOpen: string | null;
   setTeamOpen: (key: string | null) => void;
@@ -115,6 +116,9 @@ export default function HomeTab({
           </button>
         ))}
       </div>
+
+      {/* 오늘 있었던 일 (2026-11-25): 말하듯 한 줄 → 손님 타임라인·시공기 재료 */}
+      {!isDemo && <DailyNoteCard customers={allCustomers} />}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-5 items-start min-w-0 [&>section]:min-w-0 [&>section]:overflow-hidden">
         {/* 오늘 예약 */}
