@@ -25,7 +25,7 @@ import CustomerFormModal, { type CustomerFormValues, EMPTY_CUSTOMER_FORM, loadCu
 import { linkReferral, loadReferralsFor, markThanksSent, grantPointForReferred, loadPoints, usePoints, updateReferral } from '@/lib/referrals';
 import { MEMBERSHIP, POINTS } from '@/config/membership';
 import { getOrCreateMemberLink, memberLinkSms, logMemberSms } from '@/lib/member-links';
-import { workDetailsText, workItems, ppfProduct, type WorkOrderJson } from '@/lib/work-order';
+import { workDetailsText, workItems, ppfProduct, ppfProductOf, type WorkOrderJson } from '@/lib/work-order';
 import CareCompleteModal from '@/components/crm/CareCompleteModal';
 import { appendCareLog, stripCareLog } from '@/lib/care-log';
 import { isDemoClient } from '@/lib/demo';
@@ -233,6 +233,7 @@ export default function CRMPage() {
     polish_etc: '',
     package_options: [] as string[],
     ppf_etc: '',
+    ppf_product: '',
     wrapping_etc: '',
     notes: '',
   });
@@ -719,7 +720,7 @@ export default function CRMPage() {
       glasstint: { selected: [], density: '' }, tinain: { selected: [], density: '' },
     },
     ppf: [], wrapping: [], coating: [], electrical: [], electrical_etc: '',
-    polish: [], polish_etc: '', package_options: [], ppf_etc: '', wrapping_etc: '', notes: '',
+    polish: [], polish_etc: '', package_options: [], ppf_etc: '', ppf_product: '', wrapping_etc: '', notes: '',
   });
 
   // 예약 날짜 바꾸기 (2026-11-22 생애 흐름 점검 3-1): 지우고 다시 만들지 않게. QC·메인터넌스 방문 예약이면 묶인 사후관리 날짜도 같이 옮긴다
@@ -782,7 +783,7 @@ export default function CRMPage() {
       const missing: string[] = [];
       if (!wo.car_number?.trim()) missing.push('차량번호');
       if (!(wo.amount && Number(wo.amount) > 0) && !appointment.amount) missing.push('금액');
-      if ((wo.ppf || []).length > 0 && !ppfProduct(wo.ppf_etc)) missing.push('PPF 제품(기타 칸에 50·100·150·PRO200)');
+      if ((wo.ppf || []).length > 0 && !ppfProductOf(wo)) missing.push('PPF 제품(제품 칸에서 선택)');
       const tintNoDensity = Object.values(wo.tinting || {}).some((t) => (t?.selected || []).length > 0 && !t?.density?.trim());
       if (tintNoDensity) missing.push('썬팅 농도');
       if (!(workOrder as { maintenance_years?: string }).maintenance_years) missing.push('메인터넌스 기간(2·3·4·5·7·10년)');
@@ -862,10 +863,12 @@ export default function CRMPage() {
       service = again && again.length > 0 ? again[0] : null;
     }
 
-    fillPlateIfEmpty(appointment.vehicle_id, workOrder.car_number); // 작업 내역서의 차량번호를 그 차에 적어 둔다
+    // 작업 내역서의 차량번호를 그 차에 적어 둔다. 예약에 차가 안 묶여 있으면(차 한 대 손님의 예전 예약 등) 대표 차에 (2026-11-25: 조성준 기록에서 번호가 안 들어간 일)
+    if (appointment.vehicle_id) fillPlateIfEmpty(appointment.vehicle_id, workOrder.car_number);
+    else if (workOrder.car_number?.trim()) { const vs = await loadVehicles(appointment.customer_id); const target = vs.find((v) => v.is_primary) || (vs.length === 1 ? vs[0] : null); if (target) await fillPlateIfEmpty(target.id, workOrder.car_number); }
     // 사후관리 자동 생성 (시공 기록당 한 벌만 — createAutoFollowUps 안에서 이미 있는 유형은 건너뜀)
     if (service && appointment.service_type) {
-      const hasPpf = (workOrder.ppf || []).length > 0 || !!workOrder.ppf_etc?.trim();
+      const hasPpf = (workOrder.ppf || []).length > 0 || !!workOrder.ppf_product || !!workOrder.ppf_etc?.trim();
       await createAutoFollowUps(service.id, appointment.customer_id, appointment.service_type, completionDate, hasPpf);
     }
 
@@ -1487,7 +1490,7 @@ export default function CRMPage() {
     if (!key) return;
     const c = allCustomers.find((x) => x.id === a.customer_id);
     const history = await customerStoryLines(a.customer_id, a.appointment_date); // 재방문·소개·전 작업 (2026-11-25 사장님 "이런 스토리라인은 자연스럽게 녹여도 돼")
-    let wo: { ppf?: string[]; ppf_etc?: string; wrapping?: string[]; wrapping_etc?: string; notes?: string; field_note?: string } = {};
+    let wo: { ppf?: string[]; ppf_etc?: string; ppf_product?: string; wrapping?: string[]; wrapping_etc?: string; notes?: string; field_note?: string } = {};
     try { wo = JSON.parse(a.memo || '{}'); } catch { /* 일반 메모 */ }
     const plainMemo = a.memo && !a.memo.trim().startsWith('{') ? a.memo.trim() : '';
 
@@ -1517,6 +1520,7 @@ export default function CRMPage() {
       color: c?.car_color || undefined,
       serviceKey: key,
       range,
+      product: key === 'PPF' && wo.ppf_product ? `3M ${wo.ppf_product}` : undefined, // 작업 내역서에서 고른 제품 (2026-11-25)
       notes: noteParts.join('\n'),
       source: `CRM ${dateLabel} ${a.customer?.name || ''} ${a.service_type}`.trim(),
     };

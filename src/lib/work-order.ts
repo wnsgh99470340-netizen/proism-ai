@@ -16,6 +16,8 @@ export interface WorkOrderJson {
   /** 이 차에서 있었던 일 한두 줄(사장님 말) — 시공기 폼 현장 메모로 미리 채워짐 (2026-11-25) */
   field_note?: string;
   ppf?: string[]; ppf_etc?: string;
+  /** PPF 제품 — 선택식 (2026-11-25 사장님 "제품은 적는 방식 말고 선택하는 방식으로"). 값은 PPF_PRODUCT_OPTIONS 중 하나. 기타(ppf_etc)는 메모 */
+  ppf_product?: string;
   wrapping?: string[]; wrapping_etc?: string;
   coating?: string[];
   electrical?: string[]; electrical_etc?: string;
@@ -44,6 +46,14 @@ const PPF_SPECS: { test: RegExp; name: string; spec: string }[] = [
   { test: /50/, name: '시리즈50', spec: '185μm · 셀프힐링 · 고광택' },
 ];
 
+/** 작업 내역서 PPF 제품 선택지 (2026-11-25). 스펙 표기는 ppfProduct 가 만든다 */
+export const PPF_PRODUCT_OPTIONS = ['시리즈50', '시리즈100', '시리즈150', 'PRO200 유광', 'PRO200 무광'] as const;
+
+/** 제품 선택 칸 우선, 없으면 옛 기록의 기타 글자에서 알아낸다 */
+export function ppfProductOf(w: Pick<WorkOrderJson, 'ppf_product' | 'ppf_etc'>): string | null {
+  return ppfProduct(w.ppf_product) || ppfProduct(w.ppf_etc);
+}
+
 /** "50시리즈"·"시리즈150"·"PRO200 무광" 같은 자유 입력에서 3M PPF 제품을 알아내 스펙 한 줄로 */
 export function ppfProduct(text: string | undefined | null): string | null {
   const t = (text || '').trim();
@@ -64,10 +74,11 @@ export function workItems(w: WorkOrderJson): WorkItem[] {
   const items: WorkItem[] = [];
   const join = (arr?: string[], etc?: string) => [...(arr || []), ...(etc?.trim() ? [etc.trim()] : [])];
 
-  // PPF: 범위 + 제품. ppf_etc 가 제품명이면 제품 줄로, 아니면 범위에 붙인다
+  // PPF: 범위 + 제품. 제품은 선택 칸(ppf_product) 우선. 옛 기록은 ppf_etc 가 제품명이면 제품 줄로, 아니면 범위에 붙인다
   const ppfRanges = (w.ppf || []).map((p) => PPF_LABEL[p] || p);
-  const ppfProd = ppfProduct(w.ppf_etc);
-  const ppfList = ppfProd ? ppfRanges : join(ppfRanges, w.ppf_etc);
+  const ppfProd = ppfProductOf(w);
+  const etcIsProduct = !w.ppf_product && !!ppfProduct(w.ppf_etc);
+  const ppfList = etcIsProduct ? ppfRanges : join(ppfRanges, w.ppf_etc);
   if (ppfList.length || ppfProd) items.push({ group: 'PPF', text: ppfList.join(' · ') || 'PPF', product: ppfProd || undefined });
 
   const tints = Object.entries(w.tinting || {}).filter(([, t]) => (t?.selected || []).length > 0)
