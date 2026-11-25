@@ -221,26 +221,18 @@ export function checkFormatIssues(title: string, body: string, keyword?: string 
     }
     const bodyPlain = normKw(body.replace(/<[^>]+>/g, ''));
     const count = bodyPlain.split(normKw(keyword)).length - 1;
-    if (count < 3) {
-      issues.push(`본문에 지정 키워드 "${keyword}"가 ${count}회 → 문장 흐름을 해치지 않는 자리에 3~5회 들어가게(제목·해시태그 제외)`);
+    if (count < 2) {
+      issues.push(`본문에 지정 키워드 "${keyword}"가 ${count}회 → 문장 흐름을 해치지 않는 자리에 두세 번 자연스럽게(제목·해시태그 제외)`);
     }
   }
   const pureLen = body.replace(/\[사진\s*\d+\]/g, '').replace(/\s/g, '').length;
   if (pureLen < MIN_BODY_CHARS) {
-    issues.push(`분량 부족: 공백 제외 ${pureLen}자 → 2,000자 이상. 시공 과정·마감·관리 안내를 더 구체적으로 풀고, 차량 소개는 늘리지 말 것`);
+    issues.push(`분량 부족: 공백 제외 ${pureLen}자 → 2,000자 이상. 설명으로 늘리지 말고 사실표·사장님 메모에 있는 장면(왜 왔는지·어디가 까다로웠는지·어떻게 했는지)을 더 풀 것. 재료가 없으면 글 끝에 [재료 필요] 한 줄`);
   }
   if (title.length < MIN_TITLE_CHARS) {
     issues.push(`제목 ${title.length}자로 짧음 → 20~25자로 ("[지역] [차종] [서비스]"에 핵심 포인트 한 가지 덧붙이기)`);
   }
-  // 모바일 줄바꿈: 줄이 길면(평균 24자 초과 또는 30자 넘는 줄이 20% 이상) 줄만 다시 끊게 한다
-  const lines = textLines(body).filter(l => !CONTACT_RE.test(l));
-  if (lines.length > 0) {
-    const avg = lines.reduce((a, l) => a + l.length, 0) / lines.length;
-    const longShare = lines.filter(l => l.length > 30).length / lines.length;
-    if (avg > 24 || longShare > 0.2) {
-      issues.push(`줄이 깁니다(한 줄 평균 ${Math.round(avg)}자) → 모바일 기준으로 한 줄 10~18자 안팎에서 끊어 줄바꿈하고 한 문장을 2~3줄로 나눌 것. 문장 내용·순서는 그대로 두고 줄만 다시 끊기. 마침표 생략`);
-    }
-  }
+  // (2026-11-25) 모바일 줄바꿈 글자 수 검사는 뺌 — 핵심 규칙 6개 외
   return issues;
 }
 
@@ -467,7 +459,7 @@ export async function runWriter(opts: RunWriterOptions): Promise<WriterResult> {
   const serviceType = target.serviceType;
   const first = splitTitleBody(reply);
   const previous = save ? await getPreviousDrafts() : [];
-  let violations = first ? [...checkHardViolations(first.body, combinedMessage, serviceType, knownColor), ...checkIntroRepeat(first.body, previous), ...checkLineRepeat(first.body, previous), ...checkKeywordDensity(first.body, target.keyword)] : [];
+  let violations = first ? [...checkHardViolations(first.body, combinedMessage, serviceType, knownColor)] : [];
   let factIssues: FactIssue[] = first ? factCheck({ body: first.body, serviceType, product: target.product ?? undefined }) : [];
   let formatIssues = first ? checkFormatIssues(first.title, first.body, target.keyword) : [];
   const pureLen = (b: string) => b.replace(/\[사진\s*\d+\]/g, '').replace(/\s/g, '').length;
@@ -481,7 +473,7 @@ export async function runWriter(opts: RunWriterOptions): Promise<WriterResult> {
       const fixed = await fixIssues(systemPrompt, reply, issues, model);
       const f = splitTitleBody(fixed);
       if (f && pureLen(f.body) >= Math.min(1500, pureLen(cur.body))) {
-        const fixedViolations = [...checkHardViolations(f.body, combinedMessage, serviceType, knownColor), ...checkIntroRepeat(f.body, previous), ...checkLineRepeat(f.body, previous), ...checkKeywordDensity(f.body, target.keyword)];
+        const fixedViolations = [...checkHardViolations(f.body, combinedMessage, serviceType, knownColor)];
         const fixedFacts = factCheck({ body: f.body, serviceType, product: target.product ?? undefined });
         const fixedFormat = checkFormatIssues(f.title, f.body, target.keyword);
         // 위반·팩트 오류가 늘지 않고 형식 미달이 줄었거나 같으면 채택
@@ -502,7 +494,7 @@ export async function runWriter(opts: RunWriterOptions): Promise<WriterResult> {
       const stripped = cur.body.split(/\n\s*\n/).filter(p => !/발수/.test(p)).join('\n\n');
       if (pureLen(stripped) >= 1500) {
         reply = `${cur.title}\n${stripped}`;
-        violations = [...checkHardViolations(stripped, combinedMessage, serviceType, knownColor), ...checkIntroRepeat(stripped, previous), ...checkLineRepeat(stripped, previous), ...checkKeywordDensity(stripped, target.keyword)];
+        violations = [...checkHardViolations(stripped, combinedMessage, serviceType, knownColor)];
         factIssues = factCheck({ body: stripped, serviceType, product: target.product ?? undefined });
         formatIssues = checkFormatIssues(cur.title, stripped, target.keyword);
       }
@@ -563,16 +555,14 @@ ${original}
   return await callClaude(systemPrompt, [{ role: 'user', content: msg }], 8192, model);
 }
 
-/** 사실표만으로 쓰는 작성 프롬프트: 규칙 + 사실표 + 제목 키워드 + 사장님 어휘 + 사장님 글(말투) + 이전 글 제목·도입 */
+/** 사실표만으로 쓰는 작성 프롬프트: 핵심 규칙 6개 + 사실표 + 제목 키워드 + 사장님 어휘 + 사장님 글(말투). 이전 글 도입 블록은 2026-11-25 뺌 */
 export async function buildWriterPromptFromFacts(facts: FactSheet, serviceType: string, keyword?: string | null, refs: ReferencePost[] = [], mode: 'work' | 'faq' = 'work'): Promise<string> {
-  const [ownerStyle, previousDrafts, voiceRef] = await Promise.all([getOwnerStyle(), getPreviousDrafts(), ownerVoiceReference(2)]);
+  const [ownerStyle, voiceRef] = await Promise.all([getOwnerStyle(), ownerVoiceReference(2)]);
   // 말투 참고 = 사장님이 붙인 링크(있으면) + 사장님이 직접 쓴 FAQ·공지 글 2편 (2026-11-20 "FAQ나 공지글 참고해")
   const toneReference = `${refsToPrompt(refs, 'writer')}${voiceRef}`;
   const styleContext = ownerStyle ? styleToPrompt(ownerStyle) : '';
   const keywordContext = keyword ? `\n\n[제목 키워드 — 필수] "${keyword}"를 제목 앞부분에 그대로 넣고(띄어쓰기·순서 유지) 본문에 3~5회, 해시태그에 한 번` : '';
-  const previousContext = previousDrafts.length > 0
-    ? `\n\n[이전에 쓴 글 — 같은 도입·같은 문장으로 시작하지 않는다]\n${previousDrafts.slice(0, 8).map((d, i) => `${i + 1}. ${d.title}${d.intro ? ` / 도입: ${d.intro.split(' / ').slice(0, 2).join(' / ')}` : ''}`).join('\n')}`
-    : '';
+  const previousContext = ''; // (2026-11-25) 이전 글 도입 블록 뺌 — 돌려쓰기 규칙 제거
   const base = mode === 'faq' ? FAQ_SYSTEM_PROMPT : BLOG_SYSTEM_PROMPT;
   return `${base}${factsToPrompt(facts).replace('[이 작업의 사실표', mode === 'faq' ? '[이 글의 사실표' : '[이 작업의 사실표')}${keywordContext}${styleContext}${toneReference}${previousContext}`;
 }
@@ -593,7 +583,7 @@ export async function writeFromFacts(input: { facts: FactSheet; message: string;
   // 검사의 '요청' 기준은 요청문 + 확정 사실표 (사장님이 표에 보탠 농도·제품이 '요청에 없음'으로 잡히지 않게)
   const provided = `${input.message}\n${facts.lines.map(l => l.text).join('\n')}`;
   const check = (title: string, body: string) => ({
-    violations: [...checkHardViolations(body, provided, serviceType, input.knownColor ?? null), ...checkIntroRepeat(body, previous), ...checkLineRepeat(body, previous), ...checkKeywordDensity(body, target.keyword)],
+    violations: [...checkHardViolations(body, provided, serviceType, input.knownColor ?? null)],
     // 열차단·IR 수치 등은 사실표(조사 공식 정보·사장님 메모)에 있으면 지어낸 게 아니다
     facts: factCheck({ body, serviceType, product: target.product ?? undefined }).filter(f => !(/열\s*차단|적외선|IR|자외선|가시광선|비금속|세라믹/.test(f.detail) && /\d\s*%|비금속|세라믹|전파/.test(provided))),
     format: checkFormatIssues(title, body, target.keyword),
@@ -719,7 +709,7 @@ ${plain}`;
   }
 
   const serviceType = input.target.serviceType;
-  const violations = [...checkHardViolations(tb.body, input.instruction, serviceType), ...checkKeywordDensity(tb.body, input.target.keyword)];
+  const violations = [...checkHardViolations(tb.body, input.instruction, serviceType)];
   const factIssues = factCheck({ body: tb.body, serviceType, product: input.target.product ?? undefined });
   const formatIssues = checkFormatIssues(tb.title, tb.body);
 
