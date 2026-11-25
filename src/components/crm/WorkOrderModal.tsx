@@ -1,6 +1,8 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
+import Btn from '@/components/ui/Btn';
+import { resizeAndUploadPhoto } from '@/lib/photo-upload';
 import { todaySeoul } from '@/lib/local-date';
 import type { Appointment } from '@/lib/crm-shared';
 
@@ -49,6 +51,21 @@ function PrintCheck({ checked }: { checked: boolean }) {
 
 export default function WorkOrderModal({ appointment, workOrder, setWorkOrder, onSubmit, onSaveOnly, onClose, busy }: WorkOrderModalProps & { workOrder: any }) {
   const printRef = useRef<HTMLDivElement>(null);
+  const photoRef = useRef<HTMLInputElement>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const uploadPhotos = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setPhotoBusy(true);
+    try {
+      let next: string[] = [...((workOrder.photos as string[] | undefined) || [])];
+      for (const f of Array.from(files).slice(0, 6 - next.length)) {
+        const r = await resizeAndUploadPhoto(f);
+        if ('error' in r) { alert(r.error); continue; }
+        next = [...next, r.url];
+      }
+      setWorkOrder({ ...workOrder, photos: next });
+    } finally { setPhotoBusy(false); if (photoRef.current) photoRef.current.value = ''; }
+  };
 
   const handlePdfSave = async () => {
     if (!printRef.current) return;
@@ -367,6 +384,28 @@ export default function WorkOrderModal({ appointment, workOrder, setWorkOrder, o
             <div style={{ marginTop: '20px', textAlign: 'center', fontSize: '10px', color: '#888' }}>
               3M 프로이즘 | 서울시 서초구 서초중앙로8길 82, 1동 1층 1호 | 010-7287-7140
             </div>
+          </div>
+
+          {/* 작업 사진·현장 메모 (2026-11-25 사장님 "완료 처리 때 사진 서너 장"): 손님 페이지·딜러 현황 페이지에 보이고, 현장 메모는 시공기 폼에 미리 채워진다 */}
+          <div className="mt-5 border-t border-[var(--c-border)] pt-4">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <label className="text-xs font-semibold text-[var(--c-text-1)]">작업 사진 <span className="font-normal text-[var(--c-text-3)]">최대 6장 · 손님 페이지와 딜러 현황 페이지에 보입니다 (번호판·얼굴은 가려서)</span></label>
+              <input ref={photoRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => uploadPhotos(e.target.files)} />
+              <Btn size="sm" variant="outline" icon="camera" onClick={() => photoRef.current?.click()} disabled={photoBusy || (workOrder.photos || []).length >= 6}>{photoBusy ? '올리는 중…' : '사진 고르기'}</Btn>
+            </div>
+            {(workOrder.photos || []).length > 0 && (
+              <div className="flex gap-2 flex-wrap mb-3">
+                {(workOrder.photos as string[]).map((u) => (
+                  <div key={u} className="relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={u} alt="작업 사진" className="w-20 h-20 object-cover rounded-lg border border-[var(--c-border)]" />
+                    <button type="button" onClick={() => setWorkOrder({ ...workOrder, photos: (workOrder.photos as string[]).filter((x) => x !== u) })} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[var(--c-text-1)] text-[var(--c-card)] text-[10px] leading-none flex items-center justify-center" aria-label="사진 빼기">✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <label className="text-xs font-semibold text-[var(--c-text-1)] mb-1 block">현장 메모 <span className="font-normal text-[var(--c-text-3)]">이 차에서 있었던 일 한두 줄 — 시공기 쓸 때 그대로 재료가 됩니다</span></label>
+            <textarea value={workOrder.field_note || ''} onChange={(e) => setWorkOrder({ ...workOrder, field_note: e.target.value })} rows={3} placeholder="예: 딜러 통해 입고. 본넷 끝단이 깊어 안쪽 마감에 시간이 갔고, 손님은 출고 때 도어 끝부터 보셨음" className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[var(--c-text-1)] resize-none" />
           </div>
         </div>
 

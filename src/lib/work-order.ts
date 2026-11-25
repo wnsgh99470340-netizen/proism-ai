@@ -11,6 +11,10 @@ export interface WorkOrderJson {
   car_number?: string;
   /** 메인터넌스 기간(년) 2·3·4·5·7·10 (2026-11-22). 보증서 기간이자 6개월 반복의 한계 */
   maintenance_years?: string | number;
+  /** 완료 처리 때 붙인 작업 사진(Blob 주소, 최대 6장) — 손님 페이지·딜러 현황 페이지에 보이고 시공기 재료 (2026-11-25) */
+  photos?: string[];
+  /** 이 차에서 있었던 일 한두 줄(사장님 말) — 시공기 폼 현장 메모로 미리 채워짐 (2026-11-25) */
+  field_note?: string;
   ppf?: string[]; ppf_etc?: string;
   wrapping?: string[]; wrapping_etc?: string;
   coating?: string[];

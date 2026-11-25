@@ -8,7 +8,7 @@ import { useParams } from 'next/navigation';
  * - /d/<코드>. 딜러 전화 뒷자리 4개로 확인(sessionStorage) → 넣어 준 차들의 입고 예정·작업 중·출고 완료
  * - 밝은 톤(CRM 과 같은 변수). 손님 전화·금액은 안 보임. 딜러는 자기 손님에게 "지금 이렇게 되고 있다"를 바로 보여 줄 수 있다
  */
-interface Car { id: string; name: string; car: string | null; state: { tone: 'soon' | 'working' | 'done' | 'talk' | 'none'; label: string; detail: string; service: string | null }; history: { date: string; end: string | null; service: string | null; status: string }[] }
+interface Car { id: string; name: string; car: string | null; state: { tone: 'soon' | 'working' | 'done' | 'talk' | 'none'; label: string; detail: string; service: string | null }; history: { date: string; end: string | null; service: string | null; status: string; photos?: string[] }[]; photos?: string[] }
 interface Data { owner?: boolean; dealer: { name: string; org: string | null }; today: string; cars: Car[]; shop: { name: string; phone: string; address: string; card: string } }
 
 const toneCls: Record<Car['state']['tone'], string> = {
@@ -77,11 +77,15 @@ export default function DealerPage() {
           <span className="block text-xs text-[var(--c-text-3)] mt-0.5">{[c.state.service, c.state.detail].filter(Boolean).join(' · ') || '예약 기록이 아직 없습니다'}</span>
         </span>
       </button>
-      {open === c.id && c.history.length > 1 && (
-        <ul className="mt-2 ml-1 border-l border-[var(--c-border)] pl-3 space-y-1">
-          {c.history.map((h, i) => <li key={i} className="text-xs text-[var(--c-text-3)]">{md(h.date)}{h.end && h.end !== h.date ? `~${md(h.end)}` : ''} · {h.service || '시공'} · {h.status}</li>)}
-        </ul>
+      {open === c.id && (c.history.length > 1 || (c.photos && c.photos.length > 0)) && (
+        <div className="mt-2 ml-1 border-l border-[var(--c-border)] pl-3 space-y-2">
+          {c.history.length > 1 && <ul className="space-y-1">{c.history.map((h, i) => <li key={i} className="text-xs text-[var(--c-text-3)]">{md(h.date)}{h.end && h.end !== h.date ? `~${md(h.end)}` : ''} · {h.service || '시공'} · {h.status}</li>)}</ul>}
+          {c.photos && c.photos.length > 0 && (
+            <div className="flex gap-1.5 overflow-x-auto pb-1">{c.photos.map((u) => <a key={u} href={u} target="_blank" rel="noreferrer" className="shrink-0"><img src={u} alt="작업 사진" className="w-20 h-20 object-cover rounded-lg border border-[var(--c-border)]" /></a>)}</div>
+          )}
+        </div>
       )}
+      {open !== c.id && c.photos && c.photos.length > 0 && <div className="mt-1.5 text-[11px] text-[var(--c-text-4)] pl-1">작업 사진 {c.photos.length}장 · 눌러서 보기</div>}
     </li>
   );
 

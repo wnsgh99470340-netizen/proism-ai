@@ -5,6 +5,7 @@ import { maskName } from '@/lib/member-links';
 import { carState, type CarAppointment, type CarService } from '@/lib/dealer-page';
 import { DEALER_KIND } from '@/lib/dealers';
 import { todaySeoul } from '@/lib/local-date';
+import { parseWorkOrder } from '@/lib/work-order';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -42,6 +43,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return Response.json({ error: left >= PIN_MAX ? '5번 틀려 10분 동안 막혔습니다. 번호가 바뀌셨으면 매장으로 연락 주세요' : `전화번호 뒷자리가 맞지 않습니다 (${left}번 더 틀리면 10분 잠김)` }, { status: 401 });
     }
     PIN_FAILS.delete(token);
+    // 열어 본 횟수 (2026-11-25 "열어 본 사람이 있는지 보고 다음을 정하자") — 회원 페이지와 같은 칸
+    const { data: cur } = await supabase.from('member_links').select('visits').eq('token', token).maybeSingle();
+    await supabase.from('member_links').update({ last_seen_at: new Date().toISOString(), visits: ((cur?.visits as number | null) || 0) + 1 }).eq('token', token);
   }
 
   const today = todaySeoul();
@@ -50,17 +54,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const ids = custs.map((c) => c.id);
   const [{ data: appts }, { data: svcs }] = ids.length
     ? await Promise.all([
-        supabase.from('appointments').select('customer_id, appointment_date, end_date, service_type, status').in('customer_id', ids),
+        supabase.from('appointments').select('customer_id, appointment_date, end_date, service_type, status, memo').in('customer_id', ids),
         supabase.from('services').select('customer_id, service_date, completion_date, service_type').in('customer_id', ids),
       ])
     : [{ data: [] }, { data: [] }];
 
   const cars = custs.map((c) => {
-    const a = ((appts || []) as (CarAppointment & { customer_id: string })[]).filter((x) => x.customer_id === c.id);
+    const a = ((appts || []) as (CarAppointment & { customer_id: string; memo: string | null })[]).filter((x) => x.customer_id === c.id);
     const s = ((svcs || []) as (CarService & { customer_id: string })[]).filter((x) => x.customer_id === c.id);
     const st = carState(a, s, today);
-    const history = a.filter((x) => x.status !== '취소').sort((x, y) => (x.appointment_date < y.appointment_date ? 1 : -1)).map((x) => ({ date: x.appointment_date, end: x.end_date, service: x.service_type, status: x.status }));
-    return { id: c.id, name: c.name, car: [c.car_brand, c.car_model].filter(Boolean).join(' ') || null, state: st, history };
+    const history = a.filter((x) => x.status !== '취소').sort((x, y) => (x.appointment_date < y.appointment_date ? 1 : -1)).map((x) => ({ date: x.appointment_date, end: x.end_date, service: x.service_type, status: x.status, photos: parseWorkOrder(x.memo)?.photos || [] }));
+    const photos = history.flatMap((h) => h.photos).slice(0, 6); // 작업 사진 (완료 처리 때 붙인 것, 2026-11-25)
+    return { id: c.id, name: c.name, car: [c.car_brand, c.car_model].filter(Boolean).join(' ') || null, state: st, history, photos };
   }).sort((x, y) => (x.state.sortKey < y.state.sortKey ? -1 : x.state.sortKey > y.state.sortKey ? 1 : 0));
 
   const org = ((d.memo || '').split('\n')[0] || '').replace(/\[[^\]]*\]/g, '').trim() || null;

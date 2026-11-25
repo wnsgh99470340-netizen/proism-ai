@@ -22,7 +22,7 @@ interface Data {
   upcoming: { date: string; end: string | null; service: string | null; status: string }[];
   careYears?: number | null;
   careGuide?: { guides: { key: string; title: string; after: string[]; daily: string[]; contact: string[] }[]; common: string };
-  warranties: { date: string; end: string | null; work: string; period: string; url: string | null; items: { group: string; text: string; product?: string }[]; certNo: string; vehicle?: string | null }[];
+  warranties: { date: string; end: string | null; work: string; period: string; url: string | null; items: { group: string; text: string; product?: string }[]; certNo: string; vehicle?: string | null; photos?: string[] }[];
   referrals: { gave: { name: string; date: string; state: string; reward: string | null; rewardAt: string | null }[]; received: { from: string; date: string; reward: string | null; rewardAt: string | null } | null };
   points: { balance: number; expiresAt: string | null; expired: boolean; history: { date: string; delta: number; reason: string }[]; unit: string; earnRule: string; menu: { cost: number; label: string; detail: string }[]; conditions: string[] };
   shop: { name: string; phone: string; address: string; card: string; map: string; talk: string };
@@ -446,6 +446,13 @@ export default function MemberPage() {
                       <div className="flex items-center justify-between"><div className="font-medium">{w.work || '시공 보증서'}</div><div className="text-white/70 tabular-nums">{fmt(w.date)}</div></div>
                       <div className="text-[11px] text-white/45 mt-0.5 tabular-nums">No. {w.certNo}</div>
                       {w.items.length > 0 && <ul className="mt-1.5 space-y-0.5">{w.items.map((it, k) => <li key={k} className="text-[12px] text-white/60 break-keep"><span className="text-[#ff5c78] font-semibold mr-1.5">{it.group}</span>{it.text}{it.product ? <span className="text-white/40"> · {it.product}</span> : null}</li>)}</ul>}
+                      {w.photos && w.photos.length > 0 && (
+                        <div className="mt-2">
+                          <div className="text-[11px] text-white/45 mb-1">작업 사진</div>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <div className="flex gap-1.5 overflow-x-auto pb-1">{w.photos.map((u) => <a key={u} href={u} target="_blank" rel="noreferrer" className="shrink-0"><img src={u} alt="작업 사진" className="w-20 h-20 object-cover rounded-lg border border-white/10" /></a>)}</div>
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ul>

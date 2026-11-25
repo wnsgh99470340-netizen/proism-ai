@@ -265,7 +265,7 @@ export default function CustomerDetailPage() {
             </div>
             {/* 딜러용 현황 페이지 (2026-11-25): 넣어 준 차들의 입고 예정·작업 중·출고 완료를 딜러가 폰에서 보는 링크 */}
             <div className="flex items-center justify-between gap-3 flex-wrap mb-3 pb-3 border-b border-[var(--c-border)]">
-              <div className="text-xs text-[var(--c-text-3)]">딜러가 보는 현황 페이지 — 입고·출고 문자에도 같은 링크가 붙습니다</div>
+              <div className="text-xs text-[var(--c-text-3)]">딜러가 보는 현황 페이지 — 입고·출고 문자에도 같은 링크가 붙습니다{memberLink ? <span className="ml-2 text-[var(--c-text-4)]">{memberLink.visits > 0 ? `열어 봄 ${memberLink.visits}회${memberLink.last_seen_at ? ` · 마지막 ${formatDate(memberLink.last_seen_at.slice(0, 10))}` : ''}` : '아직 안 열어 봄'}</span> : null}</div>
               <DealerPageButtons dealerId={customer.id} name={customer.name} phone={customer.phone} onSent={fetchData} />
             </div>
             {dealerJobs.length === 0 ? (

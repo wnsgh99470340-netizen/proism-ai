@@ -1485,7 +1485,7 @@ export default function CRMPage() {
     const key = a.service_type ? CRM_SERVICE_TO_KEY[a.service_type] : undefined;
     if (!key) return;
     const c = allCustomers.find((x) => x.id === a.customer_id);
-    let wo: { ppf?: string[]; ppf_etc?: string; wrapping?: string[]; wrapping_etc?: string; notes?: string } = {};
+    let wo: { ppf?: string[]; ppf_etc?: string; wrapping?: string[]; wrapping_etc?: string; notes?: string; field_note?: string } = {};
     try { wo = JSON.parse(a.memo || '{}'); } catch { /* 일반 메모 */ }
     const plainMemo = a.memo && !a.memo.trim().startsWith('{') ? a.memo.trim() : '';
 
@@ -1503,6 +1503,7 @@ export default function CRMPage() {
       else if (parts.length > 0) range = '부분';
       if (parts.length > 0) noteParts.push(`시공 범위: ${parts.join(', ')}`);
     }
+    if (wo.field_note) noteParts.unshift(wo.field_note); // 완료 처리 때 적은 '이 차에서 있었던 일' — 현장 메모 맨 앞 (2026-11-25)
     if (wo.notes) noteParts.push(wo.notes);
     if (plainMemo) noteParts.push(plainMemo);
 

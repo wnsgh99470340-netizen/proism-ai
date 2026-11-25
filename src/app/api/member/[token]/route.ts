@@ -76,6 +76,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     .map(({ a, w }) => ({
       date: w.warranty?.date || a.appointment_date, end: a.end_date, work: w.warranty?.work_details || a.service_type || '', period: w.warranty?.warranty_period || '',
       url: (w.warranty_url || '').replace(/\s+/g, '') || null, items: workItems(w), certNo: `PZ-${String(a.id).replace(/-/g, '').slice(0, 8).toUpperCase()}`,
+      photos: Array.isArray(w.photos) ? w.photos.slice(0, 6) : [], // 완료 처리 때 붙인 작업 사진 (2026-11-25)
     }));
 
   // QC·메인터넌스 방문 예약(2026-11-22)은 '다음 관리'에 방문일로 보이게 하고, 예약 목록에서는 뺀다 (두 번 보이지 않게)
