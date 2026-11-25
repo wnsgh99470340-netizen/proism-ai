@@ -12,6 +12,7 @@ import InquiryReplyModal from '@/components/crm/InquiryReplyModal';
 import CallSummaryImportModal from '@/components/crm/CallSummaryImportModal';
 import { QC_SMS, MAINT_SMS, REVIEW_SMS, dealerDoneSms, followUpSmsKey } from '@/config/sms-templates';
 import { dealerPageUrl } from '@/lib/dealer-page';
+import { customerStoryLines } from '@/lib/customer-story';
 import { dealerSupport, dealerFor, DEALER_KIND } from '@/lib/dealers';
 import { checkMemberReady, memberBlockMessage } from '@/lib/member-ready';
 import type { TeamItem } from '@/lib/team';
@@ -1481,10 +1482,11 @@ export default function CRMPage() {
    * 예약/시공 기록 → 블로그 폼 미리 채우기 (PPF·컬러PPF·랩핑·크롬죽이기만)
    * 차량·시공 종류·범위는 채우고, 제품 등급과 참고 메모는 사장님이 직접 넣는다
    */
-  const handleWriteBlogFromAppointment = (a: Appointment) => {
+  const handleWriteBlogFromAppointment = async (a: Appointment) => {
     const key = a.service_type ? CRM_SERVICE_TO_KEY[a.service_type] : undefined;
     if (!key) return;
     const c = allCustomers.find((x) => x.id === a.customer_id);
+    const history = await customerStoryLines(a.customer_id, a.appointment_date); // 재방문·소개·전 작업 (2026-11-25 사장님 "이런 스토리라인은 자연스럽게 녹여도 돼")
     let wo: { ppf?: string[]; ppf_etc?: string; wrapping?: string[]; wrapping_etc?: string; notes?: string; field_note?: string } = {};
     try { wo = JSON.parse(a.memo || '{}'); } catch { /* 일반 메모 */ }
     const plainMemo = a.memo && !a.memo.trim().startsWith('{') ? a.memo.trim() : '';
@@ -1506,6 +1508,7 @@ export default function CRMPage() {
     if (wo.field_note) noteParts.unshift(wo.field_note); // 완료 처리 때 적은 '이 차에서 있었던 일' — 현장 메모 맨 앞 (2026-11-25)
     if (wo.notes) noteParts.push(wo.notes);
     if (plainMemo) noteParts.push(plainMemo);
+    if (history.length) noteParts.push(`[손님 이력 — CRM 기록, 사실이라 글에 써도 됨. 이름은 쓰지 않는다]\n${history.join('\n')}`);
 
     const dateLabel = new Date(a.appointment_date).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' });
     const prefill: BlogPrefill = {
