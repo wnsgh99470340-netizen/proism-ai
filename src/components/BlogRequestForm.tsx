@@ -242,13 +242,13 @@ export default function BlogRequestForm({ disabled, onSubmit, initial = null }: 
       </div>
 
       <div className="mb-2">
-        <label className={labelCls}>{mode === 'faq' ? '사장님 입장 메모 (선택) — 이 질문에 대한 사장님 기준·권하는 것·권하지 않는 것. 조사로 알 수 없는 건 이것뿐입니다' : '현장 메모 (선택) — 이 차에서 시간이 간 곳, 손님이 물은 것, 발견한 것. 한 줄이라도 적으면 그게 글의 뼈대가 됩니다'}</label>
+        <label className={labelCls}>{mode === 'faq' ? '사장님 입장 메모 (선택) — 이 질문에 대한 사장님 기준·권하는 것·권하지 않는 것. 조사로 알 수 없는 건 이것뿐입니다' : '현장 메모 — 글의 몸통입니다. 이 차에서 있었던 일을 1분 말하듯'}</label>
         <textarea
           ref={notesRef}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          rows={initial ? 4 : 2}
-          placeholder={mode === 'faq' ? "예: 앞유리 30% 아래는 권하지 않음, 밤·눈·비에 위험 / 루프는 썬쉐이드 권함" : "예: 손님이 야간 운전이 많아 전면 30%로 / 앞유리 하단 센서 자리 재단에 시간 / 도장에 미세 스크래치 있어 미리 안내"}
+          rows={mode === 'faq' ? (initial ? 4 : 2) : 5}
+          placeholder={mode === 'faq' ? "예: 앞유리 30% 아래는 권하지 않음, 밤·눈·비에 위험 / 루프는 썬쉐이드 권함" : "말하듯 적어 주세요 (폰 음성 메모 글자로 바꿔 붙여 넣어도 됩니다)\n· 이 손님이 왜 왔는지, 뭘 고민하다 뭘 골랐는지\n· 어디서 시간이 갔는지, 어떻게 했는지\n· 끝나고 손님이 뭐라고 했는지\n여기 적힌 만큼이 글이 됩니다. 비면 조사 자료로만 써서 밋밋해집니다"}
           className={`${inputCls} resize-none`}
         />
       </div>
