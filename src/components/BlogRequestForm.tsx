@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CAR_BRANDS, REGIONS, SERVICES, buildBlogMessage, type BlogRequest, type BlogPrefill, type ServiceKey, FAQ_SERVICE_OPTIONS } from '@/config/blog-options';
 import { INQUIRY_FAQS } from '@/config/inquiry-faq';
+import { OPENING_IDEAS, pickOpeningIdeas, type OpeningIdea } from '@/config/blog-opening-ideas';
 
 interface Props {
   disabled: boolean;
@@ -41,6 +42,9 @@ export default function BlogRequestForm({ disabled, onSubmit, initial = null }: 
   const [topic, setTopic] = useState('');
   const [faqService, setFaqService] = useState<string>('PPF');
   const [vertical, setVertical] = useState(false);
+  // 도입 아이디어(2026-11-25): 세 블로그에서 추린 방식 3개를 보여 주고, 고르면 요청문에 한 줄만 붙인다
+  const [ideas, setIdeas] = useState<OpeningIdea[]>(() => pickOpeningIdeas(3));
+  const [opening, setOpening] = useState<string>('');
   const notesRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -90,6 +94,7 @@ export default function BlogRequestForm({ disabled, onSubmit, initial = null }: 
       photosUrl: photosUrlTrim || undefined,
       vertical: photosUrlTrim ? vertical : undefined,
       refLinks: (refLinks.match(/https?:\/\/[^\s]+/g) || []).slice(0, 3),
+      opening: opening ? (() => { const o = OPENING_IDEAS.find(i => i.key === opening); return o ? `${o.label} — ${o.hint}` : undefined; })() : undefined,
     };
     onSubmit(buildBlogMessage(req), req);
   };
@@ -251,6 +256,22 @@ export default function BlogRequestForm({ disabled, onSubmit, initial = null }: 
           placeholder={mode === 'faq' ? "예: 앞유리 30% 아래는 권하지 않음, 밤·눈·비에 위험 / 루프는 썬쉐이드 권함" : "말하듯 적어 주세요 (폰 음성 메모 글자로 바꿔 붙여 넣어도 됩니다)\n· 이 손님이 왜 왔는지, 뭘 고민하다 뭘 골랐는지\n· 어디서 시간이 갔는지, 어떻게 했는지\n· 끝나고 손님이 뭐라고 했는지\n여기 적힌 만큼이 글이 됩니다. 비면 조사 자료로만 써서 밋밋해집니다"}
           className={`${inputCls} resize-none`}
         />
+        {mode === 'work' && (
+          <div className="mt-1.5 flex flex-wrap items-center gap-1">
+            <span className="text-[10px] text-[var(--c-text-3)]">도입 아이디어(선택)</span>
+            {ideas.map((o) => (
+              <button
+                key={o.key}
+                type="button"
+                title={`${o.hint}\n예) ${o.example}`}
+                onClick={() => setOpening(opening === o.key ? '' : o.key)}
+                className={`text-[11px] px-2 py-1 rounded-full border transition-colors ${opening === o.key ? 'bg-brand text-white border-brand' : 'border-[var(--c-border)] text-[var(--c-text-3)] hover:bg-[var(--c-hover)]'}`}
+              >{o.label}</button>
+            ))}
+            <button type="button" onClick={() => { setIdeas(pickOpeningIdeas(3, ideas.map(i => i.key))); }} className="text-[11px] px-2 py-1 rounded-full text-[var(--c-text-3)] hover:text-[var(--c-text-1)]">다른 것</button>
+            {opening && <span className="basis-full text-[10px] text-[var(--c-text-3)]">{OPENING_IDEAS.find(i => i.key === opening)?.hint} — 메모에 그 이야기를 적어 주시면 그걸로 시작합니다</span>}
+          </div>
+        )}
       </div>
 
       <button

@@ -112,6 +112,8 @@ export interface BlogRequest {
   kind?: 'work' | 'faq';
   /** FAQ·공지의 주제·질문 */
   topic?: string;
+  /** 사장님이 폼에서 고른 도입 방식 한 줄(blog-opening-ideas.ts). 참고일 뿐 필수 아님 (2026-11-25) */
+  opening?: string;
 }
 
 /** FAQ·공지 글의 시공 분야 선택지 */
@@ -136,6 +138,7 @@ export function buildBlogMessage(r: BlogRequest): string {
     productLine ? `제품: ${productLine}.` : '',
     r.color ? `차량 색상: ${r.color}.` : '',
     r.notes ? `참고: ${r.notes}` : '',
+    r.opening ? `도입 방식(참고, 사실 아님): ${r.opening}.` : '',
     r.keyword ? `제목 키워드: ${r.keyword}.` : '',
     `제목과 본문의 지역명은 "${r.region}"으로 써줘.`,
     r.photosUrl ? `사진: ${r.photosUrl}` : '',

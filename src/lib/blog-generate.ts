@@ -581,7 +581,8 @@ export async function writeFromFacts(input: { facts: FactSheet; message: string;
   const serviceType = target.serviceType;
   const previous = input.save ? await getPreviousDrafts() : [];
   // 검사의 '요청' 기준은 요청문 + 확정 사실표 (사장님이 표에 보탠 농도·제품이 '요청에 없음'으로 잡히지 않게)
-  const provided = `${input.message}\n${facts.lines.map(l => l.text).join('\n')}`;
+  // 도입 방식 한 줄(참고)은 사실이 아니므로 '요청에 있음' 판정에서 뺀다 (2026-11-25)
+  const provided = `${input.message.replace(/도입 방식\(참고, 사실 아님\):[^.\n]*\.?/g, '')}\n${facts.lines.map(l => l.text).join('\n')}`;
   const check = (title: string, body: string) => ({
     violations: [...checkHardViolations(body, provided, serviceType, input.knownColor ?? null)],
     // 열차단·IR 수치 등은 사실표(조사 공식 정보·사장님 메모)에 있으면 지어낸 게 아니다
