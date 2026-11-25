@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 /** 예약/일정 탭 (2026-11-23 page.tsx 에서 분리 — 동작 변경 없음). 상태·핸들러는 page.tsx 에 있고 props 로 받는다 */
 import Btn from '@/components/ui/Btn';
 import type { Dispatch, SetStateAction } from 'react';
@@ -226,8 +228,9 @@ export default function AppointmentsTab({
                   </div>
                   <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
                     <span className={`text-xs font-semibold px-2.5 py-1.5 rounded-full ${chip(a.status)}`}>{a.status}</span>
+                    {/* 고객 정보 = 고객 상세 페이지로 (2026-11-25 사장님 "수정 창이 아니라 상세로"). 수정은 상세에서 */}
                     {a.customer_id && (
-                      <button onClick={() => handleEditCustomerFromAppointment(a)} className={pill} title="이름·전화·차량·유입경로 수정">고객 정보</button>
+                      <Link href={`/crm/${a.customer_id}`} className={pill} title="고객 상세 페이지로 (타임라인·수정·연락처)">고객 정보</Link>
                     )}
                     {!isDemo && a.service_type && CRM_SERVICE_TO_KEY[a.service_type] && (
                       <button onClick={() => handleWriteBlogFromAppointment(a)} className={pill} title="이 시공으로 블로그 시공기 폼 채우기">시공기</button>
