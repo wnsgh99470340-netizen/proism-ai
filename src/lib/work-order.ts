@@ -19,6 +19,8 @@ export interface WorkOrderJson {
   /** PPF 제품 — 선택식 (2026-11-25 사장님 "제품은 적는 방식 말고 선택하는 방식으로"). 값은 PPF_PRODUCT_OPTIONS 중 하나. 기타(ppf_etc)는 메모 */
   ppf_product?: string;
   wrapping?: string[]; wrapping_etc?: string;
+  /** 컬러PPF(PWF) 범위 + 기타(제품명은 사장님이 직접 기입, 2026-11-25 "컬러PPF·랩핑은 선택 말고 기타에 제품명 내가 기입") */
+  color_ppf?: string[]; color_ppf_etc?: string;
   coating?: string[];
   electrical?: string[]; electrical_etc?: string;
   polish?: string[]; polish_etc?: string;
@@ -92,6 +94,11 @@ export function workItems(w: WorkOrderJson): WorkItem[] {
     const is3m = tints.some((s) => /크리스탈라인|crystalline/i.test(s));
     items.push({ group: '썬팅', text: tints.join(' · '), product: is3m ? '3M 크리스탈라인 · 비금속 다층 광학 필름' : undefined });
   }
+
+  // 컬러PPF 칸 (2026-11-25): 범위는 체크, 제품명은 기타에 사장님이 적은 그대로(없으면 PWF 기본)
+  const asProduct = (etc: string | undefined, base: string) => { const t = (etc || '').trim(); if (!t) return base; return /3m/i.test(t) ? t : `3M ${t}`; };
+  const cp = w.color_ppf || [];
+  if (cp.length || (w.color_ppf_etc || '').trim()) items.push({ group: '컬러PPF', text: cp.length ? cp.join(' · ') : '컬러PPF', product: asProduct(w.color_ppf_etc, '3M PWF 컬러 PPF 필름') });
 
   const wrap = join(w.wrapping, w.wrapping_etc);
   if (wrap.length) {

@@ -226,6 +226,8 @@ export default function CRMPage() {
     },
     ppf: [] as string[],
     wrapping: [] as string[],
+    color_ppf: [] as string[],
+    color_ppf_etc: '',
     coating: [] as string[],
     electrical: [] as string[],
     electrical_etc: '',
@@ -719,7 +721,7 @@ export default function CRMPage() {
       vertex: { selected: [], density: '' }, rainbow: { selected: [], density: '' },
       glasstint: { selected: [], density: '' }, tinain: { selected: [], density: '' },
     },
-    ppf: [], wrapping: [], coating: [], electrical: [], electrical_etc: '',
+    ppf: [], wrapping: [], color_ppf: [], color_ppf_etc: '', coating: [], electrical: [], electrical_etc: '',
     polish: [], polish_etc: '', package_options: [], ppf_etc: '', ppf_product: '', wrapping_etc: '', notes: '',
   });
 
@@ -876,7 +878,7 @@ export default function CRMPage() {
     if (service && appointment.service_type) {
       // PPF·컬러PPF(PWF)면 2주 QC (2026-11-19 사장님). 신차패키지 안의 PWF 는 랩핑 칸에 'PWF/컬러PPF' 로 적히므로 그것도 본다 (2026-11-25 점검)
       const wrapText = [...(workOrder.wrapping || []), workOrder.wrapping_etc || ''].join(' ');
-      const hasPpf = (workOrder.ppf || []).length > 0 || !!workOrder.ppf_product || !!workOrder.ppf_etc?.trim() || /pwf|컬러\s*ppf/i.test(wrapText);
+      const hasPpf = (workOrder.ppf || []).length > 0 || !!workOrder.ppf_product || !!workOrder.ppf_etc?.trim() || (workOrder.color_ppf || []).length > 0 || !!workOrder.color_ppf_etc?.trim() || /pwf|컬러\s*ppf/i.test(wrapText);
       await createAutoFollowUps(service.id, appointment.customer_id, appointment.service_type, completionDate, hasPpf);
     }
 
@@ -1498,7 +1500,7 @@ export default function CRMPage() {
     if (!key) return;
     const c = allCustomers.find((x) => x.id === a.customer_id);
     const history = await customerStoryLines(a.customer_id, a.appointment_date); // 재방문·소개·전 작업 (2026-11-25 사장님 "이런 스토리라인은 자연스럽게 녹여도 돼")
-    let wo: { ppf?: string[]; ppf_etc?: string; ppf_product?: string; wrapping?: string[]; wrapping_etc?: string; notes?: string; field_note?: string } = {};
+    let wo: { ppf?: string[]; ppf_etc?: string; ppf_product?: string; wrapping?: string[]; wrapping_etc?: string; color_ppf?: string[]; color_ppf_etc?: string; notes?: string; field_note?: string } = {};
     try { wo = JSON.parse(a.memo || '{}'); } catch { /* 일반 메모 */ }
     const plainMemo = a.memo && !a.memo.trim().startsWith('{') ? a.memo.trim() : '';
 
@@ -1510,6 +1512,12 @@ export default function CRMPage() {
       else if (parts.some((x) => x.includes('프론트'))) range = '프론트(보닛·범퍼·펜더)';
       else if (parts.length > 0) range = '부분';
       if (parts.length > 0) noteParts.push(`시공 범위: ${parts.join(', ')}`);
+    } else if (key === '컬러PPF' && ((wo.color_ppf || []).length > 0 || wo.color_ppf_etc)) {
+      const parts = (wo.color_ppf || []).filter(Boolean);
+      if (parts.some((x) => x.includes('전체'))) range = '전체';
+      else if (parts.length > 0) range = '부분';
+      if (parts.length > 0) noteParts.push(`시공 범위: ${parts.join(', ')}`);
+      if (wo.color_ppf_etc) noteParts.push(`제품: ${wo.color_ppf_etc}`);
     } else if (key === '랩핑' || key === '컬러PPF') {
       const parts = [...(wo.wrapping || []), wo.wrapping_etc || ''].filter(Boolean);
       if (parts.some((x) => x.includes('전체'))) range = '전체';

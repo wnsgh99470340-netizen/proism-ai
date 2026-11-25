@@ -191,8 +191,8 @@ export default function WorkOrderModal({ appointment, workOrder, setWorkOrder, o
           </div>
 
           {/* PPF & 랩핑 */}
-          <SectionTitle title="PPF & 랩핑" />
-          <div className="grid grid-cols-2 gap-3">
+          <SectionTitle title="PPF & 컬러PPF & 랩핑" />
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             <div className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg p-3">
               <span className="text-xs font-medium text-[var(--c-text-2)] mb-2 block">PPF</span>
               <div className="flex flex-wrap gap-3 mb-2">
@@ -208,13 +208,22 @@ export default function WorkOrderModal({ appointment, workOrder, setWorkOrder, o
               <input type="text" value={workOrder.ppf_etc} onChange={(e) => setWorkOrder({ ...workOrder, ppf_etc: e.target.value })} className="w-full bg-[var(--c-card)] border border-[var(--c-border)] rounded px-2 py-1 text-xs text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder="기타 (메모 — 제품은 위에서 선택)" />
             </div>
             <div className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg p-3">
+              <span className="text-xs font-medium text-[var(--c-text-2)] mb-2 block">컬러PPF</span>
+              <div className="flex flex-wrap gap-3 mb-2">
+                {['전체', '부분', '투톤'].map((p) => (
+                  <CheckItem key={p} label={p} checked={(workOrder.color_ppf || []).includes(p)} onChange={() => setWorkOrder({ ...workOrder, color_ppf: toggleArray(workOrder.color_ppf || [], p) })} />
+                ))}
+              </div>
+              <input type="text" value={workOrder.color_ppf_etc || ''} onChange={(e) => setWorkOrder({ ...workOrder, color_ppf_etc: e.target.value })} className="w-full bg-[var(--c-card)] border border-[var(--c-border)] rounded px-2 py-1 text-xs text-[var(--c-text-1)] outline-none focus:border-[var(--c-text-1)]" placeholder="제품명 직접 기입 (예: PWF 매트블랙)" />
+            </div>
+            <div className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg p-3">
               <span className="text-xs font-medium text-[var(--c-text-2)] mb-2 block">랩핑</span>
               <div className="flex flex-wrap gap-3 mb-2">
                 {['전체랩핑', '부분'].map((p) => (
                   <CheckItem key={p} label={p} checked={workOrder.wrapping.includes(p)} onChange={() => setWorkOrder({ ...workOrder, wrapping: toggleArray(workOrder.wrapping, p) })} />
                 ))}
               </div>
-              <input type="text" value={workOrder.wrapping_etc} onChange={(e) => setWorkOrder({ ...workOrder, wrapping_etc: e.target.value })} className="w-full bg-[var(--c-card)] border border-[var(--c-border)] rounded px-2 py-1 text-xs text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder="기타 (직접 입력)" />
+              <input type="text" value={workOrder.wrapping_etc} onChange={(e) => setWorkOrder({ ...workOrder, wrapping_etc: e.target.value })} className="w-full bg-[var(--c-card)] border border-[var(--c-border)] rounded px-2 py-1 text-xs text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder="기타 · 제품명 직접 기입 (예: 2080 사틴블랙)" />
             </div>
           </div>
 
@@ -354,6 +363,13 @@ export default function WorkOrderModal({ appointment, workOrder, setWorkOrder, o
                   <td style={{ border: '1px solid #ccc', padding: '6px 8px' }}>
                     {['전체랩핑', '부분'].map((p) => <span key={p} style={{ marginRight: '16px', fontSize: '13px', display: 'inline-flex', alignItems: 'center' }}><PrintCheck checked={workOrder.wrapping?.includes(p)} /> {p}</span>)}
                     {workOrder.wrapping_etc && <span>기타: {workOrder.wrapping_etc}</span>}
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ border: '1px solid #ccc', padding: '6px 8px', backgroundColor: '#f5f5f5', fontWeight: 600 }}>컬러PPF</td>
+                  <td style={{ border: '1px solid #ccc', padding: '6px 8px' }}>
+                    {['전체', '부분', '투톤'].map((p) => <span key={p} style={{ marginRight: '16px', fontSize: '13px', display: 'inline-flex', alignItems: 'center' }}><PrintCheck checked={(workOrder.color_ppf || []).includes(p)} /> {p}</span>)}
+                    {workOrder.color_ppf_etc && <span>제품: {workOrder.color_ppf_etc}</span>}
                   </td>
                 </tr>
                 <tr>
