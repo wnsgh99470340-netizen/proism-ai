@@ -1,7 +1,7 @@
 /** 앱 공통 선 아이콘 (2026-11-25 사장님 "버튼들 너무 못생겼음" → 이모지 대신). 16px 기준, currentColor */
 import type { SVGProps } from 'react';
 
-export type IconName = 'phone' | 'chat' | 'mail' | 'copy' | 'card' | 'calendar' | 'camera' | 'link' | 'eye' | 'userPlus' | 'refresh' | 'plus' | 'kakao' | 'check' | 'pencil' | 'contacts' | 'send' | 'file' | 'pin' | 'share' | 'download' | 'rss';
+export type IconName = 'phone' | 'chat' | 'mail' | 'copy' | 'card' | 'calendar' | 'camera' | 'link' | 'eye' | 'userPlus' | 'refresh' | 'plus' | 'kakao' | 'check' | 'pencil' | 'contacts' | 'send' | 'file' | 'pin' | 'share' | 'download' | 'rss' | 'sun' | 'moon' | 'bell' | 'bellOff' | 'user';
 
 const P: Record<IconName, React.ReactNode> = {
   phone: <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.8 2z" />,
@@ -26,6 +26,11 @@ const P: Record<IconName, React.ReactNode> = {
   share: <><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4" /></>,
   download: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="m7 10 5 5 5-5M12 15V3" /></>,
   rss: <><path d="M4 11a9 9 0 0 1 9 9M4 4a16 16 0 0 1 16 16" /><circle cx="5" cy="19" r="1" /></>,
+  sun: <><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></>,
+  moon: <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />,
+  bell: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.7 21a2 2 0 0 1-3.4 0" /></>,
+  bellOff: <><path d="M13.7 21a2 2 0 0 1-3.4 0M18.6 13A17.9 17.9 0 0 1 18 8a6 6 0 0 0-9.3-5M6.3 6.3A6 6 0 0 0 6 8c0 7-3 9-3 9h14M2 2l20 20" /></>,
+  user: <><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></>,
 };
 
 export function Icon({ name, size = 15, ...rest }: { name: IconName; size?: number } & SVGProps<SVGSVGElement>) {

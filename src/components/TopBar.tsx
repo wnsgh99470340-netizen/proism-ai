@@ -1,6 +1,7 @@
 'use client';
 
 import { team } from '@/config/team';
+import { Icon } from '@/components/ui/icons';
 import { useState } from 'react';
 import Link from 'next/link';
 import { useTheme } from '@/components/ThemeProvider';
@@ -88,10 +89,11 @@ export default function TopBar({ activeEmployeeId, onHelpClick }: TopBarProps) {
           <PushToggle />
           <button
             onClick={toggleTheme}
-            className="w-7 h-7 rounded-full bg-[var(--c-subtle)] flex items-center justify-center hover:bg-[var(--c-hover)] transition-colors text-sm"
+            className="w-7 h-7 rounded-full bg-[var(--c-subtle)] flex items-center justify-center text-[var(--c-text-2)] hover:bg-[var(--c-hover)] transition-colors"
             title={theme === 'dark' ? '라이트 모드' : '다크 모드'}
+            aria-label={theme === 'dark' ? '라이트 모드' : '다크 모드'}
           >
-            {theme === 'dark' ? '🌙' : '☀️'}
+            <Icon name={theme === 'dark' ? 'moon' : 'sun'} size={14} />
           </button>
           <button
             onClick={onHelpClick}

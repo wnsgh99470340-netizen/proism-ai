@@ -2,6 +2,7 @@
 
 /** 사후관리 탭 (2026-11-23 page.tsx 에서 분리 — 동작 변경 없음). 상태·핸들러는 page.tsx 에 있고 props 로 받는다 */
 import type { Dispatch, SetStateAction } from 'react';
+import { Icon } from '@/components/ui/icons';
 import { supabase } from '@/lib/supabase';
 import { confirmAfterSms, openSmsApp } from '@/lib/crm-shared';
 import { copyText, shareTextOnPhone } from '@/lib/device';
@@ -52,13 +53,13 @@ export default function FollowUpsTab({
       {/* 상단 요약 카드 */}
       <div className="grid grid-cols-3 gap-3 mb-5">
         {([
-          { label: '미처리', count: followUps.filter((f) => !f.is_completed).length, color: '#EF4444', bg: '#EF4444' },
-          { label: '임박 (3일 이내)', count: followUps.filter((f) => { if (f.is_completed) return false; const d = Math.ceil((new Date(f.scheduled_date).getTime() - new Date(today).getTime()) / 86400000); return d >= 0 && d <= 3; }).length, color: '#F59E0B', bg: '#F59E0B' },
-          { label: '처리완료', count: followUps.filter((f) => f.is_completed).length, color: '#10B981', bg: '#10B981' },
+          { label: '미처리', count: followUps.filter((f) => !f.is_completed).length, cls: 'text-danger' },
+          { label: '3일 안', count: followUps.filter((f) => { if (f.is_completed) return false; const d = Math.ceil((new Date(f.scheduled_date).getTime() - new Date(today).getTime()) / 86400000); return d >= 0 && d <= 3; }).length, cls: 'text-warn' },
+          { label: '처리완료', count: followUps.filter((f) => f.is_completed).length, cls: 'text-ok' },
         ]).map((s) => (
-          <div key={s.label} className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-3 text-center">
-            <div className="text-xs text-[var(--c-text-3)] mb-1">{s.label}</div>
-            <div className="text-xl font-bold" style={{ color: s.color }}>{s.count}<span className="text-xs font-normal text-[var(--c-text-3)] ml-0.5">건</span></div>
+          <div key={s.label} className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl px-4 py-3">
+            <div className="text-xs text-[var(--c-text-3)] whitespace-nowrap">{s.label}</div>
+            <div className={`text-2xl font-bold tabular-nums leading-tight mt-0.5 ${s.cls}`}>{s.count}<span className="text-xs font-normal text-[var(--c-text-3)] ml-1">건</span></div>
           </div>
         ))}
       </div>
@@ -75,10 +76,10 @@ export default function FollowUpsTab({
           <button
             key={f.key}
             onClick={() => setFollowUpFilter(f.key)}
-            className={`text-sm px-3 py-1.5 rounded-lg transition-colors font-medium whitespace-nowrap shrink-0 ${
+            className={`text-sm px-3 py-1.5 rounded-full border transition-colors font-medium whitespace-nowrap shrink-0 ${
               followUpFilter === f.key
-                ? f.style
-                : 'bg-[var(--c-subtle)] text-[var(--c-text-3)] hover:text-[var(--c-text-2)]'
+                ? 'bg-[var(--c-text-1)] text-[var(--c-card)] border-transparent'
+                : 'bg-[var(--c-card)] text-[var(--c-text-2)] border-[var(--c-border)] hover:bg-[var(--c-subtle)]'
             }`}
           >
             {f.label}
@@ -384,7 +385,7 @@ export default function FollowUpsTab({
                     {dayList.length === 0 && <div className="text-center py-10 text-sm text-[var(--c-text-3)]">이 날 보낼 사후관리 문자가 없습니다</div>}
                     {overdue.length > 0 && (
                       <div className="pt-2">
-                        <button onClick={() => setShowOverdue((v) => !v)} className="w-full text-left text-xs px-3 py-2 rounded-lg bg-danger/10 text-danger hover:bg-danger/15">
+                        <button onClick={() => setShowOverdue((v) => !v)} className="w-full text-left text-xs font-medium px-3 py-2 rounded-xl border border-danger/30 bg-[var(--c-card)] text-danger hover:bg-danger/5">
                           {showOverdue ? '▾' : '▸'} 지난 미처리 {overdue.length}건 {showOverdue ? '접기' : '보기'}
                         </button>
                         {showOverdue && <div className="space-y-3 mt-3">{overdue.map(renderFollowUp)}</div>}
@@ -400,7 +401,7 @@ export default function FollowUpsTab({
 
       {/* 프로모션 발송 섹션 */}
       <div className="mt-6 bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-5">
-        <h3 className="text-sm font-semibold text-gold mb-4">프로모션 발송</h3>
+        <h3 className="text-base font-bold text-[var(--c-text-1)] mb-4">프로모션 문자</h3>
         {(() => {
           const month = new Date().getMonth() + 1;
           const promos = [
@@ -470,9 +471,9 @@ export default function FollowUpsTab({
                               }
                               trackPromo(cust, msg);
                             }}
-                            className="text-xs bg-[#FEE500] hover:bg-[#FDD835] text-[#191919] font-semibold rounded-lg px-3 py-1.5 transition-colors whitespace-nowrap"
+                            className="inline-flex items-center gap-1 text-xs bg-[#FEE500] hover:bg-[#FDD835] text-[#191919] font-semibold rounded-full px-3 py-1.5 transition-colors whitespace-nowrap"
                           >
-                            카톡
+                            <Icon name="kakao" size={13} />카톡
                           </button>
                           <button
                             onClick={() => {
@@ -482,9 +483,9 @@ export default function FollowUpsTab({
                               openSmsApp(cust.phone, msg);
                               trackPromo(cust, msg);
                             }}
-                            className="text-xs bg-info hover:bg-info text-white font-semibold rounded-lg px-3 py-1.5 transition-colors whitespace-nowrap"
+                            className="inline-flex items-center gap-1 text-xs bg-[var(--c-card)] text-[var(--c-text-1)] border border-[var(--c-border)] hover:bg-[var(--c-subtle)] font-semibold rounded-full px-3 py-1.5 transition-colors whitespace-nowrap"
                           >
-                            문자
+                            <Icon name="chat" size={13} />문자
                           </button>
                           <button
                             onClick={() => {
@@ -495,9 +496,9 @@ export default function FollowUpsTab({
                               trackPromo(cust, msg);
                               alert(`${cust.name}님 문구가 복사되었습니다.`);
                             }}
-                            className="text-xs bg-gold hover:bg-gold/90 text-white font-semibold rounded-lg px-3 py-1.5 transition-colors whitespace-nowrap"
+                            className="inline-flex items-center gap-1 text-xs bg-[var(--c-card)] text-[var(--c-text-1)] border border-[var(--c-border)] hover:bg-[var(--c-subtle)] font-semibold rounded-full px-3 py-1.5 transition-colors whitespace-nowrap"
                           >
-                            복사
+                            <Icon name="copy" size={13} />복사
                           </button>
                         </>
                       );

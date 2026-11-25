@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Icon } from '@/components/ui/icons';
 
 type State = 'unsupported' | 'checking' | 'off' | 'on' | 'denied' | 'busy';
 
@@ -157,7 +158,7 @@ export default function PushToggle() {
 
   if (state === 'checking') return null;
 
-  const label = state === 'on' ? '🔔 알림 켜짐' : state === 'denied' ? '🔕 알림 차단됨' : state === 'unsupported' ? '🔕 알림 안 됨' : state === 'busy' ? '…' : '🔕 완성 알림 켜기';
+  const label = state === 'on' ? '알림 켜짐' : state === 'denied' ? '알림 차단됨' : state === 'unsupported' ? '알림 안 됨' : state === 'busy' ? '…' : '알림 켜기';
   const title = state === 'denied' ? '누르면 켜는 방법을 보여 줍니다' : state === 'unsupported' ? why : state === 'on' ? '누르면 알림을 끕니다' : '글이 완성되면 이 기기로 알림을 보냅니다';
   // 차단·미지원 상태에서도 누르면 이유와 켜는 방법을 보여 준다
   const explain = () => setMsg(`${state === 'unsupported' ? why : `이 사이트의 알림이 차단돼 있습니다. ${isAndroid ? androidHelp : '브라우저 설정 → 사이트 설정 → 알림에서 허용으로 바꾼 뒤 다시 눌러 주세요.'}`} ${diag()}`);
@@ -168,9 +169,9 @@ export default function PushToggle() {
         onClick={state === 'on' ? disable : state === 'denied' || state === 'unsupported' ? explain : enable}
         disabled={state === 'busy'}
         title={title}
-        className={`text-[11px] rounded-lg px-2 py-1 whitespace-nowrap transition-colors ${state === 'on' ? 'bg-gold/15 text-gold' : 'bg-[var(--c-subtle)] text-[var(--c-text-3)] hover:text-[var(--c-text-1)]'} disabled:opacity-60`}
+        className={`inline-flex items-center gap-1 text-[11px] font-medium rounded-full border px-2.5 py-1 whitespace-nowrap transition-colors ${state === 'on' ? 'border-[var(--c-text-1)] text-[var(--c-text-1)] bg-[var(--c-card)]' : 'border-[var(--c-border)] bg-[var(--c-card)] text-[var(--c-text-3)] hover:text-[var(--c-text-1)]'} disabled:opacity-60`}
       >
-        {label}
+        <Icon name={state === 'on' ? 'bell' : 'bellOff'} size={12} />{label}
       </button>
       {msg && (
         <div className="absolute right-0 top-8 z-50 w-72 max-w-[calc(100vw-2rem)] bg-[var(--c-card)] border border-[var(--c-border)] rounded-lg p-2.5 text-[11px] leading-relaxed text-[var(--c-text-2)] shadow-xl" onClick={() => setMsg('')}>

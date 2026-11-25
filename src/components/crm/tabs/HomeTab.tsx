@@ -2,6 +2,7 @@
 
 /** 홈 탭 (2026-11-23 page.tsx 에서 분리 — 동작 변경 없음). 상태·핸들러는 page.tsx 에 있고 props 로 받는다 */
 import Btn from '@/components/ui/Btn';
+import { Icon, type IconName } from '@/components/ui/icons';
 import type { Dispatch, SetStateAction } from 'react';
 import { addDaysISO } from '@/lib/local-date';
 import { quoteForDate } from '@/config/daily-quotes';
@@ -53,12 +54,13 @@ export default function HomeTab({
   const pendingCount = followUps.filter((f) => !f.is_completed).length;
   const upcoming3 = followUps.filter((f) => !f.is_completed && f.scheduled_date > today && f.scheduled_date <= plus(3)).length;
   const statusDot = (st: WorkerLine['status']) => st === 'ready' ? 'bg-brand' : st === 'done' ? 'bg-ok' : st === 'prepared' ? 'bg-[var(--c-border)]' : 'bg-[var(--c-text-4)]';
-  const quick: { icon: string; label: string; desc: string; onClick: () => void }[] = [
-    { icon: '👤', label: '고객 등록', desc: '새 고객 추가', onClick: () => setShowAddCustomer(true) },
-    { icon: '📅', label: '예약 등록', desc: '입고 일정 잡기', onClick: () => setShowAddAppointment(true) },
-    { icon: '📩', label: '견적 문자', desc: '통화 직후 견적 보내기', onClick: () => setQuoteSms({}) },
-    { icon: '💬', label: '문의 답변', desc: '카페·문자 문의 답장 만들기', onClick: () => setShowInquiry(true) },
-    ...(isDemo ? [] : [{ icon: '✍️', label: '시공기 쓰기', desc: '블로그 탭에서 작성', onClick: () => setActiveTab('blog') }]),
+  // 빠른 실행 (2026-11-25 frontend-design 기준으로 다듬음: 큰 이모지 대신 선 아이콘, 세로 카드 대신 가로 타일)
+  const quick: { icon: IconName; label: string; desc: string; onClick: () => void }[] = [
+    { icon: 'userPlus', label: '고객 등록', desc: '새 고객 추가', onClick: () => setShowAddCustomer(true) },
+    { icon: 'calendar', label: '예약 등록', desc: '입고 일정', onClick: () => setShowAddAppointment(true) },
+    { icon: 'mail', label: '견적 문자', desc: '통화 뒤 견적 보내기', onClick: () => setQuoteSms({}) },
+    { icon: 'chat', label: '문의 답변', desc: '카페·문자 답장', onClick: () => setShowInquiry(true) },
+    ...(isDemo ? [] : [{ icon: 'pencil' as IconName, label: '시공기 쓰기', desc: '블로그 탭', onClick: () => setActiveTab('blog') }]),
   ];
   const card = 'bg-[var(--c-card)] border border-[var(--c-border)] rounded-2xl';
   const quote = quoteForDate(today);
@@ -72,7 +74,7 @@ export default function HomeTab({
           <div className="absolute inset-0 bg-gradient-to-r from-black/65 via-black/35 to-black/5" />
           <div className="relative p-6 md:p-8 text-white">
             <div className="text-xs md:text-sm font-semibold tracking-wide text-white/80 mb-1">3M PROIZM · 강남 서초점</div>
-            <h1 className="text-2xl md:text-[30px] font-bold tracking-tight drop-shadow">안녕하세요, 강남 서초점 👋</h1>
+            <h1 className="text-2xl md:text-[30px] font-bold tracking-tight drop-shadow">안녕하세요, 강남 서초점</h1>
             <p className="text-sm md:text-[15px] text-white/85 mt-2">
               오늘은 {fmtDot(today)} · 등록 고객 {allCustomers.length}명 · 미처리 사후관리 <span className={pendingCount > 0 ? 'text-white font-bold underline decoration-brand decoration-2 underline-offset-4' : ''}>{pendingCount}건</span>
             </p>
@@ -86,13 +88,13 @@ export default function HomeTab({
         </div>
       ) : (
         <div>
-          <h1 className="text-2xl md:text-[28px] font-bold text-[var(--c-text-1)] tracking-tight">안녕하세요, 강남 서초점 👋</h1>
+          <h1 className="text-2xl md:text-[28px] font-bold text-[var(--c-text-1)] tracking-tight">안녕하세요, 강남 서초점</h1>
           <p className="text-sm md:text-[15px] text-[var(--c-text-3)] mt-1.5">
             오늘은 {fmtDot(today)} · 등록 고객 {allCustomers.length}명 · 미처리 사후관리 <span className={pendingCount > 0 ? 'text-brand font-semibold' : ''}>{pendingCount}건</span>
           </p>
           <div className="mt-5 rounded-2xl border border-[var(--c-border)] bg-[var(--c-card)] px-5 md:px-7 py-5 md:py-6 relative overflow-hidden">
             <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-brand" />
-            <div className="text-[11px] font-bold tracking-widest text-[var(--c-text-3)] mb-2.5">오늘의 한 줄{quote.head ? ` · ${quote.head}` : ''}</div>
+            <div className="text-xs font-medium text-[var(--c-text-3)] mb-2.5">오늘의 한 줄{quote.head ? ` · ${quote.head}` : ''}</div>
             <div className="max-w-3xl">
               {quote.lines.map((l, i) => <p key={i} className="text-[17px] md:text-xl font-medium leading-snug text-[var(--c-text-2)]">{l}</p>)}
               <p className="text-xl md:text-[26px] font-bold leading-snug tracking-tight text-brand mt-2">{quote.key}</p>
@@ -102,12 +104,14 @@ export default function HomeTab({
         </div>
       )}
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5 md:gap-3">
         {quick.map((q) => (
-          <button key={q.label} onClick={q.onClick} className={`${card} py-6 md:py-8 px-4 flex flex-col items-center gap-2 hover:border-[var(--c-text-1)] hover:shadow-sm transition-all group`}>
-            <span className="text-3xl md:text-[34px] leading-none">{q.icon}</span>
-            <span className="font-bold text-[15px] text-[var(--c-text-1)] mt-1">{q.label}</span>
-            <span className="text-xs text-[var(--c-text-3)]">{q.desc}</span>
+          <button key={q.label} onClick={q.onClick} className={`${card} px-3.5 py-3.5 md:px-4 md:py-4 flex items-center gap-3 text-left hover:border-[var(--c-text-1)] transition-colors`}>
+            <span className="w-10 h-10 rounded-full bg-[var(--c-subtle)] text-[var(--c-text-1)] flex items-center justify-center shrink-0"><Icon name={q.icon} size={18} /></span>
+            <span className="min-w-0">
+              <span className="block font-semibold text-[15px] text-[var(--c-text-1)] leading-tight">{q.label}</span>
+              <span className="block text-xs text-[var(--c-text-3)] mt-0.5 truncate">{q.desc}</span>
+            </span>
           </button>
         ))}
       </div>

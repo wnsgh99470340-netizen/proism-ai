@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { Icon } from '@/components/ui/icons';
 import { todaySeoul, toSeoulISO } from '@/lib/local-date';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
@@ -1522,7 +1523,7 @@ export default function CRMPage() {
   // 둘러보기에서는 블로그 탭을 뺀다 (2026-11-22 사장님) — 글 생성은 API 가 막혀 있어 보여 줄 것도 없음
   const tabs: { key: Tab; label: string }[] = [
     { key: 'home', label: '홈' },
-    ...(isDemo ? [] : [{ key: 'blog' as Tab, label: '✍️ 블로그' }]),
+    ...(isDemo ? [] : [{ key: 'blog' as Tab, label: '블로그' }]),
     { key: 'customers', label: '고객 목록' },
     { key: 'appointments', label: '예약/일정' },
     { key: 'followups', label: '사후관리' },
@@ -1550,10 +1551,11 @@ export default function CRMPage() {
             <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={toggleTheme}
-                className="w-8 h-8 rounded-full border border-[var(--c-border)] bg-[var(--c-card)] flex items-center justify-center hover:bg-[var(--c-subtle)] transition-colors text-sm"
+                className="w-8 h-8 rounded-full border border-[var(--c-border)] bg-[var(--c-card)] flex items-center justify-center text-[var(--c-text-2)] hover:bg-[var(--c-subtle)] transition-colors"
                 title={theme === 'dark' ? '라이트 모드' : '다크 모드'}
+                aria-label={theme === 'dark' ? '라이트 모드' : '다크 모드'}
               >
-                {theme === 'dark' ? '🌙' : '☀️'}
+                <Icon name={theme === 'dark' ? 'moon' : 'sun'} size={15} />
               </button>
               {activeTab === 'blog' && (
                 <button
@@ -1971,7 +1973,7 @@ export default function CRMPage() {
       {/* Footer (블로그 탭에서는 입력창을 가리므로 숨김) */}
       {activeTab !== 'blog' && (
         <div className="fixed bottom-0 left-0 right-0 bg-[var(--c-input)]/80 backdrop-blur-sm border-t border-[var(--c-border)] py-1.5 px-4 text-center text-[10px] text-[var(--c-text-4)] z-10">
-          3M 프로이즘 | 서초중앙로8길 82, 1동 1층 | 010-7287-7140 | poi_1357@naver.com
+          3M 프로이즘 강남서초점 · 서초중앙로8길 82, 1동 1층 · 010-7287-7140
         </div>
       )}
     </div>
