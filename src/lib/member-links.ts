@@ -5,6 +5,7 @@
  */
 import { supabase } from './supabase';
 import { todaySeoul } from './local-date';
+import { MEMBERSHIP } from '@/config/membership';
 
 export const MEMBER_PAGE_BASE = 'https://proism-ai.vercel.app/m/';
 
@@ -35,8 +36,18 @@ export function maskName(name: string | null | undefined): string {
 
 /** 회원 페이지 링크 안내 문자 (사장님 말투) */
 export function memberLinkSms(name: string, url: string, careLine?: string | null): string {
-  // careLine: 그 시공의 관리법 첫 줄 ("출고 후 1주일은 세차와 왁스를 쉬어 주세요 …") — 출고 당일 문자에 핵심 한 줄 (2026-11-22 점검 4-2)
-  return `안녕하세요 3M 프로이즘 대표 진준호입니다.\n${name} 고객님을 3M 프로이즘 회원으로 등록해 드렸습니다.\n${careLine ? `${careLine.replace(/\.?$/, '.')}\n` : ''}회원 페이지에서 시공 증명서와 보증, 관리 일정, 내 차 관리법, 소개 혜택과 포인트를 보실 수 있습니다.\n${url}\n들어가실 때 전화번호 뒷자리 4개를 넣어 주세요.`;
+  // 회원 안내·소개 안내·링크 문자 세 통을 한 통으로 (2026-11-25 사장님 "세 개로 나뉘어 있는데 하나로")
+  // careLine: 그 시공의 관리법 첫 줄 — 출고 당일 문자에 핵심 한 줄 (2026-11-22 점검 4-2)
+  return [
+    '안녕하세요 3M 프로이즘 대표 진준호입니다.',
+    `${name} 고객님을 3M 프로이즘 회원으로 등록해 드렸습니다.`,
+    'PPF 시공은 2주 뒤 QC 점검, 6개월마다 메인터넌스로 관리해 드립니다.',
+    careLine ? careLine.replace(/\.?$/, '.') : '',
+    '회원 페이지에서 시공 증명서와 보증, 관리 일정, 내 차 관리법, 소개 혜택과 포인트를 보실 수 있습니다.',
+    url,
+    '들어가실 때 전화번호 뒷자리 4개를 넣어 주세요.',
+    MEMBERSHIP.referralLine,
+  ].filter(Boolean).join('\n');
 }
 
 /**

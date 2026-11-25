@@ -5,34 +5,20 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { confirmAfterSms, openSmsApp } from '@/lib/crm-shared';
 import { todaySeoul } from '@/lib/local-date';
-import { MEMBERSHIP } from '@/config/membership';
 import { getOrCreateMemberLink, memberLinkSms, logMemberSms } from '@/lib/member-links';
 import { checkMemberReady, memberBlockMessage } from '@/lib/member-ready';
 import { shareTextOnPhone, copyText } from '@/lib/device';
 
 /**
  * 회원 문자 버튼 (2026-11-18): 회원 페이지 목록과 고객 상세 멤버십 카드에서 같은 버튼
- * - 회원 안내 / 소개 안내 두 가지. 문자 앱을 열고, 보냈다고 하면 상담 기록에 "[회원 문자] ..." 한 줄 남김
+ * - 2026-11-25부터 문자는 한 통(회원 등록·QC/메인터넌스·회원 페이지 링크·소개 안내 = memberLinkSms). 보냈다고 하면 상담 기록에 "[회원 문자] 회원 페이지 링크" 한 줄
  */
 export { openSmsApp };
-
-const TEMPLATES = [
-  { key: 'member', label: '회원 안내', build: (n: string) => MEMBERSHIP.memberInfoSms(n) },
-  { key: 'referral', label: '소개 안내', build: (n: string) => MEMBERSHIP.referralInviteSms(n) },
-] as const;
 
 export default function MemberSmsButtons({ customerId, name, phone, size = 'sm', onSent }: { customerId: string; name: string; phone: string | null; size?: 'sm' | 'xs'; onSent?: () => void }) {
   const [busy, setBusy] = useState<string | null>(null);
   if (!phone) return <span className="text-[11px] text-[var(--c-text-4)]">전화 없음</span>;
   const bs = size === 'xs' ? 'xs' : 'sm';
-  const send = async (t: (typeof TEMPLATES)[number]) => {
-    openSmsApp(phone, t.build(name));
-    if (!(await confirmAfterSms('문자를 전송하셨나요? (기록으로 남깁니다)'))) return;
-    setBusy(t.key);
-    await logMemberSms(customerId, `[회원 문자] ${t.label}\n${t.build(name)}`); // 같은 날 같은 기록은 한 번만 (2026-11-23)
-    setBusy(null);
-    onSent?.();
-  };
   // 손님용 회원 페이지 링크 (2026-11-18): 개인 링크를 만들어(없으면) 문자로 보내고 주소도 복사
   const sendLink = async () => {
     setBusy('link');
@@ -76,9 +62,8 @@ export default function MemberSmsButtons({ customerId, name, phone, size = 'sm',
   return (
     <span className="inline-flex items-center gap-1.5 flex-wrap">
       <Btn size={bs} icon="eye" disabled={!!busy} onClick={openPage} title="손님이 보는 회원 페이지를 그대로 엽니다 (로그인된 기기는 뒷자리 없이 열림)">{busy === 'open' ? '…' : '회원 페이지'}</Btn>
-      {TEMPLATES.map((t) => <Btn size={bs} icon={t.key === 'member' ? 'chat' : 'share'} key={t.key} disabled={!!busy} onClick={() => send(t)} title={t.build(name)}>{busy === t.key ? '…' : t.label}</Btn>)}
-      <Btn size={bs} icon="link" disabled={!!busy} onClick={sendLink} title="손님이 직접 보는 회원 페이지 주소를 문자로 보냅니다 (전화 뒷자리 4개로 확인)">{busy === 'link' ? '…' : '링크 문자'}</Btn>
-      <Btn size={bs} icon="kakao" variant="kakao" disabled={!!busy} onClick={sendLinkKakao} title="회원 페이지 주소를 카카오톡으로 보냅니다 (폰: 공유창에서 카카오톡 선택)">{busy === 'kakao' ? '…' : '링크 카톡'}</Btn>
+      <Btn size={bs} icon="link" disabled={!!busy} onClick={sendLink} title="회원 등록 안내 + QC·메인터넌스 + 회원 페이지 링크 + 소개 안내를 문자 한 통으로">{busy === 'link' ? '…' : '회원 문자'}</Btn>
+      <Btn size={bs} icon="kakao" variant="kakao" disabled={!!busy} onClick={sendLinkKakao} title="같은 내용을 카카오톡으로 (폰: 공유창에서 카카오톡 선택)">{busy === 'kakao' ? '…' : '회원 카톡'}</Btn>
     </span>
   );
 }
