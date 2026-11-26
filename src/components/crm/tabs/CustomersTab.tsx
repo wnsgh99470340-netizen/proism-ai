@@ -13,7 +13,7 @@ import { type Customer, formatDate } from '@/lib/crm-shared';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { memberMissing } from '@/lib/member-ready';
-import { isMemberFlag } from '@/lib/membership-flag';
+import { isMemberFlag, registerMember, unregisterMember } from '@/lib/membership-flag';
 import { ensurePrimaryVehicle } from '@/lib/vehicles';
 import { formatPhoneInput } from '@/lib/phone';
 import MemberSmsButtons from '@/components/crm/MemberSmsButtons';
@@ -190,7 +190,7 @@ export default function CustomersTab({
               <th className="text-left px-4 py-3 text-xs font-medium text-[var(--c-text-3)]">등록일</th>
               {memberView && <th className="text-left px-4 py-3 text-xs font-medium text-[var(--c-text-3)]">회원 페이지</th>}
               {memberView && <th className="text-left px-4 py-3 text-xs font-medium text-[var(--c-text-3)]">문자</th>}
-              <th className="w-20"></th>
+              <th className="w-28"></th>
             </tr>
           </thead>
           <tbody>
@@ -229,9 +229,22 @@ export default function CustomersTab({
                 </td>
                 <td className="px-4 py-3 text-sm text-[var(--c-text-3)]">{formatDate(c.created_at)}</td>
                 {memberView && <td className="px-4 py-3 text-xs">{linkSent.has(c.id) ? <span className="text-ok">✓ 보냄 {formatDate(linkSent.get(c.id) || '')}{(linkVisits.get(c.id) || 0) > 0 ? ` · 열어 봄 ${linkVisits.get(c.id)}회` : ''}</span> : (linkVisits.get(c.id) || 0) > 0 ? <span className="text-ok">✓ 열어 봄 {linkVisits.get(c.id)}회</span> : linkVisits.has(c.id) ? <span className="text-[var(--c-text-3)]">링크 있음 · 아직 안 열림</span> : <span className="text-[var(--c-text-4)]">아직</span>}</td>}
-                {memberView && <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}><MemberSmsButtons customerId={c.id} name={c.name} phone={c.phone} size="xs" onSent={loadLinks} /></td>}
+                {memberView && <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <MemberSmsButtons customerId={c.id} name={c.name} phone={c.phone} size="xs" onSent={loadLinks} />
+                    {/* 줄에서 바로 해제 (2026-11-26 사장님 "여기서도 회원 해제 가능하게") */}
+                    <button type="button" onClick={async () => { if (!confirm(`${c.name} 고객님의 회원 등록을 해제할까요?\n(시공 기록·보증서·관리 일정은 그대로, 회원 목록·회원 문자 대상에서만 빠집니다)`)) return; const e = await unregisterMember(c.id); if (e) alert(e); else refresh?.(); }} className="text-[11px] text-[var(--c-text-4)] hover:text-danger underline whitespace-nowrap">회원 해제</button>
+                  </div>
+                </td>}
                 <td className="px-2 py-3">
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                    {!memberView && !isMember(c) && c.kind !== DEALER_KIND && c.service_count > 0 && (
+                      <button
+                        onClick={async (e) => { e.stopPropagation(); const miss = missingOf(c); if (miss.length > 0) { alert(`회원으로 등록하려면 ${miss.join('·')}이(가) 필요합니다. 고객 정보 수정에서 채워 주세요.`); return; } if (!confirm(`${c.name} 고객님을 회원으로 등록할까요?`)) return; const err = await registerMember(c.id); if (err) alert(err); else refresh?.(); }}
+                        className="text-[10px] font-semibold px-2 py-0.5 rounded-full border border-[var(--c-border)] text-[var(--c-text-2)] hover:bg-[var(--c-subtle)] whitespace-nowrap"
+                        title="사장님 기준(전체 PPF·전체 랩핑·신차패키지 등)에 맞는 분만"
+                      >회원 등록</button>
+                    )}
                     <button
                       onClick={(e) => { e.stopPropagation(); handleEditCustomer(c); }}
                       className="w-6 h-6 rounded flex items-center justify-center text-[var(--c-text-3)] hover:text-gold hover:bg-gold/10 transition-all text-xs"
