@@ -105,11 +105,13 @@ export function workItems(w: WorkOrderJson): WorkItem[] {
   const cp = w.color_ppf || [];
   if (cp.length || (w.color_ppf_etc || '').trim()) items.push({ group: '컬러PPF', text: cp.length ? cp.join(' · ') : '컬러PPF', product: asProduct(w.color_ppf_etc, '3M PWF 컬러 PPF 필름') });
 
-  const obelWrap = isObel(w.wrapping_etc) ? (w.wrapping_etc || '').trim() : null; // 랩핑 기타에 오벨 제품명을 적으면 그 제품으로, 범위 글자에는 안 붙임 (2026-11-26)
-  const wrap = obelWrap ? [...(w.wrapping || [])] : join(w.wrapping, w.wrapping_etc);
-  if (wrap.length || obelWrap) {
-    const isPwf = wrap.some((s) => /pwf|컬러\s*ppf/i.test(s));
-    items.push({ group: isPwf ? '컬러PPF' : '랩핑', text: wrap.join(' · ') || '랩핑', product: obelWrap || (isPwf ? '3M PWF 컬러 PPF 필름' : '3M 2080 랩핑 필름') });
+  // 랩핑 기타에 브랜드가 적혀 있으면("오벨 매트블랙", "3M 2080 매트블랙") 그 글자가 제품이고 범위에는 안 붙임. 브랜드가 없으면("매트블랙") 범위 뒤에 붙이고 제품은 3M 2080 기본 (2026-11-26)
+  const wrapEtc = (w.wrapping_etc || '').trim();
+  const brandWrap = wrapEtc && (isObel(wrapEtc) || /3m/i.test(wrapEtc)) ? wrapEtc : null;
+  const wrap = brandWrap ? [...(w.wrapping || [])] : join(w.wrapping, w.wrapping_etc);
+  if (wrap.length || brandWrap) {
+    const isPwf = [...wrap, wrapEtc].some((s) => /pwf|컬러\s*ppf/i.test(s));
+    items.push({ group: isPwf ? '컬러PPF' : '랩핑', text: wrap.join(' · ') || (isPwf ? '컬러PPF' : '랩핑'), product: brandWrap || (isPwf ? '3M PWF 컬러 PPF 필름' : '3M 2080 랩핑 필름') });
   }
   const coat = w.coating || [];
   if (coat.length) items.push({ group: '코팅', text: coat.join(' · ') });
