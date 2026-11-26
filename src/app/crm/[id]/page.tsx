@@ -16,6 +16,7 @@ import { isDealer, dealerFor, customersOfDealer, isRetiredDealer, retiredDate, t
 import { parseSettlement, withSettlement, summarizeSettlement, settleState, won, SETTLEMENT_START } from '@/lib/dealer-settlement';
 import { buildVCard, deliverVcf, VCF_HINT, isContactSaved, markContactsSaved } from '@/lib/vcard';
 import { memberMissing } from '@/lib/member-ready';
+import { isMemberFlag, memberSinceFlag, registerMember, unregisterMember } from '@/lib/membership-flag';
 import { vehicleLabel, type Vehicle } from '@/lib/vehicles';
 import { blacklistInfo, clearBlacklist, isBlacklisted } from '@/lib/blacklist';
 import { supabase } from '@/lib/supabase';
@@ -422,14 +423,19 @@ export default function CustomerDetailPage() {
           <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
             <div className="flex items-center gap-2 flex-wrap">
               <div className="text-xs font-semibold text-[var(--c-text-3)]">{MEMBERSHIP.name}</div>
-              {(() => { // 회원 = 시공 기록 + 성함·전화·차종 (2026-11-23 사장님 "다 갖춘 분만")
+              {(() => { // 회원 = 사장님이 등록한 분 (2026-11-26 "내가 회원 등록 버튼 누르면"). 성함·전화·차종·시공은 등록 조건
                 const miss = memberMissing({ name: customer.name, phone: customer.phone, car: [customer.car_brand, customer.car_model].filter(Boolean).join(' ') || vehicles.map((v) => [v.brand, v.model].filter(Boolean).join(' ')).find(Boolean) || '', workCount: services.length });
-                if (services.length === 0) return <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[var(--c-subtle)] text-[var(--c-text-3)]">비회원 · 시공 완료 시 자동 가입</span>;
-                if (miss.length > 0) return <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-warn/10 text-warn" title="채우면 회원으로 바뀝니다">회원 조건 미충족 · {miss.join('·')} 없음</span>;
-                return <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-ok/10 text-ok">회원 · 가입 {formatDate(services[services.length - 1].service_date)}</span>;
+                const member = isMemberFlag(customer.memo);
+                if (member) return <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-ok/10 text-ok">회원 · 등록 {formatDate(memberSinceFlag(customer.memo) || '')}{miss.length > 0 ? <span className="text-warn ml-1">· {miss.join('·')} 없음</span> : null}</span>;
+                return <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[var(--c-subtle)] text-[var(--c-text-3)]">비회원{miss.length > 0 ? ` · 등록하려면 ${miss.join('·')} 필요` : ''}</span>;
               })()}
             </div>
-            <MemberSmsButtons customerId={customer.id} name={customer.name} phone={customer.phone} onSent={fetchData} />
+            <div className="flex items-center gap-2 flex-wrap">
+              {isMemberFlag(customer.memo)
+                ? <Btn size="sm" variant="ghost" onClick={async () => { if (!confirm(`${customer.name} 고객님의 회원 등록을 해제할까요?\n(회원 페이지 링크는 남지만 회원 목록·회원 문자 대상에서 빠집니다)`)) return; const e = await unregisterMember(customer.id); if (e) alert(e); else fetchData(); }}>회원 해제</Btn>
+                : <Btn size="sm" variant="dark" icon="check" onClick={async () => { const miss = memberMissing({ name: customer.name, phone: customer.phone, car: [customer.car_brand, customer.car_model].filter(Boolean).join(' ') || vehicles.map((v) => [v.brand, v.model].filter(Boolean).join(' ')).find(Boolean) || '', workCount: services.length }); if (miss.length > 0) { alert(`회원으로 등록하려면 ${miss.join('·')}이(가) 필요합니다. 고객 정보 수정에서 채워 주세요.`); return; } if (!confirm(`${customer.name} 고객님을 회원으로 등록할까요?`)) return; const e = await registerMember(customer.id); if (e) alert(e); else fetchData(); }}>회원 등록</Btn>}
+              {isMemberFlag(customer.memo) && <MemberSmsButtons customerId={customer.id} name={customer.name} phone={customer.phone} onSent={fetchData} />}
+            </div>
           </div>
           {refs.tableMissing ? (
             <div className="text-xs text-warn">소개 기록 표(referrals)가 아직 없습니다. supabase-schema.sql 9번 블록을 Supabase SQL Editor 에서 한 번 실행하면 켜집니다.</div>

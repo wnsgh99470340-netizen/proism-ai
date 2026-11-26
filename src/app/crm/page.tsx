@@ -29,6 +29,7 @@ import CustomerFormModal, { type CustomerFormValues, EMPTY_CUSTOMER_FORM, loadCu
 import { linkReferral, loadReferralsFor, markThanksSent, grantPointForReferred, loadPoints, usePoints, updateReferral } from '@/lib/referrals';
 import { MEMBERSHIP, POINTS } from '@/config/membership';
 import { getOrCreateMemberLink, memberLinkSms, logMemberSms } from '@/lib/member-links';
+import { isCustomerMember, registerMember } from '@/lib/membership-flag';
 import { workDetailsText, workItems, ppfProduct, ppfProductOf, type WorkOrderJson } from '@/lib/work-order';
 import CareCompleteModal from '@/components/crm/CareCompleteModal';
 import { appendCareLog, stripCareLog } from '@/lib/care-log';
@@ -821,11 +822,7 @@ export default function CRMPage() {
     // 아직 끝나지 않은 예약을 미리 완료하면 오늘
     const completionDate = (() => { const end = appointment.end_date || appointment.appointment_date; const today = todaySeoul(); return end && end < today ? end : today; })();
 
-    // 회원 등록 막기 (2026-11-23 사장님 "성함·차종·전화번호·작업 중 하나라도 빠지면 회원 등록 안 되게"): 완료 = 보증서 발급 = 회원 등록이므로 여기서 멈춘다
-    {
-      const missing = await checkMemberReady(appointment.customer_id, workItems(workOrder as WorkOrderJson).length);
-      if (missing.length > 0) { alert(memberBlockMessage(missing)); return; }
-    }
+    // (2026-11-26) 완료 처리는 더 이상 회원 등록이 아니다 — 회원은 아래에서 사장님이 묻는 대로. 성함·전화·차종 검사는 회원 등록 때만 (checkMemberReady)
 
     // 빠진 칸 한 번 묻기 (2026-11-22 사장님): 차량번호·금액·PPF 제품·썬팅 농도가 비면 회원 페이지 증명서 제품 줄과 월말 숫자가 비어 나온다
     {
@@ -936,10 +933,19 @@ export default function CRMPage() {
     // 회원 페이지 링크(시공 증명서·보증·관리 일정) 문자 — 보증서 전달을 이 문자 하나로
     const custName = cust?.name || appointment.customer?.name || '고객';
     const custPhone = cust?.phone || appointment.customer?.phone || '';
-    const link = await getOrCreateMemberLink(appointment.customer_id);
-    if ('url' in link && custPhone && confirm(`${custName} 고객님을 회원으로 등록하고 보증서를 발급했습니다.\n시공 증명서·보증·관리 일정이 담긴 회원 페이지 링크를 문자로 보낼까요?`)) {
-      openSmsApp(custPhone, memberLinkSms(custName, link.url, careGuidesFor([appointment.service_type || ''], woItems.map((i) => i.group))[0]?.after[0] || null)); // 관리법 첫 줄 (2026-11-22)
-      await logMemberSms(appointment.customer_id, `[회원 문자] 회원 등록·보증서 발급 링크\n${link.url}`); // 같은 날 같은 기록은 한 번만 (2026-11-23)
+    // 회원 등록은 사장님이 누르는 것 (2026-11-26 "내가 회원 등록 버튼 누르면 회원 등록되게" — 전체 PPF·전체 랩핑·신차패키지 같은 큰 작업만, 기준은 사장님 판단)
+    let member = await isCustomerMember(appointment.customer_id);
+    if (!member && confirm(`보증서를 발급했습니다.\n${custName} 고객님을 회원으로 등록할까요?\n(2주 QC·6개월 메인터넌스·회원 페이지가 안내됩니다. 아니오를 누르면 보증서와 관리 일정만 남깁니다)`)) {
+      const missing = await checkMemberReady(appointment.customer_id, woItems.length);
+      if (missing.length > 0) alert(memberBlockMessage(missing));
+      else { const e = await registerMember(appointment.customer_id); if (e) alert(`회원 등록 실패: ${e}`); else member = true; }
+    }
+    if (member) {
+      const link = await getOrCreateMemberLink(appointment.customer_id);
+      if ('url' in link && custPhone && confirm(`시공 증명서·보증·관리 일정이 담긴 회원 페이지 링크를 ${custName} 고객님께 문자로 보낼까요?`)) {
+        openSmsApp(custPhone, memberLinkSms(custName, link.url, careGuidesFor([appointment.service_type || ''], woItems.map((i) => i.group))[0]?.after[0] || null)); // 관리법 첫 줄 (2026-11-22)
+        await logMemberSms(appointment.customer_id, `[회원 문자] 회원 등록·보증서 발급 링크\n${link.url}`); // 같은 날 같은 기록은 한 번만 (2026-11-23)
+      }
     }
 
     // 출고 안내 → 딜러 (2026-11-23 사장님 "작업 상황은 딜러한테, 보증서는 고객한테"): 딜러가 넣어 준 차면 딜러에게 작업 마침 문자

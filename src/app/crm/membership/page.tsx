@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import Btn from '@/components/ui/Btn';
 import { memberMissing } from '@/lib/member-ready';
+import { isMemberFlag } from '@/lib/membership-flag';
 import { todaySeoul } from '@/lib/local-date';
 import { MEMBERSHIP } from '@/config/membership';
 import { markThanksSent, updateReferral, type Referral } from '@/lib/referrals';
@@ -18,7 +19,7 @@ import { markThanksSent, updateReferral, type Referral } from '@/lib/referrals';
  * - 아래: 소개 많이 한 회원, 회원 목록(검색)
  * 등급제는 기준이 정해지면 이 페이지에 배지로 붙인다
  */
-interface Cust { id: string; name: string; phone: string | null; car_brand: string | null; car_model: string | null; source: string | null; created_at: string }
+interface Cust { id: string; name: string; phone: string | null; car_brand: string | null; car_model: string | null; source: string | null; created_at: string; memo?: string | null }
 interface Svc { customer_id: string; service_type: string; service_date: string | null; completion_date: string | null; amount: number | null }
 interface Appt { customer_id: string; appointment_date: string; status: string; service_type: string | null }
 
@@ -39,7 +40,7 @@ export default function MembershipPage() {
 
   const load = useCallback(async () => {
     const [{ data: c }, { data: s }, { data: a }, { data: r, error: re }] = await Promise.all([
-      supabase.from('customers').select('id, name, phone, car_brand, car_model, source, created_at').neq('kind', '딜러').order('name'), // 딜러는 회원 아님 (2026-11-23)
+      supabase.from('customers').select('id, name, phone, car_brand, car_model, source, created_at, memo').neq('kind', '딜러').order('name'), // 딜러는 회원 아님 (2026-11-23)
       supabase.from('services').select('customer_id, service_type, service_date, completion_date, amount'),
       supabase.from('appointments').select('customer_id, appointment_date, status, service_type').neq('status', '취소'),
       supabase.from('referrals').select('*, referrer:customers!referrals_referrer_id_fkey(name, phone), referred:customers!referrals_referred_id_fkey(name, phone)').order('created_at', { ascending: false }),
@@ -69,8 +70,8 @@ export default function MembershipPage() {
   const joinedAt = (id: string) => { const list = byCust.svc.get(id) || []; const dates = list.map((s) => s.service_date || s.completion_date || '').filter(Boolean).sort(); return dates[0] || null; };
   // 회원 = 시공 기록 + 성함·전화·차종이 다 있는 분 (2026-11-23 사장님 "다 갖춘 64명만"). 빠진 분은 '조건 미충족'으로 따로 보여 주고 회원 수·링크 대상에서 뺀다
   const missingOf = useCallback((c: Cust) => memberMissing({ name: c.name, phone: c.phone, car: [c.car_brand, c.car_model].filter(Boolean).join(' '), workCount: (byCust.svc.get(c.id) || []).length }), [byCust]);
-  const members = useMemo(() => customers.filter((c) => (byCust.svc.get(c.id) || []).length > 0 && missingOf(c).length === 0), [customers, byCust, missingOf]);
-  const incomplete = useMemo(() => customers.filter((c) => (byCust.svc.get(c.id) || []).length > 0 && missingOf(c).length > 0).map((c) => ({ c, miss: missingOf(c) })), [customers, byCust, missingOf]);
+  const members = useMemo(() => customers.filter((c) => isMemberFlag(c.memo)), [customers]); // 회원 = 사장님이 등록한 분 (2026-11-26)
+  const incomplete = useMemo(() => customers.filter((c) => isMemberFlag(c.memo) && missingOf(c).length > 0).map((c) => ({ c, miss: missingOf(c) })), [customers, missingOf]);
   const today = todaySeoul();
   const thisMonth = today.slice(0, 7);
   const joinedThisMonth = members.filter((c) => (joinedAt(c.id) || '').startsWith(thisMonth)).length;

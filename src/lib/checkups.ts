@@ -7,6 +7,7 @@
  * 2026-11-23 추가: 중복 기록 / 지난 QC·메인터넌스(방문도 안 잡힘) / 고객과 안 묶인 상담 / 메인터넌스 기간 끝나가는 차. 멈춘 예약 기준 7일 → 끝난 다음 날
  */
 import { supabase } from './supabase';
+import { isMemberFlag } from './membership-flag';
 import { isImportedCustomer } from './crm-shared';
 import { todaySeoul, addDaysISO } from './local-date';
 import { settleState, won } from './dealer-settlement';
@@ -46,7 +47,7 @@ export async function buildMissedReport(date = todaySeoul()): Promise<MissedRepo
   try {
     const since = addDaysISO(date, -LINK_WINDOW_DAYS);
     const [{ data: services }, { data: sent }, { data: links }] = await Promise.all([
-      supabase.from('services').select('customer_id, service_type, service_date, completion_date, customer:customers(name)').or(`completion_date.gte.${since},service_date.gte.${since}`).order('service_date', { ascending: false }),
+      supabase.from('services').select('customer_id, service_type, service_date, completion_date, customer:customers(name, memo)').or(`completion_date.gte.${since},service_date.gte.${since}`).order('service_date', { ascending: false }),
       supabase.from('consultations').select('customer_id').eq('memo', '회원 문자').like('content', '[회원 문자] 회원 페이지 링크%'),
       supabase.from('member_links').select('customer_id, visits'),
     ]);
@@ -57,6 +58,7 @@ export async function buildMissedReport(date = todaySeoul()): Promise<MissedRepo
     for (const s of services || []) {
       const cid = s.customer_id as string;
       if (!cid || seen.has(cid) || sentSet.has(cid)) continue;
+      if (!isMemberFlag(((s.customer as unknown as { memo?: string | null } | null)?.memo) || null)) continue; // 회원으로 등록한 분만 (2026-11-26)
       const d = (s.completion_date as string | null) || (s.service_date as string | null) || '';
       if (d && d > date) continue; // 아직 안 끝난 작업
       seen.add(cid);

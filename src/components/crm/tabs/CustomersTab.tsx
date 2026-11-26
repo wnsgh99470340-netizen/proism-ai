@@ -13,6 +13,7 @@ import { type Customer, formatDate } from '@/lib/crm-shared';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { memberMissing } from '@/lib/member-ready';
+import { isMemberFlag } from '@/lib/membership-flag';
 import { ensurePrimaryVehicle } from '@/lib/vehicles';
 import { formatPhoneInput } from '@/lib/phone';
 import MemberSmsButtons from '@/components/crm/MemberSmsButtons';
@@ -108,7 +109,7 @@ export default function CustomersTab({
     <button type="button" onClick={(e) => { e.stopPropagation(); setInline({ id: c.id, field, value: '' }); }} className="text-[var(--c-text-4)] hover:text-[var(--c-text-1)] border-b border-dashed border-[var(--c-text-4)] leading-none" title={field === 'car' ? '눌러서 차종 적기' : '눌러서 전화번호 적기'}>-</button>
   );
   const missingOf = (c: Customer) => c.kind === DEALER_KIND ? [] : memberMissing({ name: c.name, phone: c.phone, car: [c.car_brand, c.car_model].filter(Boolean).join(' '), workCount: c.service_count });
-  const isMember = (c: Customer) => c.kind !== DEALER_KIND && c.service_count > 0 && missingOf(c).length === 0;
+  const isMember = (c: Customer) => c.kind !== DEALER_KIND && isMemberFlag(c.memo); // 회원 = 사장님이 등록한 분 (2026-11-26)
   const linkDelivered = (id: string) => linkSent.has(id) || (linkVisits.get(id) || 0) > 0;
   const members = filteredCustomers.filter(isMember);
   const unsentCount = members.filter((c) => !linkDelivered(c.id)).length;
@@ -206,7 +207,7 @@ export default function CustomersTab({
                   {c.dealer_id && dealerNames?.get(c.dealer_id) && <span className="ml-1.5 text-[9px] bg-[var(--c-subtle)] text-[var(--c-text-3)] px-1.5 py-0.5 rounded-full font-medium" title="이 차를 넣어 준 딜러">딜러 {dealerNames.get(c.dealer_id)}</span>}
                   {isBlacklisted(c.memo) && <span className="ml-1.5 text-[9px] bg-danger/15 text-danger px-1.5 py-0.5 rounded-full font-semibold" title={blacklistInfo(c.memo)?.reason || ''}>⛔ 블랙리스트</span>}
                   {isMember(c) && <span className="ml-1.5 text-[9px] bg-ok/10 text-ok px-1.5 py-0.5 rounded-full font-semibold" title="시공 기록 + 성함·전화·차종이 다 있는 회원">회원</span>}
-                  {!isMember(c) && c.kind !== DEALER_KIND && c.service_count > 0 && <span className="ml-1.5 text-[9px] bg-warn/10 text-warn px-1.5 py-0.5 rounded-full font-medium" title="시공 기록은 있지만 빠진 게 있어 회원으로 세지 않음 — 고객 정보 수정에서 채우면 회원">회원 조건 미충족 · {missingOf(c).join('·')} 없음</span>}
+                  {isMember(c) && missingOf(c).length > 0 && <span className="ml-1.5 text-[9px] bg-warn/10 text-warn px-1.5 py-0.5 rounded-full font-medium" title="회원인데 빠진 정보가 있어 회원 문자를 보낼 수 없음 — 고객 정보 수정에서 채우기">{missingOf(c).join('·')} 없음</span>}
                   {c.service_count >= 2 && <span className="ml-1.5 text-[9px] bg-gold/20 text-gold px-1.5 py-0.5 rounded-full font-medium">재방문</span>}
                   {(vehiclesByCustomer.get(c.id)?.length || 0) > 1 && <span className="ml-1 text-[9px] bg-info/15 text-info px-1.5 py-0.5 rounded-full font-medium">차 {vehiclesByCustomer.get(c.id)!.length}대</span>}
                 </td>

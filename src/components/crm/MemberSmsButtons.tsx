@@ -7,6 +7,7 @@ import { confirmAfterSms, openSmsApp } from '@/lib/crm-shared';
 import { todaySeoul } from '@/lib/local-date';
 import { getOrCreateMemberLink, memberLinkSms, logMemberSms } from '@/lib/member-links';
 import { checkMemberReady, memberBlockMessage } from '@/lib/member-ready';
+import { isCustomerMember } from '@/lib/membership-flag';
 import { shareTextOnPhone, copyText } from '@/lib/device';
 
 /**
@@ -24,6 +25,7 @@ export default function MemberSmsButtons({ customerId, name, phone, size = 'sm',
     setBusy('link');
     const missing = await checkMemberReady(customerId); // 성함·전화·차종·작업 중 하나라도 없으면 안 보냄 (2026-11-23)
     if (missing.length > 0) { setBusy(null); alert(memberBlockMessage(missing)); return; }
+    if (!(await isCustomerMember(customerId))) { setBusy(null); alert('아직 회원이 아닙니다. 고객 상세의 "회원 등록"을 먼저 눌러 주세요.'); return; } // 2026-11-26 사장님이 등록한 분만
     const r = await getOrCreateMemberLink(customerId);
     setBusy(null);
     if ('error' in r) { alert(r.error); return; }
@@ -38,6 +40,7 @@ export default function MemberSmsButtons({ customerId, name, phone, size = 'sm',
     setBusy('kakao');
     const missing = await checkMemberReady(customerId);
     if (missing.length > 0) { setBusy(null); alert(memberBlockMessage(missing)); return; }
+    if (!(await isCustomerMember(customerId))) { setBusy(null); alert('아직 회원이 아닙니다. 고객 상세의 "회원 등록"을 먼저 눌러 주세요.'); return; }
     const r = await getOrCreateMemberLink(customerId);
     setBusy(null);
     if ('error' in r) { alert(r.error); return; }

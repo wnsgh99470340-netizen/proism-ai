@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { maskName } from '@/lib/member-links';
 import { MEMBERSHIP } from '@/config/membership';
 import { parseWorkOrder, workItems, type WorkOrderJson } from '@/lib/work-order';
+import { memberSinceFlag } from '@/lib/membership-flag';
 import { AUTH_COOKIE_NAME, isAuthCookieValid } from '@/lib/auth-cookie';
 import { pointsView, type PointRow } from '@/lib/referrals';
 import { parseCareLog } from '@/lib/care-log';
@@ -35,7 +36,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (e1) return Response.json({ error: '회원 페이지가 아직 준비되지 않았습니다' }, { status: 503 });
   if (!link) return Response.json({ error: '없는 주소입니다' }, { status: 404 });
 
-  const { data: c } = await supabase.from('customers').select('id, name, phone, car_brand, car_model, car_color, created_at').eq('id', link.customer_id).single();
+  const { data: c } = await supabase.from('customers').select('id, name, phone, car_brand, car_model, car_color, created_at, memo').eq('id', link.customer_id).single();
   if (!c) return Response.json({ error: '고객 정보를 찾을 수 없습니다' }, { status: 404 });
   const last4 = (c.phone || '').replace(/\D/g, '').slice(-4);
   if (!owner) {
@@ -100,7 +101,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
   const isCareVisit = (a: { service_type: string | null; follow_up_id?: string | null; memo: string | null }) => ['QC점검', '메인터넌스'].includes(a.service_type || '') && !!(a.follow_up_id || /사후관리:[0-9a-f-]{36}/.test(a.memo || ''));
   const upcoming = (appts || []).filter((a) => a.status !== '완료' && !isCareVisit(a as { service_type: string | null; follow_up_id?: string | null; memo: string | null })).map((a) => ({ date: a.appointment_date, end: a.end_date, service: a.service_type, status: a.status }));
-  const memberSince = (services || []).map((s) => s.service_date || s.completion_date || '').filter(Boolean).sort()[0] || null;
+  const memberSince = memberSinceFlag(c.memo as string | null) || (services || []).map((s) => s.service_date || s.completion_date || '').filter(Boolean).sort()[0] || null; // 등록일(2026-11-26 사장님 등록 방식), 없으면 첫 시공일
 
   // 방문 기록 (실패해도 페이지는 그대로). 사장님이 열어 본 것은 손님 방문 수에 넣지 않는다
   if (!owner) {
