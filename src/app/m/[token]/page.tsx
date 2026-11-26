@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { LINKS } from '@/config/links';
+import { LIFT_PROMISE_LINE, liftPromiseApplies, reviewLinkFor } from '@/config/sms-templates';
 
 /**
  * 손님용 회원 페이지 (2026-11-18 사장님: "사진 한 장이 아니라 앱처럼 눌러 보며 구경")
@@ -43,9 +44,10 @@ const careName = (t: string) => (t === 'QC점검' ? 'QC 점검' : t);
 const roughWhen = (d: string | null | undefined) => { const x = toDate(d); if (!x) return ''; const day = x.getDate(); return `${x.getMonth() + 1}월 ${day <= 10 ? '초' : day <= 20 ? '중순' : '말'}`; };
 
 /** 시공 증명서 아래 "이 시공의 기준" — 확인된 사실만, 짧게 (differentiators.ts confirmed 항목 기준) */
-function standardsFor() {
+function standardsFor(hasPpf: boolean) {
   // 2026-11-19 사장님: "안쪽 마감 진행" 같은 말보다 어떤 제품으로 시공했는지 → 제품은 증명서 항목 아래 줄로, 여기는 매장 약속만
-  return ['3M 공인 프리퍼드 인스톨러 매장에서 시공했습니다', 'PPF는 2주 뒤 QC 점검, 6개월마다 메인터넌스로 관리합니다', '시공 기록과 보증서는 매장에서 보관합니다'];
+  // 2026-11-26: PPF 계열 시공이 있으면 들뜸 1년 약속 한 줄 (sms-templates LIFT_PROMISE_LINE, 견적 문자와 같은 문장)
+  return ['3M 공인 프리퍼드 인스톨러 매장에서 시공했습니다', 'PPF는 2주 뒤 QC 점검, 6개월마다 메인터넌스로 관리합니다', ...(hasPpf ? [LIFT_PROMISE_LINE] : []), '시공 기록과 보증서는 매장에서 보관합니다'];
 }
 
 function Seal() {
@@ -252,10 +254,18 @@ export default function MemberPage() {
 
         {/* 이 시공의 기준 */}
         <ul className="px-2 space-y-1.5">
-          {standardsFor().map((t) => (
+          {standardsFor(data.services.some((s) => liftPromiseApplies(s.type)) || data.warranties.some((w) => liftPromiseApplies(w.work))).map((t) => (
             <li key={t} className="flex gap-2.5 text-[12.5px] text-white/65 leading-snug break-keep"><span className="text-[#E4002B] mt-[1px]">—</span><span>{t}</span></li>
           ))}
         </ul>
+
+        {/* 후기 남기기 (2026-11-26 사장님 "적용시켜": 회원 문자는 다 나갔는데 손님이 들어오는 페이지에 후기 입구가 없었음) */}
+        {data.services.length > 0 && (
+          <a href={reviewLinkFor(data.customer.car)} target="_blank" rel="noreferrer" className="block rounded-2xl border border-[#E4002B]/45 bg-[#E4002B]/10 hover:bg-[#E4002B]/20 transition-colors px-4 py-3 text-center">
+            <div className="text-sm font-semibold">후기 남기기</div>
+            <div className="text-[11px] text-white/55 mt-0.5">고객님의 한 줄이 저희에게 가장 큰 힘입니다</div>
+          </a>
+        )}
 
         {/* 다음 일정 요약 */}
         {(nextCare || data.upcoming.length > 0) && (

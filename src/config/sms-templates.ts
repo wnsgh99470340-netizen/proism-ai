@@ -58,3 +58,20 @@ export function followUpMessage(type: string, memo: string | null | undefined): 
 export function followUpLabel(type: string): string {
   return type === 'QC점검' ? 'QC 점검' : type === '견적재연락' ? '견적 재연락' : type === '견적마무리' ? '견적 마무리' : type === '입고안내' ? '입고 안내' : type;
 }
+
+/** 후기 게시판 링크(브랜드별 네이버 카페 게시판). 후기 문자와 손님 회원 페이지 '후기 남기기'가 같이 쓴다 (2026-11-26) */
+export const REVIEW_LINKS = { proism: 'https://m.site.naver.com/1S6dj', bmw: 'https://m.site.naver.com/1S6e3', audi: 'https://m.site.naver.com/1S6ej' } as const;
+export function reviewLinkFor(carOrBrand: string | null | undefined): string {
+  const t = (carOrBrand || '').toLowerCase();
+  if (/bmw|비엠더블유|미니\b/.test(t)) return REVIEW_LINKS.bmw;
+  if (/audi|아우디/.test(t)) return REVIEW_LINKS.audi;
+  return REVIEW_LINKS.proism;
+}
+
+/**
+ * 들뜸 약속 (2026-11-26 사장님 "1년 들뜰 거면 1년 안에 다 떠" → 기간 1년).
+ * 동기부여학과 영상의 '리스크를 사업자가 지는 오퍼' — 이미 양보 안 하는 기준(오랜 시간이 지나도 들뜸 없는 작업물)을 손님 문장으로.
+ * PPF·컬러PPF·신차패키지 견적 문자와 손님 회원 페이지 '이 시공의 기준'에 들어간다. 문구를 바꾸면 여기만.
+ */
+export const LIFT_PROMISE_LINE = '시공 후 1년 안에 끝단이 들뜨면 그 판은 무료로 다시 붙여 드립니다';
+export const liftPromiseApplies = (service: string | null | undefined) => /PPF|PWF|신차/i.test(service || '') && !/실내/.test(service || '');

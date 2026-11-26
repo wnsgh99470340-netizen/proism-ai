@@ -9,6 +9,18 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 PORT = int(os.environ.get('SMOKE_PORT', '3100'))
 
 
+
+def pick_python():
+    """playwright 가 깔린 파이썬을 고른다. 2026-11-26 brew 가 python@3.15 를 깔아 `python3` 가 그쪽을 가리키면서
+    시스템 파이썬(3.9, playwright 설치됨)이 가려져 smoke 가 ModuleNotFoundError 로 죽었음."""
+    for exe in [sys.executable, '/usr/bin/python3', 'python3']:
+        try:
+            if subprocess.call([exe, '-c', 'import playwright'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) == 0:
+                return exe
+        except OSError:
+            pass
+    return sys.executable
+
 def port_open(port):
     try:
         with socket.create_connection(('localhost', port), timeout=1): return True
@@ -28,7 +40,7 @@ def main():
         else:
             sys.exit('dev 서버가 60초 안에 안 떴습니다')
         time.sleep(1.5)
-        code = subprocess.call([sys.executable, os.path.join(ROOT, 'scripts', 'smoke', 'smoke.py'), '--base', f'http://localhost:{PORT}', *args], cwd=ROOT)
+        code = subprocess.call([pick_python(), os.path.join(ROOT, 'scripts', 'smoke', 'smoke.py'), '--base', f'http://localhost:{PORT}', *args], cwd=ROOT)
     finally:
         server.terminate()
         try: server.wait(timeout=10)

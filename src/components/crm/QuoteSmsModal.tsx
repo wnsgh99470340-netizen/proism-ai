@@ -1,6 +1,7 @@
 'use client';
 
 import Btn from '@/components/ui/Btn';
+import { LIFT_PROMISE_LINE, liftPromiseApplies } from '@/config/sms-templates';
 import { openSmsApp } from '@/lib/crm-shared';
 import { copyText } from '@/lib/device';
 import { formatPhoneInput } from '@/lib/phone';
@@ -301,6 +302,7 @@ export default function QuoteSmsModal({ initial, onClose, onDone, onOpenEstimate
     if (benefitList.length > 0) lines.push(`서비스: ${benefitList.join(' · ')}`);
     if (terms) lines.push(terms);
     lines.push('보증: 3M 제품보증 + 시공보증서 발급');
+    if (liftPromiseApplies(service)) lines.push(LIFT_PROMISE_LINE); // 2026-11-26 들뜸 1년 약속 (PPF·컬러PPF·신차패키지)
     lines.push('');
     if (date1 || date2) {
       const ds = [date1, date2].filter(Boolean).map(dayLabel);
