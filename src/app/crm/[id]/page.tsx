@@ -218,9 +218,10 @@ export default function CustomerDetailPage() {
       {/* Header */}
       <div className="h-14 border-b border-[var(--c-border)] bg-[var(--c-card)] flex items-center px-4 justify-between shrink-0 pt-[env(safe-area-inset-top)] box-content">
         <div className="flex items-center gap-3">
-          <Link href="/crm" className="text-[var(--c-text-3)] hover:text-[var(--c-text-1)] transition-colors text-sm">
-            ← CRM
-          </Link>
+          {/* 이전 화면으로 (2026-11-26 사장님 "뒤로가기가 홈으로 가서 불편"): 기록이 있으면 뒤로, 바로 열었으면 고객 목록으로 */}
+          <button type="button" onClick={() => { if (window.history.length > 1) window.history.back(); else window.location.href = '/crm?tab=customers'; }} className="text-[var(--c-text-3)] hover:text-[var(--c-text-1)] transition-colors text-sm">
+            ← 이전
+          </button>
           <span className="text-[var(--c-border)]">|</span>
           <span className="text-[var(--c-text-1)] font-semibold text-sm">{customer.name}</span>
           {isDealer(customer) && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[var(--c-text-1)] text-[var(--c-card)]">딜러</span>}

@@ -97,7 +97,11 @@ class Smoke:
                 after = page.locator('tbody tr').count()
                 if after > n: raise AssertionError('검색해도 줄이 안 줄어듦')
                 page.get_by_placeholder(re.compile('검색')).fill('')
-                self.shot('customers'); return f'{n}줄, 검색 "{name[:2]}" → {after}줄'
+                page.get_by_role('button', name=re.compile('^회원')).first.click(); page.wait_for_timeout(500)  # 2026-11-26 회원 필터(회원 탭 합침)
+                page.get_by_text('회원 페이지').first.wait_for()
+                members = page.locator('tbody tr').count()
+                page.get_by_role('button', name='고객', exact=True).first.click(); page.wait_for_timeout(300)
+                self.shot('customers'); return f'{n}줄, 검색 "{name[:2]}" → {after}줄, 회원 필터 {members}줄'
             self.check('고객 목록 — 줄·검색', customers)
 
             # 3. 고객 상세 (시공 기록 있는 첫 손님)
@@ -182,9 +186,9 @@ class Smoke:
             # 9. 회원 탭
             def membership():
                 self.goto('/crm/membership')
-                page.get_by_text('회원 목록').first.wait_for()
+                page.get_by_text('소개 현황').first.wait_for()
                 self.shot('membership'); return self.no_overflow()
-            self.check('회원 탭', membership)
+            self.check('소개 현황 페이지', membership)
 
             # 10. 콘솔 오류 (401 은 뒷자리 시험 같은 의도된 것일 수 있어 그 외만)
             errs = [e for e in self.console_errors if '401' not in e and 'favicon' not in e]

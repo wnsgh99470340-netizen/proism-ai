@@ -93,6 +93,27 @@ export default function CRMPage() {
     } catch { /* ignore */ }
   }, []);
 
+  // 탭 전환을 브라우저 기록에 남긴다 (2026-11-26 사장님 "뒤로가기 누르면 CRM 홈으로 가서 불편, 이전 화면으로"):
+  // 탭을 바꾸면 /crm?tab=… 을 pushState, 뒤로가기(popstate)면 주소의 tab 으로 돌아간다. 고객 상세(/crm/<id>)에서 뒤로 오면 그 탭이 그대로
+  const tabFromPop = useRef(false);
+  const tabMounted = useRef(false);
+  useEffect(() => {
+    const onPop = () => {
+      const t = new URLSearchParams(window.location.search).get('tab');
+      tabFromPop.current = true;
+      setActiveTab(t && (TAB_KEYS as string[]).includes(t) ? (t as Tab) : 'home');
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+  useEffect(() => {
+    if (!tabMounted.current) { tabMounted.current = true; return; } // 처음 그릴 때는 주소를 건드리지 않음 (?tab= 읽는 효과가 뒤이어 돈다)
+    if (tabFromPop.current) { tabFromPop.current = false; return; }
+    const cur = new URLSearchParams(window.location.search).get('tab') || 'home';
+    if (cur === activeTab) return;
+    window.history.pushState({ tab: activeTab }, '', activeTab === 'home' ? '/crm' : `/crm?tab=${activeTab}`);
+  }, [activeTab]);
+
   // 카카오 SDK 동적 로드 + 초기화
   useEffect(() => {
     const KAKAO_KEY = process.env.NEXT_PUBLIC_KAKAO_KEY || '';
@@ -1649,8 +1670,7 @@ export default function CRMPage() {
                 {tab.label}
               </button>
             ))}
-            {/* 회원 한눈에 보기는 별도 페이지 (2026-11-18 멤버십) */}
-            <Link href="/crm/membership" className="px-3.5 py-2 rounded-lg text-sm font-semibold whitespace-nowrap shrink-0 transition-colors text-[var(--c-text-2)] hover:bg-[var(--c-subtle)]">회원</Link>
+            {/* 회원 탭은 고객 목록의 '회원' 필터로 합침 (2026-11-26 사장님). 소개 현황 페이지(/crm/membership)는 고객 목록 회원 필터에서 링크로 */}
           </nav>
         </div>
       </header>

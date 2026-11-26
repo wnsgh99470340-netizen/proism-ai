@@ -9,9 +9,6 @@ import { memberMissing } from '@/lib/member-ready';
 import { todaySeoul } from '@/lib/local-date';
 import { MEMBERSHIP } from '@/config/membership';
 import { markThanksSent, updateReferral, type Referral } from '@/lib/referrals';
-import MemberSmsButtons from '@/components/crm/MemberSmsButtons';
-import BlacklistModal from '@/components/crm/BlacklistModal';
-import DeviceDiagModal from '@/components/crm/DeviceDiagModal';
 
 /**
  * 회원 한눈에 보기 (2026-11-18 사장님 "멤버십 한눈에 보이게, 페이지 하나 따로")
@@ -35,13 +32,9 @@ export default function MembershipPage() {
   const [appts, setAppts] = useState<Appt[]>([]);
   const [referrals, setReferrals] = useState<Referral[]>([]);
   const [tableMissing, setTableMissing] = useState(false);
-  const [q, setQ] = useState('');
   // 회원 페이지 링크 보낸 분 (2026-11-19 사장님: 62명 중 3명만 링크가 있어 "안 보낸 분" 필터 + 줄마다 문자). 보냄 = 상담 기록 "[회원 문자] 회원 페이지 링크", 열어 봄 = member_links.visits
   const [linkSent, setLinkSent] = useState<Map<string, string>>(new Map());
-  const [showBlacklist, setShowBlacklist] = useState(false);
-  const [showDiag, setShowDiag] = useState(false); // 기기 정보 창 (2026-11-23) // 블랙리스트 창 — 회원 탭 맨 아래 작은 글자로만 (2026-11-22 사장님 "잘 안 보이게 빼두자")
   const [linkVisits, setLinkVisits] = useState<Map<string, number>>(new Map());
-  const [onlyUnsent, setOnlyUnsent] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -101,8 +94,6 @@ export default function MembershipPage() {
   // 보낸 것으로 치는 기준: 상담 기록에 링크 문자가 있거나, 손님이 한 번이라도 열어 봤으면(기록 없이 보낸 경우)
   const linkDelivered = (id: string) => linkSent.has(id) || (linkVisits.get(id) || 0) > 0;
   const unsentMembers = members.filter((c) => !linkDelivered(c.id));
-  const filteredMembers = members.filter((c) => !onlyUnsent || !linkDelivered(c.id)).filter((c) => !q.trim() || `${c.name} ${c.phone || ''} ${c.car_brand || ''} ${c.car_model || ''}`.toLowerCase().includes(q.trim().toLowerCase()))
-    .sort((a, b) => (joinedAt(b.id) || '').localeCompare(joinedAt(a.id) || ''));
 
   return (
     <div className="h-dvh flex flex-col bg-[var(--c-page)]">
@@ -110,7 +101,7 @@ export default function MembershipPage() {
         <div className="flex items-center gap-3">
           <Link href="/crm" className="text-[var(--c-text-3)] hover:text-[var(--c-text-1)] transition-colors text-sm">← CRM</Link>
           <span className="text-[var(--c-border)]">|</span>
-          <span className="text-[var(--c-text-1)] font-semibold text-sm">{MEMBERSHIP.name}</span>
+          <span className="text-[var(--c-text-1)] font-semibold text-sm">{MEMBERSHIP.name} · 소개 현황</span>
         </div>
         <Btn size="sm" variant="ghost" icon="refresh" onClick={load}>새로고침</Btn>
       </div>
@@ -126,14 +117,17 @@ export default function MembershipPage() {
                 { k: '소개 연결', v: referrals.length, sub: `성사 ${succeeded.length}건` },
                 { k: '혜택 줄 차례', v: todo.referredReward + todo.referrerReward, sub: `소개받은 분 ${todo.referredReward} · 소개한 분 ${todo.referrerReward}` },
                 { k: '감사 문자 전', v: todo.thanks, sub: '소개한 분께' },
-                { k: '회원 링크 안 보낸 분', v: unsentMembers.length, sub: `보낸 분 ${members.length - unsentMembers.length}명 · 열어 본 분 ${[...linkVisits.values()].filter((n) => n > 0).length}명`, onClick: () => setOnlyUnsent(true) },
-              ].map((t) => (
-                <div key={t.k} onClick={'onClick' in t ? t.onClick : undefined} className={`${card} px-4 py-3 ${'onClick' in t ? 'cursor-pointer hover:bg-[var(--c-subtle)]' : ''}`}>
+                { k: '회원 링크 안 보낸 분', v: unsentMembers.length, sub: `보낸 분 ${members.length - unsentMembers.length}명 · 열어 본 분 ${[...linkVisits.values()].filter((n) => n > 0).length}명`, href: '/crm?tab=customers' },
+              ].map((t) => {
+                const href = 'href' in t ? String(t.href) : null;
+                return (
+                <div key={t.k} onClick={href ? () => { window.location.href = href; } : undefined} className={`${card} px-4 py-3 ${href ? 'cursor-pointer hover:bg-[var(--c-subtle)]' : ''}`}>
                   <div className="text-[11px] text-[var(--c-text-3)]">{t.k}</div>
                   <div className="text-2xl font-bold text-[var(--c-text-1)] tabular-nums leading-tight mt-0.5">{t.v}</div>
                   <div className="text-[11px] text-[var(--c-text-4)] truncate mt-0.5">{t.sub}</div>
                 </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* 규칙 */}
@@ -202,56 +196,12 @@ export default function MembershipPage() {
                 <div className="text-[11px] text-[var(--c-text-4)] mt-3">등급 기준이 정해지면 여기에 등급 배지가 붙습니다.</div>
               </section>
 
-              {/* 회원 목록 */}
+              {/* 회원 목록은 고객 목록 탭의 '회원' 필터로 옮김 (2026-11-26) */}
               <section className={`${card} p-4 md:p-5`}>
-                <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
-                  <h2 className="text-base font-bold text-[var(--c-text-1)]">회원 목록 <span className="text-sm font-medium text-[var(--c-text-3)]">{filteredMembers.length}명</span></h2>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <button onClick={() => setOnlyUnsent((v) => !v)} className={`${pill} ${onlyUnsent ? 'bg-[var(--c-text-1)] text-[var(--c-page)] border-[var(--c-text-1)]' : ''}`}>링크 안 보낸 분만 {unsentMembers.length}명</button>
-                    <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="이름·전화·차종 검색" className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-1.5 text-sm text-[var(--c-text-1)] outline-none w-56" />
-                  </div>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm whitespace-nowrap">
-                    <thead><tr className="text-[11px] text-[var(--c-text-3)] text-left"><th className="py-1.5 pr-3 font-medium">이름</th><th className="py-1.5 pr-3 font-medium">차량</th><th className="py-1.5 pr-3 font-medium">가입일</th><th className="py-1.5 pr-3 font-medium text-right">시공</th><th className="py-1.5 pr-3 font-medium text-right">소개</th><th className="py-1.5 pr-3 font-medium">최근 시공</th><th className="py-1.5 pr-3 font-medium">회원 페이지</th><th className="py-1.5 font-medium">문자</th></tr></thead>
-                    <tbody>
-                      {filteredMembers.map((c) => {
-                        const list = [...(byCust.svc.get(c.id) || [])].sort((a, b) => (b.service_date || '').localeCompare(a.service_date || ''));
-                        return (
-                          <tr key={c.id} className="border-t border-[var(--c-border)]">
-                            <td className="py-2 pr-3"><Link href={`/crm/${c.id}`} className="font-semibold text-[var(--c-text-1)] hover:underline">{c.name}</Link></td>
-                            <td className="py-2 pr-3 text-[var(--c-text-2)]">{[c.car_brand, c.car_model].filter(Boolean).join(' ') || '-'}</td>
-                            <td className="py-2 pr-3 text-[var(--c-text-3)]">{fmt(joinedAt(c.id))}</td>
-                            <td className="py-2 pr-3 text-right tabular-nums text-[var(--c-text-1)]">{list.length}회</td>
-                            <td className="py-2 pr-3 text-right tabular-nums">{byCust.gave.get(c.id) ? <span className="font-semibold text-[var(--c-text-1)]">{byCust.gave.get(c.id)}건</span> : <span className="text-[var(--c-text-4)]">-</span>}</td>
-                            <td className="py-2 pr-3 text-[var(--c-text-2)]">{list[0] ? `${list[0].service_type} (${fmt(list[0].service_date)})` : '-'}</td>
-                            <td className="py-2 pr-3 text-xs">{linkSent.has(c.id) ? <span className="text-ok">✓ 보냄 {fmt(linkSent.get(c.id))}{(linkVisits.get(c.id) || 0) > 0 ? ` · 열어 봄 ${linkVisits.get(c.id)}회` : ''}</span> : (linkVisits.get(c.id) || 0) > 0 ? <span className="text-ok">✓ 열어 봄 {linkVisits.get(c.id)}회</span> : linkVisits.has(c.id) ? <span className="text-[var(--c-text-3)]">링크 있음 · 아직 안 열림</span> : <span className="text-[var(--c-text-4)]">아직</span>}</td>
-                            <td className="py-2"><MemberSmsButtons customerId={c.id} name={c.name} phone={c.phone} size="xs" onSent={load} /></td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                  {filteredMembers.length === 0 && <div className="py-8 text-center text-sm text-[var(--c-text-3)]">해당하는 회원이 없습니다</div>}
-                </div>
-                {incomplete.length > 0 && (
-                  <div className="mt-4 pt-4 border-t border-[var(--c-border)]">
-                    <div className="text-xs font-semibold text-warn mb-2">회원 조건 미충족 {incomplete.length}명 — 시공 기록은 있지만 빠진 게 있어 회원으로 세지 않고 회원 페이지도 보내지 않습니다</div>
-                    <ul className="flex flex-wrap gap-1.5">
-                      {incomplete.map(({ c, miss }) => (
-                        <li key={c.id}><Link href={`/crm/${c.id}`} className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-warn/40 text-[var(--c-text-1)] hover:bg-warn/5"><span className="font-semibold">{c.name}</span><span className="text-warn">{miss.join('·')} 없음</span></Link></li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                <h2 className="text-base font-bold text-[var(--c-text-1)] mb-2">회원 목록</h2>
+                <p className="text-sm text-[var(--c-text-3)]">회원 {members.length}명의 목록·회원 페이지 상태·문자는 <Link href="/crm?tab=customers" className="underline text-[var(--c-text-1)]">고객 목록</Link>의 &lsquo;회원&rsquo; 필터에서 봅니다.{incomplete.length ? ` 조건 미충족 ${incomplete.length}명은 그 목록에 배지로 표시됩니다.` : ''}</p>
               </section>
             </div>
-            <div className="mt-10 flex justify-between">
-              <button onClick={() => setShowDiag(true)} className="text-[11px] text-[var(--c-text-4)] hover:text-[var(--c-text-2)] transition-colors">기기 정보</button>
-              <button onClick={() => setShowBlacklist(true)} className="text-[11px] text-[var(--c-text-4)] hover:text-danger transition-colors">블랙리스트 관리</button>
-            </div>
-            {showBlacklist && <BlacklistModal onClose={() => setShowBlacklist(false)} />}
-            {showDiag && <DeviceDiagModal onClose={() => setShowDiag(false)} />}
           </>
         )}
       </div>

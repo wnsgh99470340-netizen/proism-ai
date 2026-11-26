@@ -10,6 +10,12 @@ import { useEffect } from 'react';
 import { isBlacklisted, blacklistInfo } from '@/lib/blacklist';
 import type { Vehicle } from '@/lib/vehicles';
 import { type Customer, formatDate } from '@/lib/crm-shared';
+import Link from 'next/link';
+import { supabase } from '@/lib/supabase';
+import { memberMissing } from '@/lib/member-ready';
+import MemberSmsButtons from '@/components/crm/MemberSmsButtons';
+import BlacklistModal from '@/components/crm/BlacklistModal';
+import DeviceDiagModal from '@/components/crm/DeviceDiagModal';
 
 interface CustomersTabProps {
   customerSearch: string;
@@ -31,10 +37,33 @@ export default function CustomersTab({
   customerSearch, setCustomerSearch, filteredCustomers, vehiclesByCustomer, router, dealerNames,
   setCustomerForm, setEditCustomerId, setShowAddCustomer, handleEditCustomer, handleDeleteCustomer,
 }: CustomersTabProps) {
-  // 종류 필터 (2026-11-23): 전체 / 고객만 / 딜러만. 딜러가 한 명도 없으면 숨김
-  const [kindFilter, setKindFilter] = useState<'all' | 'customer' | 'dealer'>('customer'); // 기본은 고객만 — 딜러 31명이 목록 맨 위를 차지하지 않게 (2026-11-23)
-  const hasDealers = filteredCustomers.some((c) => c.kind === DEALER_KIND) || kindFilter !== 'customer';
-  const rows = kindFilter === 'all' ? filteredCustomers : filteredCustomers.filter((c) => (c.kind === DEALER_KIND) === (kindFilter === 'dealer'));
+  // 종류 필터 (2026-11-23): 고객 / 회원 / 딜러 / 전체. 기본은 고객만 — 딜러가 목록 맨 위를 차지하지 않게
+  // '회원' 필터 (2026-11-26 사장님 "작업 받으면 다 회원인데 고객 목록·회원 탭을 나눌 필요가 있나" → 회원 탭을 빼고 여기로): 시공 기록 + 성함·전화·차종이 다 있는 분
+  const [kindFilter, setKindFilter] = useState<'all' | 'customer' | 'member' | 'dealer'>('customer');
+  const [onlyUnsent, setOnlyUnsent] = useState(false);
+  const [showBlacklist, setShowBlacklist] = useState(false);
+  const [showDiag, setShowDiag] = useState(false);
+  // 회원 페이지 보낸 분·열어 본 분 (회원 탭에서 옮겨 옴): 보냄 = 상담 기록 "[회원 문자] 회원 페이지 링크", 열어 봄 = member_links.visits
+  const [linkSent, setLinkSent] = useState<Map<string, string>>(new Map());
+  const [linkVisits, setLinkVisits] = useState<Map<string, number>>(new Map());
+  const loadLinks = async () => {
+    const [{ data: sent }, { data: links }] = await Promise.all([
+      supabase.from('consultations').select('customer_id, consultation_date').eq('memo', '회원 문자').like('content', '[회원 문자] 회원 페이지 링크%').order('consultation_date', { ascending: false }),
+      supabase.from('member_links').select('customer_id, visits'),
+    ]);
+    const sm = new Map<string, string>(); for (const x of sent || []) if (x.customer_id && !sm.has(x.customer_id)) sm.set(x.customer_id, x.consultation_date); setLinkSent(sm);
+    setLinkVisits(new Map((links || []).map((l) => [l.customer_id as string, (l.visits as number | null) || 0])));
+  };
+  useEffect(() => { loadLinks(); }, []);
+  const missingOf = (c: Customer) => c.kind === DEALER_KIND ? [] : memberMissing({ name: c.name, phone: c.phone, car: [c.car_brand, c.car_model].filter(Boolean).join(' '), workCount: c.service_count });
+  const isMember = (c: Customer) => c.kind !== DEALER_KIND && c.service_count > 0 && missingOf(c).length === 0;
+  const linkDelivered = (id: string) => linkSent.has(id) || (linkVisits.get(id) || 0) > 0;
+  const members = filteredCustomers.filter(isMember);
+  const unsentCount = members.filter((c) => !linkDelivered(c.id)).length;
+  const rows = kindFilter === 'all' ? filteredCustomers
+    : kindFilter === 'member' ? members.filter((c) => !onlyUnsent || !linkDelivered(c.id))
+    : filteredCustomers.filter((c) => (c.kind === DEALER_KIND) === (kindFilter === 'dealer'));
+  const memberView = kindFilter === 'member';
   // 연락처 저장 (2026-11-23 사장님 "버튼 한 번이면 내 연락처에"): 지금 보이는 줄(검색·필터 적용)을 vCard 한 파일로
   const [vcfBusy, setVcfBusy] = useState(false);
   const [saved, setSaved] = useState<SavedContacts>({});
@@ -73,12 +102,16 @@ export default function CustomersTab({
             className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] w-full sm:w-64 outline-none focus:border-gold/50 transition-colors placeholder:text-[var(--c-text-3)]"
           />
           <span className="text-xs text-[var(--c-text-3)]">{rows.length}명</span>
-          {hasDealers && (
-            <div className="inline-flex rounded-lg border border-[var(--c-border)] overflow-hidden text-[11px] font-semibold">
-              {([['customer', '고객'], ['dealer', '딜러'], ['all', '전체']] as const).map(([k, l]) => (
-                <button key={k} onClick={() => setKindFilter(k)} className={`px-2.5 py-1.5 whitespace-nowrap transition-colors ${kindFilter === k ? 'bg-[var(--c-text-1)] text-[var(--c-card)]' : 'text-[var(--c-text-2)] hover:bg-[var(--c-subtle)]'}`}>{l}</button>
-              ))}
-            </div>
+          <div className="inline-flex rounded-lg border border-[var(--c-border)] overflow-hidden text-[11px] font-semibold">
+            {([['customer', '고객'], ['member', `회원 ${members.length}`], ['dealer', '딜러'], ['all', '전체']] as const).map(([k, l]) => (
+              <button key={k} onClick={() => setKindFilter(k)} className={`px-2.5 py-1.5 whitespace-nowrap transition-colors ${kindFilter === k ? 'bg-[var(--c-text-1)] text-[var(--c-card)]' : 'text-[var(--c-text-2)] hover:bg-[var(--c-subtle)]'}`}>{l}</button>
+            ))}
+          </div>
+          {memberView && (
+            <>
+              <button onClick={() => setOnlyUnsent((v) => !v)} className={`text-[11px] font-medium px-2.5 py-1.5 rounded-full border whitespace-nowrap transition-colors ${onlyUnsent ? 'bg-[var(--c-text-1)] text-[var(--c-card)] border-[var(--c-text-1)]' : 'border-[var(--c-border)] text-[var(--c-text-1)] hover:bg-[var(--c-subtle)]'}`}>링크 안 보낸 분만 {unsentCount}명</button>
+              <Link href="/crm/membership" className="text-[11px] text-[var(--c-text-3)] hover:text-[var(--c-text-1)] whitespace-nowrap">소개 현황 →</Link>
+            </>
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0 sm:ml-auto">
@@ -102,6 +135,8 @@ export default function CustomersTab({
               <th className="text-left px-4 py-3 text-xs font-medium text-[var(--c-text-3)]">차종</th>
               <th className="text-left px-4 py-3 text-xs font-medium text-[var(--c-text-3)]">최근 시공</th>
               <th className="text-left px-4 py-3 text-xs font-medium text-[var(--c-text-3)]">등록일</th>
+              {memberView && <th className="text-left px-4 py-3 text-xs font-medium text-[var(--c-text-3)]">회원 페이지</th>}
+              {memberView && <th className="text-left px-4 py-3 text-xs font-medium text-[var(--c-text-3)]">문자</th>}
               <th className="w-20"></th>
             </tr>
           </thead>
@@ -118,6 +153,8 @@ export default function CustomersTab({
                   {c.kind === DEALER_KIND && isRetiredDealer(c.memo) && <span className="ml-1 text-[9px] bg-[var(--c-subtle)] text-[var(--c-text-3)] px-1.5 py-0.5 rounded-full font-medium line-through">퇴사</span>}
                   {c.dealer_id && dealerNames?.get(c.dealer_id) && <span className="ml-1.5 text-[9px] bg-[var(--c-subtle)] text-[var(--c-text-3)] px-1.5 py-0.5 rounded-full font-medium" title="이 차를 넣어 준 딜러">딜러 {dealerNames.get(c.dealer_id)}</span>}
                   {isBlacklisted(c.memo) && <span className="ml-1.5 text-[9px] bg-danger/15 text-danger px-1.5 py-0.5 rounded-full font-semibold" title={blacklistInfo(c.memo)?.reason || ''}>⛔ 블랙리스트</span>}
+                  {isMember(c) && <span className="ml-1.5 text-[9px] bg-ok/10 text-ok px-1.5 py-0.5 rounded-full font-semibold" title="시공 기록 + 성함·전화·차종이 다 있는 회원">회원</span>}
+                  {!isMember(c) && c.kind !== DEALER_KIND && c.service_count > 0 && <span className="ml-1.5 text-[9px] bg-warn/10 text-warn px-1.5 py-0.5 rounded-full font-medium" title="시공 기록은 있지만 빠진 게 있어 회원으로 세지 않음 — 고객 정보 수정에서 채우면 회원">회원 조건 미충족 · {missingOf(c).join('·')} 없음</span>}
                   {c.service_count >= 2 && <span className="ml-1.5 text-[9px] bg-gold/20 text-gold px-1.5 py-0.5 rounded-full font-medium">재방문</span>}
                   {(vehiclesByCustomer.get(c.id)?.length || 0) > 1 && <span className="ml-1 text-[9px] bg-info/15 text-info px-1.5 py-0.5 rounded-full font-medium">차 {vehiclesByCustomer.get(c.id)!.length}대</span>}
                 </td>
@@ -136,6 +173,8 @@ export default function CustomersTab({
                     : '-'}
                 </td>
                 <td className="px-4 py-3 text-sm text-[var(--c-text-3)]">{formatDate(c.created_at)}</td>
+                {memberView && <td className="px-4 py-3 text-xs">{linkSent.has(c.id) ? <span className="text-ok">✓ 보냄 {formatDate(linkSent.get(c.id) || '')}{(linkVisits.get(c.id) || 0) > 0 ? ` · 열어 봄 ${linkVisits.get(c.id)}회` : ''}</span> : (linkVisits.get(c.id) || 0) > 0 ? <span className="text-ok">✓ 열어 봄 {linkVisits.get(c.id)}회</span> : linkVisits.has(c.id) ? <span className="text-[var(--c-text-3)]">링크 있음 · 아직 안 열림</span> : <span className="text-[var(--c-text-4)]">아직</span>}</td>}
+                {memberView && <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}><MemberSmsButtons customerId={c.id} name={c.name} phone={c.phone} size="xs" onSent={loadLinks} /></td>}
                 <td className="px-2 py-3">
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
                     <button
@@ -154,14 +193,21 @@ export default function CustomersTab({
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-12 text-center text-sm text-[var(--c-text-3)]">
-                  {customerSearch ? '검색 결과가 없습니다' : '등록된 고객이 없습니다'}
+                <td colSpan={memberView ? 8 : 6} className="px-4 py-12 text-center text-sm text-[var(--c-text-3)]">
+                  {customerSearch ? '검색 결과가 없습니다' : memberView ? (onlyUnsent ? '링크를 안 보낸 회원이 없습니다' : '아직 회원이 없습니다') : '등록된 고객이 없습니다'}
                 </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
+      {/* 회원 탭에서 옮겨 온 작은 입구 (2026-11-26): 블랙리스트는 잘 안 보이게 (2026-11-22 사장님) */}
+      <div className="mt-8 flex justify-between">
+        <button onClick={() => setShowDiag(true)} className="text-[11px] text-[var(--c-text-4)] hover:text-[var(--c-text-2)] transition-colors">기기 정보</button>
+        <button onClick={() => setShowBlacklist(true)} className="text-[11px] text-[var(--c-text-4)] hover:text-danger transition-colors">블랙리스트 관리</button>
+      </div>
+      {showBlacklist && <BlacklistModal onClose={() => setShowBlacklist(false)} />}
+      {showDiag && <DeviceDiagModal onClose={() => setShowDiag(false)} />}
     </div>
   );
 }
