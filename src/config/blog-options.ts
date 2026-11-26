@@ -35,13 +35,13 @@ export const SERVICES: ServiceOption[] = [
   {
     key: 'PPF',
     label: 'PPF (투명 보호필름)',
-    products: ['3M 시리즈50', '3M 시리즈100', '3M 시리즈150', '3M PRO200 유광', '3M PRO200 무광'],
+    products: ['3M 시리즈50', '3M 시리즈100', '3M 시리즈150', '3M PRO200 유광', '3M PRO200 무광', '오벨 PPF'],
     ranges: ['전체', '프론트(보닛·범퍼·펜더)', '부분'],
   },
   {
     key: '컬러PPF',
     label: '컬러PPF (3M PWF)',
-    products: ['3M PWF'],
+    products: ['3M PWF', '오벨 컬러PPF'],
     extraLabel: '컬러',
     extraPlaceholder: '예: 매트 블랙, 새틴 그레이',
     ranges: ['전체', '부분'],
@@ -49,7 +49,7 @@ export const SERVICES: ServiceOption[] = [
   {
     key: '랩핑',
     label: '랩핑 (3M 2080)',
-    products: ['3M 2080'],
+    products: ['3M 2080', '오벨 랩핑'],
     extraLabel: '컬러·마감',
     extraPlaceholder: '예: 글로스 블랙, 매트 밀리터리 그린',
     ranges: ['전체', '루프', '부분'],

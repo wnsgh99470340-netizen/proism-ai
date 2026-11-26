@@ -21,7 +21,7 @@ describe('PPF 제품 선택 (work-order)', () => {
     expect(workItems({ color_ppf_etc: '3M PWF 글로스 본 그레이' })[0].product).toBe('3M PWF 글로스 본 그레이');
   });
   it('선택지 다섯 개가 전부 스펙 줄로 바뀐다', () => {
-    for (const p of PPF_PRODUCT_OPTIONS) expect(ppfProductOf({ ppf_product: p })).toMatch(/^3M PPF /);
+    for (const p of PPF_PRODUCT_OPTIONS) expect(ppfProductOf({ ppf_product: p })).toMatch(/^오벨/.test(p) ? /^오벨 / : /^3M PPF /);
     expect(ppfProductOf({ ppf_product: 'PRO200 유광' })).toContain('유광');
     expect(ppfProductOf({})).toBeNull();
   });
@@ -36,5 +36,18 @@ describe('사후관리 카드 작업 내역 줄 (workSummaryLines, 2026-11-26)',
     expect(workSummaryLines(null, { service_area: '전체', film_used: '3M PWF 매트블랙' })).toEqual(['전체 · 3M PWF 매트블랙']);
     expect(workSummaryLines('타임트리 일정 가져옴 2026-11-23 · 원문 X5 PPF\n둘째 줄', {})).toEqual(['타임트리 일정 가져옴 2026-11-23 · 원문 X5 PPF']);
     expect(workSummaryLines('', {})).toEqual([]);
+  });
+});
+
+describe('오벨 필름 (2026-11-26 사장님 "3M 만 쓰는 게 아니라 오벨도")', () => {
+  it('랩핑 기타에 오벨이라고 적으면 제품이 3M 2080 이 되지 않는다', () => {
+    const [it1] = workItems({ wrapping: ['전체랩핑'], wrapping_etc: '오벨 포르쉐 크레용' });
+    expect(it1.product).toBe('오벨 포르쉐 크레용');
+    expect(workItems({ wrapping: ['전체랩핑'], wrapping_etc: '포르쉐 크레용' })[0].product).toBe('3M 2080 랩핑 필름');
+  });
+  it('컬러PPF 기타에 오벨이 있으면 3M 을 붙이지 않고, PPF 선택지 오벨은 스펙 없이 이름만', () => {
+    expect(workItems({ color_ppf: ['전체'], color_ppf_etc: '오벨 카키 밀란' })[0].product).toBe('오벨 카키 밀란');
+    expect(ppfProductOf({ ppf_product: '오벨 PPF' })).toBe('오벨 PPF');
+    expect(workItems({ ppf: ['전체PPF'], ppf_product: '오벨 PPF', ppf_etc: '무광' })[0]).toMatchObject({ product: '오벨 PPF', text: '전체 PPF · 무광' });
   });
 });

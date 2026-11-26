@@ -457,8 +457,11 @@ export default function MemberPage() {
                   ))}
                 </ul>
               )}
+              {/* 3M 전자 보증서 안내는 3M 제품으로 한 시공이 있을 때만 (2026-11-26 오벨 필름도 씀) */}
+              {data.warranties.some((w) => w.items.some((it) => /^3M/i.test(it.product || ''))) && (<>
               <a href={LINKS.threeMWarrantyCheck} target="_blank" rel="noopener noreferrer" className={`${btn} w-full mt-3 bg-white/[0.08] hover:bg-white/[0.14]`}>3M 소비자 보증서 확인 ↗</a>
               <div className="text-[11px] text-white/40 mt-2 leading-relaxed">3M 필름 보증은 한국쓰리엠 전자 보증서로 별도 발급됩니다. 보증 청구는 저희 매장으로 먼저 연락 주세요.</div>
+              </>)}
             </div>
           </div>
         )}

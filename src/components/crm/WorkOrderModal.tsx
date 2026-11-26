@@ -5,7 +5,7 @@ import Btn from '@/components/ui/Btn';
 import { resizeAndUploadPhoto } from '@/lib/photo-upload';
 import { todaySeoul } from '@/lib/local-date';
 import type { Appointment } from '@/lib/crm-shared';
-import { PPF_PRODUCT_OPTIONS } from '@/lib/work-order';
+import { PPF_PRODUCT_OPTIONS, ppfOptionLabel } from '@/lib/work-order';
 
 /** 작업 내역서 창 (2026-11-23 page.tsx 에서 분리 — 동작 변경 없음) */
 // ─── Work Order Modal Component ──────────────────────────
@@ -203,7 +203,7 @@ export default function WorkOrderModal({ appointment, workOrder, setWorkOrder, o
               <label className="text-[11px] text-[var(--c-text-3)] mb-1 block">제품</label>
               <select value={workOrder.ppf_product || ''} onChange={(e) => setWorkOrder({ ...workOrder, ppf_product: e.target.value })} className="w-full bg-[var(--c-card)] border border-[var(--c-border)] rounded px-2 py-1.5 text-xs text-[var(--c-text-1)] outline-none focus:border-[var(--c-text-1)] mb-2">
                 <option value="">선택 (PPF 를 했으면 고르기)</option>
-                {PPF_PRODUCT_OPTIONS.map((p) => <option key={p} value={p}>3M {p}</option>)}
+                {PPF_PRODUCT_OPTIONS.map((p) => <option key={p} value={p}>{ppfOptionLabel(p)}</option>)}
               </select>
               <input type="text" value={workOrder.ppf_etc} onChange={(e) => setWorkOrder({ ...workOrder, ppf_etc: e.target.value })} className="w-full bg-[var(--c-card)] border border-[var(--c-border)] rounded px-2 py-1 text-xs text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder="기타 (메모 — 제품은 위에서 선택)" />
             </div>
@@ -354,7 +354,7 @@ export default function WorkOrderModal({ appointment, workOrder, setWorkOrder, o
                   <td style={{ border: '1px solid #ccc', padding: '6px 8px', backgroundColor: '#f5f5f5', fontWeight: 600, width: '70px' }}>PPF</td>
                   <td style={{ border: '1px solid #ccc', padding: '6px 8px' }}>
                     {['전체PPF', '프론트패키지', '생활보호패키지'].map((p) => <span key={p} style={{ marginRight: '16px', fontSize: '13px', display: 'inline-flex', alignItems: 'center' }}><PrintCheck checked={workOrder.ppf?.includes(p)} /> {p}</span>)}
-                    {workOrder.ppf_product && <span style={{ marginRight: '12px', fontWeight: 600 }}>제품: 3M {workOrder.ppf_product}</span>}
+                    {workOrder.ppf_product && <span style={{ marginRight: '12px', fontWeight: 600 }}>제품: {ppfOptionLabel(workOrder.ppf_product)}</span>}
                     {workOrder.ppf_etc && <span>기타: {workOrder.ppf_etc}</span>}
                   </td>
                 </tr>

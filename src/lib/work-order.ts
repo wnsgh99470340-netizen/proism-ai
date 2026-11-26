@@ -54,7 +54,10 @@ const PPF_SPECS: { test: RegExp; name: string; spec: string }[] = [
 ];
 
 /** 작업 내역서 PPF 제품 선택지 (2026-11-25). 스펙 표기는 ppfProduct 가 만든다 */
-export const PPF_PRODUCT_OPTIONS = ['시리즈50', '시리즈100', '시리즈150', 'PRO200 유광', 'PRO200 무광'] as const;
+export const PPF_PRODUCT_OPTIONS = ['시리즈50', '시리즈100', '시리즈150', 'PRO200 유광', 'PRO200 무광', '오벨 PPF'] as const;
+/** 선택지 표시용 이름: 3M 라인은 "3M 시리즈50", 오벨은 그대로 (2026-11-26 사장님 "PPF·컬러PPF·랩핑은 3M 만 쓰는 게 아니라 오벨도 씀") */
+export const ppfOptionLabel = (p: string) => (/^오벨|obel/i.test(p) ? p : `3M ${p}`);
+export const isObel = (t: string | null | undefined) => /오벨|obel/i.test(t || '');
 
 /** 제품 선택 칸 우선, 없으면 옛 기록의 기타 글자에서 알아낸다 */
 export function ppfProductOf(w: Pick<WorkOrderJson, 'ppf_product' | 'ppf_etc'>): string | null {
@@ -63,6 +66,7 @@ export function ppfProductOf(w: Pick<WorkOrderJson, 'ppf_product' | 'ppf_etc'>):
 
 /** "50시리즈"·"시리즈150"·"PRO200 무광" 같은 자유 입력에서 3M PPF 제품을 알아내 스펙 한 줄로 */
 export function ppfProduct(text: string | undefined | null): string | null {
+  if (isObel(text)) return `오벨 ${String(text).replace(/^오벨\s*/i, '').trim()}`.trim(); // 오벨 라인은 이름만(스펙 확인 전)
   const t = (text || '').trim();
   if (!t) return null;
   for (const p of PPF_SPECS) {
@@ -96,14 +100,16 @@ export function workItems(w: WorkOrderJson): WorkItem[] {
   }
 
   // 컬러PPF 칸 (2026-11-25): 범위는 체크, 제품명은 기타에 사장님이 적은 그대로(없으면 PWF 기본)
-  const asProduct = (etc: string | undefined, base: string) => { const t = (etc || '').trim(); if (!t) return base; return /3m/i.test(t) ? t : `3M ${t}`; };
+  // 기타에 적은 제품명: 3M 이나 오벨이 적혀 있으면 그대로, 브랜드가 없으면 3M 으로 본다(PWF 등). 오벨 글자가 있으면 3M 을 붙이지 않는다 (2026-11-26)
+  const asProduct = (etc: string | undefined, base: string) => { const t = (etc || '').trim(); if (!t) return base; return /3m/i.test(t) || isObel(t) ? t : `3M ${t}`; };
   const cp = w.color_ppf || [];
   if (cp.length || (w.color_ppf_etc || '').trim()) items.push({ group: '컬러PPF', text: cp.length ? cp.join(' · ') : '컬러PPF', product: asProduct(w.color_ppf_etc, '3M PWF 컬러 PPF 필름') });
 
   const wrap = join(w.wrapping, w.wrapping_etc);
   if (wrap.length) {
     const isPwf = wrap.some((s) => /pwf|컬러\s*ppf/i.test(s));
-    items.push({ group: isPwf ? '컬러PPF' : '랩핑', text: wrap.join(' · '), product: isPwf ? '3M PWF 컬러 PPF 필름' : '3M 2080 랩핑 필름' });
+    const obelWrap = isObel(w.wrapping_etc) ? (w.wrapping_etc || '').trim() : null; // 랩핑 기타에 오벨 제품명을 적으면 그 제품으로 (2026-11-26)
+    items.push({ group: isPwf ? '컬러PPF' : '랩핑', text: wrap.join(' · '), product: obelWrap || (isPwf ? '3M PWF 컬러 PPF 필름' : '3M 2080 랩핑 필름') });
   }
   const coat = w.coating || [];
   if (coat.length) items.push({ group: '코팅', text: coat.join(' · ') });

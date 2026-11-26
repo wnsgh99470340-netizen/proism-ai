@@ -35,7 +35,7 @@ export const CARE_GUIDES: CareGuide[] = [
   },
   {
     key: '컬러PPF',
-    title: '컬러 PPF (3M PWF)',
+    title: '컬러 PPF',
     after: [
       '출고 후 1주일은 세차와 왁스를 쉬어 주세요',
       '필름 끝단과 모서리는 문지르거나 뜯지 말아 주세요',
@@ -50,7 +50,7 @@ export const CARE_GUIDES: CareGuide[] = [
   },
   {
     key: '랩핑',
-    title: '랩핑 (3M 2080)',
+    title: '랩핑',
     after: [
       '출고 후 3일은 세차를 쉬어 주세요',
       '끝단과 모서리를 손톱이나 도구로 건드리지 말아 주세요',
@@ -66,7 +66,7 @@ export const CARE_GUIDES: CareGuide[] = [
   },
   {
     key: '크롬죽이기',
-    title: '크롬죽이기 (3M 2080)',
+    title: '크롬죽이기',
     after: [
       '출고 후 3일은 세차를 쉬어 주세요',
       '몰딩 끝단을 손톱으로 긁거나 들추지 말아 주세요',
