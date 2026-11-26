@@ -27,4 +27,8 @@ describe('모바일 줄바꿈 (mobile-lines)', () => {
     // 이미 맞는 끝은 그대로(두 번 안 붙음)
     expect(ensureEnding(out)).toBe(out);
   });
+  it('[재료 필요] 안내 줄은 주소 뒤로 보내고 모델이 쓴 끝맺음은 한 번만', () => {
+    const body = `본문\n\n${TALK_LINE}\n${SHOP_LINE}\n\n[재료 필요] 사례가 더 있으면 채울 수 있습니다\n\n${TALK_LINE}\n${SHOP_LINE}\n${ADDRESS_LINE}`;
+    expect(ensureEnding(body)).toBe(`본문\n\n${TALK_LINE}\n${SHOP_LINE}\n${ADDRESS_LINE}\n\n[재료 필요] 사례가 더 있으면 채울 수 있습니다`);
+  });
 });

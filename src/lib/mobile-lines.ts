@@ -77,11 +77,14 @@ export function ensureEnding(body: string): string {
     if (/서초중앙로/.test(t)) return false;
     return true;
   });
+  // "[재료 필요] …" 같은 안내 줄은 본문에서 떼어 맨 끝(주소 뒤)으로 — 모델이 끝맺음 뒤에 붙이면 끝이 두 번 생겼음 (2026-11-26 첫 시험 글)
+  const notes = kept.filter((l) => /^\[[^\]]{1,12}\]/.test(l.trim()));
+  const main = kept.filter((l) => !/^\[[^\]]{1,12}\]/.test(l.trim()));
   // 끝에 몰려 있는 톡톡·상호·빈 줄은 걷어내고(인사 네 줄의 것은 끝이 아니라 남음) 다시 붙인다
   const tail = /^(?:궁금할 땐 네이버 톡톡하세요!?|3M\s*프로이즘\s*강남서초점\s*\/?|)$/;
-  while (kept.length && tail.test(kept[kept.length - 1].trim())) kept.pop();
-  const text = kept.join('\n').replace(/\n{3,}/g, '\n\n').trim();
-  return `${text}\n\n${TALK_LINE}\n${SHOP_LINE}\n${ADDRESS_LINE}`;
+  while (main.length && tail.test(main[main.length - 1].trim())) main.pop();
+  const text = main.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  return `${text}\n\n${TALK_LINE}\n${SHOP_LINE}\n${ADDRESS_LINE}${notes.length ? `\n\n${notes.map((n) => n.trim()).join('\n')}` : ''}`;
 }
 
 /** 생성·수정 결과에 한 번에 적용 */
