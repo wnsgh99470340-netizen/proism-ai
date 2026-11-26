@@ -6,6 +6,7 @@ import { sendPushToAll as sendPush } from '@/lib/push';
 import { missedPushBody, urgentSummaryLine } from '@/lib/checkups';
 import { buildMonthlyReport, monthlySummaryLines } from '@/lib/weekly-stats';
 import { addDaysISO } from '@/lib/local-date';
+import { buildMorningDirection } from '@/lib/morning-direction';
 
 export const maxDuration = 120;
 
@@ -47,6 +48,19 @@ export async function GET(request: NextRequest) {
 
     const weekday = new Date(`${brief.date}T12:00:00+09:00`).getUTCDay(); // 0 일 … 5 금
     const extras: Record<string, unknown> = {};
+
+    // 매일: 오늘의 방향 (2026-11-27 사장님 "맥이 꺼져 있어도 폰으로" — 로컬 예약 작업 대신 서버에서. 읽기만 + 푸시 + Blob 기록)
+    try {
+      const m = await buildMorningDirection(brief.date);
+      const md = brief.date.slice(5).replace(/^0?(\d+)-0?(\d+)$/, '$1/$2');
+      const mPush = await sendPushToAll({ title: `오늘의 방향 ${md}`, body: m.text, url: '/crm', tag: `morning-${brief.date}` }).catch(() => ({ sent: 0, removed: 0 }));
+      let mUrl: string | null = null;
+      if (process.env.BLOB_READ_WRITE_TOKEN && !dry) {
+        const b = await put(`team/morning/${brief.date}.json`, JSON.stringify({ date: brief.date, model: m.model, counts: m.counts, text: m.text, facts: m.factsText }), { access: 'public', contentType: 'application/json', addRandomSuffix: false, allowOverwrite: true }).catch(() => null);
+        mUrl = b?.url || null;
+      }
+      extras.morning = { model: m.model, counts: m.counts, push: mPush, url: mUrl, text: m.text };
+    } catch (e) { extras.morning = { error: e instanceof Error ? e.message : String(e) }; }
 
     // 금요일: 빠진 것 알림
     if (weekday === 5 && brief.missed && brief.missed.total > 0) {
