@@ -208,10 +208,10 @@ export async function composeMorningDirection(facts: MorningFacts): Promise<{ te
   try {
     const text = await callClaude(SYSTEM, [{ role: 'user', content: `오늘은 ${facts.date} 이다. 제목은 "오늘의 방향 ${md}".\n\n[사실]\n${facts.text}` }], 1500, 'claude-sonnet-5-5');
     const clean = text.trim();
-    if (clean.length < 60) return { text: fallbackText(facts), model: 'fallback-short' };
+    if (clean.length < 60) return { text: fallbackText(facts), model: `fallback-short(${clean.length}): ${clean.slice(0, 80)}` };
     return { text: clean.slice(0, 1500), model: 'claude-sonnet-5-5' };
-  } catch {
-    return { text: fallbackText(facts), model: 'fallback-error' };
+  } catch (e) {
+    return { text: fallbackText(facts), model: `fallback-error: ${(e instanceof Error ? e.message : String(e)).slice(0, 160)}` };
   }
 }
 
