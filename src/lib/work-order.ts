@@ -26,6 +26,10 @@ export interface WorkOrderJson {
   polish?: string[]; polish_etc?: string;
   package_options?: string[];
   tinting?: Record<string, TintPick>;
+  /** 썬팅 '기타 필름' — 네 브랜드에 없는 필름을 받아와 시공한 경우 제품명 수기 + 농도 (2026-11-26 사장님) */
+  tint_other?: { name?: string; density?: string };
+  /** PPF·컬러PPF·랩핑 밖의 기타 시공 — 예: 윈드쉴드 보호필름 (2026-11-26 사장님) */
+  other_work?: string;
   /** 특이사항 및 비고 (작업 내역서 PDF 아래 칸, 시공기 폼 참고 메모로도) */
   notes?: string;
   /** 작업 내역서 상단 체크 — 완료 처리 때 자동 true */
@@ -94,6 +98,8 @@ export function workItems(w: WorkOrderJson): WorkItem[] {
 
   const tints = Object.entries(w.tinting || {}).filter(([, t]) => (t?.selected || []).length > 0)
     .map(([b, t]) => `${TINT_LABEL[b] || b} ${(t.selected || []).join('·')}${t.density?.trim() ? ` (${t.density.trim()})` : ''}`);
+  const tintOther = (w.tint_other?.name || '').trim();
+  if (tintOther) tints.push(`${tintOther}${w.tint_other?.density?.trim() ? ` (${w.tint_other.density.trim()})` : ''}`); // 기타 필름 (2026-11-26)
   if (tints.length) {
     const is3m = tints.some((s) => /크리스탈라인|crystalline/i.test(s));
     items.push({ group: '썬팅', text: tints.join(' · '), product: is3m ? '3M 크리스탈라인 · 비금속 다층 광학 필름' : undefined });
@@ -121,6 +127,8 @@ export function workItems(w: WorkOrderJson): WorkItem[] {
   if (pol.length) items.push({ group: '광택', text: pol.join(' · ') });
   const pkg = w.package_options || [];
   if (pkg.length) items.push({ group: '패키지', text: pkg.join(' · ') });
+  const other = (w.other_work || '').trim();
+  if (other) items.push({ group: '기타', text: other }); // 윈드쉴드 보호필름 등 (2026-11-26)
   return items;
 }
 

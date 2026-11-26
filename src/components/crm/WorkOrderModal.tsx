@@ -188,11 +188,22 @@ export default function WorkOrderModal({ appointment, workOrder, setWorkOrder, o
                 </div>
               </div>
             ))}
+            {/* 기타 필름: 네 브랜드에 없는 필름을 받아와 시공한 경우 — 제품명 수기 + 농도 (2026-11-26 사장님) */}
+            <div className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg p-3">
+              <div className="flex items-center justify-between mb-2 gap-3">
+                <span className="text-xs font-medium text-[var(--c-text-2)] whitespace-nowrap">기타 필름</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-[var(--c-text-3)]">농도:</span>
+                  <input type="text" value={workOrder.tint_other?.density || ''} onChange={(e) => setWorkOrder({ ...workOrder, tint_other: { ...(workOrder.tint_other || {}), density: e.target.value } })} className="w-40 bg-[var(--c-card)] border border-[var(--c-border)] rounded px-2 py-1 text-xs text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder="전면 30 / 측후면 15" />
+                </div>
+              </div>
+              <input type="text" value={workOrder.tint_other?.name || ''} onChange={(e) => setWorkOrder({ ...workOrder, tint_other: { ...(workOrder.tint_other || {}), name: e.target.value } })} className="w-full bg-[var(--c-card)] border border-[var(--c-border)] rounded px-2 py-1 text-xs text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder="브랜드·제품명 직접 기입 (예: 3M 크리스탈라인 70)" />
+            </div>
           </div>
 
           {/* PPF & 랩핑 */}
           <SectionTitle title="PPF & 컬러PPF & 랩핑" />
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-2 xl:grid-cols-4 gap-3">
             <div className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg p-3">
               <span className="text-xs font-medium text-[var(--c-text-2)] mb-2 block">PPF</span>
               <div className="flex flex-wrap gap-3 mb-2">
@@ -224,6 +235,12 @@ export default function WorkOrderModal({ appointment, workOrder, setWorkOrder, o
                 ))}
               </div>
               <input type="text" value={workOrder.wrapping_etc} onChange={(e) => setWorkOrder({ ...workOrder, wrapping_etc: e.target.value })} className="w-full bg-[var(--c-card)] border border-[var(--c-border)] rounded px-2 py-1 text-xs text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder="기타 · 제품명 직접 기입 (예: 2080 사틴블랙)" />
+            </div>
+            {/* 기타 시공: PPF·컬러PPF·랩핑 밖의 작업 (2026-11-26 사장님 "윈드쉴드 같은 시공도 가끔") */}
+            <div className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg p-3">
+              <span className="text-xs font-medium text-[var(--c-text-2)] mb-2 block">기타 시공</span>
+              <input type="text" value={workOrder.other_work || ''} onChange={(e) => setWorkOrder({ ...workOrder, other_work: e.target.value })} className="w-full bg-[var(--c-card)] border border-[var(--c-border)] rounded px-2 py-1 text-xs text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder="예: 윈드쉴드 보호필름, 블랙박스 탈부착" />
+              <div className="text-[11px] text-[var(--c-text-4)] mt-1.5">증명서에 '기타' 항목으로 그대로 들어갑니다</div>
             </div>
           </div>
 
@@ -344,6 +361,12 @@ export default function WorkOrderModal({ appointment, workOrder, setWorkOrder, o
                     </td>
                   </tr>
                 ))}
+                {(workOrder.tint_other?.name || '').trim() && (
+                  <tr>
+                    <td style={{ border: '1px solid #ccc', padding: '6px 8px', backgroundColor: '#f5f5f5', fontWeight: 600, width: '70px', verticalAlign: 'top' }}>기타 필름</td>
+                    <td style={{ border: '1px solid #ccc', padding: '6px 8px', fontSize: '13px' }}>{workOrder.tint_other?.name}{workOrder.tint_other?.density ? <span style={{ marginLeft: '8px', color: '#E4002B' }}>농도: [{workOrder.tint_other.density}]</span> : null}</td>
+                  </tr>
+                )}
               </tbody>
             </table>
             {/* PPF & 랩핑 / 코팅 / 기타 */}
@@ -372,6 +395,12 @@ export default function WorkOrderModal({ appointment, workOrder, setWorkOrder, o
                     {workOrder.color_ppf_etc && <span>제품: {workOrder.color_ppf_etc}</span>}
                   </td>
                 </tr>
+                {(workOrder.other_work || '').trim() && (
+                  <tr>
+                    <td style={{ border: '1px solid #ccc', padding: '6px 8px', backgroundColor: '#f5f5f5', fontWeight: 600 }}>기타 시공</td>
+                    <td style={{ border: '1px solid #ccc', padding: '6px 8px', fontSize: '13px' }}>{workOrder.other_work}</td>
+                  </tr>
+                )}
                 <tr>
                   <td style={{ border: '1px solid #ccc', padding: '6px 8px', backgroundColor: '#f5f5f5', fontWeight: 600 }}>코팅시공</td>
                   <td style={{ border: '1px solid #ccc', padding: '6px 8px' }}>

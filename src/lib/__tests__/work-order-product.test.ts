@@ -53,3 +53,12 @@ describe('오벨 필름 (2026-11-26 사장님 "3M 만 쓰는 게 아니라 오�
     expect(workItems({ ppf: ['전체PPF'], ppf_product: '오벨 PPF', ppf_etc: '무광' })[0]).toMatchObject({ product: '오벨 PPF', text: '전체 PPF · 무광' });
   });
 });
+
+describe('썬팅 기타 필름 · 기타 시공 (2026-11-26)', () => {
+  it('기타 필름은 썬팅 줄에 제품명(농도)로, 기타 시공은 기타 항목으로', () => {
+    const items = workItems({ tinting: { vertex: { selected: ['900(비반사)'], density: '전면 30' } }, tint_other: { name: '3M 크리스탈라인 70', density: '측후면 15' }, other_work: '윈드쉴드 보호필름' });
+    expect(items.find((i) => i.group === '썬팅')?.text).toBe('루마 버텍스 900(비반사) (전면 30) · 3M 크리스탈라인 70 (측후면 15)');
+    expect(items.find((i) => i.group === '기타')).toMatchObject({ text: '윈드쉴드 보호필름' });
+    expect(workItems({ tint_other: { name: '  ', density: '' }, other_work: ' ' })).toEqual([]);
+  });
+});

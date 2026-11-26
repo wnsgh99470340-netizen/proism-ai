@@ -249,6 +249,8 @@ export default function CRMPage() {
       glasstint: { selected: [] as string[], density: '' },
       tinain: { selected: [] as string[], density: '' },
     },
+    tint_other: { name: '', density: '' } as { name?: string; density?: string },
+    other_work: '',
     ppf: [] as string[],
     wrapping: [] as string[],
     color_ppf: [] as string[],
@@ -764,6 +766,7 @@ export default function CRMPage() {
       vertex: { selected: [], density: '' }, rainbow: { selected: [], density: '' },
       glasstint: { selected: [], density: '' }, tinain: { selected: [], density: '' },
     },
+    tint_other: { name: '', density: '' }, other_work: '',
     ppf: [], wrapping: [], color_ppf: [], color_ppf_etc: '', coating: [], electrical: [], electrical_etc: '',
     polish: [], polish_etc: '', package_options: [], ppf_etc: '', ppf_product: '', wrapping_etc: '', notes: '',
   });
