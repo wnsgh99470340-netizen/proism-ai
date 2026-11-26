@@ -1700,6 +1700,7 @@ export default function CRMPage() {
             customerSearch={customerSearch} setCustomerSearch={setCustomerSearch} filteredCustomers={filteredCustomers} dealerNames={new Map(customers.filter((c) => c.kind === DEALER_KIND).map((c) => [c.id, c.name]))} vehiclesByCustomer={vehiclesByCustomer} router={router}
             setCustomerForm={setCustomerForm} setEditCustomerId={setEditCustomerId} setShowAddCustomer={setShowAddCustomer}
             handleEditCustomer={handleEditCustomer} handleDeleteCustomer={handleDeleteCustomer}
+            refresh={() => { fetchCustomers(); fetchAllCustomers(); }}
           />
         )}
 

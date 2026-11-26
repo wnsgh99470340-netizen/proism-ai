@@ -3,7 +3,7 @@
 /** 고객 목록 탭 (2026-11-23 page.tsx 에서 분리 — 동작 변경 없음). 상태·핸들러는 page.tsx 에 있고 props 로 받는다 */
 import Btn from '@/components/ui/Btn';
 import { EMPTY_CUSTOMER_FORM, type CustomerFormValues } from '@/components/crm/CustomerFormModal';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { DEALER_KIND, isRetiredDealer } from '@/lib/dealers';
 import { buildVCards, deliverVcf, VCF_HINT, loadSavedContacts, markContactsSaved, unsavedContacts, type SavedContacts } from '@/lib/vcard';
 import { useEffect } from 'react';
@@ -13,6 +13,8 @@ import { type Customer, formatDate } from '@/lib/crm-shared';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { memberMissing } from '@/lib/member-ready';
+import { ensurePrimaryVehicle } from '@/lib/vehicles';
+import { formatPhoneInput } from '@/lib/phone';
 import MemberSmsButtons from '@/components/crm/MemberSmsButtons';
 import BlacklistModal from '@/components/crm/BlacklistModal';
 import DeviceDiagModal from '@/components/crm/DeviceDiagModal';
@@ -31,11 +33,13 @@ interface CustomersTabProps {
   setShowAddCustomer: (v: boolean) => void;
   handleEditCustomer: (customer: Customer) => void;
   handleDeleteCustomer: (id: string, name: string) => void;
+  /** 빈 칸(차종·연락처)을 줄에서 바로 적어 저장한 뒤 목록 다시 읽기 (2026-11-26 사장님 "- 누르면 바로 수정") */
+  refresh?: () => void;
 }
 
 export default function CustomersTab({
   customerSearch, setCustomerSearch, filteredCustomers, vehiclesByCustomer, router, dealerNames,
-  setCustomerForm, setEditCustomerId, setShowAddCustomer, handleEditCustomer, handleDeleteCustomer,
+  setCustomerForm, setEditCustomerId, setShowAddCustomer, handleEditCustomer, handleDeleteCustomer, refresh,
 }: CustomersTabProps) {
   // 종류 필터 (2026-11-23): 고객 / 회원 / 딜러 / 전체. 기본은 고객만 — 딜러가 목록 맨 위를 차지하지 않게
   // '회원' 필터 (2026-11-26 사장님 "작업 받으면 다 회원인데 고객 목록·회원 탭을 나눌 필요가 있나" → 회원 탭을 빼고 여기로): 시공 기록 + 성함·전화·차종이 다 있는 분
@@ -55,6 +59,54 @@ export default function CustomersTab({
     setLinkVisits(new Map((links || []).map((l) => [l.customer_id as string, (l.visits as number | null) || 0])));
   };
   useEffect(() => { loadLinks(); }, []);
+  // 줄에서 바로 적기 (2026-11-26): 차종·연락처가 비어 '-' 로 보이는 칸을 누르면 입력 칸이 되고, Enter 나 다른 곳 클릭으로 저장
+  const [inline, setInline] = useState<{ id: string; field: 'car' | 'phone'; value: string } | null>(null);
+  const [inlineBusy, setInlineBusy] = useState(false);
+  const skipBlur = useRef(false); // Escape 로 취소한 직후 blur 가 저장하지 않게
+  const saveInline = async () => {
+    if (skipBlur.current) { skipBlur.current = false; return; }
+    if (!inline || inlineBusy) return;
+    const v = inline.value.trim();
+    const { id, field } = inline;
+    if (!v) { setInline(null); return; }
+    setInlineBusy(true);
+    try {
+      if (field === 'car') {
+        const parts = v.split(/\s+/);
+        const brand = parts.length > 1 ? parts[0] : null; // "BMW X5" → 브랜드 BMW, 차종 X5 / 한 단어면 차종만
+        const model = parts.length > 1 ? parts.slice(1).join(' ') : v;
+        const { error } = await supabase.from('customers').update({ car_brand: brand, car_model: model }).eq('id', id);
+        if (error) throw new Error(error.message);
+        const c = filteredCustomers.find((x) => x.id === id);
+        ensurePrimaryVehicle(id, { brand, model, year: c?.car_year || null, color: c?.car_color || null }).catch(() => {});
+      } else {
+        const digits = v.replace(/\D/g, '');
+        if (digits.length < 10) { alert('전화번호를 끝까지 적어 주세요.'); setInlineBusy(false); return; }
+        const phone = digits.length === 11 ? `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}` : v;
+        const { error } = await supabase.from('customers').update({ phone }).eq('id', id);
+        if (error) throw new Error(error.message);
+      }
+      setInline(null);
+      refresh?.();
+    } catch (e) { alert(`저장 실패: ${e instanceof Error ? e.message : e}`); }
+    finally { setInlineBusy(false); }
+  };
+  const inlineInput = (field: 'car' | 'phone') => (
+    <input
+      autoFocus
+      value={inline?.value || ''}
+      onClick={(e) => e.stopPropagation()}
+      onChange={(e) => setInline((cur) => cur ? { ...cur, value: field === 'phone' ? formatPhoneInput(e.target.value) : e.target.value } : cur)}
+      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); saveInline(); } if (e.key === 'Escape') { skipBlur.current = true; setInline(null); } }}
+      onBlur={saveInline}
+      placeholder={field === 'car' ? '예: BMW X5' : '010-0000-0000'}
+      inputMode={field === 'phone' ? 'tel' : undefined}
+      className="w-36 bg-[var(--c-input)] border border-[var(--c-text-1)] rounded-md px-2 py-1 text-sm text-[var(--c-text-1)] outline-none"
+    />
+  );
+  const emptyCell = (c: Customer, field: 'car' | 'phone') => (
+    <button type="button" onClick={(e) => { e.stopPropagation(); setInline({ id: c.id, field, value: '' }); }} className="text-[var(--c-text-4)] hover:text-[var(--c-text-1)] border-b border-dashed border-[var(--c-text-4)] leading-none" title={field === 'car' ? '눌러서 차종 적기' : '눌러서 전화번호 적기'}>-</button>
+  );
   const missingOf = (c: Customer) => c.kind === DEALER_KIND ? [] : memberMissing({ name: c.name, phone: c.phone, car: [c.car_brand, c.car_model].filter(Boolean).join(' '), workCount: c.service_count });
   const isMember = (c: Customer) => c.kind !== DEALER_KIND && c.service_count > 0 && missingOf(c).length === 0;
   const linkDelivered = (id: string) => linkSent.has(id) || (linkVisits.get(id) || 0) > 0;
@@ -158,13 +210,15 @@ export default function CustomersTab({
                   {c.service_count >= 2 && <span className="ml-1.5 text-[9px] bg-gold/20 text-gold px-1.5 py-0.5 rounded-full font-medium">재방문</span>}
                   {(vehiclesByCustomer.get(c.id)?.length || 0) > 1 && <span className="ml-1 text-[9px] bg-info/15 text-info px-1.5 py-0.5 rounded-full font-medium">차 {vehiclesByCustomer.get(c.id)!.length}대</span>}
                 </td>
-                <td className="px-4 py-3 text-sm text-[var(--c-text-2)]">{c.phone || '-'}</td>
+                <td className="px-4 py-3 text-sm text-[var(--c-text-2)]">{inline?.id === c.id && inline.field === 'phone' ? inlineInput('phone') : c.phone || emptyCell(c, 'phone')}</td>
                 <td className="px-4 py-3 text-sm text-[var(--c-text-2)]">
                   {c.kind === DEALER_KIND
                     ? <span className="text-[var(--c-text-3)]">{(c.memo || '').split('\n')[0] || '-'}</span>
+                    : inline?.id === c.id && inline.field === 'car'
+                    ? inlineInput('car')
                     : c.car_brand || c.car_model
                     ? `${c.car_brand || ''} ${c.car_model || ''}`.trim()
-                    : '-'}
+                    : emptyCell(c, 'car')}
                   {(vehiclesByCustomer.get(c.id)?.length || 0) > 1 && <span className="ml-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[var(--c-subtle)] text-[var(--c-text-3)]">외 {(vehiclesByCustomer.get(c.id)?.length || 1) - 1}대</span>}
                 </td>
                 <td className="px-4 py-3 text-sm text-[var(--c-text-2)]">
