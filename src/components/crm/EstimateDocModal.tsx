@@ -23,6 +23,7 @@ export interface EstimateInitial {
 
 const won = (v: string | number) => { const n = Number(String(v).replace(/[^\d]/g, '')); return n ? `${n.toLocaleString()}원` : ''; };
 const num = (v: string) => Number(String(v).replace(/[^\d]/g, '')) || 0;
+const comma = (v: string) => (num(v) ? num(v).toLocaleString() : ''); // 입력 칸에 콤마 표시 (2026-11-26 사장님 "비용에 콤마")
 const DEFAULT_NOTE = '차량 상태에 따라 금액이 조금 달라질 수 있습니다.';
 const INSURER_NOTE = '상기 금액은 현장 확인 기준이며, 추가 손상 발견 시 재견적될 수 있습니다.';
 const BIZ_KEY = 'crm_estimate_bizno_v1';
@@ -181,8 +182,8 @@ export default function EstimateDocModal({ initial, onClose, onDone }: { initial
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     <input value={it.name} onChange={(e) => setItem(i, { name: e.target.value })} placeholder="시공 내용 (예: 그릴·범퍼 하단 카본 랩핑)" className={`${small} col-span-2 sm:col-span-1`} />
                     <input value={it.product} onChange={(e) => setItem(i, { product: e.target.value })} placeholder="제품 (예: 3M 2080 카본)" className={small} />
-                    <input value={it.normal} onChange={(e) => setItem(i, { normal: e.target.value.replace(/[^\d]/g, '') })} placeholder={insurerMode ? '금액' : '정상가'} inputMode="numeric" className={small} />
-                    {!insurerMode && <input value={it.sale} onChange={(e) => setItem(i, { sale: e.target.value.replace(/[^\d]/g, '') })} placeholder="할인가 (없으면 비움)" inputMode="numeric" className={small} />}
+                    <input value={comma(it.normal)} onChange={(e) => setItem(i, { normal: e.target.value.replace(/[^\d]/g, '') })} placeholder={insurerMode ? '금액' : '정상가'} inputMode="numeric" className={small} />
+                    {!insurerMode && <input value={comma(it.sale)} onChange={(e) => setItem(i, { sale: e.target.value.replace(/[^\d]/g, '') })} placeholder="할인가 (없으면 비움)" inputMode="numeric" className={small} />}
                   </div>
                   <button type="button" onClick={() => removeItem(i)} className="text-[var(--c-text-4)] hover:text-danger text-sm px-1 pt-1.5" aria-label="항목 삭제">✕</button>
                 </div>
