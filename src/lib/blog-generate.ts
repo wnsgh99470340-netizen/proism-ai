@@ -4,6 +4,7 @@
  * - 흐름: 시스템 프롬프트 구성 → Claude 작성 → 정규식 위반·팩트·형식 검사 → 필요 시 1회 수정 → draft 구성 → DB 저장
  */
 import { readFile, writeFile, readdir, mkdir } from 'fs/promises';
+import { toOwnerShape } from './mobile-lines';
 import { todaySeoul } from '@/lib/local-date';
 import path from 'path';
 import { callClaude } from './claude-client';
@@ -87,7 +88,8 @@ export function tryBuildDraft(reply: string, userMessage: string): { draft: Draf
  */
 /** 사장님 표기로 통일 (2026-11-12): 보닛 → 본넷, 휀더 → 휀다 */
 export function normalizeTerms(text: string): string {
-  return text.replace(/보닛|본닛|보넷|본네트/g, '본넷').replace(/휀더|펜더|팬더/g, '휀다');
+  // '손님' → '고객님' (2026-11-26 발행본 대조 3번째 — 사장님은 글에서 항상 고객님)
+  return text.replace(/보닛|본닛|보넷|본네트/g, '본넷').replace(/휀더|펜더|팬더/g, '휀다').replace(/손님/g, '고객님');
 }
 
 /** 사장님이 쓰지 않는 부품 용어 (2026-11-12 "카울·휠아치 같은 말은 쓴 적 없다") */
@@ -114,6 +116,9 @@ export function checkHardViolations(body: string, userInput: string, serviceType
   const declare = body.match(/[^\n]{0,14}(?:원칙(?:으로|입니다|이라서|이기)|노하우|저희만|우리만|어디서도\s*못)[^\n]{0,8}/);
   if (declare) v.push({ rule: 'declare', detail: `선언형 표현 "${declare[0].trim()}" → 그 문장은 빼거나, 그 자리에서 실제로 한 일(장면)로 바꾸기` });
   // 글이 글 자신을 설명하는 문장·멋 부린 도입 (2026-11-20 사장님 "30 그리고 15 … 장난하냐")
+  // 단서·겸양 문장 (2026-11-26 발행본 대조: 사장님이 전부 지움 — 입장을 흐리는 문장은 삭제 대상)
+  const hedge = body.match(/[^\n]*(다만\s*이건\s*제조사\s*설명|제\s*나름대로|차마다\s*다르니|따로\s*확인하고\s*들어갑니다|확인해\s*봐야\s*(?:합니다|겠|할)|경우에\s*따라\s*다릅니다|장담은?\s*못|단정은?\s*못|일반적으로는\s*그렇)[^\n]*/);
+  if (hedge) v.push({ rule: 'hedge', detail: `단서·겸양 문장 "${hedge[0].trim().slice(0, 40)}" (삭제 — 입장은 한쪽으로)` });
   const meta = body.match(/[^\n]*(적어\s*보겠습니다|정리하겠습니다|이야기부터\s*시작하겠습니다|뒤에서\s*다시\s*(하|말씀드리)겠습니다|적는\s*이유가\s*있습니다|숫자로\s*줄이면|순서대로\s*적은\s*기록|차례대로\s*적|기록입니다)[^\n]*/);
   if (meta) v.push({ rule: 'meta', detail: `글 자체를 설명하는 문장 "${meta[0].trim().slice(0, 40)}" (삭제)` });
 
@@ -166,7 +171,7 @@ export function checkHardViolations(body: string, userInput: string, serviceType
 
   // 1. PPF·컬러PPF·PWF 글의 열·오버랩 표현
   if (/PPF|PWF/.test(serviceType)) {
-    const m = body.match(/열\s*성형|히팅\s*건|열을\s*가[해하]|열로\s*(?:늘|당|잡|펴)|포스트\s*히팅|오버랩/);
+    const m = body.match(/열\s*성형|히팅\s*건|열을\s*가[해하]|열로\s*(?:늘|당|잡|펴)|오버랩/); // 포스트 히팅(붙인 뒤 열처리로 끝단 안착)은 사장님이 PPF 글에 직접 쓰는 공정이라 허용 (2026-11-26)
     if (m) v.push({ rule: 'heat', detail: `PPF·PWF 글에 열·오버랩 표현 "${m[0]}"` });
   }
 
@@ -230,7 +235,7 @@ export function checkFormatIssues(title: string, body: string, keyword?: string 
     issues.push(`분량 부족: 공백 제외 ${pureLen}자 → 2,000자 이상. 설명으로 늘리지 말고 사실표·사장님 메모에 있는 장면(왜 왔는지·어디가 까다로웠는지·어떻게 했는지)을 더 풀 것. 재료가 없으면 글 끝에 [재료 필요] 한 줄`);
   }
   if (title.length < MIN_TITLE_CHARS) {
-    issues.push(`제목 ${title.length}자로 짧음 → 20~25자로 ("[지역] [차종] [서비스]"에 핵심 포인트 한 가지 덧붙이기)`);
+    issues.push(`제목 ${title.length}자로 짧음 → 20~32자로 (지역+시공 키워드 맨 앞, 하이픈 뒤 짧은 부제 가능)`);
   }
   // (2026-11-25) 모바일 줄바꿈 글자 수 검사는 뺌 — 핵심 규칙 6개 외
   return issues;
@@ -594,7 +599,7 @@ export async function writeFromFacts(input: { facts: FactSheet; message: string;
   const pureLen = (b: string) => b.replace(/\s/g, '').length;
 
   // 사실 금지 위반·팩트 오류가 있으면 그 문장만 지우는 패스 1회 (도입·되풀이·키워드 밀도·형식은 표시만)
-  const HARD = new Set(['heat', 'quote', 'career', 'worker', 'color', 'place', 'jargon', 'unprovided', 'declare', 'careful', 'cliche', 'meta']);
+  const HARD = new Set(['heat', 'quote', 'career', 'worker', 'color', 'place', 'jargon', 'unprovided', 'declare', 'careful', 'cliche', 'meta', 'hedge']);
   const hardIssues = [...c.violations.filter(v => HARD.has(v.rule)).map(v => v.detail), ...c.facts.map(f => `팩트 오류 — ${f.detail}`)];
   if (hardIssues.length > 0) {
     try {
@@ -614,6 +619,8 @@ export async function writeFromFacts(input: { facts: FactSheet; message: string;
   }
 
   reply = normalizeTerms(reply);
+  // 사장님 블로그 모양으로 (2026-11-26): 짧은 줄·마침표 없음·끝맺음(톡톡·상호·주소). 모델이 이미 그렇게 썼으면 그대로
+  { const t0 = splitTitleBody(reply); if (t0) reply = `${t0.title}\n${toOwnerShape(t0.body)}`; }
   draftResult = tryBuildDraft(reply, input.message);
   if (!draftResult) return { reply, draft: null, checks: null, draftId: null, target: null };
   tb = splitTitleBody(reply) || tb;
@@ -704,7 +711,8 @@ ${plain}`;
     bodyStart = firstIdx + 1;
   }
   const text = normalizeTerms(lines.slice(bodyStart).join('\n').trim());
-  const tb = splitTitleBody(text);
+  const tb0 = splitTitleBody(text);
+  const tb = tb0 ? { title: tb0.title, body: toOwnerShape(tb0.body) } : null; // 수정 결과도 사장님 모양으로 (2026-11-26)
   if (!tb || tb.body.replace(/\s/g, '').length < 500) {
     throw new Error('수정 결과가 글 형식이 아닙니다. 지시를 조금 더 구체적으로 적어주세요.');
   }
