@@ -27,6 +27,8 @@ interface Props {
   initial: QuoteSmsInitial;
   onClose: () => void;
   onDone: () => void;
+  /** 지금 폼 값으로 견적서 그림 창 열기 (2026-11-26) */
+  onOpenEstimate?: (v: { customerId?: string | null; name?: string; phone?: string; car?: string; items?: { name: string; product: string; normal: string; sale: string }[] }) => void;
 }
 
 const SERVICES = ['PPF', '컬러PPF', '랩핑', '크롬죽이기', '신차패키지', '썬팅', '유리막코팅', '실내PPF'] as const;
@@ -220,7 +222,7 @@ const normalizeService = (s?: string): ServiceKey => {
 const inputCls = 'w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-gold/50';
 const labelCls = 'text-xs text-[var(--c-text-3)] mb-1 block';
 
-export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
+export default function QuoteSmsModal({ initial, onClose, onDone, onOpenEstimate }: Props) {
   const today = todaySeoul();
   const [mem] = useState<Memory>(() => loadMemory());
   const [name, setName] = useState(initial.name || '');
@@ -514,6 +516,10 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
         {/* 폰(375px)에서 버튼 4개가 한 줄에 못 들어가 '닫'·'명함 이미지' 글자가 깨지던 것 → 줄바꿈 허용 + 글자 안 깨지게, 폰에선 '명함'만 (2026-11-23) */}
         <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-[var(--c-border)] flex flex-wrap justify-end gap-2">
           <Btn variant="ghost" onClick={onClose} className="mr-auto sm:mr-0">닫기</Btn>
+          {onOpenEstimate && <Btn icon="file" onClick={() => { onOpenEstimate({ customerId: initial.customerId, name, phone, car, items: [
+            ...(recGrade ? [{ name: `${range} ${service}`.trim(), product: recGrade, normal: recPrice, sale: recSale }] : []),
+            ...(extraLabel && extraPrice ? [{ name: extraLabel, product: '', normal: extraPrice, sale: '' }] : []),
+          ] }); }} disabled={busy} title="이 폼의 차종·추천 등급·금액으로 견적서 그림을 만듭니다">견적서로</Btn>}
           <Btn icon="card" onClick={shareCard} disabled={busy} title="문자를 보낸 뒤 명함 사진을 같은 번호로 보낼 때">명함</Btn>
           <Btn icon="copy" onClick={() => send('copy')} disabled={busy}>복사</Btn>
           <Btn icon="chat" variant="primary" onClick={() => send('sms')} disabled={busy}>문자 보내기</Btn>

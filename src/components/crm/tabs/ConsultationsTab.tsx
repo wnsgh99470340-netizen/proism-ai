@@ -4,6 +4,7 @@
 import { Icon } from '@/components/ui/icons';
 import Btn from '@/components/ui/Btn';
 import type { QuoteSmsInitial } from '@/components/crm/QuoteSmsModal';
+import type { EstimateInitial } from '@/components/crm/EstimateDocModal';
 import { hideRefToken } from '@/components/crm/ReferrerPicker';
 import { type Customer, type Consultation, formatDate } from '@/lib/crm-shared';
 
@@ -16,9 +17,11 @@ interface ConsultationsTabProps {
   setShowAddConsultation: (v: boolean) => void;
   /** 통화 요약 캡처로 상담 기록 (2026-11-25) */
   setShowCallImport?: (v: boolean) => void;
+  /** 견적서 그림 만들기 (2026-11-26 사장님 "작업 견적서 받을 수 있을까요" 하는 손님) */
+  setEstimateDoc?: (v: EstimateInitial | null) => void;
 }
 
-export default function ConsultationsTab({ consultations, customers, handleAddCustomerFromQuote, setQuoteSms, setShowInquiry, setShowAddConsultation, setShowCallImport }: ConsultationsTabProps) {
+export default function ConsultationsTab({ consultations, customers, handleAddCustomerFromQuote, setQuoteSms, setShowInquiry, setShowAddConsultation, setShowCallImport, setEstimateDoc }: ConsultationsTabProps) {
   return (
     <div>
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">{/* 폰에서 버튼 글자가 세로로 깨지던 것 (2026-11-23) */}
@@ -29,6 +32,7 @@ export default function ConsultationsTab({ consultations, customers, handleAddCu
           )}
           <Btn icon="chat" onClick={() => setShowInquiry(true)} title="카페·문자로 온 문의 글을 붙여 넣으면 시장 평균가 기준 답장을 만듭니다">문의 답변</Btn>
           <Btn icon="mail" variant="dark" onClick={() => setQuoteSms({})} title="전화 끊고 바로 보내는 견적 문자 (재연락 2회 자동 등록)">견적 문자</Btn>
+          {setEstimateDoc && <Btn icon="file" onClick={() => setEstimateDoc({})} title="항목·금액을 적으면 견적서 그림을 만들어 PNG 저장·이미지로 보내기">견적서</Btn>}
           <Btn icon="plus" variant="primary" onClick={() => setShowAddConsultation(true)}>상담 추가</Btn>
         </div>
       </div>
@@ -62,8 +66,8 @@ export default function ConsultationsTab({ consultations, customers, handleAddCu
                 <span className="text-xs text-[var(--c-text-3)]">{formatDate(c.consultation_date)}</span>
               </div>
             </div>
-            {c.content && (/^\[(견적 문자 발송|문의 답변|회원 문자|통화 요약|딜러 문자)\]/.test(c.content)
-              ? <details className="mb-2 text-sm text-[var(--c-text-2)]"><summary className="cursor-pointer">{c.content.split('\n')[0]} — {c.content.startsWith('[회원 문자]') ? '자동 기록 · 링크 보기' : '보낸 문자 보기'}</summary><pre className="whitespace-pre-wrap font-sans mt-2 text-xs text-[var(--c-text-2)] bg-[var(--c-input)] rounded-lg p-3">{c.content.split('\n').slice(1).join('\n')}</pre></details>
+            {c.content && (/^\[(견적 문자 발송|견적서 발급|문의 답변|회원 문자|통화 요약|딜러 문자)\]/.test(c.content)
+              ? <details className="mb-2 text-sm text-[var(--c-text-2)]"><summary className="cursor-pointer">{c.content.split('\n')[0]} — {c.content.startsWith('[회원 문자]') ? '자동 기록 · 링크 보기' : c.content.startsWith('[견적서 발급]') ? '견적 내용 보기' : '보낸 문자 보기'}</summary><pre className="whitespace-pre-wrap font-sans mt-2 text-xs text-[var(--c-text-2)] bg-[var(--c-input)] rounded-lg p-3">{c.content.split('\n').slice(1).join('\n')}</pre></details>
               : <p className="text-sm text-[var(--c-text-2)] mb-2">{c.content.replace(/^\[오늘 메모\]\s*/, '')}</p>)}
             <div className="flex items-center gap-3 text-xs text-[var(--c-text-3)]">
               {c.estimate && <span>견적: <span className="text-gold">{c.estimate}</span></span>}

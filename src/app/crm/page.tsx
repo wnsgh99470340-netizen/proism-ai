@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import { BLOG_PREFILL_KEY, CRM_SERVICE_TO_KEY, type BlogPrefill } from '@/config/blog-options';
 import { useTheme } from '@/components/ThemeProvider';
 import QuoteSmsModal, { type QuoteSmsInitial } from '@/components/crm/QuoteSmsModal';
+import EstimateDocModal, { type EstimateInitial } from '@/components/crm/EstimateDocModal';
 import InquiryReplyModal from '@/components/crm/InquiryReplyModal';
 import CallSummaryImportModal from '@/components/crm/CallSummaryImportModal';
 import { QC_SMS, MAINT_SMS, REVIEW_SMS, dealerDoneSms, followUpSmsKey } from '@/config/sms-templates';
@@ -177,6 +178,7 @@ export default function CRMPage() {
   const [followUpFilter, setFollowUpFilter] = useState<'all' | 'QC점검' | '메인터넌스' | '후기요청' | '견적재연락' | '견적마무리'>('all');
   // 견적 문자 생성 창 (2026-11-11): 전화 상담 뒤 보내는 문자 + 재연락 2회 자동 등록
   const [quoteSms, setQuoteSms] = useState<QuoteSmsInitial | null>(null);
+  const [estimateDoc, setEstimateDoc] = useState<EstimateInitial | null>(null); // 견적서 그림 창 (2026-11-26)
   // 문의 답변 창 (2026-11-12): 카페·문자 문의 글 → 시장 평균가 기준 답장
   const [showInquiry, setShowInquiry] = useState(false);
   const [showCallImport, setShowCallImport] = useState(false); // 통화 요약 캡처 → 상담 기록 (2026-11-25)
@@ -1732,6 +1734,7 @@ export default function CRMPage() {
             consultations={consultations} customers={customers} handleAddCustomerFromQuote={handleAddCustomerFromQuote}
             setQuoteSms={setQuoteSms} setShowInquiry={setShowInquiry} setShowAddConsultation={setShowAddConsultation}
             setShowCallImport={(v) => { if (v) fetchCustomers(); setShowCallImport(v); }}
+            setEstimateDoc={setEstimateDoc}
           />
         )}
       </div>
@@ -2037,7 +2040,10 @@ export default function CRMPage() {
         </div>
       )}
       {quoteSms && (
-        <QuoteSmsModal initial={quoteSms} onClose={() => setQuoteSms(null)} onDone={() => { fetchFollowUps(); if (activeTab === 'consultations') fetchConsultations(); }} />
+        <QuoteSmsModal initial={quoteSms} onClose={() => setQuoteSms(null)} onDone={() => { fetchFollowUps(); if (activeTab === 'consultations') fetchConsultations(); }} onOpenEstimate={(v) => setEstimateDoc(v)} />
+      )}
+      {estimateDoc && (
+        <EstimateDocModal initial={estimateDoc} onClose={() => setEstimateDoc(null)} onDone={() => { if (activeTab === 'consultations') fetchConsultations(); }} />
       )}
       {showCallImport && (
         <CallSummaryImportModal

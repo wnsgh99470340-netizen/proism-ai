@@ -168,7 +168,10 @@ class Smoke:
                 page.get_by_role('button', name=re.compile('통화 요약')).first.click()
                 page.get_by_role('heading', name=re.compile('통화 요약')).wait_for()
                 page.get_by_role('button', name='닫기').last.click(); page.wait_for_timeout(300)
-                self.shot('consultations'); return '견적 문자·통화 요약 창 열고 닫음'
+                page.get_by_role('button', name=re.compile('견적서 그림')).first.click()  # 2026-11-26 견적서 창
+                page.get_by_role('heading', name='견적서 만들기').wait_for()
+                page.get_by_role('button', name='닫기').last.click(); page.wait_for_timeout(300)
+                self.shot('consultations'); return '견적 문자·통화 요약·견적서 창 열고 닫음'
             self.check('상담 기록 — 견적 문자·통화 요약 창', consultations)
 
             # 8. 블로그 탭 (폼·모드 전환·미리보기 탭)
