@@ -50,7 +50,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   const [{ data: services }, { data: followUps }, { data: appts }, { data: gave }, { data: received }, { data: pointRows }] = await Promise.all([
-    supabase.from('services').select('id, service_type, service_date, completion_date, service_area, film_used').eq('customer_id', c.id).order('service_date', { ascending: false }),
+    supabase.from('services').select('id, service_type, service_date, completion_date, service_area, film_used, memo').eq('customer_id', c.id).order('service_date', { ascending: false }),
     supabase.from('follow_ups').select('id, follow_up_type, scheduled_date, is_completed, completed_date, service_id, memo').eq('customer_id', c.id).in('follow_up_type', ['QC점검', '메인터넌스', '리터치']).order('scheduled_date', { ascending: true }),
     supabase.from('appointments').select('id, appointment_date, end_date, service_type, status, memo').eq('customer_id', c.id).neq('status', '취소').order('appointment_date', { ascending: false }),
     supabase.from('referrals').select('id, referred_id, created_at, referrer_reward, referrer_reward_used_at, referred:customers!referrals_referred_id_fkey(name)').eq('referrer_id', c.id).order('created_at', { ascending: false }),
@@ -79,6 +79,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       photos: Array.isArray(w.photos) ? w.photos.slice(0, 6) : [], // 완료 처리 때 붙인 작업 사진 (2026-11-25)
     }));
 
+  // 작업 내역서 없이 들어온 시공(이카운트·타임트리 가져오기, 고객 상세 '시공 추가')도 증명서 줄로 — 회원 107명의 증명서 탭이 비어 보이던 것 (2026-11-26)
+  const near = (a: string, b: string) => Math.abs((new Date(a).getTime() - new Date(b).getTime()) / 86400000) <= 3;
+  const fromServices = (services || [])
+    .filter((s) => s.service_date && !warranties.some((w) => w.date && near(w.date, s.service_date as string)))
+    .map((s) => {
+      const memoText = String(s.memo || '');
+      const fromMemo = memoText.trim().startsWith('{') ? '' : (memoText.match(/전표 [^·]+ · ([^·]+)/)?.[1] || '').trim(); // "이카운트 … · 전표 번호 · 품목명 · …" 의 품목명
+      const text = (s.film_used || s.service_area || fromMemo || '').trim();
+      return { date: s.service_date as string, end: null as string | null, work: `${s.service_type} 시공`, period: '', url: null as string | null, items: [{ group: s.service_type as string, text: text || '시공 내역은 매장 기록 기준' }], certNo: `PZ-${String(s.id).replace(/-/g, '').slice(0, 8).toUpperCase()}`, photos: [] as string[] };
+    });
+  const allWarranties = [...warranties, ...fromServices].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
   // QC·메인터넌스 방문 예약(2026-11-22)은 '다음 관리'에 방문일로 보이게 하고, 예약 목록에서는 뺀다 (두 번 보이지 않게)
   const visitByFollowUp = new Map<string, string>();
   for (const a of (appts || []) as { appointment_date: string; status: string; service_type: string | null; follow_up_id?: string | null; memo: string | null }[]) {
@@ -103,11 +115,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     services: (services || []).map((s) => ({ id: s.id, type: s.service_type, date: s.service_date, done: s.completion_date, area: s.service_area, film: s.film_used })),
     // 내 차 관리법 (2026-11-22): 시공 종류 + 작업 내역서 항목 묶음(PPF·썬팅·컬러PPF·랩핑·코팅)으로 해당하는 안내만
     careYears: (services || []).map((sv) => maintenanceYears((sv as { memo?: string | null }).memo || null)).find((y) => !!y) || null, // 메인터넌스 기간(년) — 손님 페이지 관리 탭 안내 (2026-11-22)
-    careGuide: { guides: careGuidesFor((services || []).map((s) => s.service_type as string), warranties.flatMap((w) => w.items.map((i) => i.group))), common: CARE_COMMON_LINE },
+    careGuide: { guides: careGuidesFor((services || []).map((s) => s.service_type as string), allWarranties.flatMap((w) => w.items.map((i) => i.group))), common: CARE_COMMON_LINE },
     // 2026-11-18 "기한 지나 정리"로 일괄 완료 처리된 건(실제 점검 기록 아님)은 손님에게 "받으셨습니다"로 보이면 안 되므로 뺀다 (2026-11-19 사장님). CRM 에는 그대로
     care: (followUps || []).filter((f) => !(f.is_completed && /기한 지나 정리|^블랙리스트로 정리 /m.test((f.memo as string | null) || ''))).map((f) => { const log = parseCareLog(f.memo as string | null); return { type: f.follow_up_type, date: f.scheduled_date, done: f.is_completed, skipped: isSkipped(f.memo as string | null), visitDate: visitByFollowUp.get(f.id as string) || null, doneAt: f.completed_date, serviceId: (f.service_id as string | null) || null, note: log?.note || null, photos: log?.photos || [] }; }), // note·photos: 점검 기록 (2026-11-22, src/lib/care-log.ts) // serviceId: 시공 건별로 묶어 보이기 (2026-11-19 사장님 "기존 작업과 새 작업은 따로 분류")
     upcoming,
-    warranties,
+    warranties: allWarranties,
     referrals: {
       gave: (gave || []).map((r) => {
         const rid = r.referred_id as string;
