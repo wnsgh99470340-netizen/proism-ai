@@ -100,8 +100,8 @@ export default function CRMPage() {
   useEffect(() => {
     const onPop = () => {
       const t = new URLSearchParams(window.location.search).get('tab');
-      tabFromPop.current = true;
-      setActiveTab(t && (TAB_KEYS as string[]).includes(t) ? (t as Tab) : 'home');
+      const next = t && (TAB_KEYS as string[]).includes(t) ? (t as Tab) : 'home';
+      setActiveTab((cur) => { if (cur !== next) tabFromPop.current = true; return next; }); // 모달 닫기용 popstate(주소 같음)면 플래그를 남기지 않음
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);

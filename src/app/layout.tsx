@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import PwaRegister from '@/components/PwaRegister';
 import VersionWatcher from '@/components/VersionWatcher';
+import ModalBackGuard from '@/components/ModalBackGuard';
 import ThemeProvider from '@/components/ThemeProvider';
 import './globals.css';
 
@@ -50,6 +51,7 @@ export default function RootLayout({
         <ThemeProvider>{children}</ThemeProvider>
         <PwaRegister />
         <VersionWatcher />
+        <ModalBackGuard />
       </body>
     </html>
   );
