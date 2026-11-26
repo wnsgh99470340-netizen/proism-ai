@@ -239,7 +239,7 @@ export default function WorkOrderModal({ appointment, workOrder, setWorkOrder, o
             {/* 기타 시공: PPF·컬러PPF·랩핑 밖의 작업 (2026-11-26 사장님 "윈드쉴드 같은 시공도 가끔") */}
             <div className="bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg p-3">
               <span className="text-xs font-medium text-[var(--c-text-2)] mb-2 block">기타 시공</span>
-              <input type="text" value={workOrder.other_work || ''} onChange={(e) => setWorkOrder({ ...workOrder, other_work: e.target.value })} className="w-full bg-[var(--c-card)] border border-[var(--c-border)] rounded px-2 py-1 text-xs text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder="예: 윈드쉴드 보호필름, 블랙박스 탈부착" />
+              <input type="text" value={workOrder.other_work || ''} onChange={(e) => setWorkOrder({ ...workOrder, other_work: e.target.value })} className="w-full bg-[var(--c-card)] border border-[var(--c-border)] rounded px-2 py-1 text-xs text-[var(--c-text-1)] outline-none focus:border-gold/50" placeholder="예: 윈드쉴드 보호필름" />
               <div className="text-[11px] text-[var(--c-text-4)] mt-1.5">증명서에 '기타' 항목으로 그대로 들어갑니다</div>
             </div>
           </div>
