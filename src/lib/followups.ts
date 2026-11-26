@@ -47,10 +47,13 @@ export async function scheduleNextMaintenance(f: { service_id: string | null; cu
     if (next.getTime() > limit.getTime()) return null;
   }
   const nth = (count || 0) + 1;
-  await supabase.from('follow_ups').insert({
+  const { error } = await supabase.from('follow_ups').insert({
     service_id: f.service_id, customer_id: f.customer_id, follow_up_type: '메인터넌스', scheduled_date: iso,
     memo: `${(svc?.service_type as string | null) || '시공'} ${nth}회차 메인터넌스 (6개월마다 자동)`,
   });
+  // 2026-11-26 발견: follow_ups_one_per_service_type 유니크 인덱스가 같은 시공의 두 번째 메인터넌스를 막아 다음 회차가 한 번도 안 만들어졌음(오류를 버리고 있었음).
+  // 인덱스는 docs/사후관리-메인터넌스-반복-제약-고치기-2026-11-26.sql 로 고치고, 여기서는 실패를 숨기지 않는다
+  if (error) { console.warn('[followups] 다음 메인터넌스 생성 실패:', error.message); return null; }
   return iso;
 }
 
