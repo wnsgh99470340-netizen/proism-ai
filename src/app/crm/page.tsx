@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import { BLOG_PREFILL_KEY, CRM_SERVICE_TO_KEY, type BlogPrefill } from '@/config/blog-options';
 import { useTheme } from '@/components/ThemeProvider';
 import QuoteSmsModal, { type QuoteSmsInitial } from '@/components/crm/QuoteSmsModal';
+import CustomerPicker from '@/components/crm/CustomerPicker';
 import EstimateDocModal, { type EstimateInitial } from '@/components/crm/EstimateDocModal';
 import InquiryReplyModal from '@/components/crm/InquiryReplyModal';
 import CallSummaryImportModal from '@/components/crm/CallSummaryImportModal';
@@ -270,7 +271,6 @@ export default function CRMPage() {
   });
 
 
-  const [customerPickerSearch, setCustomerPickerSearch] = useState('');
 
   // ─── Data (2026-11-23 탭 분리): 목록 상태·불러오기는 src/hooks/useCrmData.ts ──
   const {
@@ -1487,58 +1487,7 @@ export default function CRMPage() {
     fetchConsultations();
   };
 
-  // ─── Customer Picker ────────────────────────────────────
-  const filteredPickerCustomers = allCustomers.filter((c) => {
-    const q = customerPickerSearch.toLowerCase();
-    if (!q) return true;
-    // 이름·전화 + 차종(대표 차와 두 번째 차, 2026-11-22)
-    return c.name.toLowerCase().includes(q) || (c.phone?.includes(q)) || `${c.car_brand || ''} ${c.car_model || ''}`.toLowerCase().includes(q) || (vehiclesByCustomer.get(c.id) || []).some((v) => `${v.brand || ''} ${v.model || ''}`.toLowerCase().includes(q));
-  });
-
-  const CustomerPicker = ({ value, onChange }: { value: string; onChange: (id: string) => void }) => {
-    const selected = allCustomers.find((c) => c.id === value);
-    const [open, setOpen] = useState(false);
-
-    return (
-      <div className="relative">
-        <button
-          type="button"
-          onClick={() => { setOpen(!open); setCustomerPickerSearch(''); }}
-          className="w-full text-left bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] hover:border-gold/50 transition-colors"
-        >
-          {selected ? `${selected.name}${selected.phone ? ` (${selected.phone})` : ''}` : '고객 선택...'}
-        </button>
-        {open && (
-          <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--c-card)] border border-[var(--c-border)] rounded-lg shadow-2xl z-50 max-h-48 overflow-y-auto">
-            <div className="p-2 border-b border-[var(--c-border)]">
-              <input
-                type="text"
-                placeholder="이름·연락처·차종 검색..."
-                value={customerPickerSearch}
-                onChange={(e) => setCustomerPickerSearch(e.target.value)}
-                className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded px-2 py-1.5 text-xs text-[var(--c-text-1)] outline-none focus:border-gold/50"
-                autoFocus
-              />
-            </div>
-            {filteredPickerCustomers.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => { onChange(c.id); setOpen(false); }}
-                className="w-full text-left px-3 py-2 text-sm text-[var(--c-text-1)] hover:bg-[var(--c-subtle)] transition-colors"
-              >
-                {isBlacklisted(c.memo) && <span className="text-danger mr-1" title={`블랙리스트: ${blacklistInfo(c.memo)?.reason || ''}`}>⛔</span>}{c.name} {c.phone && <span className="text-[var(--c-text-3)]">({c.phone})</span>}
-                {(() => { const cars = (vehiclesByCustomer.get(c.id) || []).map((v) => vehicleLabel(v)).filter(Boolean); const label = cars.length ? cars.join(' · ') : `${c.car_brand || ''} ${c.car_model || ''}`.trim(); return label ? <span className="ml-2 text-xs text-[var(--c-text-3)]">{label}</span> : null; })()}
-              </button>
-            ))}
-            {filteredPickerCustomers.length === 0 && (
-              <div className="px-3 py-2 text-xs text-[var(--c-text-3)]">검색 결과 없음</div>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  };
+  // Customer Picker 는 src/components/crm/CustomerPicker.tsx 로 뺌 (2026-11-26: 렌더 안 정의라 부모가 그릴 때마다 닫히던 것)
 
   /**
    * 예약/시공 기록 → 블로그 폼 미리 채우기 (PPF·컬러PPF·랩핑·크롬죽이기만)
@@ -1842,7 +1791,7 @@ export default function CRMPage() {
             <div className="space-y-3">
               <div>
                 <label className="text-xs text-[var(--c-text-3)] mb-1 block">고객 *</label>
-                <CustomerPicker value={appointmentForm.customer_id} onChange={(id) => setAppointmentForm({ ...appointmentForm, customer_id: id })} />
+                <CustomerPicker value={appointmentForm.customer_id} onChange={(id) => setAppointmentForm({ ...appointmentForm, customer_id: id })} customers={allCustomers} vehiclesByCustomer={vehiclesByCustomer} />
               </div>
               {apptVehicles.length > 1 && (
                 <div>
@@ -1893,7 +1842,7 @@ export default function CRMPage() {
             <div className="space-y-3">
               <div>
                 <label className="text-xs text-[var(--c-text-3)] mb-1 block">고객 목록에 있는 분이면 선택 (선택사항)</label>
-                <CustomerPicker value={consultationForm.customer_id} onChange={(id) => setConsultationForm({ ...consultationForm, customer_id: id })} />
+                <CustomerPicker value={consultationForm.customer_id} onChange={(id) => setConsultationForm({ ...consultationForm, customer_id: id })} customers={allCustomers} vehiclesByCustomer={vehiclesByCustomer} />
               </div>
               {!consultationForm.customer_id && (
                 <div className="rounded-xl border border-dashed border-[var(--c-border)] bg-[var(--c-subtle)]/60 p-3">
