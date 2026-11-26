@@ -42,7 +42,7 @@ describe('사후관리 카드 작업 내역 줄 (workSummaryLines, 2026-11-26)',
 describe('오벨 필름 (2026-11-26 사장님 "3M 만 쓰는 게 아니라 오벨도")', () => {
   it('랩핑 기타에 오벨이라고 적으면 제품이 3M 2080 이 되지 않는다', () => {
     const [it1] = workItems({ wrapping: ['전체랩핑'], wrapping_etc: '오벨 포르쉐 크레용' });
-    expect(it1.product).toBe('오벨 포르쉐 크레용');
+    expect(it1).toMatchObject({ text: '전체랩핑', product: '오벨 포르쉐 크레용' });
     expect(workItems({ wrapping: ['전체랩핑'], wrapping_etc: '포르쉐 크레용' })[0].product).toBe('3M 2080 랩핑 필름');
   });
   it('컬러PPF 기타에 오벨이 있으면 3M 을 붙이지 않고, PPF 선택지 오벨은 스펙 없이 이름만', () => {
