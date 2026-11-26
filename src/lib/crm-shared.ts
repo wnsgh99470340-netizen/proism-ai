@@ -59,8 +59,9 @@ export interface FollowUp {
   completed_date: string | null;
   memo: string | null;
   created_at: string;
-  customer?: { name: string; phone: string | null };
-  service?: { service_type: string };
+  customer?: { name: string; phone: string | null; car_brand?: string | null; car_model?: string | null };
+  /** 시공 기록 — memo 는 작업 내역서 JSON (2026-11-26 사후관리 카드에 작업 내역 표시) */
+  service?: { service_type: string; service_date?: string | null; memo?: string | null; film_used?: string | null; service_area?: string | null };
   sms_sent?: Record<string, boolean> | null;
   /** 잡힌 방문 예약 (2026-11-22) */
   visit?: { id: string; appointment_date: string; status: string } | null;

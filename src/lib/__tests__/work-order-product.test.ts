@@ -1,6 +1,6 @@
 // 작업 내역서 PPF 제품 선택 칸 (2026-11-25 사장님 "제품은 적는 방식 말고 선택하는 방식으로")
 import { describe, it, expect } from 'vitest';
-import { workItems, ppfProductOf, PPF_PRODUCT_OPTIONS } from '@/lib/work-order';
+import { workItems, ppfProductOf, workSummaryLines, PPF_PRODUCT_OPTIONS } from '@/lib/work-order';
 
 describe('PPF 제품 선택 (work-order)', () => {
   it('선택 칸이 있으면 그걸로, 기타는 메모로 범위 뒤에 붙는다', () => {
@@ -24,5 +24,17 @@ describe('PPF 제품 선택 (work-order)', () => {
     for (const p of PPF_PRODUCT_OPTIONS) expect(ppfProductOf({ ppf_product: p })).toMatch(/^3M PPF /);
     expect(ppfProductOf({ ppf_product: 'PRO200 유광' })).toContain('유광');
     expect(ppfProductOf({})).toBeNull();
+  });
+});
+
+describe('사후관리 카드 작업 내역 줄 (workSummaryLines, 2026-11-26)', () => {
+  it('작업 내역서 JSON 이면 항목마다 한 줄, 제품은 짧게', () => {
+    const memo = JSON.stringify({ ppf: ['전체PPF'], ppf_product: '시리즈50', tinting: { vertex: { selected: ['전면', '측후면'], density: '전면 70 측후 35' } }, coating: ['유리막코팅'] });
+    expect(workSummaryLines(memo)).toEqual(['PPF 전체 PPF · 시리즈50', '썬팅 루마 버텍스 전면·측후면 (전면 70 측후 35)', '코팅 유리막코팅']);
+  });
+  it('옛 글자 메모·빈 메모는 service_area·film_used 로, 그것도 없으면 메모 첫 줄', () => {
+    expect(workSummaryLines(null, { service_area: '전체', film_used: '3M PWF 매트블랙' })).toEqual(['전체 · 3M PWF 매트블랙']);
+    expect(workSummaryLines('타임트리 일정 가져옴 2026-11-23 · 원문 X5 PPF\n둘째 줄', {})).toEqual(['타임트리 일정 가져옴 2026-11-23 · 원문 X5 PPF']);
+    expect(workSummaryLines('', {})).toEqual([]);
   });
 });

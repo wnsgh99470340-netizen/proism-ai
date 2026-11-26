@@ -112,7 +112,7 @@ export function useCrmData(activeTab: Tab) {
   const fetchFollowUps = useCallback(async () => {
     const { data } = await supabase
       .from('follow_ups')
-      .select('*, customer:customers(name, phone), service:services(service_type)')
+      .select('*, customer:customers(name, phone, car_brand, car_model), service:services(service_type, service_date, memo, film_used, service_area)')
       .order('scheduled_date', { ascending: true });
     if (!data) return;
     // 방문 예약(QC·메인터넌스) 붙이기: follow_up_id 열이 있으면 그걸로, 없으면 memo 의 "사후관리:<id>"

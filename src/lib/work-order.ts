@@ -123,6 +123,22 @@ export function workDetailsText(w: WorkOrderJson, fallback: string): string {
   return items.map((i) => `${i.group} ${i.text}${i.product ? ` (${i.product.split(' · ')[0]})` : ''}`).join('\n');
 }
 
+/**
+ * 사후관리 카드용 작업 내역 한 줄씩 (2026-11-26 사장님 "성함만 있어서 무슨 작업했는지 기억이 안 나").
+ * 작업 내역서 JSON 이면 항목마다 "PPF 전체 PPF · 시리즈50", 옛 기록(글자 메모)이면 film_used·service_area 로, 그것도 없으면 빈 배열
+ */
+export function workSummaryLines(memo: string | null | undefined, fallback?: { film_used?: string | null; service_area?: string | null }): string[] {
+  const w = parseWorkOrder(memo);
+  if (w) {
+    const lines = workItems(w).map((i) => `${i.group} ${i.text}${i.product ? ` · ${i.product.split(' · ')[0].replace(/^3M PPF /, '')}` : ''}`);
+    if (lines.length) return lines;
+  }
+  const fb = [fallback?.service_area, fallback?.film_used].map((x) => (x || '').trim()).filter(Boolean);
+  if (fb.length) return [fb.join(' · ')];
+  if (memo && !w && memo.trim()) return [memo.trim().split('\n')[0].slice(0, 80)];
+  return [];
+}
+
 export function parseWorkOrder(memo: string | null | undefined): WorkOrderJson | null {
   if (!memo) return null;
   try { const p = JSON.parse(memo); return p && typeof p === 'object' ? (p as WorkOrderJson) : null; } catch { return null; }

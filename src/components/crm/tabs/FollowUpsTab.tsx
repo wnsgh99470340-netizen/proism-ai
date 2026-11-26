@@ -8,6 +8,7 @@ import { confirmAfterSms, openSmsApp } from '@/lib/crm-shared';
 import { copyText, shareTextOnPhone } from '@/lib/device';
 import { QC_SMS, REVIEW_SMS, followUpMessage } from '@/config/sms-templates';
 import { parseCareLog, stripCareLog } from '@/lib/care-log';
+import { parseWorkOrder, workSummaryLines } from '@/lib/work-order';
 import { isSkipped, closeQuoteAs, quoteCloseReason, QUOTE_CLOSE_REASONS } from '@/lib/followups';
 import type { PickerCustomer } from '@/hooks/useCrmData';
 import { type FollowUp, type Tab, RETOUCH_TYPE, formatDate } from '@/lib/crm-shared';
@@ -213,11 +214,34 @@ export default function FollowUpsTab({
                     {arrivalToDealer && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-info/15 text-info" title="딜러가 넣어 준 차 — 입고 안내는 딜러에게">→ 딜러 {(f.memo || '').split(' ')[0].replace('(딜러)', '')}</span>}
                     {phone && <span className="text-xs text-[var(--c-text-4)]">{phone}</span>}
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-[var(--c-text-3)]">
+                  <div className="flex items-center gap-2 text-xs text-[var(--c-text-3)] flex-wrap">
                     <span className="bg-[var(--c-subtle)] px-2 py-0.5 rounded">{f.service?.service_type || '-'}</span>
+                    {(f.customer?.car_brand || f.customer?.car_model) && <span className="text-[var(--c-text-2)]">{[f.customer?.car_brand, f.customer?.car_model].filter(Boolean).join(' ')}</span>}
                     <span>{formatDate(f.scheduled_date)}</span>
                     {f.scheduled_date === today && <span className="text-warn font-medium">(오늘)</span>}
                   </div>
+                  {/* 작업 내역 (2026-11-26): 이 사후관리가 붙은 시공 기록의 작업 내역서 — 이름만 보고는 무슨 작업인지 기억이 안 나서 */}
+                  {!isQuote && f.service && (() => {
+                    const lines = workSummaryLines(f.service.memo, f.service);
+                    const wo = parseWorkOrder(f.service.memo);
+                    const extra = wo ? { note: (wo.field_note || '').trim(), notes: (wo.notes || '').trim(), photos: wo.photos || [], plate: (wo.car_number || '').trim() } : null;
+                    const hasExtra = !!extra && (!!extra.note || !!extra.notes || extra.photos.length > 0);
+                    if (lines.length === 0) return <div className="text-[11px] text-[var(--c-text-4)] mt-1">작업 내역서 없음{f.service.service_date ? ` · 시공 ${formatDate(f.service.service_date)}` : ''}</div>;
+                    return (
+                      <div className="mt-1.5 text-xs">
+                        <div className="text-[11px] text-[var(--c-text-4)] mb-0.5">작업 내역{f.service.service_date ? ` · 시공 ${formatDate(f.service.service_date)}` : ''}{extra?.plate ? ` · ${extra.plate}` : ''}</div>
+                        <ul className="space-y-0.5">{lines.map((l, i) => <li key={i} className="text-[var(--c-text-2)] leading-snug">{l}</li>)}</ul>
+                        {hasExtra && (
+                          <details className="mt-1">
+                            <summary className="cursor-pointer text-[var(--c-text-3)] text-[11px]">현장 메모·사진</summary>
+                            {extra!.note && <div className="mt-1 text-[var(--c-text-2)] whitespace-pre-wrap">{extra!.note}</div>}
+                            {extra!.notes && <div className="mt-1 text-[var(--c-text-3)] whitespace-pre-wrap">특이사항: {extra!.notes}</div>}
+                            {extra!.photos.length > 0 && <div className="flex gap-1.5 mt-1.5 flex-wrap">{extra!.photos.map((u) => <a key={u} href={u} target="_blank" rel="noreferrer"><img src={u} alt="" className="w-12 h-12 object-cover rounded-md border border-[var(--c-border)]" /></a>)}</div>}
+                          </details>
+                        )}
+                      </div>
+                    );
+                  })()}
                   {f.memo && !isQuote && stripCareLog(f.memo) && <div className="text-xs text-[var(--c-text-4)] mt-1">{stripCareLog(f.memo)}</div>}
                   {(() => {
                     const log = parseCareLog(f.memo);
