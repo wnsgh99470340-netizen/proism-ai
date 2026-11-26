@@ -20,6 +20,8 @@ import type { ImportCandidate } from '@/lib/appointment-import';
 import BlogWorkspace from '@/components/BlogWorkspace';
 import HelpModal from '@/components/HelpModal';
 import PushToggle from '@/components/PushToggle';
+import NotificationsModal from '@/components/NotificationsModal';
+import BadgeClearer from '@/components/BadgeClearer';
 import Link from 'next/link';
 import CustomerFormModal, { type CustomerFormValues, EMPTY_CUSTOMER_FORM, loadCustomerForm, saveCustomerEdit } from '@/components/crm/CustomerFormModal';
 import { linkReferral, loadReferralsFor, markThanksSent, grantPointForReferred, loadPoints, usePoints, updateReferral } from '@/lib/referrals';
@@ -77,6 +79,7 @@ export default function CRMPage() {
   const [blogVisited, setBlogVisited] = useState(false);
   const [prefillNonce, setPrefillNonce] = useState(0);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false); // 받은 알림 창 (2026-11-26)
   useEffect(() => { if (activeTab === 'blog') { if (isDemo) setActiveTab('home'); else setBlogVisited(true); } }, [activeTab, isDemo]);
   // 주소 ?tab=blog 로 바로 열기, ?warranty=<예약 id> 면 그 예약의 보증서 창까지 (고객 상세 화면 "보증서 만들기" 링크, 2026-11-18)
   const pendingWarrantyId = useRef<string | null>(null);
@@ -1592,6 +1595,14 @@ export default function CRMPage() {
                   ?
                 </button>
               )}
+              <button
+                onClick={() => setNotifOpen(true)}
+                className="w-8 h-8 rounded-full border border-[var(--c-border)] bg-[var(--c-card)] flex items-center justify-center text-[var(--c-text-2)] hover:bg-[var(--c-subtle)] transition-colors"
+                title="받은 알림"
+                aria-label="받은 알림"
+              >
+                <Icon name="bell" size={15} />
+              </button>
               <PushToggle />
             </div>
           </div>
@@ -1680,6 +1691,8 @@ export default function CRMPage() {
         </div>
       )}
       <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
+      <NotificationsModal open={notifOpen} onClose={() => setNotifOpen(false)} />
+      <BadgeClearer />
 
       {/* ─── Modal: 고객 추가 ────────────────────────────────── */}
       {showAddCustomer && (

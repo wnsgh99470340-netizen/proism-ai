@@ -4,6 +4,7 @@
  */
 import webpush, { type PushSubscription } from 'web-push';
 import { supabase } from './supabase';
+import { appendPushLog } from './push-log';
 
 export interface PushPayload {
   title: string;
@@ -75,5 +76,7 @@ export async function sendPushToAll(payload: PushPayload): Promise<{ sent: numbe
       }
     }
   }));
+  // 받은 알림 기록 (2026-11-26): 구독 기기가 없어도 기록은 남긴다 — 나중에 "그 알림이 뭐였지"를 앱에서 찾아볼 수 있게
+  await appendPushLog({ at: new Date().toISOString(), title: payload.title, body: payload.body, url: payload.url, tag: payload.tag, sent });
   return { sent, removed };
 }

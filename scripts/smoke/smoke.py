@@ -77,6 +77,9 @@ class Smoke:
                 page.get_by_text('오늘 예약').first.wait_for()
                 page.get_by_text('마케팅팀 오늘 한 일').first.wait_for()
                 page.get_by_text('오늘 있었던 일').first.wait_for()  # 2026-11-25 메모 카드
+                page.get_by_role('button', name='받은 알림').first.click()  # 2026-11-26 받은 알림 창 열고 닫기
+                page.get_by_role('heading', name=re.compile('받은 알림')).wait_for()
+                page.get_by_role('button', name='닫기').last.click(); page.wait_for_timeout(300)
                 self.shot('home'); return self.no_overflow()
             self.check('홈 — 인사·오늘 예약·마케팅팀 카드', home)
 

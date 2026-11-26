@@ -3,7 +3,7 @@
  * - 페이지 이동: 네트워크 우선, 오프라인일 때만 캐시 사용
  * - /api 요청: 캐시하지 않음 (글 생성·CRM 데이터는 항상 최신)
  */
-const VERSION = 'proism-v3';
+const VERSION = 'proism-v4';
 const STATIC_CACHE = `${VERSION}-static`;
 const PAGE_CACHE = `${VERSION}-pages`;
 
@@ -82,6 +82,12 @@ self.addEventListener('pushsubscriptionchange', (event) => {
       .then((sub) => fetch('/api/push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subscription: sub.toJSON() }) }))
       .catch(() => {})
   );
+});
+
+// 앱을 열면 남아 있는 알림을 전부 닫는다 (2026-11-26 사장님 "아이콘 배지 1이 무슨 짓을 해도 안 사라져" — 알림 창에 남은 알림 수가 배지로 보임)
+self.addEventListener('message', (event) => {
+  if (!event.data || event.data.type !== 'clear-notifications') return;
+  event.waitUntil(self.registration.getNotifications().then((ns) => ns.forEach((n) => n.close())).catch(() => {}));
 });
 
 self.addEventListener('notificationclick', (event) => {
