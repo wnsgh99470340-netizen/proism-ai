@@ -1,4 +1,5 @@
 'use client';
+import { useState } from 'react';
 
 /** 홈 탭 (2026-11-23 page.tsx 에서 분리 — 동작 변경 없음). 상태·핸들러는 page.tsx 에 있고 props 로 받는다 */
 import Btn from '@/components/ui/Btn';
@@ -23,11 +24,11 @@ interface HomeTabProps {
   teamBrief: DailyBrief | null;
   teamOpen: string | null;
   setTeamOpen: (key: string | null) => void;
-  fetchTeamBrief: () => void;
+  fetchTeamBrief: () => void | Promise<void>;
   stats: { weekly: WeeklyStats; table: SourceTable } | null;
   statsMonth: string;
   setStatsMonth: (month: string) => void;
-  fetchStats: (month: string) => void;
+  fetchStats: (month: string) => void | Promise<void>;
   statsDays: boolean;
   setStatsDays: Dispatch<SetStateAction<boolean>>;
   handleStatusChange: (appointment: Appointment, newStatus: string) => void;
@@ -47,6 +48,7 @@ export default function HomeTab({
   handleStatusChange, openDateEdit, handleTeamSms,
   setShowAddCustomer, setShowAddAppointment, setQuoteSms, setShowInquiry, setActiveTab,
 }: HomeTabProps) {
+  const [busy, setBusy] = useState<'team' | 'stats' | null>(null); // 카드 새로고침 중 표시 (2026-11-26)
   const fmtDot = (d: string) => d.replace(/-/g, '.');
   const plus = (n: number) => addDaysISO(today, n);
   const todayAppts = appointments.filter((a) => a.appointment_date <= today && (a.end_date || a.appointment_date) >= today && a.status !== '취소');
@@ -183,7 +185,7 @@ export default function HomeTab({
             <h2 className="text-lg font-bold text-[var(--c-text-1)]">마케팅팀 오늘 한 일 <span className="text-[var(--c-text-3)] text-sm font-medium ml-1">{fmtDot(today).slice(5)}</span></h2>
             <div className="flex items-center gap-2 shrink-0">
               {teamBrief && teamBrief.totals.toSend > 0 && <span className="text-xs font-semibold text-brand">보낼 문자 {teamBrief.totals.toSend}건</span>}
-              <Btn size="sm" variant="ghost" icon="refresh" onClick={fetchTeamBrief}>새로고침</Btn>
+              <Btn size="sm" variant="ghost" icon="refresh" disabled={busy === 'team'} onClick={async () => { setBusy('team'); try { await fetchTeamBrief(); } finally { setBusy(null); } }}>{busy === 'team' ? '불러오는 중…' : '새로고침'}</Btn>
             </div>
           </div>
           {!teamBrief ? (
@@ -266,7 +268,7 @@ export default function HomeTab({
       <section className={`${card} p-5 md:p-6`}>
         <div className="flex items-center justify-between mb-4 gap-3">
           <h2 className="text-lg font-bold text-[var(--c-text-1)]">{Number(statsMonth.slice(5))}월 숫자 <span className="text-[var(--c-text-3)] text-sm font-medium ml-1">{stats ? `${stats.weekly.from.slice(5).replace('-', '.')}~${stats.weekly.to.slice(5).replace('-', '.')}` : ''}</span></h2>
-          <Btn size="sm" variant="ghost" icon="refresh" onClick={() => fetchStats(statsMonth)}>새로고침</Btn>
+          <Btn size="sm" variant="ghost" icon="refresh" disabled={busy === 'stats'} onClick={async () => { setBusy('stats'); try { await fetchStats(statsMonth); } finally { setBusy(null); } }}>{busy === 'stats' ? '불러오는 중…' : '새로고침'}</Btn>
         </div>
         {!stats ? (
           <div className="py-8 text-center text-sm text-[var(--c-text-3)]">{isDemo ? "둘러보기에서는 비어 있습니다" : "지난 7일 기록을 세는 중…"}</div>

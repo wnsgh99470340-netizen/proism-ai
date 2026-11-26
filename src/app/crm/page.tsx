@@ -80,6 +80,7 @@ export default function CRMPage() {
   const [prefillNonce, setPrefillNonce] = useState(0);
   const [helpOpen, setHelpOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false); // 받은 알림 창 (2026-11-26)
+  const [refreshState, setRefreshState] = useState<'idle' | 'busy' | 'done'>('idle'); // 헤더 새로고침 (2026-11-26 사장님 "각 탭마다 새로고침 버튼")
   useEffect(() => { if (activeTab === 'blog') { if (isDemo) setActiveTab('home'); else setBlogVisited(true); } }, [activeTab, isDemo]);
   // 주소 ?tab=blog 로 바로 열기, ?warranty=<예약 id> 면 그 예약의 보증서 창까지 (고객 상세 화면 "보증서 만들기" 링크, 2026-11-18)
   const pendingWarrantyId = useRef<string | null>(null);
@@ -253,6 +254,24 @@ export default function CRMPage() {
     stats, statsMonth, setStatsMonth, statsDays, setStatsDays,
     fetchCustomers, fetchAllCustomers, fetchAppointments, fetchFollowUps, fetchConsultations, fetchTeamBrief, fetchStats,
   } = useCrmData(activeTab);
+
+  /** 헤더 새로고침: 지금 보고 있는 탭의 데이터만 다시 읽는다 (2026-11-26) */
+  const refreshCurrentTab = async () => {
+    if (refreshState === 'busy') return;
+    setRefreshState('busy');
+    const jobs: Record<Tab, (() => Promise<unknown> | void)[]> = {
+      home: [fetchAppointments, fetchFollowUps, fetchTeamBrief, () => fetchStats(statsMonth), fetchAllCustomers],
+      customers: [fetchCustomers, fetchAllCustomers],
+      appointments: [fetchAppointments, fetchAllCustomers],
+      followups: [fetchFollowUps],
+      consultations: [fetchConsultations, fetchAllCustomers],
+      blog: [],
+    };
+    try { await Promise.all((jobs[activeTab] || []).map((fn) => Promise.resolve(fn()).catch(() => undefined))); } finally {
+      setRefreshState('done');
+      setTimeout(() => setRefreshState('idle'), 1500);
+    }
+  };
 
   // ─── Customer Actions ───────────────────────────────────
   const handleAddCustomer = async () => {
@@ -1595,6 +1614,15 @@ export default function CRMPage() {
                   ?
                 </button>
               )}
+              <button
+                onClick={refreshCurrentTab}
+                disabled={refreshState === 'busy'}
+                className="w-8 h-8 rounded-full border border-[var(--c-border)] bg-[var(--c-card)] flex items-center justify-center text-[var(--c-text-2)] hover:bg-[var(--c-subtle)] transition-colors disabled:opacity-70"
+                title="이 탭 새로고침"
+                aria-label="이 탭 새로고침"
+              >
+                <Icon name={refreshState === 'done' ? 'check' : 'refresh'} size={15} className={refreshState === 'busy' ? 'animate-spin' : ''} />
+              </button>
               <button
                 onClick={() => setNotifOpen(true)}
                 className="w-8 h-8 rounded-full border border-[var(--c-border)] bg-[var(--c-card)] flex items-center justify-center text-[var(--c-text-2)] hover:bg-[var(--c-subtle)] transition-colors"
