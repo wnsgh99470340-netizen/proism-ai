@@ -23,14 +23,23 @@ export interface EstimateInitial {
 
 const won = (v: string | number) => { const n = Number(String(v).replace(/[^\d]/g, '')); return n ? `${n.toLocaleString()}원` : ''; };
 const num = (v: string) => Number(String(v).replace(/[^\d]/g, '')) || 0;
-const DEFAULT_NOTE = '세단 기준이며 차량 상태에 따라 금액이 조금 달라질 수 있습니다.\n부가세 포함 금액입니다.';
+const DEFAULT_NOTE = '차량 상태에 따라 금액이 조금 달라질 수 있습니다.';
+const INSURER_NOTE = '상기 금액은 현장 확인 기준이며, 추가 손상 발견 시 재견적될 수 있습니다.';
+const BIZ_KEY = 'crm_estimate_bizno_v1';
 
 export default function EstimateDocModal({ initial, onClose, onDone }: { initial: EstimateInitial; onClose: () => void; onDone?: () => void }) {
   const today = todaySeoul();
   const [name, setName] = useState(initial.name || '');
   const [phone, setPhone] = useState(initial.phone || '');
   const [car, setCar] = useState(initial.car || '');
-  const [validDays, setValidDays] = useState('14');
+  // 두 가지 버전 (2026-11-26 사장님 "보험사에도 보낼 수 있도록"): 고객용은 단순하게, 보험사용은 견적 번호·유효기간·차량번호·사업자등록번호·공급가/부가세
+  const [mode, setMode] = useState<'customer' | 'insurer'>('customer');
+  const [validDays, setValidDays] = useState('30');
+  const [plate, setPlate] = useState('');
+  const [insurer, setInsurer] = useState('');      // 보험사·담당자
+  const [claimNo, setClaimNo] = useState('');      // 사고 접수번호
+  const [bizNo, setBizNo] = useState(() => { try { return localStorage.getItem(BIZ_KEY) || ''; } catch { return ''; } }); // 사업자등록번호 — 한 번 적으면 기억
+  const [vatIncluded, setVatIncluded] = useState(true); // 적은 금액이 부가세 포함인지
   const [note, setNote] = useState(initial.note ?? DEFAULT_NOTE);
   const [items, setItems] = useState<EstimateItem[]>(() => {
     const given = (initial.items || []).filter((i) => (i.name || '').trim()).map((i) => ({ name: i.name || '', product: i.product || '', normal: i.normal || '', sale: i.sale || '' }));
@@ -51,7 +60,13 @@ export default function EstimateDocModal({ initial, onClose, onDone }: { initial
     return { normal, final, discounted: rows.some((r) => num(r.sale) && num(r.sale) !== num(r.normal)) };
   }, [rows]);
   const validUntil = addDaysISO(today, Math.max(0, Number(validDays) || 0));
-  const docNo = `EST-${today.replace(/-/g, '')}-${(phone.replace(/\D/g, '').slice(-4) || '0000')}`;
+  const docNo = `EST-${today.replace(/-/g, '')}-${(phone.replace(/\D/g, '').slice(-4) || plate.replace(/\D/g, '').slice(-4) || '0000')}`;
+  const insurerMode = mode === 'insurer';
+  // 보험사용 금액 분해: 적은 금액이 부가세 포함이면 공급가 = 합계/1.1, 아니면 합계가 공급가이고 부가세를 얹는다
+  const supply = vatIncluded ? Math.round(totals.final / 1.1) : totals.final;
+  const vat = vatIncluded ? totals.final - supply : Math.round(totals.final * 0.1);
+  const grand = vatIncluded ? totals.final : totals.final + vat;
+  const switchMode = (m: 'customer' | 'insurer') => { setMode(m); setNote((cur) => (cur === DEFAULT_NOTE || cur === INSURER_NOTE || !cur.trim()) ? (m === 'insurer' ? INSURER_NOTE : DEFAULT_NOTE) : cur); };
 
   const render = async (): Promise<Blob | null> => {
     if (!printRef.current) return null;
@@ -74,15 +89,17 @@ export default function EstimateDocModal({ initial, onClose, onDone }: { initial
     await supabase.from('consultations').insert({
       customer_id: customerId,
       consultation_date: today,
-      content: `[견적서 발급]${customerId ? '' : ` ${who}`}\n${car}\n${lines.join('\n')}\n합계 ${won(totals.final)} · 유효 ${validUntil}`,
-      estimate: won(totals.final) || null,
+      content: `[견적서 발급]${insurerMode ? ' (보험사용)' : ''}${customerId ? '' : ` ${who}`}\n${car}${plate.trim() ? ` ${plate.trim()}` : ''}${insurerMode && insurer.trim() ? ` · ${insurer.trim()}` : ''}\n${lines.join('\n')}\n합계 ${won(insurerMode ? grand : totals.final)}${insurerMode ? ` · ${docNo} · 유효 ${validUntil}` : ''}`,
+      estimate: won(insurerMode ? grand : totals.final) || null,
       interested_services: rows.map((r) => r.name).join(', ').slice(0, 120) || null,
       memo: [customerId ? '' : who, car].filter(Boolean).join(' · ') || null,
     });
   };
 
   const check = () => {
+    try { if (bizNo.trim()) localStorage.setItem(BIZ_KEY, bizNo.trim()); } catch { /* 무시 */ }
     if (!car.trim()) { setMsg('⚠️ 차종을 적어 주세요.'); return false; }
+    if (insurerMode && !plate.trim()) { setMsg('⚠️ 보험사용은 차량번호가 필요합니다.'); return false; }
     if (rows.length === 0) { setMsg('⚠️ 시공 항목을 한 줄 이상 적어 주세요.'); return false; }
     return true;
   };
@@ -134,11 +151,23 @@ export default function EstimateDocModal({ initial, onClose, onDone }: { initial
         </div>
 
         <div className="overflow-y-auto px-5 sm:px-6 py-4 space-y-4">
+          <div className="inline-flex rounded-lg border border-[var(--c-border)] overflow-hidden text-xs font-semibold">
+            {([['customer', '고객용'], ['insurer', '보험사용']] as const).map(([k, l]) => (
+              <button key={k} type="button" onClick={() => switchMode(k)} className={`px-3 py-1.5 transition-colors ${mode === k ? 'bg-[var(--c-text-1)] text-[var(--c-card)]' : 'text-[var(--c-text-2)] hover:bg-[var(--c-subtle)]'}`}>{l}</button>
+            ))}
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <label className="block"><span className="text-xs text-[var(--c-text-3)]">고객</span><input value={name} onChange={(e) => setName(e.target.value)} placeholder="이름" className={input} /></label>
             <label className="block"><span className="text-xs text-[var(--c-text-3)]">전화</span><input value={phone} onChange={(e) => setPhone(formatPhoneInput(e.target.value))} placeholder="010-0000-0000" inputMode="tel" className={input} /></label>
-            <label className="block col-span-2 sm:col-span-1"><span className="text-xs text-[var(--c-text-3)]">차종 *</span><input value={car} onChange={(e) => setCar(e.target.value)} placeholder="예: 벤츠 ML350" className={input} /></label>
-            <label className="block col-span-2 sm:col-span-1"><span className="text-xs text-[var(--c-text-3)]">유효기간 (일)</span><input value={validDays} onChange={(e) => setValidDays(e.target.value.replace(/\D/g, ''))} inputMode="numeric" className={input} /></label>
+            <label className="block"><span className="text-xs text-[var(--c-text-3)]">차종 *</span><input value={car} onChange={(e) => setCar(e.target.value)} placeholder="예: 벤츠 ML350" className={input} /></label>
+            <label className="block"><span className="text-xs text-[var(--c-text-3)]">차량번호{insurerMode ? ' *' : ''}</span><input value={plate} onChange={(e) => setPlate(e.target.value)} placeholder="12가 3456" className={input} /></label>
+            {insurerMode && (<>
+              <label className="block"><span className="text-xs text-[var(--c-text-3)]">보험사 · 담당자</span><input value={insurer} onChange={(e) => setInsurer(e.target.value)} placeholder="예: ○○화재 홍길동 대리" className={input} /></label>
+              <label className="block"><span className="text-xs text-[var(--c-text-3)]">사고 접수번호</span><input value={claimNo} onChange={(e) => setClaimNo(e.target.value)} placeholder="있으면" className={input} /></label>
+              <label className="block"><span className="text-xs text-[var(--c-text-3)]">사업자등록번호 (한 번 적으면 기억)</span><input value={bizNo} onChange={(e) => setBizNo(e.target.value)} placeholder="000-00-00000" inputMode="numeric" className={input} /></label>
+              <label className="block"><span className="text-xs text-[var(--c-text-3)]">유효기간 (일)</span><input value={validDays} onChange={(e) => setValidDays(e.target.value.replace(/\D/g, ''))} inputMode="numeric" className={input} /></label>
+              <label className="col-span-2 flex items-center gap-2 text-xs text-[var(--c-text-2)]"><input type="checkbox" checked={vatIncluded} onChange={(e) => setVatIncluded(e.target.checked)} className="accent-brand" />적은 금액은 부가세 포함 (끄면 공급가액으로 보고 부가세 10%를 얹습니다)</label>
+            </>)}
           </div>
 
           <div>
@@ -152,16 +181,17 @@ export default function EstimateDocModal({ initial, onClose, onDone }: { initial
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     <input value={it.name} onChange={(e) => setItem(i, { name: e.target.value })} placeholder="시공 내용 (예: 그릴·범퍼 하단 카본 랩핑)" className={`${small} col-span-2 sm:col-span-1`} />
                     <input value={it.product} onChange={(e) => setItem(i, { product: e.target.value })} placeholder="제품 (예: 3M 2080 카본)" className={small} />
-                    <input value={it.normal} onChange={(e) => setItem(i, { normal: e.target.value.replace(/[^\d]/g, '') })} placeholder="정상가" inputMode="numeric" className={small} />
-                    <input value={it.sale} onChange={(e) => setItem(i, { sale: e.target.value.replace(/[^\d]/g, '') })} placeholder="할인가 (없으면 비움)" inputMode="numeric" className={small} />
+                    <input value={it.normal} onChange={(e) => setItem(i, { normal: e.target.value.replace(/[^\d]/g, '') })} placeholder={insurerMode ? '금액' : '정상가'} inputMode="numeric" className={small} />
+                    {!insurerMode && <input value={it.sale} onChange={(e) => setItem(i, { sale: e.target.value.replace(/[^\d]/g, '') })} placeholder="할인가 (없으면 비움)" inputMode="numeric" className={small} />}
                   </div>
                   <button type="button" onClick={() => removeItem(i)} className="text-[var(--c-text-4)] hover:text-danger text-sm px-1 pt-1.5" aria-label="항목 삭제">✕</button>
                 </div>
               ))}
             </div>
             <div className="mt-2 text-xs text-[var(--c-text-2)] text-right">
-              {totals.discounted && <span className="line-through text-[var(--c-text-4)] mr-2">{won(totals.normal)}</span>}
-              합계 <span className="font-bold text-[var(--c-text-1)]">{won(totals.final) || '0원'}</span>
+              {insurerMode
+                ? <>공급가액 {won(supply) || '0원'} · 부가세 {won(vat) || '0원'} · 합계 <span className="font-bold text-[var(--c-text-1)]">{won(grand) || '0원'}</span></>
+                : <>{totals.discounted && <span className="line-through text-[var(--c-text-4)] mr-2">{won(totals.normal)}</span>}합계 <span className="font-bold text-[var(--c-text-1)]">{won(totals.final) || '0원'}</span></>}
             </div>
           </div>
 
@@ -192,17 +222,31 @@ export default function EstimateDocModal({ initial, onClose, onDone }: { initial
             <div style={{ padding: '28px 40px 36px' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px' }}>
                 <tbody>
-                  <tr><td style={{ ...th, width: '110px' }}>견적 번호</td><td style={td}>{docNo}</td><td style={{ ...th, width: '110px' }}>견적일</td><td style={td}>{today}</td></tr>
-                  <tr><td style={th}>고객</td><td style={td}>{name.trim() || '-'}{phone.trim() ? ` · ${phone.trim()}` : ''}</td><td style={th}>유효기간</td><td style={td}>{validUntil} 까지</td></tr>
-                  <tr><td style={th}>차종</td><td style={td} colSpan={3}>{car.trim() || '-'}</td></tr>
+                  {insurerMode ? (<>
+                    <tr><td style={{ ...th, width: '110px' }}>견적 번호</td><td style={td}>{docNo}</td><td style={{ ...th, width: '110px' }}>견적일</td><td style={td}>{today}</td></tr>
+                    <tr><td style={th}>수신</td><td style={td}>{insurer.trim() || '-'}</td><td style={th}>유효기간</td><td style={td}>{validUntil} 까지</td></tr>
+                    <tr><td style={th}>차량</td><td style={td}>{car.trim() || '-'}{plate.trim() ? ` · ${plate.trim()}` : ''}</td><td style={th}>접수번호</td><td style={td}>{claimNo.trim() || '-'}</td></tr>
+                    <tr><td style={th}>차주</td><td style={td} colSpan={3}>{name.trim() || '-'}{phone.trim() ? ` · ${phone.trim()}` : ''}</td></tr>
+                  </>) : (<>
+                    <tr><td style={{ ...th, width: '110px' }}>고객</td><td style={td}>{name.trim() || '-'}{phone.trim() ? ` · ${phone.trim()}` : ''}</td><td style={{ ...th, width: '110px' }}>견적일</td><td style={td}>{today}</td></tr>
+                    <tr><td style={th}>차종</td><td style={td} colSpan={3}>{car.trim() || '-'}{plate.trim() ? ` · ${plate.trim()}` : ''}</td></tr>
+                  </>)}
                 </tbody>
               </table>
               <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '14px' }}>
                 <thead>
-                  <tr><th style={th}>시공 내용</th><th style={{ ...th, width: '170px' }}>제품</th><th style={{ ...th, width: '110px', textAlign: 'right' }}>정상가</th><th style={{ ...th, width: '110px', textAlign: 'right' }}>견적가</th></tr>
+                  {insurerMode
+                    ? <tr><th style={th}>작업 내용</th><th style={{ ...th, width: '200px' }}>사용 제품</th><th style={{ ...th, width: '130px', textAlign: 'right' }}>금액</th></tr>
+                    : <tr><th style={th}>시공 내용</th><th style={{ ...th, width: '170px' }}>제품</th><th style={{ ...th, width: '110px', textAlign: 'right' }}>정상가</th><th style={{ ...th, width: '110px', textAlign: 'right' }}>견적가</th></tr>}
                 </thead>
                 <tbody>
-                  {rows.map((r, i) => (
+                  {rows.map((r, i) => insurerMode ? (
+                    <tr key={i}>
+                      <td style={td}>{r.name}</td>
+                      <td style={td}>{r.product || '-'}</td>
+                      <td style={{ ...td, textAlign: 'right', fontWeight: 700 }}>{won(vatIncluded ? Math.round(num(r.normal) / 1.1) : num(r.normal)) || '-'}</td>
+                    </tr>
+                  ) : (
                     <tr key={i}>
                       <td style={td}>{r.name}</td>
                       <td style={td}>{r.product || '-'}</td>
@@ -210,20 +254,26 @@ export default function EstimateDocModal({ initial, onClose, onDone }: { initial
                       <td style={{ ...td, textAlign: 'right', fontWeight: 700 }}>{won(r.sale || r.normal) || '-'}</td>
                     </tr>
                   ))}
-                  <tr>
-                    <td style={{ ...th, textAlign: 'right' }} colSpan={3}>합계</td>
-                    <td style={{ ...td, textAlign: 'right', fontWeight: 800, fontSize: '16px', color: '#E4002B' }}>{won(totals.final) || '-'}</td>
-                  </tr>
+                  {insurerMode ? (<>
+                    <tr><td style={{ ...th, textAlign: 'right' }} colSpan={2}>공급가액</td><td style={{ ...td, textAlign: 'right' }}>{won(supply) || '-'}</td></tr>
+                    <tr><td style={{ ...th, textAlign: 'right' }} colSpan={2}>부가세 (10%)</td><td style={{ ...td, textAlign: 'right' }}>{won(vat) || '-'}</td></tr>
+                    <tr><td style={{ ...th, textAlign: 'right' }} colSpan={2}>합계</td><td style={{ ...td, textAlign: 'right', fontWeight: 800, fontSize: '16px', color: '#E4002B' }}>{won(grand) || '-'}</td></tr>
+                  </>) : (
+                    <tr>
+                      <td style={{ ...th, textAlign: 'right' }} colSpan={3}>합계</td>
+                      <td style={{ ...td, textAlign: 'right', fontWeight: 800, fontSize: '16px', color: '#E4002B' }}>{won(totals.final) || '-'}</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
               {note.trim() && <div style={{ fontSize: '12px', color: '#555', whiteSpace: 'pre-wrap', lineHeight: 1.7, marginBottom: '22px' }}>{note.trim()}</div>}
               <div style={{ borderTop: '1px solid #e5e5e5', paddingTop: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                 <div style={{ fontSize: '11px', color: '#777', lineHeight: 1.7 }}>
-                  <div>3M 프로이즘 강남서초점 · 대표 진준호</div>
+                  <div>3M 프로이즘 강남서초점 · 대표 진준호{insurerMode && bizNo.trim() ? ` · 사업자등록번호 ${bizNo.trim()}` : ''}</div>
                   <div>서울특별시 서초구 서초중앙로8길 82 1동 1층 1호 · 010-7287-7140</div>
                   <div>blog.naver.com/roice_</div>
                 </div>
-                <div style={{ fontSize: '11px', color: '#999' }}>PPF 2주 QC · 6개월 메인터넌스</div>
+                <div style={{ fontSize: '11px', color: '#999' }}>{insurerMode ? `작성 ${today} · 3M 프로이즘 강남서초점 (인)` : 'PPF 2주 QC · 6개월 메인터넌스'}</div>
               </div>
             </div>
           </div>
