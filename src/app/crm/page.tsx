@@ -1061,10 +1061,11 @@ export default function CRMPage() {
       try {
         const parsed = JSON.parse(appointment.memo);
         if (parsed && typeof parsed === 'object' && 'car_number' in parsed) {
-          // warranty 관련 키는 workOrder 상태에서 제외 (별도 관리)
-          const { warranty, warranty_issued, ...workOrderData } = parsed;
-          void warranty; void warranty_issued;
-          setWorkOrder(workOrderData);
+          // warranty(보증서 내용)만 workOrder 상태에서 제외 (별도 관리). warranty_issued 는 그대로 둬야 다시 열었을 때
+          // "보증서 발행 유무" 체크가 켜져 보인다 (2026-11-26 사장님 "발행하면 발행됐다고 체크가 안 돼" — 그동안 여기서 빼 버려 늘 꺼져 보였음)
+          const { warranty, ...workOrderData } = parsed;
+          void warranty;
+          setWorkOrder({ ...workOrderData, warranty_issued: !!parsed.warranty_issued, crm_recorded: !!parsed.crm_recorded });
           setWorkOrderAppointment(appointment);
           setShowWorkOrder(true);
           return;
