@@ -58,11 +58,11 @@ type PriceItem = { grade: string; price: number };
 const PRICE_BOOK: Record<ServiceKey, Record<string, PriceItem[]>> = {
   PPF: {
     전체: [
-      { grade: '시리즈50(185μm)', price: 5500000 },
-      { grade: '시리즈100(190μm)', price: 6000000 },
-      { grade: '시리즈150(190μm·발수)', price: 6500000 },
-      { grade: 'PRO200 유광(200μm·발수)', price: 7000000 },
-      { grade: 'PRO200 무광(200μm·발수)', price: 7000000 },
+      { grade: '시리즈50', price: 5500000 },
+      { grade: '시리즈100', price: 6000000 },
+      { grade: '시리즈150(발수)', price: 6500000 },
+      { grade: 'PRO200 유광(발수)', price: 7000000 },
+      { grade: 'PRO200 무광(발수)', price: 7000000 },
     ],
     프론트: [{ grade: 'FULL 프론트 PPF 패키지(범퍼+본넷+프론트휀더)', price: 2500000 }],
     생활보호: [
@@ -252,6 +252,8 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
   const [withFollowUps, setWithFollowUps] = useState(true);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  // 미리보기를 직접 고친 글. 고치기 시작하면 폼을 바꿔도 덮어쓰지 않고, '자동 문구로 되돌리기'를 누르면 다시 폼대로 (2026-11-26)
+  const [editedText, setEditedText] = useState<string | null>(null);
 
   // 시공 바꾸면 범위·혜택 기본값 갱신
   useEffect(() => {
@@ -269,8 +271,11 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
     setAltGrade(items[2]?.grade || '');
   }, [service, range]);
   // 가격: 사장님이 고친 값(기억) → 가격표 정상가 → 빈칸
-  useEffect(() => { const b = bookPrice(service, range, recGrade); setRecPrice(mem.prices[`${service}|${recGrade}`] || (b ? String(b) : '')); setRecSale(mem.prices[`${service}|${recGrade}|sale`] || ''); }, [service, range, recGrade, mem.prices]);
-  useEffect(() => { const b = bookPrice(service, range, altGrade); setAltPrice(mem.prices[`${service}|${altGrade}`] || (b ? String(b) : '')); setAltSale(mem.prices[`${service}|${altGrade}|sale`] || ''); }, [service, range, altGrade, mem.prices]);
+  // 기억된 가격 찾기: 새 이름 → 옛 이름(μm 수치가 붙어 있던 2026-11-26 이전 키)
+  const LEGACY: Record<string, string> = { '시리즈50': '시리즈50(185μm)', '시리즈100': '시리즈100(190μm)', '시리즈150(발수)': '시리즈150(190μm·발수)', 'PRO200 유광(발수)': 'PRO200 유광(200μm·발수)', 'PRO200 무광(발수)': 'PRO200 무광(200μm·발수)' };
+  const memPrice = (grade: string, suffix = '') => mem.prices[`${service}|${grade}${suffix}`] || (LEGACY[grade] ? mem.prices[`${service}|${LEGACY[grade]}${suffix}`] : undefined) || '';
+  useEffect(() => { const b = bookPrice(service, range, recGrade); setRecPrice(memPrice(recGrade) || (b ? String(b) : '')); setRecSale(memPrice(recGrade, '|sale')); }, [service, range, recGrade, mem.prices]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { const b = bookPrice(service, range, altGrade); setAltPrice(memPrice(altGrade) || (b ? String(b) : '')); setAltSale(memPrice(altGrade, '|sale')); }, [service, range, altGrade, mem.prices]); // eslint-disable-line react-hooks/exhaustive-deps
   const presetGrades = itemsOf(service, range).map((i) => i.grade);
 
   const text = useMemo(() => {
@@ -307,6 +312,8 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
     return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
   }, [car, range, service, extraLabel, extraPrice, summary, recGrade, recPrice, recSale, recWhy, altGrade, altPrice, altSale, altWhy, priceNote, benefitSel, benefitExtra, terms, date1, date2, link]);
 
+  const finalText = editedText ?? text; // 보내기·복사·상담 기록은 고친 글 기준
+
   const followUp1 = `안녕하세요 3M 프로이즘 대표 진준호입니다.\n어제 보내드린 ${car || ''} ${service} 견적 보셨을까요?\n${date1 ? `${dayLabel(date1)} 자리는 아직 비어 있습니다.` : '입고 일정은 맞춰 드릴 수 있습니다.'}\n\n저희에서 시공하신 분들 후기는 여기 모아 두었습니다\n${link2}\n\n궁금한 점 있으시면 편하게 물어봐 주세요.\n010-7287-7140`;
   const followUp2 = `3M 프로이즘 대표 진준호입니다. 마지막으로 한 가지만 말씀드리면,\n어디서 하시더라도 어떤 제품을 쓰는지, 누가 시공하는지, 사후 관리는 어떻게 이루어지는지 꼭 확인해 보세요.\n\n고르실 때 참고하시라고 글 하나 남깁니다\n${link3}\n\n도움이 필요하시면 언제든 연락 주세요. 감사합니다.\n010-7287-7140`;
 
@@ -325,7 +332,7 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
   const openSms = () => {
     const p = phone.replace(/[^\d]/g, '');
     if (!p) { setNote('전화번호가 필요합니다.'); return; }
-    openSmsApp(p, text);
+    openSmsApp(p, finalText);
   };
 
   /** 명함 이미지 보내기: 폰 공유 창에 명함 앞뒷면을 들고 열어 메시지 앱으로 사진 문자 전송 */
@@ -374,7 +381,7 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
     const { data, error } = await supabase.from('consultations').insert({
       customer_id: customerId,
       consultation_date: today,
-      content: `[견적 문자 발송]${customerId ? '' : ` ${who}`}\n${text}`,
+      content: `[견적 문자 발송]${customerId ? '' : ` ${who}`}\n${finalText}`,
       estimate: recPrice || recSale ? `${recGrade} ${recSale ? won(recSale) : won(recPrice)}` : null,
       interested_services: `${service} ${range}`,
       memo: [customerId ? '' : who, car, summary].filter(Boolean).join(' · ') || null,
@@ -389,7 +396,7 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
     setBusy(true); setNote(null);
     try {
       remember();
-      if (how === 'copy') { if (!(await copyText(text))) throw new Error('복사하지 못했습니다. 미리보기 글을 길게 눌러 복사해 주세요.'); } else { openSms(); }
+      if (how === 'copy') { if (!(await copyText(finalText))) throw new Error('복사하지 못했습니다. 미리보기 글을 길게 눌러 복사해 주세요.'); } else { openSms(); }
       const customerId = await ensureCustomer();
       await logConsultation(customerId);
       if (withFollowUps) await registerFollowUps(customerId);
@@ -484,8 +491,17 @@ export default function QuoteSmsModal({ initial, onClose, onDone }: Props) {
           </div>
           {/* 미리보기 */}
           <div className="px-6 py-4 space-y-3 bg-[var(--c-bg)]/40">
-            <div className="text-xs text-[var(--c-text-3)]">문자 미리보기 ({text.length}자)</div>
-            <pre className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--c-text-1)] bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-4 font-sans">{text}</pre>
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-xs text-[var(--c-text-3)]">문자 미리보기 ({finalText.length}자) · 그대로 고쳐 쓸 수 있습니다</div>
+              {editedText !== null && <button type="button" onClick={() => setEditedText(null)} className="text-[11px] text-[var(--c-text-3)] hover:text-[var(--c-text-1)] underline whitespace-nowrap">자동 문구로 되돌리기</button>}
+            </div>
+            <textarea
+              value={finalText}
+              onChange={(e) => setEditedText(e.target.value)}
+              rows={Math.min(28, Math.max(12, finalText.split('\n').length + 2))}
+              className="w-full whitespace-pre-wrap text-sm leading-relaxed text-[var(--c-text-1)] bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-4 font-sans outline-none focus:border-[var(--c-text-1)] resize-y"
+            />
+            {editedText !== null && <div className="text-[11px] text-warn">직접 고친 글입니다. 왼쪽 폼을 바꿔도 이 글은 바뀌지 않습니다.</div>}
             <details className="text-[11px] text-[var(--c-text-3)]">
               <summary className="cursor-pointer">재연락 문자 2통 미리보기</summary>
               <pre className="whitespace-pre-wrap mt-2 p-3 rounded-lg bg-[var(--c-card)] border border-[var(--c-border)] font-sans text-[var(--c-text-2)]">[내일] {followUp1}</pre>
