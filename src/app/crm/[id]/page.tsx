@@ -17,7 +17,7 @@ import { parseSettlement, withSettlement, summarizeSettlement, settleState, won,
 import { buildVCard, deliverVcf, VCF_HINT, isContactSaved, markContactsSaved } from '@/lib/vcard';
 import { memberMissing } from '@/lib/member-ready';
 import { vehicleLabel, type Vehicle } from '@/lib/vehicles';
-import { blacklistInfo, clearBlacklist } from '@/lib/blacklist';
+import { blacklistInfo, clearBlacklist, isBlacklisted } from '@/lib/blacklist';
 import { supabase } from '@/lib/supabase';
 import { parseWorkOrder } from '@/lib/work-order';
 import Link from 'next/link';
@@ -134,6 +134,7 @@ export default function CustomerDetailPage() {
     fetchData();
   };
   const [editService, setEditService] = useState<Service | null>(null);
+  const [addingService, setAddingService] = useState(false); // 시공 이력 직접 추가 (2026-11-26)
   const [serviceForm, setServiceForm] = useState({
     service_type: '', service_date: '', completion_date: '', amount: '', memo: '',
   });
@@ -162,6 +163,26 @@ export default function CustomerDetailPage() {
       ...(serviceForm.memo ? { memo: serviceForm.memo } : {}),
     }).eq('id', editService.id);
     setEditService(null);
+    fetchData();
+  };
+
+  /** 지난 시공을 직접 남기기 (2026-11-26): 시공 기록 + 다가오는 회차의 메인터넌스. QC·후기는 만들지 않는다(옛 기록) */
+  const handleAddService = async () => {
+    if (!serviceForm.service_type || !serviceForm.service_date) { alert('시공 종류와 시공일은 필요합니다.'); return; }
+    const primary = vehicles.find((v) => v.is_primary) || vehicles[0];
+    const { data: made, error } = await supabase.from('services').insert({
+      customer_id: id, service_type: serviceForm.service_type, service_date: serviceForm.service_date, completion_date: serviceForm.completion_date || null,
+      amount: serviceForm.amount ? Number(serviceForm.amount) : null, memo: serviceForm.memo || `고객 상세에서 직접 추가 ${todaySeoul()}`, ...(primary ? { vehicle_id: primary.id } : {}),
+    }).select('id').single();
+    if (error) { alert(`시공 추가 실패: ${error.message}`); return; }
+    if (!isBlacklisted(customer?.memo)) {
+      const addMonths = (iso: string, n: number) => { const d = new Date(`${iso}T00:00:00Z`); d.setUTCMonth(d.getUTCMonth() + n); return d.toISOString().slice(0, 10); };
+      const today = todaySeoul(); let n = 1; let due = addMonths(serviceForm.service_date, 6);
+      while (due < today && n < 20) { n += 1; due = addMonths(serviceForm.service_date, 6 * n); }
+      await supabase.from('follow_ups').insert({ service_id: made.id, customer_id: id, follow_up_type: '메인터넌스', scheduled_date: due, is_completed: false, memo: `${n}회차 메인터넌스 (고객 상세에서 추가한 시공)` });
+    }
+    setAddingService(false);
+    setServiceForm({ service_type: '', service_date: '', completion_date: '', amount: '', memo: '' });
     fetchData();
   };
 
@@ -531,6 +552,7 @@ export default function CustomerDetailPage() {
         {/* Services Tab */}
         {activeTab === 'services' && (
           <div className="space-y-2">
+            <div className="flex justify-end"><Btn size="sm" icon="plus" onClick={() => { setServiceForm({ service_type: '', service_date: '', completion_date: '', amount: '', memo: '' }); setAddingService(true); }} title="이미 끝난 시공을 날짜·금액과 함께 남깁니다 (메인터넌스 회차도 같이)">시공 추가</Btn></div>
             {services.map((s) => (
               <div key={s.id} className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-4 group">
                 <div className="flex items-center justify-between mb-2 flex-wrap gap-y-1">
@@ -704,10 +726,10 @@ export default function CustomerDetailPage() {
       </div>
 
       {/* Service Edit Modal */}
-      {editService && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-center justify-center p-4" onClick={() => setEditService(null)}>
+      {(editService || addingService) && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-center justify-center p-4" onClick={() => { setEditService(null); setAddingService(false); }}>
           <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl w-full max-w-lg p-6 shadow-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-[var(--c-text-1)] font-semibold text-base mb-4">시공 이력 수정</h3>
+            <h3 className="text-[var(--c-text-1)] font-semibold text-base mb-4">{addingService ? '시공 추가' : '시공 이력 수정'}</h3>
             <div className="space-y-3">
               <div>
                 <label className="text-xs text-[var(--c-text-3)] mb-1 block">시공 종류</label>
@@ -736,8 +758,8 @@ export default function CustomerDetailPage() {
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setEditService(null)} className="px-4 py-2 text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-2)] transition-colors">취소</button>
-              <button onClick={handleUpdateService} className="bg-brand hover:bg-brand-dark text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors">저장</button>
+              <button onClick={() => { setEditService(null); setAddingService(false); }} className="px-4 py-2 text-sm text-[var(--c-text-3)] hover:text-[var(--c-text-2)] transition-colors">취소</button>
+              <button onClick={addingService ? handleAddService : handleUpdateService} className="bg-brand hover:bg-brand-dark text-white text-sm font-medium rounded-lg px-4 py-2 transition-colors">저장</button>
             </div>
           </div>
         </div>

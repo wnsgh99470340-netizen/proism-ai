@@ -67,6 +67,10 @@ export async function saveCustomerEdit(customerId: string, form: CustomerFormVal
   ensurePrimaryVehicle(customerId, { brand: form.car_brand.trim() || null, model: form.car_model.trim() || null, year: form.car_year.trim() || null, color: form.car_color.trim() || null }).catch(() => {}); // 대표 차량과 맞춤 (2026-11-22)
 
   const amount = form.appointment_amount ? Number(form.appointment_amount) : null;
+  // 예약이 없는 손님인데 날짜 없이 시공 종류·금액만 적으면 그동안 조용히 버려졌음 (2026-11-26 김지훈 실내PPF "수정했는데 반영이 안 돼") → 어디에 적어야 하는지 알려 주고 멈춘다
+  if (!latestApptId && !form.appointment_start_date && (form.appointment_service_type || amount)) {
+    return '예약으로 남기려면 입고 날짜를 적어 주세요.\n이미 끝난 시공이면 고객 상세 → 시공 이력 → "시공 추가"에서 날짜·금액과 함께 남겨 주세요.';
+  }
   if (latestApptId) {
     const patch: Record<string, unknown> = { amount, service_type: form.appointment_service_type || null };
     if (form.appointment_start_date) { patch.appointment_date = form.appointment_start_date; patch.end_date = form.appointment_end_date || null; }
