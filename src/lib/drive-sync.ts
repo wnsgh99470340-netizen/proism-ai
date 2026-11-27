@@ -156,6 +156,14 @@ export async function syncDriveFolders({ rootFolderId = process.env.DRIVE_PHOTO_
   return rep;
 }
 
+/** 이미 한 번 물어본 폴더는 브리핑에서 뺀다 (2026-11-27 결정 "각 폴더는 한 번만 묻는다") — 순수.
+ *  돌려주는 newlyAsked 는 오늘 처음 묻는 폴더 id (크론이 dry 가 아닐 때 Blob team/drive-asked.json 에 날짜와 함께 기록) */
+export function filterAskedFolders(r: SyncReport, asked: Record<string, string>): { report: SyncReport; newlyAsked: string[] } {
+  const ambiguous = r.ambiguous.filter((a) => !asked[a.folderId]);
+  const unmatched = r.unmatched.filter((u) => !asked[u.folderId]);
+  return { report: { ...r, ambiguous, unmatched }, newlyAsked: [...ambiguous.map((a) => a.folderId), ...unmatched.map((u) => u.folderId)] };
+}
+
 /** 아침 브리핑 사실 묶음 줄 — 연결·못 맞춤이 없으면 빈 배열 */
 export function driveSyncFactLines(r: SyncReport | null | undefined): string[] {
   if (!r) return [];
@@ -163,7 +171,7 @@ export function driveSyncFactLines(r: SyncReport | null | undefined): string[] {
   if (!r.linked.length && !ask.length) return [];
   const out = ['\n## 8 드라이브 새 폴더'];
   if (r.linked.length) out.push(`자동 연결 ${r.linked.length}개: ${r.linked.map((l) => `${l.folder} → ${l.customer} ${l.car}`).join(' | ')}`);
-  if (ask.length) out.push(`못 맞춘 폴더 ${ask.length}개: ${ask.join(' | ')}`);
+  if (ask.length) out.push(`못 맞춘 폴더 ${ask.length}개(처음 묻는 것만, 차량 카드 '폴더 찾기'로 붙일 수 있음): ${ask.join(' | ')}`);
   return out;
 }
 

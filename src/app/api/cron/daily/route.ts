@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { put } from '@vercel/blob';
+import { put, list } from '@vercel/blob';
 import { buildDailyBrief, saveTeamLog } from '@/lib/team';
 import { advanceAppointmentsForToday } from '@/lib/appointments-flow';
 import { sendPushToAll as sendPush } from '@/lib/push';
@@ -7,7 +7,7 @@ import { missedPushBody, urgentSummaryLine } from '@/lib/checkups';
 import { buildMonthlyReport, monthlySummaryLines } from '@/lib/weekly-stats';
 import { addDaysISO } from '@/lib/local-date';
 import { buildMorningDirection } from '@/lib/morning-direction';
-import { syncDriveFolders, driveSyncFactLines, type SyncReport } from '@/lib/drive-sync';
+import { syncDriveFolders, driveSyncFactLines, filterAskedFolders, type SyncReport } from '@/lib/drive-sync';
 
 export const maxDuration = 120;
 
@@ -54,8 +54,18 @@ export async function GET(request: NextRequest) {
     let driveRep: SyncReport | null = null;
     try {
       const t0 = Date.now();
-      driveRep = await syncDriveFolders({ dry, today: brief.date });
-      extras.driveSync = { ...driveRep, ms: Date.now() - t0, dry };
+      const full = await syncDriveFolders({ dry, today: brief.date });
+      // 각 폴더는 한 번만 묻는다 — 물어본 폴더 id 는 Blob team/drive-asked.json { id: 날짜 } (dry 때는 기록 안 함)
+      const asked = await readDriveAsked();
+      const { report, newlyAsked } = filterAskedFolders(full, asked);
+      driveRep = report;
+      let askedSaved = 0;
+      if (!dry && newlyAsked.length && process.env.BLOB_READ_WRITE_TOKEN) {
+        const next = { ...asked }; for (const id of newlyAsked) next[id] = brief.date;
+        const ok = await put(DRIVE_ASKED_PATH, JSON.stringify(next), { access: 'public', contentType: 'application/json', addRandomSuffix: false, allowOverwrite: true }).then(() => true).catch(() => false);
+        if (ok) askedSaved = newlyAsked.length;
+      }
+      extras.driveSync = { ...report, ms: Date.now() - t0, dry, alreadyAsked: (full.ambiguous.length + full.unmatched.length) - newlyAsked.length, newlyAsked: newlyAsked.length, askedSaved };
     } catch (e) { extras.driveSync = { error: e instanceof Error ? e.message : String(e) }; }
 
     // 매일: 오늘의 방향 (2026-11-27 사장님 "맥이 꺼져 있어도 폰으로" — 로컬 예약 작업 대신 서버에서. 읽기만 + 푸시 + Blob 기록)
@@ -104,4 +114,17 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     return Response.json({ ok: false, error: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }
+}
+
+/** 드라이브 폴더 '한 번만 묻기' 기록 (2026-11-27) */
+const DRIVE_ASKED_PATH = 'team/drive-asked.json';
+async function readDriveAsked(): Promise<Record<string, string>> {
+  if (!process.env.BLOB_READ_WRITE_TOKEN) return {};
+  try {
+    const { blobs } = await list({ prefix: DRIVE_ASKED_PATH, limit: 1 });
+    const url = blobs.find((b) => b.pathname === DRIVE_ASKED_PATH)?.url;
+    if (!url) return {};
+    const r = await fetch(`${url}?t=${Date.now()}`, { cache: 'no-store' });
+    return r.ok ? ((await r.json()) as Record<string, string>) : {};
+  } catch { return {}; }
 }

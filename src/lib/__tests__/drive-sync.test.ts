@@ -1,6 +1,6 @@
 // 드라이브 작업 사진 폴더 ↔ 차량 자동 연결 (2026-11-27)
 import { describe, it, expect } from 'vitest';
-import { parseFolderName, matchFolder, driveSyncFactLines, type SyncCustomer, type SyncVehicle, type SyncRecord } from '@/lib/drive-sync';
+import { parseFolderName, matchFolder, driveSyncFactLines, filterAskedFolders, type SyncCustomer, type SyncVehicle, type SyncRecord } from '@/lib/drive-sync';
 
 describe('폴더 이름 읽기 (parseFolderName)', () => {
   it('YYMMDD 차종 작업', () => {
@@ -75,6 +75,16 @@ describe('아침 브리핑 줄 (driveSyncFactLines)', () => {
   it('연결·못 맞춤이 없으면 아무 말 없음, 있으면 두 줄', () => {
     expect(driveSyncFactLines({ linked: [], ambiguous: [], unmatched: [], hasFolder: [], skipped: 3, months: [11, 10] })).toEqual([]);
     const l = driveSyncFactLines({ linked: [{ folder: '261110 ev3', folderId: 'x', customer: '김수희', car: '기아 EV3' }], ambiguous: [], unmatched: [{ folder: '261120 카이엔', folderId: 'y' }], hasFolder: [], skipped: 0, months: [11] });
-    expect(l.join('\n')).toContain('자동 연결 1개'); expect(l.join('\n')).toContain('못 맞춘 폴더 1개: 261120 카이엔');
+    expect(l.join('\n')).toContain('자동 연결 1개'); expect(l.join('\n')).toContain('못 맞춘 폴더 1개'); expect(l.join('\n')).toContain('261120 카이엔');
+  });
+});
+
+describe('각 폴더는 한 번만 묻기 (filterAskedFolders)', () => {
+  it('물어본 폴더는 빼고, 처음 묻는 것만 newlyAsked', () => {
+    const rep = { linked: [], hasFolder: [], skipped: 0, months: [11], ambiguous: [{ folder: 'a', folderId: 'A', candidates: ['x'] }], unmatched: [{ folder: 'b', folderId: 'B' }, { folder: 'c', folderId: 'C' }] };
+    const { report, newlyAsked } = filterAskedFolders(rep, { B: '2026-11-27' });
+    expect(report.unmatched.map((u) => u.folderId)).toEqual(['C']);
+    expect(newlyAsked).toEqual(['A', 'C']);
+    expect(driveSyncFactLines(filterAskedFolders(rep, { A: 'd', B: 'd', C: 'd' }).report)).toEqual([]);
   });
 });
