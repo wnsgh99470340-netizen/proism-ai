@@ -1,6 +1,6 @@
 // 직원용 예약 페이지 (2026-11-27): 범위·취소 제외·민감 필드 없음
 import { describe, it, expect } from 'vitest';
-import { staffVisibleRange, staffCars, toStaffCar, staffNote, STAFF_CAR_KEYS, staffToken } from '@/lib/staff-page';
+import { staffVisibleRange, staffCars, toStaffCar, staffNote, staffWork, STAFF_CAR_KEYS, staffToken } from '@/lib/staff-page';
 
 const today = '2026-11-27';
 const row = (o: Record<string, unknown>) => ({ id: 'a1', appointment_date: today, end_date: null, service_type: 'PPF', status: '예약확정', memo: null, customer: { name: '홍길동', car_brand: 'BMW', car_model: 'X5' }, ...o });
@@ -27,7 +27,7 @@ describe('직원 페이지 — 취소 제외', () => {
 });
 
 describe('직원 페이지 — 민감 필드 없음', () => {
-  it('응답 키는 고정된 8개뿐 (phone·amount·dealer·email 없음)', () => {
+  it('응답 키는 고정된 목록뿐 (phone·amount·dealer·email 없음)', () => {
     const c = toStaffCar(row({ amount: 5500000, phone: '010-1234-5678', customer: { name: '홍길동', phone: '010-1234-5678', email: 'a@b.c', car_brand: 'BMW', car_model: 'X5', dealer_id: 'd1' } as never }));
     expect(Object.keys(c).sort()).toEqual([...STAFF_CAR_KEYS].sort());
     const s = JSON.stringify(c);
@@ -52,5 +52,34 @@ describe('직원 페이지 — 민감 필드 없음', () => {
     process.env.CRM_PASSWORD = 'b'; const t2 = staffToken();
     process.env.CRM_PASSWORD = prev;
     expect(t1).toMatch(/^[0-9a-f]{24}$/); expect(t1).not.toBe(t2);
+  });
+});
+
+describe('직원 페이지 — 작업 내역 줄', () => {
+  const wo = JSON.stringify({
+    ppf: ['전체 PPF'], ppf_product: '시리즈50', other_work: '윈드쉴드', car_number: '12가3456',
+    tinting: { '크리스탈라인': { selected: ['전면'], density: '35%' } },
+    amount: '5500000', warranty: { phone: '010-1234-5678', price: '550만원' }, field_note: '휀다 끝단 확인',
+  });
+  it('작업 내역서 JSON 이면 작업 줄 + 차량번호, 현장 메모는 note', () => {
+    const c = toStaffCar(row({ memo: wo }));
+    expect(c.work.length).toBeGreaterThan(0);
+    expect(c.work.join('\n')).toContain('PPF');
+    expect(c.work.join('\n')).toContain('윈드쉴드');
+    expect(c.plate).toBe('12가3456');
+    expect(c.note).toBe('휀다 끝단 확인');
+  });
+  it('작업 줄에 금액·전화가 없다', () => {
+    for (const line of staffWork(wo)) {
+      expect(line).not.toMatch(/만|원/);
+      expect(line).not.toMatch(/\d{7,}/);
+      expect(line).not.toMatch(/01[016789][-\s.]?\d{3,4}[-\s.]?\d{4}/);
+    }
+    expect(JSON.stringify(toStaffCar(row({ memo: wo })))).not.toMatch(/5500000|550만|010-1234/);
+  });
+  it('작업 내역서가 없으면 work 는 빈 배열 (글자 메모를 작업 줄로 옮기지 않음)', () => {
+    expect(staffWork('홍길동 오전 입고 550만')).toEqual([]);
+    expect(staffWork(null)).toEqual([]);
+    expect(toStaffCar(row({ memo: '오전 입고' })).plate).toBeNull();
   });
 });

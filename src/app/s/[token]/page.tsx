@@ -8,7 +8,7 @@ import { useParams } from 'next/navigation';
  * - /s/<코드>. 번호 4자리(STAFF_PIN)로 확인(sessionStorage) → 작은 달력 + 날짜별 예약 목록
  * - 읽기 전용. 전화·금액 없음. 밝은 톤(딜러 현황 페이지와 같은 변수). 60초마다·앱이 앞으로 올 때 다시 읽음
  */
-interface Car { id: string; name: string; car: string | null; service_type: string | null; appointment_date: string; end_date: string | null; status: string; note: string | null }
+interface Car { id: string; name: string; car: string | null; service_type: string | null; appointment_date: string; end_date: string | null; status: string; note: string | null; plate?: string | null; work?: string[] }
 interface Data { owner?: boolean; today: string; range: { from: string; to: string }; cars: Car[] }
 
 const VISIT_TYPES = ['QC점검', '메인터넌스'];
@@ -163,12 +163,20 @@ export default function StaffPage() {
                       <li key={k} className="py-2.5">
                         <button type="button" onClick={() => setOpen(open === k ? null : k)} className="w-full text-left flex items-start gap-3">
                           <span className="min-w-0 flex-1">
-                            <span className="block text-[15px] font-semibold leading-snug">{/\s고객$/.test(c.name) && c.car ? c.car : <>{c.name}{c.car && <span className="text-[var(--c-text-3)] font-normal ml-1.5">{c.car}</span>}</>}</span>
-                            <span className="block text-xs text-[var(--c-text-3)] mt-0.5">{[c.service_type, `${md(c.appointment_date)}${c.end_date && c.end_date !== c.appointment_date ? `~${md(c.end_date)}` : ''}`].filter(Boolean).join(' · ')}{c.note ? ' · 메모 있음' : ''}</span>
+                            <span className="block text-[15px] font-semibold leading-snug break-keep">{/\s고객$/.test(c.name) && c.car ? c.car : <>{c.name}{c.car && <span className="text-[var(--c-text-3)] font-normal ml-1.5">{c.car}</span>}</>}{c.plate && <span className="text-[var(--c-text-4)] font-normal text-xs ml-1.5">{c.plate}</span>}</span>
+                            <span className="block text-xs text-[var(--c-text-3)] mt-0.5">{[c.service_type, `${md(c.appointment_date)}${c.end_date && c.end_date !== c.appointment_date ? `~${md(c.end_date)}` : ''}`].filter(Boolean).join(' · ')}</span>
+                            {/* 작업 내역 — 접지 않고 바로 (2026-11-27 사장님 "무슨 작업인지 확인할 수 있으면") */}
+                            {(c.work?.length || 0) > 0 && (
+                              <span className="block mt-1.5 space-y-0.5">
+                                {(open === k ? c.work! : c.work!.slice(0, 4)).map((w, i) => <span key={i} className="block text-[12px] leading-snug text-[var(--c-text-2)] break-keep">{w}</span>)}
+                                {open !== k && c.work!.length > 4 && <span className="block text-[11px] text-[var(--c-text-4)]">+{c.work!.length - 4}</span>}
+                              </span>
+                            )}
+                            {open !== k && c.note && <span className="block text-[11px] text-[var(--c-text-4)] mt-1 truncate">{c.note.split('\n')[0]}</span>}
                           </span>
                           <span className={`shrink-0 text-[11px] font-semibold px-2 py-1 rounded-full whitespace-nowrap ${chipCls(c)}`}>{chipLabel(c)}</span>
                         </button>
-                        {open === k && c.note && <div className="mt-2 ml-1 border-l border-[var(--c-border)] pl-3 text-xs text-[var(--c-text-2)] whitespace-pre-line">{c.note}</div>}
+                        {open === k && c.note && <div className="mt-2 ml-1 border-l border-[var(--c-border)] pl-3 text-xs text-[var(--c-text-2)] whitespace-pre-line break-keep">{c.note}</div>}
                       </li>
                     );
                   })}

@@ -6,6 +6,7 @@
  */
 import { createHash } from 'crypto';
 import { addDaysISO } from '@/lib/local-date';
+import { parseWorkOrder, workSummaryLines } from '@/lib/work-order';
 
 export const STAFF_PAGE_BASE = 'https://proism-ai.vercel.app/s/';
 export const staffPageUrl = (token: string) => STAFF_PAGE_BASE + token;
@@ -23,10 +24,14 @@ export function staffVisibleRange(today: string): { from: string; to: string } {
 }
 
 /** 응답 키 — 시험으로 고정. 여기 없는 키(phone·amount·dealer·email 등)는 절대 내려가지 않는다 */
-export const STAFF_CAR_KEYS = ['id', 'name', 'car', 'service_type', 'appointment_date', 'end_date', 'status', 'note'] as const;
+export const STAFF_CAR_KEYS = ['id', 'name', 'car', 'plate', 'service_type', 'appointment_date', 'end_date', 'status', 'note', 'work'] as const;
 export interface StaffCar {
   id: string; name: string; car: string | null; service_type: string | null;
   appointment_date: string; end_date: string | null; status: string; note: string | null;
+  /** 차량번호 — 작업 내역서 JSON 의 car_number (2026-11-27 사장님 피드백) */
+  plate: string | null;
+  /** 작업 내역 줄 — 작업 내역서 JSON 이면 workSummaryLines (사후관리 카드와 같은 함수), 아니면 [] */
+  work: string[];
 }
 
 export interface StaffAppointmentRow {
@@ -36,6 +41,19 @@ export interface StaffAppointmentRow {
   [k: string]: unknown;
 }
 
+const PHONE_RE = /01[016789][-\s.]?\d{3,4}[-\s.]?\d{4}/g;
+const MONEY_RE = /\d[\d,.]*\s*(만\s*원|만원|만|원)/g;
+/** 전화번호·금액 가리기 */
+export function maskSensitive(t: string): string {
+  return t.replace(PHONE_RE, '').replace(MONEY_RE, '').replace(/[ \t]{2,}/g, ' ').trim();
+}
+
+/** 작업 내역 줄: 작업 내역서 JSON 일 때만 (글자 메모는 note 쪽) */
+export function staffWork(memo: string | null | undefined): string[] {
+  if (!parseWorkOrder(memo)) return [];
+  return workSummaryLines(memo).map(maskSensitive).filter(Boolean);
+}
+
 /** 메모: JSON(작업 내역서)이면 field_note·notes 만, 글자면 앞 120자 */
 export function staffNote(memo: string | null | undefined): string | null {
   const m = (memo || '').trim();
@@ -43,13 +61,12 @@ export function staffNote(memo: string | null | undefined): string | null {
   if (m.startsWith('{')) {
     try {
       const j = JSON.parse(m) as { field_note?: unknown; notes?: unknown };
-      const parts = [j.field_note, j.notes].filter((x): x is string => typeof x === 'string' && !!x.trim()).map((x) => x.trim());
+      const parts = [j.field_note, j.notes].filter((x): x is string => typeof x === 'string' && !!x.trim()).map((x) => maskSensitive(x)).filter(Boolean);
       return parts.length ? parts.join('\n') : null;
     } catch { /* 글자로 */ }
   }
-  // 글자 메모 속 전화번호는 가린다 (메모 첫 칸에 "이름 010-…"이 들어가는 기록이 있음)
-  // 금액(550만·1,200,000원·30만원)도 가린다 — 직원 페이지는 금액을 보이지 않는다
-  const t = m.replace(/01[016789][-\s.]?\d{3,4}[-\s.]?\d{4}/g, '').replace(/\d[\d,.]*\s*(만\s*원|만원|만|원)/g, '').replace(/[ \t]{2,}/g, ' ').trim();
+  // 글자 메모 속 전화번호·금액은 가린다 — 직원 페이지는 금액을 보이지 않는다
+  const t = maskSensitive(m);
   return t ? t.slice(0, 120) : null;
 }
 
@@ -66,6 +83,8 @@ export function toStaffCar(a: StaffAppointmentRow): StaffCar {
     end_date: a.end_date || null,
     status: a.status,
     note: staffNote(a.memo),
+    plate: (() => { const n = parseWorkOrder(a.memo)?.car_number; return typeof n === 'string' && n.trim() ? n.trim().slice(0, 16) : null; })(),
+    work: staffWork(a.memo),
   };
 }
 
