@@ -1,7 +1,7 @@
 /**
  * 직원용 예약 페이지 (2026-11-27 사장님 "예약/일정 탭만 직원들이 볼 수 있게 공유, 핸드폰 앱으로")
  * - /s/<코드>. 코드는 표 없이 CRM 비밀번호에서 만든다(비밀번호를 바꾸면 링크도 바뀜). 들어갈 때 STAFF_PIN 4자리
- * - 읽기 전용. 전화번호·금액·딜러·이메일은 내려보내지 않는다 — toStaffCar 가 고정된 키만 만든다
+ * - 읽기 전용. 금액·딜러·이메일은 내려보내지 않는다 — toStaffCar 가 고정된 키만 만든다. 손님 전화는 sheet.head.phone 에만(작업 리스트 시트 안)
  * - 순수 함수는 시험 대상(staff-page.test.ts). DB 읽기는 /api/staff/[token], 화면은 /s/[token]
  */
 import { createHash } from 'crypto';
@@ -32,15 +32,15 @@ export interface StaffCar {
   plate: string | null;
   /** 작업 내역 줄 — 작업 내역서 JSON 이면 workSummaryLines (사후관리 카드와 같은 함수), 아니면 [] */
   work: string[];
-  /** 작업 리스트 시트(WorkSheet) 재료 — 작업 내역서가 없으면 null. 연락처 없음, 금액·사진·보증서 키 제거 */
+  /** 작업 리스트 시트(WorkSheet) 재료 — 작업 내역서가 없으면 null. 금액·사진·보증서 키 제거. 연락처는 head.phone 에만(시트 안에서만 보임, 2026-11-27 사장님 "다 보여도 상관없어") */
   sheet: StaffSheet | null;
 }
 
-export interface StaffSheet { workOrder: Record<string, unknown>; head: { date: string; car: string | null; plate: string | null; name: string; source: string | null } }
+export interface StaffSheet { workOrder: Record<string, unknown>; head: { date: string; car: string | null; plate: string | null; name: string; source: string | null; phone: string | null } }
 
 export interface StaffAppointmentRow {
   id: string; appointment_date: string; end_date?: string | null; service_type?: string | null; status: string; memo?: string | null;
-  customer?: { name?: string | null; car_brand?: string | null; car_model?: string | null; source?: string | null } | null;
+  customer?: { name?: string | null; car_brand?: string | null; car_model?: string | null; source?: string | null; phone?: string | null } | null;
   vehicle?: { brand?: string | null; model?: string | null } | null;
   [k: string]: unknown;
 }
@@ -92,7 +92,7 @@ const sheetDate = (iso: string) => { const [y, m, d] = iso.slice(0, 10).split('-
 export function staffSheet(a: StaffAppointmentRow, car: string | null, plate: string | null, name: string): StaffSheet | null {
   const w = parseWorkOrder(a.memo);
   if (!w) return null;
-  return { workOrder: cleanSheetValue(w) as Record<string, unknown>, head: { date: sheetDate(a.end_date || a.appointment_date), car, plate, name, source: a.customer?.source || null } };
+  return { workOrder: cleanSheetValue(w) as Record<string, unknown>, head: { date: sheetDate(a.end_date || a.appointment_date), car, plate, name, source: a.customer?.source || null, phone: a.customer?.phone || null } };
 }
 
 export function toStaffCar(a: StaffAppointmentRow): StaffCar {

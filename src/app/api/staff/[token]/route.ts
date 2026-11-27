@@ -16,7 +16,7 @@ function pinFail(token: string): number { const f = PIN_FAILS.get(token) || { n:
 /**
  * GET /api/staff/<token> (헤더 x-staff-pin) — 직원용 예약 페이지 데이터 (2026-11-27)
  * - 로그인 없이 열리는 경로(미들웨어 예외). token 이 staffToken() 과 같고 pin 이 STAFF_PIN 과 같을 때만
- * - 응답 차 줄은 toStaffCar 의 8개 키뿐(전화·금액·딜러·이메일 없음). 읽기 전용
+ * - 응답 차 줄은 toStaffCar 의 고정 키뿐(금액·딜러·이메일 없음, 손님 전화는 sheet.head.phone 에만). 읽기 전용
  */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
@@ -43,13 +43,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const cols = 'id, appointment_date, end_date, service_type, status, memo';
   let { data, error } = await supabase
     .from('appointments')
-    .select(`${cols}, customer:customers(name, car_brand, car_model, kind, source), vehicle:vehicles(brand, model)`)
+    .select(`${cols}, customer:customers(name, phone, car_brand, car_model, kind, source), vehicle:vehicles(brand, model)`)
     .neq('status', '취소').gte('appointment_date', addBack(from)).lte('appointment_date', to)
     .order('appointment_date', { ascending: true });
   if (error || !data) { // vehicles 표가 없으면 join 이 실패 → 차량 없이
     const r = await supabase
       .from('appointments')
-      .select(`${cols}, customer:customers(name, car_brand, car_model, kind, source)`)
+      .select(`${cols}, customer:customers(name, phone, car_brand, car_model, kind, source)`)
       .neq('status', '취소').gte('appointment_date', addBack(from)).lte('appointment_date', to)
       .order('appointment_date', { ascending: true });
     data = r.data as typeof data; error = r.error;

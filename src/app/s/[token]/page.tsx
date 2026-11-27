@@ -205,7 +205,7 @@ function Brand() {
   );
 }
 
-/** 작업 리스트 시트 오버레이 (2026-11-27 사장님 "이런 식으로 PNG 볼 수 있게") — CRM 작업 내역서 PDF 와 같은 WorkSheet, 연락처 숨김 */
+/** 작업 리스트 시트 오버레이 (2026-11-27 사장님 "이런 식으로 PNG 볼 수 있게") — CRM 작업 내역서 PDF 와 같은 WorkSheet, 연락처도 보임(사장님 "다 보여도 상관없어") */
 function SheetOverlay({ c, onClose }: { c: Car; onClose: () => void }) {
   const boxRef = useRef<HTMLDivElement>(null);
   const shotRef = useRef<HTMLDivElement>(null);
@@ -248,10 +248,10 @@ function SheetOverlay({ c, onClose }: { c: Car; onClose: () => void }) {
             {!c.sheet ? (
               <div className="text-sm text-[var(--c-text-3)] bg-[var(--c-subtle)] rounded-xl px-3 py-3 break-keep">작업 내역서가 아직 없어요 — 사장님이 예약 줄에서 작업 내역서를 &apos;저장만 하기&apos; 하면 여기 보여요</div>
             ) : big ? (
-              <div className="overflow-x-auto border border-[var(--c-border)] rounded-lg"><WorkSheet workOrder={c.sheet.workOrder} head={c.sheet.head} hidePhone /></div>
+              <div className="overflow-x-auto border border-[var(--c-border)] rounded-lg"><WorkSheet workOrder={c.sheet.workOrder} head={c.sheet.head} /></div>
             ) : (
               <div className="border border-[var(--c-border)] rounded-lg overflow-hidden" style={{ height: h ? h * scale : undefined }}>
-                <div style={{ width: 800, transform: `scale(${scale})`, transformOrigin: 'top left' }}><WorkSheet workOrder={c.sheet.workOrder} head={c.sheet.head} hidePhone /></div>
+                <div style={{ width: 800, transform: `scale(${scale})`, transformOrigin: 'top left' }}><WorkSheet workOrder={c.sheet.workOrder} head={c.sheet.head} /></div>
               </div>
             )}
           </div>
@@ -264,7 +264,7 @@ function SheetOverlay({ c, onClose }: { c: Car; onClose: () => void }) {
         </div>
       </div>
       {/* 저장용 원본 크기 사본 (화면 밖) */}
-      {c.sheet && <div style={{ position: 'absolute', left: '-9999px', top: 0 }} aria-hidden><WorkSheet ref={shotRef} workOrder={c.sheet.workOrder} head={c.sheet.head} hidePhone /></div>}
+      {c.sheet && <div style={{ position: 'absolute', left: '-9999px', top: 0 }} aria-hidden><WorkSheet ref={shotRef} workOrder={c.sheet.workOrder} head={c.sheet.head} /></div>}
     </div>
   );
 }
