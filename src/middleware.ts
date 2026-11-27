@@ -27,7 +27,10 @@ export async function middleware(request: NextRequest) {
     /^\/m\/[A-Za-z0-9]{12,}$/.test(pathname) || // 손님용 회원 페이지: 개인 코드 + 전화 뒷자리 4개 확인 (2026-11-18 사장님 결정)
     (request.method === 'GET' && /^\/api\/member\/[A-Za-z0-9]{12,}$/.test(pathname)) || // 그 페이지가 읽는 API (읽기만, 뒷자리 확인은 API 안에서)
     /^\/d\/[A-Za-z0-9]{12,}$/.test(pathname) || // 딜러용 현황 페이지 (2026-11-25): 개인 코드 + 딜러 전화 뒷자리
-    (request.method === 'GET' && /^\/api\/dealer\/[A-Za-z0-9]{12,}$/.test(pathname))
+    (request.method === 'GET' && /^\/api\/dealer\/[A-Za-z0-9]{12,}$/.test(pathname)) ||
+    /^\/s\/[A-Za-z0-9]{24}$/.test(pathname) || // 직원용 예약 페이지 (2026-11-27): 비밀번호에서 만든 코드 + STAFF_PIN
+    (request.method === 'GET' && /^\/api\/staff\/[A-Za-z0-9]{24}$/.test(pathname)) ||
+    (request.method === 'GET' && pathname === '/api/staff/manifest')
   ) {
     return NextResponse.next();
   }

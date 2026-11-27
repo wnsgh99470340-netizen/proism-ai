@@ -4,7 +4,8 @@ import Link from 'next/link';
 
 /** 예약/일정 탭 (2026-11-23 page.tsx 에서 분리 — 동작 변경 없음). 상태·핸들러는 page.tsx 에 있고 props 로 받는다 */
 import Btn from '@/components/ui/Btn';
-import type { Dispatch, SetStateAction } from 'react';
+import { useState, type Dispatch, type SetStateAction } from 'react';
+import StaffShareModal from '@/components/crm/StaffShareModal';
 import { toSeoulISO } from '@/lib/local-date';
 import { CRM_SERVICE_TO_KEY } from '@/config/blog-options';
 import { LINKS } from '@/config/links';
@@ -46,6 +47,7 @@ export default function AppointmentsTab({
   handleEditCustomerFromAppointment, handleWriteBlogFromAppointment, handleOpenCareVisit, handleOpenRetouch, handleOpenWorkOrder, handleOpenWarranty,
   handleReviewSmsFromAppointment, handleStatusChange, openDateEdit, handleDeleteAppointment,
 }: AppointmentsTabProps) {
+  const [showStaffShare, setShowStaffShare] = useState(false); // 직원 공유 창 (2026-11-27)
   const { year: cY, month: cM } = calendarMonth;
   const firstDay = new Date(cY, cM, 1).getDay();
   const daysInMonth = new Date(cY, cM + 1, 0).getDate();
@@ -136,6 +138,7 @@ export default function AppointmentsTab({
         </div>
         <div className="flex items-center gap-2">
           <Btn icon="rss" onClick={() => setShowCalendarSub(true)}>캘린더 구독</Btn>
+          {!isDemo && <Btn icon="share" onClick={() => setShowStaffShare(true)} title="직원 폰에서 예약 일정만 보는 페이지 (읽기 전용)">직원 공유</Btn>}
           <Btn icon="camera" onClick={() => { setShowShotImport(true); setShotMonth(`${cY}-${String(cM + 1).padStart(2, '0')}`); }} title="타임트리 캡처·카톡 대화 사진에서 일정을 읽어 예약으로 넣기">캡처로 추가</Btn>
           <Btn icon="plus" variant="primary" onClick={() => setShowAddAppointment(true)}>예약 추가</Btn>
         </div>
@@ -278,6 +281,7 @@ export default function AppointmentsTab({
           </div>
         </div>
       )}
+      {showStaffShare && <StaffShareModal onClose={() => setShowStaffShare(false)} />}
     </div>
   );
 }

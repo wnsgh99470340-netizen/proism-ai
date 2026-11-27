@@ -133,6 +133,17 @@ class Smoke:
                 self.shot('appointments'); return self.no_overflow()
             self.check('예약/일정 — 달력·리스트·날짜 상세', appointments)
 
+            # 4-1. 직원 공유 창 열고 닫기 (2026-11-27, 보내기 안 누름)
+            def staff_share():
+                self.goto('/crm?tab=appointments')
+                page.get_by_role('button', name='직원 공유').first.click()
+                page.get_by_role('heading', name='직원 공유').wait_for()
+                page.get_by_text('/s/').first.wait_for()
+                page.get_by_role('button', name='닫기').last.click(); page.wait_for_timeout(300)
+                if page.get_by_role('heading', name='직원 공유').count(): raise AssertionError('닫기로 창이 안 닫힘')
+                return '열고 닫음'
+            self.check('예약/일정 — 직원 공유 창', staff_share)
+
             # 5. 작업 내역서 창 열고 닫기 (저장 안 함)
             def workorder():
                 self.goto('/crm?tab=appointments')
