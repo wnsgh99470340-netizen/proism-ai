@@ -39,6 +39,8 @@ describe('직원 페이지 — 민감 필드 없음', () => {
     expect(staffNote(JSON.stringify({ amount: 300 }))).toBeNull();
     expect(staffNote('홍길동 010-1234-5678 · X5 · 오전 입고')).not.toContain('010');
     expect((staffNote('가'.repeat(300)) || '').length).toBe(120);
+    const money = staffNote('PPF 전체 550만 / 잔금 1,200,000원 / 루프 30만원 추가') || '';
+    for (const bad of ['550', '1,200,000', '30만']) expect(money).not.toContain(bad);
   });
   it('차량 표 값이 있으면 그 차, 없으면 고객 칸 차종', () => {
     expect(toStaffCar(row({ vehicle: { brand: '포르쉐', model: '911' } })).car).toBe('포르쉐 911');

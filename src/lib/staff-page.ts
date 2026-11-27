@@ -48,7 +48,8 @@ export function staffNote(memo: string | null | undefined): string | null {
     } catch { /* 글자로 */ }
   }
   // 글자 메모 속 전화번호는 가린다 (메모 첫 칸에 "이름 010-…"이 들어가는 기록이 있음)
-  const t = m.replace(/01[016789][-\s.]?\d{3,4}[-\s.]?\d{4}/g, '').replace(/[ \t]{2,}/g, ' ').trim();
+  // 금액(550만·1,200,000원·30만원)도 가린다 — 직원 페이지는 금액을 보이지 않는다
+  const t = m.replace(/01[016789][-\s.]?\d{3,4}[-\s.]?\d{4}/g, '').replace(/\d[\d,.]*\s*(만\s*원|만원|만|원)/g, '').replace(/[ \t]{2,}/g, ' ').trim();
   return t ? t.slice(0, 120) : null;
 }
 
