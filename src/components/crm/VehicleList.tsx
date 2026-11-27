@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { loadVehicles, addVehicle, updateVehicle, deleteVehicle, setPrimaryVehicle, vehiclesTableMissing, vehicleLabel, vehiclePhotosSupport, setVehiclePhotos, VEHICLE_PHOTO_MAX, vehicleDriveSupport, setVehicleDriveFolder, isDriveFolderLink, type Vehicle, type VehicleInput } from '@/lib/vehicles';
+import { loadVehicles, addVehicle, updateVehicle, deleteVehicle, setPrimaryVehicle, vehiclesTableMissing, vehicleLabel, vehiclePhotosSupport, setVehiclePhotos, VEHICLE_PHOTO_MAX, vehicleDriveSupport, setVehicleDriveFolder, isDriveFolderLink, vehicleDriveUsedSupport, setVehicleDriveUsed, applyUsedIds, type Vehicle, type VehicleInput } from '@/lib/vehicles';
 import { resizeAndUploadPhoto } from '@/lib/photo-upload';
 
 /**
@@ -89,7 +89,7 @@ export default function VehicleList({ customerId, onChange }: { customerId: stri
                 <button onClick={() => remove(v)} className="text-[11px] text-[var(--c-text-3)] hover:text-danger">삭제</button>
               </div>
               {photoCol && <VehiclePhotos v={v} onSaved={reload} />}
-              {driveCol && <DriveFolderRow v={v} onSaved={reload} />}
+              {driveCol && <DriveFolderRow v={v} onSaved={reload} usedSupported={vehicleDriveUsedSupport()} />}
             </div>
           ))}
           {adding && FormRow}
@@ -162,8 +162,10 @@ function VehiclePhotos({ v, onSaved }: { v: Vehicle; onSaved: () => void | Promi
 
 /** 드라이브 폴더 (2026-11-27 사장님 "복사하지 않고 드라이브를 그대로 읽는다") — CRM 안에서 보기 전용. 시공기 프리필에는 안 넘김(사장님 "시공기 쓸 때도 사진은 건들지 마") */
 type DriveThumb = { id: string; name: string; thumb: string; view: string; modifiedTime: string | null };
-function DriveFolderRow({ v, onSaved }: { v: Vehicle; onSaved: () => void | Promise<void> }) {
+function DriveFolderRow({ v, onSaved, usedSupported }: { v: Vehicle; onSaved: () => void | Promise<void>; usedSupported: boolean }) {
   const link = (v.drive_folder || '').trim();
+  const used = new Set(Array.isArray(v.drive_used_ids) ? v.drive_used_ids : []);
+  const [grid, setGrid] = useState(false);
   const [photos, setPhotos] = useState<DriveThumb[] | null>(null);
   const [total, setTotal] = useState(0);
   const [err, setErr] = useState('');
@@ -196,6 +198,7 @@ function DriveFolderRow({ v, onSaved }: { v: Vehicle; onSaved: () => void | Prom
         <span className="flex items-center gap-1.5 shrink-0">
           {link ? (
             <>
+              <button type="button" onClick={() => setGrid(true)} className="whitespace-nowrap text-[11px] font-semibold rounded-full px-2.5 py-1 bg-[var(--c-text-1)] text-[var(--c-card)]">전체 보기</button>
               <a href={link} target="_blank" rel="noreferrer" className="whitespace-nowrap text-[11px] font-semibold rounded-full px-2.5 py-1 border border-[var(--c-border)] text-[var(--c-text-1)] hover:bg-[var(--c-subtle)]">폴더 열기</a>
               <button type="button" onClick={edit} className="whitespace-nowrap text-[11px] text-[var(--c-text-3)] hover:text-[var(--c-text-1)]">바꾸기</button>
               <button type="button" onClick={clear} className="whitespace-nowrap text-[11px] text-[var(--c-text-3)] hover:text-danger">지우기</button>
@@ -211,17 +214,125 @@ function DriveFolderRow({ v, onSaved }: { v: Vehicle; onSaved: () => void | Prom
       {link && !err && photos && photos.length === 0 && <div className="text-[11px] text-[var(--c-text-4)] mt-1">폴더에 사진이 없습니다</div>}
       {link && photos && photos.length > 0 && (
         <>
-          <div className="text-[10px] text-[var(--c-text-4)] mt-0.5 break-keep">사진 {total}장 중 {photos.length}장 · 이름순으로 고르게 뽑음</div>
+          <div className="text-[10px] text-[var(--c-text-4)] mt-0.5 break-keep">사진 {total}장 중 {photos.length}장 · 이름순으로 고르게 뽑음{usedSupported && used.size > 0 ? ` · 후기에 쓴 사진 ${used.size}장` : ''}</div>
           <div className="flex items-end gap-1.5 overflow-x-auto mt-1 pb-1">
             {photos.map((p, i) => (
-              <a key={p.id} href={p.view} target="_blank" rel="noreferrer" className="shrink-0" title={p.name}>
+              <a key={p.id} href={p.view} target="_blank" rel="noreferrer" className="shrink-0 relative" title={p.name}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={p.thumb} alt={p.name} referrerPolicy="no-referrer" className={`${i === 0 ? 'w-20 h-20' : 'w-14 h-14'} object-cover rounded-md border border-[var(--c-border)] bg-[var(--c-subtle)]`} />
+                {used.has(p.id) && <span className="absolute top-0.5 left-0.5 text-[9px] font-bold px-1 rounded bg-brand text-white">후기</span>}
               </a>
             ))}
           </div>
         </>
       )}
+      {grid && link && <DriveGridModal v={v} link={link} usedSupported={usedSupported} onSaved={onSaved} onClose={() => setGrid(false)} />}
+    </div>
+  );
+}
+
+/**
+ * 드라이브 폴더 전체 보기 (2026-11-27 사장님 "후기 요청 때 쓴 사진 표시" + "사진 저장 눌러서 바로 내 핸드폰 갤러리로")
+ * - 이름순 3열 격자, 48장씩 더 보기. 탭 = 선택, 모서리 아이콘 = 새 탭에서 크게
+ * - 갤러리에 저장: /api/drive/file 로 받아 navigator.share({files}) (안드로이드 공유창 → 갤러리·카톡), 안 되면 한 장씩 내려받기. 최대 10장
+ * - 후기에 사용함 표시: vehicles.drive_used_ids (열 없으면 버튼 숨김). 시공기와는 연결하지 않음
+ */
+const SAVE_MAX = 10;
+function DriveGridModal({ v, link, usedSupported, onSaved, onClose }: { v: Vehicle; link: string; usedSupported: boolean; onSaved: () => void | Promise<void>; onClose: () => void }) {
+  const [items, setItems] = useState<DriveThumb[]>([]);
+  const [total, setTotal] = useState<number | null>(null);
+  const [err, setErr] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [sel, setSel] = useState<string[]>([]);
+  const [progress, setProgress] = useState('');
+  const [used, setUsed] = useState<string[]>(Array.isArray(v.drive_used_ids) ? v.drive_used_ids : []);
+  const loadMore = useCallback(async (offset: number) => {
+    setLoading(true);
+    try {
+      const r = await fetch(`/api/drive/photos?folder=${encodeURIComponent(link)}&all=1&offset=${offset}&limit=48`, { cache: 'no-store' });
+      const j = await r.json();
+      if (!r.ok) { setErr("폴더가 '링크가 있는 모든 사용자 보기'가 아니면 읽을 수 없어요"); return; }
+      setTotal(j.total || 0);
+      setItems((prev) => (offset === 0 ? j.photos : [...prev, ...j.photos]));
+    } catch { setErr('폴더를 읽지 못했습니다'); } finally { setLoading(false); }
+  }, [link]);
+  useEffect(() => { loadMore(0); }, [loadMore]);
+  const toggle = (id: string) => setSel((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  const byId = new Map(items.map((p) => [p.id, p]));
+
+  const saveToGallery = async () => {
+    const pick = sel.slice(0, SAVE_MAX).map((id) => byId.get(id)).filter((x): x is DriveThumb => !!x);
+    if (sel.length > SAVE_MAX) alert(`한 번에 ${SAVE_MAX}장까지 저장합니다. 앞의 ${SAVE_MAX}장만 받습니다`);
+    const files: File[] = []; const failed: string[] = [];
+    for (let i = 0; i < pick.length; i++) {
+      setProgress(`${i + 1}/${pick.length} 받는 중…`);
+      try {
+        const r = await fetch(`/api/drive/file?id=${pick[i].id}&name=${encodeURIComponent(pick[i].name)}`, { cache: 'no-store' });
+        if (!r.ok) throw new Error();
+        const b = await r.blob();
+        files.push(new File([b], pick[i].name, { type: b.type || 'image/jpeg' }));
+      } catch { failed.push(pick[i].name); }
+    }
+    setProgress('');
+    if (failed.length) alert(`받지 못한 사진: ${failed.join(', ')}`);
+    if (!files.length) return;
+    const nav = navigator as Navigator & { canShare?: (d: { files: File[] }) => boolean };
+    if (nav.canShare && nav.canShare({ files }) && 'share' in navigator) {
+      try { await navigator.share({ files }); return; } catch (e) { if (e instanceof Error && e.name === 'AbortError') return; }
+    }
+    for (const f of files) {
+      const url = URL.createObjectURL(f);
+      const a = document.createElement('a'); a.href = url; a.download = f.name; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    }
+  };
+  const mark = async (on: boolean) => {
+    const next = applyUsedIds(used, sel, on);
+    const e = await setVehicleDriveUsed(v.id, next);
+    if (e) { alert(e); return; }
+    setUsed(next); setSel([]); await onSaved();
+  };
+  const usedSet = new Set(used);
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 overflow-y-auto" onClick={onClose}>
+      <div className="max-w-2xl mx-auto px-3 py-4" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-[var(--c-card)] rounded-2xl p-3">
+          <div className="flex items-center gap-2 mb-2">
+            <h3 className="text-base font-bold text-[var(--c-text-1)] min-w-0 truncate">드라이브 사진 {total !== null ? <span className="text-[var(--c-text-3)] font-normal text-sm">{total}장</span> : null}</h3>
+            <button type="button" onClick={onClose} aria-label="닫기" className="ml-auto shrink-0 w-8 h-8 rounded-full border border-[var(--c-border)] flex items-center justify-center text-[var(--c-text-2)] text-lg leading-none">×</button>
+          </div>
+          <div className="sticky top-0 z-10 bg-[var(--c-card)] py-2 flex flex-wrap items-center gap-1.5 border-b border-[var(--c-border)] mb-2">
+            <span className="text-xs font-semibold text-[var(--c-text-2)] whitespace-nowrap mr-1">선택 {sel.length}장</span>
+            <button type="button" disabled={!sel.length || !!progress} onClick={saveToGallery} className="whitespace-nowrap text-xs font-semibold rounded-full px-3 py-1.5 bg-brand text-white disabled:opacity-40">{progress || '갤러리에 저장'}</button>
+            {usedSupported && <button type="button" disabled={!sel.length} onClick={() => mark(true)} className="whitespace-nowrap text-xs font-semibold rounded-full px-3 py-1.5 border border-[var(--c-border)] text-[var(--c-text-1)] disabled:opacity-40">후기에 사용함 표시</button>}
+            {usedSupported && <button type="button" disabled={!sel.length} onClick={() => mark(false)} className="whitespace-nowrap text-xs rounded-full px-3 py-1.5 text-[var(--c-text-3)] disabled:opacity-40">표시 지우기</button>}
+            {sel.length > 0 && <button type="button" onClick={() => setSel([])} className="whitespace-nowrap text-xs text-[var(--c-text-3)] underline ml-auto">선택 해제</button>}
+          </div>
+          {err && <div className="text-sm text-[var(--c-text-3)] py-4 break-keep">{err}</div>}
+          <div className="grid grid-cols-3 gap-1.5">
+            {items.map((p) => {
+              const on = sel.includes(p.id);
+              return (
+                <div key={p.id} className="relative aspect-square">
+                  <button type="button" onClick={() => toggle(p.id)} className={`w-full h-full rounded-md overflow-hidden border-2 ${on ? 'border-brand' : 'border-transparent'}`} aria-pressed={on} title={p.name}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={p.thumb} alt={p.name} loading="lazy" referrerPolicy="no-referrer" className={`w-full h-full object-cover bg-[var(--c-subtle)] ${on ? 'opacity-80' : ''}`} />
+                  </button>
+                  {on && <span className="absolute top-1 left-1 w-5 h-5 rounded-full bg-brand text-white text-[11px] font-bold flex items-center justify-center pointer-events-none">✓</span>}
+                  {usedSet.has(p.id) && <span className="absolute bottom-1 left-1 text-[9px] font-bold px-1 rounded bg-brand text-white pointer-events-none">후기</span>}
+                  <a href={p.view} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} aria-label="크게 보기" className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/50 text-white flex items-center justify-center">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" /></svg>
+                  </a>
+                </div>
+              );
+            })}
+          </div>
+          {loading && <div className="text-xs text-[var(--c-text-4)] text-center py-3">불러오는 중…</div>}
+          {!loading && total !== null && items.length < total && (
+            <button type="button" onClick={() => loadMore(items.length)} className="w-full mt-3 rounded-full border border-[var(--c-border)] py-2.5 text-sm font-semibold">더 보기 ({items.length}/{total})</button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

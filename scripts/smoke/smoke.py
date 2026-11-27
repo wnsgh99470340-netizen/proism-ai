@@ -144,6 +144,25 @@ class Smoke:
                 return '열고 닫음'
             self.check('예약/일정 — 직원 공유 창', staff_share)
 
+            # 4-2. 차량 카드 드라이브 '전체 보기' 열고 닫기 (2026-11-27, 저장·표시 안 누름). 드라이브 폴더가 붙은 차가 없으면 건너뜀
+            def drive_grid():
+                self.goto('/crm?tab=customers')
+                page.locator('tbody tr').first.wait_for()
+                page.get_by_placeholder(re.compile('검색')).fill('김수희'); page.wait_for_timeout(500)
+                row = page.locator('tbody tr').filter(has_text='김수희').first
+                if row.count() == 0: return '건너뜀 (손님 없음)'
+                row.click(); page.wait_for_url(re.compile(r'/crm/[0-9a-f-]{8,}'), timeout=30000)
+                page.get_by_text('이 손님과 있었던 일').first.wait_for()
+                btn = page.get_by_role('button', name='전체 보기').first
+                try: btn.wait_for(timeout=8000)
+                except Exception: return '건너뜀 (드라이브 폴더 없음)'
+                btn.click()
+                page.get_by_role('heading', name=re.compile('드라이브 사진')).wait_for()
+                page.get_by_role('button', name='닫기').last.click(); page.wait_for_timeout(300)
+                if page.get_by_role('heading', name=re.compile('드라이브 사진')).count(): raise AssertionError('닫기로 안 닫힘')
+                return '열고 닫음'
+            self.check('고객 상세 — 드라이브 전체 보기 창', drive_grid)
+
             # 5. 작업 내역서 창 열고 닫기 (저장 안 함)
             def workorder():
                 self.goto('/crm?tab=appointments')

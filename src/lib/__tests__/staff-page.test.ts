@@ -1,7 +1,7 @@
 // 직원용 예약 페이지 (2026-11-27): 범위·취소 제외·민감 필드 없음
 import { describe, it, expect } from 'vitest';
 import { pickSpread } from '@/lib/drive';
-import { PUBLIC_VEHICLE_COLS, publicVehicle, isDriveFolderLink } from '@/lib/vehicles';
+import { PUBLIC_VEHICLE_COLS, publicVehicle, isDriveFolderLink, applyUsedIds } from '@/lib/vehicles';
 import { staffVisibleRange, staffCars, toStaffCar, staffNote, staffWork, STAFF_CAR_KEYS, staffToken } from '@/lib/staff-page';
 
 const today = '2026-11-27';
@@ -114,11 +114,12 @@ describe('직원 페이지 — 내부용 사진', () => {
 
 describe('차량 사진·드라이브 폴더(내부용)는 공개 응답에 없다 (2026-11-27)', () => {
   it('공개 페이지가 읽는 vehicles 열에 photos 가 없고, 변환도 사진을 뗀다', () => {
-    expect(PUBLIC_VEHICLE_COLS).not.toMatch(/photos|drive_folder|\*/);
-    const v = publicVehicle({ id: 'v1', customer_id: 'c1', brand: 'BMW', model: 'X5', plate: '12가3456', photos: ['https://x/damage.jpg'], drive_folder: 'https://drive.google.com/drive/folders/abcdefghijkl', memo: '내부', is_primary: true });
+    expect(PUBLIC_VEHICLE_COLS).not.toMatch(/photos|drive_folder|drive_used_ids|\*/);
+    const v = publicVehicle({ id: 'v1', customer_id: 'c1', brand: 'BMW', model: 'X5', plate: '12가3456', photos: ['https://x/damage.jpg'], drive_folder: 'https://drive.google.com/drive/folders/abcdefghijkl', drive_used_ids: ['usedfile123456'], memo: '내부', is_primary: true });
     expect(v).toEqual({ brand: 'BMW', model: 'X5', plate: '12가3456' });
     expect(JSON.stringify(v)).not.toContain('damage');
     expect(JSON.stringify(v)).not.toContain('drive');
+    expect(JSON.stringify(v)).not.toContain('usedfile');
     // 직원 페이지 변환도 차량 사진을 옮기지 않는다
     const c = toStaffCar(row({ vehicle: { brand: 'BMW', model: 'X5', photos: ['https://x/damage.jpg'], drive_folder: 'https://drive.google.com/drive/folders/abcdefghijkl' } as never }));
     expect(JSON.stringify(c)).not.toContain('damage');
@@ -142,5 +143,13 @@ describe('드라이브 사진 고르게 뽑기 (2026-11-27)', () => {
     expect(p.length).toBe(8); expect(p[0]).toBe(0); expect(p[7]).toBe(49);
     expect(new Set(p).size).toBe(8);
     expect(pickSpread([1, 2, 3], 8)).toEqual([1, 2, 3]);
+  });
+});
+
+describe("드라이브 '후기에 사용함' 표시 (2026-11-27)", () => {
+  it('넣기는 중복 없이 뒤에, 빼기는 그 id 만', () => {
+    expect(applyUsedIds(['a', 'b'], ['b', 'c', 'c'], true)).toEqual(['a', 'b', 'c']);
+    expect(applyUsedIds(['a', 'b', 'c'], ['b'], false)).toEqual(['a', 'c']);
+    expect(applyUsedIds(null, ['x'], true)).toEqual(['x']);
   });
 });
