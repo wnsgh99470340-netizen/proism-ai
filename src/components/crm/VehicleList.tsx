@@ -165,13 +165,14 @@ type DriveThumb = { id: string; name: string; thumb: string; view: string; modif
 function DriveFolderRow({ v, onSaved }: { v: Vehicle; onSaved: () => void | Promise<void> }) {
   const link = (v.drive_folder || '').trim();
   const [photos, setPhotos] = useState<DriveThumb[] | null>(null);
+  const [total, setTotal] = useState(0);
   const [err, setErr] = useState('');
   useEffect(() => {
     if (!link) { setPhotos(null); setErr(''); return; }
     let alive = true;
     setPhotos(null); setErr('');
-    fetch(`/api/drive/photos?folder=${encodeURIComponent(link)}&limit=12`, { cache: 'no-store' })
-      .then(async (r) => { const j = await r.json(); if (!alive) return; if (!r.ok) setErr("폴더가 '링크가 있는 모든 사용자 보기'가 아니면 읽을 수 없어요"); else setPhotos(j.photos || []); })
+    fetch(`/api/drive/photos?folder=${encodeURIComponent(link)}&limit=8`, { cache: 'no-store' })
+      .then(async (r) => { const j = await r.json(); if (!alive) return; if (!r.ok) setErr("폴더가 '링크가 있는 모든 사용자 보기'가 아니면 읽을 수 없어요"); else { setPhotos(j.photos || []); setTotal(j.total || 0); } })
       .catch(() => { if (alive) setErr('폴더를 읽지 못했습니다'); });
     return () => { alive = false; };
   }, [link]);
@@ -209,14 +210,17 @@ function DriveFolderRow({ v, onSaved }: { v: Vehicle; onSaved: () => void | Prom
       {link && !err && photos === null && <div className="text-[11px] text-[var(--c-text-4)] mt-1">불러오는 중…</div>}
       {link && !err && photos && photos.length === 0 && <div className="text-[11px] text-[var(--c-text-4)] mt-1">폴더에 사진이 없습니다</div>}
       {link && photos && photos.length > 0 && (
-        <div className="flex gap-1.5 overflow-x-auto mt-1.5 pb-1">
-          {photos.map((p) => (
-            <a key={p.id} href={p.view} target="_blank" rel="noreferrer" className="shrink-0" title={p.name}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={p.thumb} alt={p.name} referrerPolicy="no-referrer" className="w-14 h-14 object-cover rounded-md border border-[var(--c-border)] bg-[var(--c-subtle)]" />
-            </a>
-          ))}
-        </div>
+        <>
+          <div className="text-[10px] text-[var(--c-text-4)] mt-0.5 break-keep">사진 {total}장 중 {photos.length}장 · 이름순으로 고르게 뽑음</div>
+          <div className="flex items-end gap-1.5 overflow-x-auto mt-1 pb-1">
+            {photos.map((p, i) => (
+              <a key={p.id} href={p.view} target="_blank" rel="noreferrer" className="shrink-0" title={p.name}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={p.thumb} alt={p.name} referrerPolicy="no-referrer" className={`${i === 0 ? 'w-20 h-20' : 'w-14 h-14'} object-cover rounded-md border border-[var(--c-border)] bg-[var(--c-subtle)]`} />
+              </a>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );

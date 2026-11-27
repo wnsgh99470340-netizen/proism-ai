@@ -1,5 +1,6 @@
 // 직원용 예약 페이지 (2026-11-27): 범위·취소 제외·민감 필드 없음
 import { describe, it, expect } from 'vitest';
+import { pickSpread } from '@/lib/drive';
 import { PUBLIC_VEHICLE_COLS, publicVehicle, isDriveFolderLink } from '@/lib/vehicles';
 import { staffVisibleRange, staffCars, toStaffCar, staffNote, staffWork, STAFF_CAR_KEYS, staffToken } from '@/lib/staff-page';
 
@@ -131,5 +132,15 @@ describe('차량 드라이브 폴더 링크 (2026-11-27)', () => {
     expect(isDriveFolderLink('https://drive.google.com/open?id=1AbCdEfGhIjKlMn')).toBe(true);
     expect(isDriveFolderLink('https://example.com/drive/folders/1AbCdEfGhIjKlMn')).toBe(false);
     expect(isDriveFolderLink('https://drive.google.com/file/d/1AbCdEfGhIjKlMn/view')).toBe(false);
+  });
+});
+
+describe('드라이브 사진 고르게 뽑기 (2026-11-27)', () => {
+  it('첫·마지막 포함 등간격, n 이하면 전부', () => {
+    const xs = Array.from({ length: 50 }, (_, i) => i);
+    const p = pickSpread(xs, 8);
+    expect(p.length).toBe(8); expect(p[0]).toBe(0); expect(p[7]).toBe(49);
+    expect(new Set(p).size).toBe(8);
+    expect(pickSpread([1, 2, 3], 8)).toEqual([1, 2, 3]);
   });
 });
