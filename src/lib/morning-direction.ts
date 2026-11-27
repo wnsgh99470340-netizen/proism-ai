@@ -39,7 +39,7 @@ const daysBetween = (a: string, b: string) => Math.round((new Date(a).getTime() 
 const seoulDate = (iso: string) => new Date(new Date(iso).getTime() + 9 * 3600e3).toISOString().slice(0, 10);
 
 /** CRM 을 읽어 사실 묶음을 만든다 (읽기만) */
-export async function collectMorningFacts(date = todaySeoul()): Promise<MorningFacts> {
+export async function collectMorningFacts(date = todaySeoul(), extraLines: string[] = []): Promise<MorningFacts> {
   const today = date, yesterday = addDaysISO(date, -1), tomorrow = addDaysISO(date, 1);
   const [{ data: custsRaw }, { data: appsRaw }, { data: fuRaw }, { data: svcRaw }] = await Promise.all([
     supabase.from('customers').select('id,name,phone,car_brand,car_model,kind,dealer_id,memo,created_at'),
@@ -175,6 +175,8 @@ export async function collectMorningFacts(date = todaySeoul()): Promise<MorningF
     out.push(`- ${s.service_date} ${c.name} ${carOf(c)} ${s.service_type} ${won(s.amount || 0)} | 딜러 ${cmap.get(c.dealer_id)?.name || '?'}`);
   }
   out.push(`합계 ${dealerUnpaid}건 ${won(dealerAmt)}`);
+  // 8 드라이브 새 폴더 (2026-11-27, 크론이 drive-sync 결과를 넘김 — 없으면 아무 줄도 없음)
+  out.push(...extraLines);
 
   return {
     date: today,
@@ -199,7 +201,9 @@ const SYSTEM = `너는 3M 프로이즘 강남서초점 대표 진준호(사장�
 
 따끔한 한마디: 숫자에서 나온 것 한 줄. 숫자가 좋으면 "어제는 됐다. 오늘도 같은 걸 해라."
 
-오늘 하지 말 것: 한 줄 (보통 "새 기능·블로그 손보기 전에 위 전화부터")`;
+오늘 하지 말 것: 한 줄 (보통 "새 기능·블로그 손보기 전에 위 전화부터")
+
+[사실]에 "드라이브 새 폴더"가 있을 때만 맨 끝에 한 줄 더: 자동 연결이 있으면 "드라이브 자동 연결: 손님 차종, …", 못 맞춘 폴더가 있으면 "드라이브 폴더 확인: 폴더이름 → ?, 폴더이름 → ?" (누구 차인지 알려 달라는 뜻). 없으면 이 줄을 쓰지 않는다.`;
 
 /** 사실 묶음을 Claude 가 브리핑 문장으로. API 키가 없으면 숫자만으로 된 대체문 */
 export async function composeMorningDirection(facts: MorningFacts): Promise<{ text: string; model: string }> {
@@ -229,8 +233,8 @@ function fallbackText(f: MorningFacts): string {
 export interface MorningResult { date: string; text: string; model: string; counts: MorningFacts['counts']; factsText: string }
 
 /** 수집 → 작성. 푸시·저장은 부르는 쪽(크론)이 한다 */
-export async function buildMorningDirection(date = todaySeoul()): Promise<MorningResult> {
-  const facts = await collectMorningFacts(date);
+export async function buildMorningDirection(date = todaySeoul(), extraLines: string[] = []): Promise<MorningResult> {
+  const facts = await collectMorningFacts(date, extraLines);
   const { text, model } = await composeMorningDirection(facts);
   return { date: facts.date, text, model, counts: facts.counts, factsText: facts.text };
 }

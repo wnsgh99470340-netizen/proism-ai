@@ -155,3 +155,24 @@ export async function listDrivePhotosOrdered(folderId: string): Promise<DrivePho
   const files = await listViaEmbeddedView(folderId);
   return files.filter((f) => f.kind === 'photo').sort((a, b) => a.name.localeCompare(b.name, 'en', { numeric: true })).map((f) => toThumb(f.id, f.name, null));
 }
+
+/** 폴더 안의 하위 폴더(id·이름) — 공개 폴더 페이지(embeddedfolderview)에서 읽기만 (2026-11-27 드라이브 ↔ 차량 자동 연결) */
+export async function listDriveSubfolders(folderId: string): Promise<{ id: string; name: string }[]> {
+  const res = await fetch(`https://drive.google.com/embeddedfolderview?id=${folderId}#list`, {
+    headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/124 Safari/537.36', 'Accept-Language': 'ko,en;q=0.8' },
+    cache: 'no-store',
+  });
+  if (!res.ok) throw new Error(`드라이브 폴더를 열 수 없습니다 (HTTP ${res.status})`);
+  const html = await res.text();
+  const out: { id: string; name: string }[] = [];
+  const seen = new Set<string>();
+  const re = /id="entry-([A-Za-z0-9_-]{10,})"[\s\S]*?<a href="([^"]*)"[\s\S]*?class="flip-entry-title">([^<]*)</g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html))) {
+    if (seen.has(m[1])) continue;
+    seen.add(m[1]);
+    if (!/\/drive\/folders\//.test(m[2])) continue; // 파일은 건너뜀
+    out.push({ id: m[1], name: decodeEntities(m[3].trim()) });
+  }
+  return out;
+}

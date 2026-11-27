@@ -7,6 +7,7 @@ import { missedPushBody, urgentSummaryLine } from '@/lib/checkups';
 import { buildMonthlyReport, monthlySummaryLines } from '@/lib/weekly-stats';
 import { addDaysISO } from '@/lib/local-date';
 import { buildMorningDirection } from '@/lib/morning-direction';
+import { syncDriveFolders, driveSyncFactLines, type SyncReport } from '@/lib/drive-sync';
 
 export const maxDuration = 120;
 
@@ -49,9 +50,17 @@ export async function GET(request: NextRequest) {
     const weekday = new Date(`${brief.date}T12:00:00+09:00`).getUTCDay(); // 0 일 … 5 금
     const extras: Record<string, unknown> = {};
 
+    // 매일: 드라이브 작업 사진 폴더 ↔ 차량 자동 연결 (2026-11-27 사장님 "새 작업 하고 드라이브에 폴더 만들면 알아서 연결되게"). 확실한 것만 기록, dry 면 계산만
+    let driveRep: SyncReport | null = null;
+    try {
+      const t0 = Date.now();
+      driveRep = await syncDriveFolders({ dry, today: brief.date });
+      extras.driveSync = { ...driveRep, ms: Date.now() - t0, dry };
+    } catch (e) { extras.driveSync = { error: e instanceof Error ? e.message : String(e) }; }
+
     // 매일: 오늘의 방향 (2026-11-27 사장님 "맥이 꺼져 있어도 폰으로" — 로컬 예약 작업 대신 서버에서. 읽기만 + 푸시 + Blob 기록)
     try {
-      const m = await buildMorningDirection(brief.date);
+      const m = await buildMorningDirection(brief.date, driveSyncFactLines(driveRep));
       const md = brief.date.slice(5).replace(/^0?(\d+)-0?(\d+)$/, '$1/$2');
       const mPush = await sendPushToAll({ title: `오늘의 방향 ${md}`, body: m.text, url: '/crm', tag: `morning-${brief.date}` }).catch(() => ({ sent: 0, removed: 0 }));
       let mUrl: string | null = null;

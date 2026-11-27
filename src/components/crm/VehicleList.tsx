@@ -166,6 +166,24 @@ function DriveFolderRow({ v, onSaved, usedSupported }: { v: Vehicle; onSaved: ()
   const link = (v.drive_folder || '').trim();
   const used = new Set(Array.isArray(v.drive_used_ids) ? v.drive_used_ids : []);
   const [grid, setGrid] = useState(false);
+  // 폴더 찾기 (2026-11-27): 그 차의 시공일·차종(·성함)으로 드라이브 월별 폴더에서 후보를 찾아 고르면 붙인다
+  const [finding, setFinding] = useState(false);
+  const [found, setFound] = useState<{ id: string; name: string; url: string; status: string; elsewhere: boolean }[] | null>(null);
+  const [findMsg, setFindMsg] = useState('');
+  const find = async () => {
+    setFinding(true); setFindMsg(''); setFound(null);
+    try {
+      const r = await fetch(`/api/drive/find?vehicle_id=${v.id}`, { cache: 'no-store' });
+      const j = await r.json();
+      setFound(j.folders || []);
+      if (j.error) setFindMsg(j.error); else if (!(j.folders || []).length) setFindMsg('맞는 폴더가 없습니다 — 드라이브에서 폴더 링크를 복사해 링크 붙이기로');
+    } catch { setFindMsg('드라이브를 읽지 못했습니다'); } finally { setFinding(false); }
+  };
+  const pick = async (url: string, elsewhere: boolean) => {
+    if (elsewhere && !confirm('이 폴더는 다른 차에 이미 붙어 있습니다. 이 차에도 붙일까요?')) return;
+    const e = await setVehicleDriveFolder(v.id, url);
+    if (e) alert(e); else { setFound(null); await onSaved(); }
+  };
   const [photos, setPhotos] = useState<DriveThumb[] | null>(null);
   const [total, setTotal] = useState(0);
   const [err, setErr] = useState('');
@@ -204,11 +222,26 @@ function DriveFolderRow({ v, onSaved, usedSupported }: { v: Vehicle; onSaved: ()
               <button type="button" onClick={clear} className="whitespace-nowrap text-[11px] text-[var(--c-text-3)] hover:text-danger">지우기</button>
             </>
           ) : (
-            <button type="button" onClick={edit} className="whitespace-nowrap text-[11px] font-semibold rounded-full px-2.5 py-1 border border-[var(--c-border)] text-[var(--c-text-1)] hover:bg-[var(--c-subtle)]">링크 붙이기</button>
+            <>
+              <button type="button" onClick={find} disabled={finding} className="whitespace-nowrap text-[11px] font-semibold rounded-full px-2.5 py-1 bg-[var(--c-text-1)] text-[var(--c-card)] disabled:opacity-50">{finding ? '찾는 중…' : '폴더 찾기'}</button>
+              <button type="button" onClick={edit} className="whitespace-nowrap text-[11px] font-semibold rounded-full px-2.5 py-1 border border-[var(--c-border)] text-[var(--c-text-1)] hover:bg-[var(--c-subtle)]">링크 붙이기</button>
+            </>
           )}
         </span>
       </div>
       {!link && <div className="text-[10px] text-[var(--c-text-4)] mt-0.5 break-keep">작업 과정·출고 사진 폴더 — 복사하지 않고 여기서 바로 봅니다</div>}
+      {!link && findMsg && <div className="text-[11px] text-[var(--c-text-3)] mt-1 break-keep">{findMsg}</div>}
+      {!link && found && found.length > 0 && (
+        <ul className="mt-1.5 space-y-1">
+          {found.map((f) => (
+            <li key={f.id} className="flex items-center gap-2 text-[11px]">
+              <span className="min-w-0 flex-1 break-keep text-[var(--c-text-1)]">{f.name}<span className="text-[var(--c-text-4)] ml-1">{f.status === '확실' ? '맞음' : '후보'}{f.elsewhere ? ' · 다른 차에 붙어 있음' : ''}</span></span>
+              <a href={f.url} target="_blank" rel="noreferrer" className="shrink-0 text-[var(--c-text-3)] underline">열기</a>
+              <button type="button" onClick={() => pick(f.url, f.elsewhere)} className="shrink-0 whitespace-nowrap font-semibold rounded-full px-2 py-0.5 border border-[var(--c-border)] text-[var(--c-text-1)]">붙이기</button>
+            </li>
+          ))}
+        </ul>
+      )}
       {link && err && <div className="text-[11px] text-[var(--c-text-3)] mt-1 break-keep">{err}</div>}
       {link && !err && photos === null && <div className="text-[11px] text-[var(--c-text-4)] mt-1">불러오는 중…</div>}
       {link && !err && photos && photos.length === 0 && <div className="text-[11px] text-[var(--c-text-4)] mt-1">폴더에 사진이 없습니다</div>}
