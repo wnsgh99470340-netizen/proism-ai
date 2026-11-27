@@ -124,14 +124,14 @@ function VehiclePhotos({ v, onSaved }: { v: Vehicle; onSaved: () => void | Promi
   };
   return (
     <div className="mt-2 pt-2 border-t border-[var(--c-border)]">
-      <div className="flex items-center gap-2">
-        <span className="text-[11px] font-semibold text-[var(--c-text-2)]">사진 {urls.length}장</span>
-        <span className="text-[10px] text-[var(--c-text-4)] min-w-0 truncate">내부용 — 손님·딜러·직원 페이지에 안 보임</span>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] font-semibold text-[var(--c-text-2)] whitespace-nowrap">사진 {urls.length}장</span>
         <input ref={ref} type="file" accept="image/*" multiple className="hidden" onChange={(e) => add(e.target.files)} />
-        <button type="button" onClick={() => ref.current?.click()} disabled={busy || urls.length >= VEHICLE_PHOTO_MAX} className="ml-auto shrink-0 text-[11px] font-semibold rounded-full px-2.5 py-1 border border-[var(--c-border)] text-[var(--c-text-1)] hover:bg-[var(--c-subtle)] disabled:opacity-40">{busy ? '올리는 중…' : '사진 추가'}</button>
+        <button type="button" onClick={() => ref.current?.click()} disabled={busy || urls.length >= VEHICLE_PHOTO_MAX} className="shrink-0 whitespace-nowrap text-[11px] font-semibold rounded-full px-2.5 py-1 border border-[var(--c-border)] text-[var(--c-text-1)] hover:bg-[var(--c-subtle)] disabled:opacity-40">{busy ? '올리는 중…' : '사진 추가'}</button>
       </div>
+      <div className="text-[10px] text-[var(--c-text-4)] mt-0.5 break-keep">내부용 — 손님·딜러·직원 페이지에 안 보임</div>
       {urls.length > 0 && (
-        <div className="flex gap-1.5 flex-wrap mt-1.5">
+        <div className="flex gap-1.5 overflow-x-auto mt-1.5 pb-1">
           {urls.map((u) => (
             <button key={u} type="button" onClick={() => setBig(u)} className="shrink-0">
               {/* eslint-disable-next-line @next/next/no-img-element */}
