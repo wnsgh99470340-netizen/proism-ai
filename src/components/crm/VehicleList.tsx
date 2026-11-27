@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { loadVehicles, addVehicle, updateVehicle, deleteVehicle, setPrimaryVehicle, vehiclesTableMissing, vehicleLabel, vehiclePhotosSupport, setVehiclePhotos, VEHICLE_PHOTO_MAX, type Vehicle, type VehicleInput } from '@/lib/vehicles';
+import { loadVehicles, addVehicle, updateVehicle, deleteVehicle, setPrimaryVehicle, vehiclesTableMissing, vehicleLabel, vehiclePhotosSupport, setVehiclePhotos, VEHICLE_PHOTO_MAX, vehicleDriveSupport, setVehicleDriveFolder, isDriveFolderLink, type Vehicle, type VehicleInput } from '@/lib/vehicles';
 import { resizeAndUploadPhoto } from '@/lib/photo-upload';
 
 /**
@@ -19,11 +19,13 @@ export default function VehicleList({ customerId, onChange }: { customerId: stri
   const [form, setForm] = useState({ ...EMPTY });
   const [busy, setBusy] = useState(false);
   const [photoCol, setPhotoCol] = useState<boolean | null>(null); // vehicles.photos 열 (2026-11-27)
+  const [driveCol, setDriveCol] = useState<boolean | null>(null); // vehicles.drive_folder 열 (2026-11-27)
 
   const reload = useCallback(async () => {
     const v = await loadVehicles(customerId);
     setMissing(vehiclesTableMissing());
     setPhotoCol(await vehiclePhotosSupport());
+    setDriveCol(v.length ? vehicleDriveSupport() : null);
     setList(v);
     onChange?.(v);
   }, [customerId, onChange]);
@@ -87,10 +89,12 @@ export default function VehicleList({ customerId, onChange }: { customerId: stri
                 <button onClick={() => remove(v)} className="text-[11px] text-[var(--c-text-3)] hover:text-danger">삭제</button>
               </div>
               {photoCol && <VehiclePhotos v={v} onSaved={reload} />}
+              {driveCol && <DriveFolderRow v={v} onSaved={reload} />}
             </div>
           ))}
           {adding && FormRow}
           {photoCol === false && list.length > 0 && <div className="text-[11px] text-[var(--c-text-4)]">차량 사진을 쓰려면 docs/차량-사진-열-추가-2026-11-27.sql 실행</div>}
+          {driveCol === false && list.length > 0 && <div className="text-[11px] text-[var(--c-text-4)] break-keep">드라이브 폴더 링크를 붙이려면 docs/차량-드라이브-폴더-열-추가-2026-11-27.sql 실행</div>}
         </div>
       )}
     </div>
@@ -150,6 +154,68 @@ function VehiclePhotos({ v, onSaved }: { v: Vehicle; onSaved: () => void | Promi
               <button type="button" onClick={() => setBig(null)} className="text-xs font-semibold rounded-full px-3 py-1.5 bg-white text-black">닫기</button>
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** 드라이브 폴더 (2026-11-27 사장님 "복사하지 않고 드라이브를 그대로 읽는다") — CRM 안에서 보기 전용. 시공기 프리필에는 안 넘김(사장님 "시공기 쓸 때도 사진은 건들지 마") */
+type DriveThumb = { id: string; name: string; thumb: string; view: string; modifiedTime: string | null };
+function DriveFolderRow({ v, onSaved }: { v: Vehicle; onSaved: () => void | Promise<void> }) {
+  const link = (v.drive_folder || '').trim();
+  const [photos, setPhotos] = useState<DriveThumb[] | null>(null);
+  const [err, setErr] = useState('');
+  useEffect(() => {
+    if (!link) { setPhotos(null); setErr(''); return; }
+    let alive = true;
+    setPhotos(null); setErr('');
+    fetch(`/api/drive/photos?folder=${encodeURIComponent(link)}&limit=12`, { cache: 'no-store' })
+      .then(async (r) => { const j = await r.json(); if (!alive) return; if (!r.ok) setErr("폴더가 '링크가 있는 모든 사용자 보기'가 아니면 읽을 수 없어요"); else setPhotos(j.photos || []); })
+      .catch(() => { if (alive) setErr('폴더를 읽지 못했습니다'); });
+    return () => { alive = false; };
+  }, [link]);
+  const edit = async () => {
+    const next = prompt('이 차의 구글 드라이브 폴더 링크 (…/drive/folders/…)', link);
+    if (next === null) return;
+    const t = next.trim();
+    if (t && !isDriveFolderLink(t)) { alert('구글 드라이브 폴더 링크(…/drive/folders/…)만 넣을 수 있어요'); return; }
+    const e = await setVehicleDriveFolder(v.id, t || null);
+    if (e) alert(e); else await onSaved();
+  };
+  const clear = async () => {
+    if (!confirm('드라이브 폴더 링크를 지울까요? (드라이브의 사진은 그대로입니다)')) return;
+    const e = await setVehicleDriveFolder(v.id, null);
+    if (e) alert(e); else await onSaved();
+  };
+  return (
+    <div className="mt-2 pt-2 border-t border-[var(--c-border)]">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] font-semibold text-[var(--c-text-2)] whitespace-nowrap">드라이브 폴더</span>
+        <span className="flex items-center gap-1.5 shrink-0">
+          {link ? (
+            <>
+              <a href={link} target="_blank" rel="noreferrer" className="whitespace-nowrap text-[11px] font-semibold rounded-full px-2.5 py-1 border border-[var(--c-border)] text-[var(--c-text-1)] hover:bg-[var(--c-subtle)]">폴더 열기</a>
+              <button type="button" onClick={edit} className="whitespace-nowrap text-[11px] text-[var(--c-text-3)] hover:text-[var(--c-text-1)]">바꾸기</button>
+              <button type="button" onClick={clear} className="whitespace-nowrap text-[11px] text-[var(--c-text-3)] hover:text-danger">지우기</button>
+            </>
+          ) : (
+            <button type="button" onClick={edit} className="whitespace-nowrap text-[11px] font-semibold rounded-full px-2.5 py-1 border border-[var(--c-border)] text-[var(--c-text-1)] hover:bg-[var(--c-subtle)]">링크 붙이기</button>
+          )}
+        </span>
+      </div>
+      {!link && <div className="text-[10px] text-[var(--c-text-4)] mt-0.5 break-keep">작업 과정·출고 사진 폴더 — 복사하지 않고 여기서 바로 봅니다</div>}
+      {link && err && <div className="text-[11px] text-[var(--c-text-3)] mt-1 break-keep">{err}</div>}
+      {link && !err && photos === null && <div className="text-[11px] text-[var(--c-text-4)] mt-1">불러오는 중…</div>}
+      {link && !err && photos && photos.length === 0 && <div className="text-[11px] text-[var(--c-text-4)] mt-1">폴더에 사진이 없습니다</div>}
+      {link && photos && photos.length > 0 && (
+        <div className="flex gap-1.5 overflow-x-auto mt-1.5 pb-1">
+          {photos.map((p) => (
+            <a key={p.id} href={p.view} target="_blank" rel="noreferrer" className="shrink-0" title={p.name}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={p.thumb} alt={p.name} referrerPolicy="no-referrer" className="w-14 h-14 object-cover rounded-md border border-[var(--c-border)] bg-[var(--c-subtle)]" />
+            </a>
+          ))}
         </div>
       )}
     </div>

@@ -111,3 +111,25 @@ export async function listDriveFolder(link: string): Promise<{ folderId: string;
   }
   return { folderId, files };
 }
+
+/** CRM 차량 카드 썸네일용 (2026-11-27 사장님 "복사하지 않고 드라이브를 그대로 읽는다") — 읽기만 */
+export interface DrivePhotoThumb { id: string; name: string; thumb: string; view: string; modifiedTime: string | null }
+export async function listDrivePhotosRecent(folderId: string, limit = 12): Promise<DrivePhotoThumb[]> {
+  const toThumb = (id: string, name: string, modifiedTime: string | null): DrivePhotoThumb => ({ id, name, thumb: `https://drive.google.com/thumbnail?id=${id}&sz=w400`, view: `https://drive.google.com/file/d/${id}/view`, modifiedTime });
+  const apiKey = process.env.GOOGLE_API_KEY;
+  if (apiKey) {
+    try {
+      const q = encodeURIComponent(`'${folderId}' in parents and trashed = false and mimeType contains 'image/'`);
+      const url = `https://www.googleapis.com/drive/v3/files?q=${q}&orderBy=modifiedTime desc&fields=files(id,name,modifiedTime)&pageSize=${Math.min(Math.max(limit, 1), 50)}&key=${apiKey}`;
+      const res = await fetch(url, { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json() as { files?: { id: string; name: string; modifiedTime?: string }[] };
+        return (data.files || []).map((f) => toThumb(f.id, f.name, f.modifiedTime || null));
+      }
+      if (res.status !== 404 && res.status !== 403) console.warn('[drive] recent api', res.status);
+    } catch (e) { console.warn('[drive] recent api failed:', e); }
+  }
+  // 키 없거나 API 가 못 읽으면: 공개 폴더 페이지에서 (수정 시각을 몰라 이름 역순)
+  const files = await listViaEmbeddedView(folderId);
+  return files.filter((f) => f.kind === 'photo').sort((a, b) => b.name.localeCompare(a.name, 'en')).slice(0, limit).map((f) => toThumb(f.id, f.name, null));
+}

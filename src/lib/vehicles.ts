@@ -19,6 +19,8 @@ export interface Vehicle {
   created_at?: string;
   /** 차량 사진(내부용, 2026-11-27 사장님 "차량 카드에 사진 추가") — 입고 상태·문제 부위 기록. CRM 안에서만. 열은 docs/차량-사진-열-추가-2026-11-27.sql */
   photos?: string[] | null;
+  /** 이 차의 구글 드라이브 공유 폴더 링크 (2026-11-27) — 작업 과정·출고 사진. 복사하지 않고 /api/drive/photos 로 읽음. 열은 docs/차량-드라이브-폴더-열-추가-2026-11-27.sql */
+  drive_folder?: string | null;
 }
 
 let tableMissing: boolean | null = null;
@@ -30,9 +32,9 @@ function missing(err: { code?: string; message?: string } | null): boolean {
 }
 export function vehiclesTableMissing(): boolean { return tableMissing === true; }
 
-/** 공개 페이지(회원·딜러·직원)가 vehicles 에서 읽어도 되는 열 — photos(내부 사진)는 절대 넣지 않는다 (2026-11-27) */
+/** 공개 페이지(회원·딜러·직원)가 vehicles 에서 읽어도 되는 열 — photos(내부 사진)·drive_folder 는 절대 넣지 않는다 (2026-11-27) */
 export const PUBLIC_VEHICLE_COLS = 'brand, model';
-/** 공개 응답에 차량을 넣을 때 쓰는 변환 — 사진·메모 등 내부 칸을 떼고 브랜드·차종·번호만 */
+/** 공개 응답에 차량을 넣을 때 쓰는 변환 — 사진·드라이브 폴더·메모 등 내부 칸을 떼고 브랜드·차종·번호만 */
 export function publicVehicle(v: Partial<Vehicle> | null | undefined): { brand: string | null; model: string | null; plate: string | null } | null {
   if (!v) return null;
   return { brand: v.brand ?? null, model: v.model ?? null, plate: v.plate ?? null };
@@ -40,14 +42,32 @@ export function publicVehicle(v: Partial<Vehicle> | null | undefined): { brand: 
 
 export const VEHICLE_PHOTO_MAX = 8;
 let photosColumn: boolean | null = null;
+let driveColumn: boolean | null = null;
 /** vehicles.photos 열이 있는지 — 따로 찔러 보면 열이 없을 때 400 이 콘솔에 찍히므로, select('*') 로 읽은 행에 photos 키가 있는지로 판단해 기억한다.
  *  차가 한 대도 안 읽혔으면 모름(false 취급 — 사진 UI 숨김). 없으면 저장도 안 한다 */
 function notePhotosColumn(rows: unknown[] | null | undefined) {
-  if (rows && rows.length) photosColumn = Object.prototype.hasOwnProperty.call(rows[0] as object, 'photos');
+  if (rows && rows.length) {
+    photosColumn = Object.prototype.hasOwnProperty.call(rows[0] as object, 'photos');
+    driveColumn = Object.prototype.hasOwnProperty.call(rows[0] as object, 'drive_folder');
+  }
 }
 export async function vehiclePhotosSupport(): Promise<boolean> {
   return photosColumn === true;
 }
+/** vehicles.drive_folder 열이 있는지 (photos 와 같은 방식 — 읽은 행에 키가 있는지) */
+export function vehicleDriveSupport(): boolean { return driveColumn === true; }
+/** 드라이브 폴더 링크인지 — drive.google.com/drive/folders/<id> 또는 ?id=<id> 만 */
+export function isDriveFolderLink(link: string): boolean {
+  const s = link.trim();
+  return /^https:\/\/drive\.google\.com\//.test(s) && (/\/folders\/[A-Za-z0-9_-]{10,}/.test(s) || /[?&]id=[A-Za-z0-9_-]{10,}/.test(s));
+}
+export async function setVehicleDriveFolder(vehicleId: string, link: string | null): Promise<string | null> {
+  if (!vehicleDriveSupport()) return '드라이브 폴더 열이 아직 없습니다 (docs/차량-드라이브-폴더-열-추가-2026-11-27.sql)';
+  if (link && !isDriveFolderLink(link)) return '구글 드라이브 폴더 링크(…/drive/folders/…)만 넣을 수 있어요';
+  const { error } = await supabase.from('vehicles').update({ drive_folder: link ? link.trim() : null }).eq('id', vehicleId);
+  return error ? error.message : null;
+}
+
 export async function setVehiclePhotos(vehicleId: string, urls: string[]): Promise<string | null> {
   if (!(await vehiclePhotosSupport())) return '차량 사진 열이 아직 없습니다 (docs/차량-사진-열-추가-2026-11-27.sql)';
   const { error } = await supabase.from('vehicles').update({ photos: urls.slice(0, VEHICLE_PHOTO_MAX) }).eq('id', vehicleId);
