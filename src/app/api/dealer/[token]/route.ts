@@ -5,7 +5,7 @@ import { maskName } from '@/lib/member-links';
 import { carState, type CarAppointment, type CarService } from '@/lib/dealer-page';
 import { DEALER_KIND } from '@/lib/dealers';
 import { todaySeoul } from '@/lib/local-date';
-import { parseWorkOrder } from '@/lib/work-order';
+import { parseWorkOrder, publicPhotos } from '@/lib/work-order';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const a = ((appts || []) as (CarAppointment & { customer_id: string; memo: string | null })[]).filter((x) => x.customer_id === c.id);
     const s = ((svcs || []) as (CarService & { customer_id: string })[]).filter((x) => x.customer_id === c.id);
     const st = carState(a, s, today);
-    const history = a.filter((x) => x.status !== '취소').sort((x, y) => (x.appointment_date < y.appointment_date ? 1 : -1)).map((x) => ({ date: x.appointment_date, end: x.end_date, service: x.service_type, status: x.status, photos: parseWorkOrder(x.memo)?.photos || [] }));
+    const history = a.filter((x) => x.status !== '취소').sort((x, y) => (x.appointment_date < y.appointment_date ? 1 : -1)).map((x) => ({ date: x.appointment_date, end: x.end_date, service: x.service_type, status: x.status, photos: publicPhotos(parseWorkOrder(x.memo)) })); // 출고 사진만 — photos_internal 은 안 내려감 (2026-11-27)
     const photos = history.flatMap((h) => h.photos).slice(0, 6); // 작업 사진 (완료 처리 때 붙인 것, 2026-11-25)
     return { id: c.id, name: c.name, car: [c.car_brand, c.car_model].filter(Boolean).join(' ') || null, state: st, history, photos };
   }).sort((x, y) => (x.state.sortKey < y.state.sortKey ? -1 : x.state.sortKey > y.state.sortKey ? 1 : 0));

@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { maskName } from '@/lib/member-links';
 import { MEMBERSHIP } from '@/config/membership';
-import { parseWorkOrder, workItems, type WorkOrderJson } from '@/lib/work-order';
+import { parseWorkOrder, workItems, type WorkOrderJson, publicPhotos } from '@/lib/work-order';
 import { memberSinceFlag } from '@/lib/membership-flag';
 import { AUTH_COOKIE_NAME, isAuthCookieValid } from '@/lib/auth-cookie';
 import { pointsView, type PointRow } from '@/lib/referrals';
@@ -77,7 +77,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     .map(({ a, w }) => ({
       date: w.warranty?.date || a.appointment_date, end: a.end_date, work: w.warranty?.work_details || a.service_type || '', period: w.warranty?.warranty_period || '',
       url: (w.warranty_url || '').replace(/\s+/g, '') || null, items: workItems(w), certNo: `PZ-${String(a.id).replace(/-/g, '').slice(0, 8).toUpperCase()}`,
-      photos: Array.isArray(w.photos) ? w.photos.slice(0, 6) : [], // 완료 처리 때 붙인 작업 사진 (2026-11-25)
+      photos: publicPhotos(w), // 완료 처리 때 붙인 출고 사진 (2026-11-25). 입고 상태 사진(photos_internal)은 안 내려감 (2026-11-27)
     }));
 
   // 작업 내역서 없이 들어온 시공(이카운트·타임트리 가져오기, 고객 상세 '시공 추가')도 증명서 줄로 — 회원 107명의 증명서 탭이 비어 보이던 것 (2026-11-26)

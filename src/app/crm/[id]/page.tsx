@@ -20,7 +20,7 @@ import { isMemberFlag, memberSinceFlag, registerMember, unregisterMember } from 
 import { vehicleLabel, type Vehicle } from '@/lib/vehicles';
 import { blacklistInfo, clearBlacklist, isBlacklisted } from '@/lib/blacklist';
 import { supabase } from '@/lib/supabase';
-import { parseWorkOrder } from '@/lib/work-order';
+import { parseWorkOrder, publicPhotos, internalPhotos } from '@/lib/work-order';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 
@@ -581,7 +581,8 @@ export default function CustomerDetailPage() {
                   {(() => { const w = parseWorkOrder(s.memo); if (!w) return null; return (<>
                     {w.field_note && <span className="basis-full text-[var(--c-text-2)]">현장 메모: {w.field_note}</span>}
                     {w.notes && <span className="basis-full">특이사항: {w.notes}</span>}
-                    {w.photos && w.photos.length > 0 && <span className="basis-full flex gap-1.5 flex-wrap mt-1">{w.photos.map((u) => <a key={u} href={u} target="_blank" rel="noreferrer"><img src={u} alt="작업 사진" className="w-14 h-14 object-cover rounded-md border border-[var(--c-border)]" /></a>)}</span>}
+                    {internalPhotos(w).length > 0 && <span className="basis-full mt-1"><span className="block text-[11px] text-[var(--c-text-4)]">입고 상태(내부 — 손님·딜러에게 안 보임)</span><span className="flex gap-1.5 flex-wrap mt-0.5">{internalPhotos(w).map((u) => <a key={u} href={u} target="_blank" rel="noreferrer"><img src={u} alt="입고 상태 사진" className="w-14 h-14 object-cover rounded-md border border-[var(--c-border)]" /></a>)}</span></span>}
+                    {publicPhotos(w, 12).length > 0 && <span className="basis-full mt-1"><span className="block text-[11px] text-[var(--c-text-4)]">출고 사진</span><span className="flex gap-1.5 flex-wrap mt-0.5">{publicPhotos(w, 12).map((u) => <a key={u} href={u} target="_blank" rel="noreferrer"><img src={u} alt="출고 사진" className="w-14 h-14 object-cover rounded-md border border-[var(--c-border)]" /></a>)}</span></span>}
                   </>); })()}
                   {s.memo && (() => {
                     try {

@@ -8,7 +8,7 @@ import { confirmAfterSms, openSmsApp } from '@/lib/crm-shared';
 import { copyText, shareTextOnPhone } from '@/lib/device';
 import { QC_SMS, REVIEW_SMS, followUpMessage } from '@/config/sms-templates';
 import { parseCareLog, stripCareLog } from '@/lib/care-log';
-import { parseWorkOrder, workSummaryLines } from '@/lib/work-order';
+import { parseWorkOrder, workSummaryLines, publicPhotos, internalPhotos } from '@/lib/work-order';
 import { isSkipped, closeQuoteAs, quoteCloseReason, QUOTE_CLOSE_REASONS } from '@/lib/followups';
 import type { PickerCustomer } from '@/hooks/useCrmData';
 import { type FollowUp, type Tab, RETOUCH_TYPE, formatDate } from '@/lib/crm-shared';
@@ -224,8 +224,8 @@ export default function FollowUpsTab({
                   {!isQuote && f.service && (() => {
                     const lines = workSummaryLines(f.service.memo, f.service);
                     const wo = parseWorkOrder(f.service.memo);
-                    const extra = wo ? { note: (wo.field_note || '').trim(), notes: (wo.notes || '').trim(), photos: wo.photos || [], plate: (wo.car_number || '').trim() } : null;
-                    const hasExtra = !!extra && (!!extra.note || !!extra.notes || extra.photos.length > 0);
+                    const extra = wo ? { note: (wo.field_note || '').trim(), notes: (wo.notes || '').trim(), photos: publicPhotos(wo, 12), inPhotos: internalPhotos(wo), plate: (wo.car_number || '').trim() } : null;
+                    const hasExtra = !!extra && (!!extra.note || !!extra.notes || extra.photos.length > 0 || extra.inPhotos.length > 0);
                     if (lines.length === 0) return <div className="text-[11px] text-[var(--c-text-4)] mt-1">작업 내역서 없음{f.service.service_date ? ` · 시공 ${formatDate(f.service.service_date)}` : ''}</div>;
                     return (
                       <div className="mt-1.5 text-xs">
@@ -236,7 +236,8 @@ export default function FollowUpsTab({
                             <summary className="cursor-pointer text-[var(--c-text-3)] text-[11px]">현장 메모·사진</summary>
                             {extra!.note && <div className="mt-1 text-[var(--c-text-2)] whitespace-pre-wrap">{extra!.note}</div>}
                             {extra!.notes && <div className="mt-1 text-[var(--c-text-3)] whitespace-pre-wrap">특이사항: {extra!.notes}</div>}
-                            {extra!.photos.length > 0 && <div className="flex gap-1.5 mt-1.5 flex-wrap">{extra!.photos.map((u) => <a key={u} href={u} target="_blank" rel="noreferrer"><img src={u} alt="" className="w-12 h-12 object-cover rounded-md border border-[var(--c-border)]" /></a>)}</div>}
+                            {extra!.inPhotos.length > 0 && <div className="mt-1.5"><div className="text-[11px] text-[var(--c-text-4)]">입고 상태(내부)</div><div className="flex gap-1.5 mt-0.5 flex-wrap">{extra!.inPhotos.map((u) => <a key={u} href={u} target="_blank" rel="noreferrer"><img src={u} alt="" className="w-12 h-12 object-cover rounded-md border border-[var(--c-border)]" /></a>)}</div></div>}
+                            {extra!.photos.length > 0 && <div className="mt-1.5"><div className="text-[11px] text-[var(--c-text-4)]">출고 사진</div><div className="flex gap-1.5 mt-0.5 flex-wrap">{extra!.photos.map((u) => <a key={u} href={u} target="_blank" rel="noreferrer"><img src={u} alt="" className="w-12 h-12 object-cover rounded-md border border-[var(--c-border)]" /></a>)}</div></div>}
                           </details>
                         )}
                       </div>

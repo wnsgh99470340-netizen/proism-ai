@@ -13,6 +13,8 @@ export interface WorkOrderJson {
   maintenance_years?: string | number;
   /** 완료 처리 때 붙인 작업 사진(Blob 주소, 최대 6장) — 손님 페이지·딜러 현황 페이지에 보이고 시공기 재료 (2026-11-25) */
   photos?: string[];
+  /** 입고 상태 사진(내부용, 최대 4장) — 손님 회원 페이지·딜러 현황 페이지·직원 시트·시공기 어디에도 안 나감. CRM 안에서만 (2026-11-27 사장님) */
+  photos_internal?: string[];
   /** 이 차에서 있었던 일 한두 줄(사장님 말) — 시공기 폼 현장 메모로 미리 채워짐 (2026-11-25) */
   field_note?: string;
   ppf?: string[]; ppf_etc?: string;
@@ -153,6 +155,15 @@ export function workSummaryLines(memo: string | null | undefined, fallback?: { f
   if (fb.length) return [fb.join(' · ')];
   if (memo && !w && memo.trim()) return [memo.trim().split('\n')[0].slice(0, 80)];
   return [];
+}
+
+/** 공개용 작업 사진(출고 사진)만 — 회원 페이지·딜러 현황 페이지가 쓴다. photos_internal 은 절대 섞지 않는다 (2026-11-27) */
+export function publicPhotos(w: WorkOrderJson | null | undefined, max = 6): string[] {
+  return w && Array.isArray(w.photos) ? w.photos.filter((u) => typeof u === 'string').slice(0, max) : [];
+}
+/** 내부용 입고 상태 사진 — CRM 화면에서만 */
+export function internalPhotos(w: WorkOrderJson | null | undefined): string[] {
+  return w && Array.isArray(w.photos_internal) ? w.photos_internal.filter((u) => typeof u === 'string') : [];
 }
 
 export function parseWorkOrder(memo: string | null | undefined): WorkOrderJson | null {

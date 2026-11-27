@@ -1,6 +1,6 @@
 // 작업 내역서 PPF 제품 선택 칸 (2026-11-25 사장님 "제품은 적는 방식 말고 선택하는 방식으로")
 import { describe, it, expect } from 'vitest';
-import { workItems, ppfProductOf, workSummaryLines, PPF_PRODUCT_OPTIONS } from '@/lib/work-order';
+import { workItems, ppfProductOf, workSummaryLines, PPF_PRODUCT_OPTIONS, publicPhotos as _publicPhotos, internalPhotos as _internalPhotos } from '@/lib/work-order';
 
 describe('PPF 제품 선택 (work-order)', () => {
   it('선택 칸이 있으면 그걸로, 기타는 메모로 범위 뒤에 붙는다', () => {
@@ -60,5 +60,16 @@ describe('썬팅 기타 필름 · 기타 시공 (2026-11-26)', () => {
     expect(items.find((i) => i.group === '썬팅')?.text).toBe('루마 버텍스 900(비반사) (전면 30) · 3M 크리스탈라인 70 (측후면 15)');
     expect(items.find((i) => i.group === '기타')).toMatchObject({ text: '윈드쉴드 보호필름' });
     expect(workItems({ tint_other: { name: '  ', density: '' }, other_work: ' ' })).toEqual([]);
+  });
+});
+
+// 입고 상태 사진(내부용)은 공개 응답에 없다 (2026-11-27 사장님)
+describe('작업 사진 — 내부용/공개용 분리', () => {
+  it('publicPhotos(회원·딜러 페이지가 쓰는 것)는 photos 만, photos_internal 은 절대 안 섞임', () => {
+    const w = { photos: ['https://x/out1.jpg', 'https://x/out2.jpg'], photos_internal: ['https://x/damage1.jpg'] };
+    expect(_publicPhotos(w)).toEqual(['https://x/out1.jpg', 'https://x/out2.jpg']);
+    expect(JSON.stringify(_publicPhotos(w))).not.toContain('damage1');
+    expect(_publicPhotos({ photos_internal: ['https://x/damage1.jpg'] })).toEqual([]);
+    expect(_internalPhotos(w)).toEqual(['https://x/damage1.jpg']);
   });
 });

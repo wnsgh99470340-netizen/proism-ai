@@ -44,22 +44,48 @@ function SectionTitle({ title }: { title: string }) {
   );
 }
 
+const PHOTO_MAX = 4;
+/** 사진 칸 하나 (2026-11-27) — 작은 썸네일 + 고르기 버튼. 최대 4장(예전 기록이 더 많으면 그대로 두고 추가만 막음) */
+function PhotoSlot({ title, hint, urls, busy, onPick, onRemove }: { title: string; hint: string; urls: string[]; busy: boolean; onPick: (f: FileList | null) => void; onRemove: (u: string) => void }) {
+  const ref = useRef<HTMLInputElement>(null);
+  return (
+    <div className="mb-3">
+      <div className="flex items-center justify-between gap-2 mb-1.5">
+        <label className="text-xs font-semibold text-[var(--c-text-1)]">{title} <span className="font-normal text-[var(--c-text-3)]">최대 {PHOTO_MAX}장 · {hint}</span></label>
+        <input ref={ref} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { onPick(e.target.files); e.target.value = ''; }} />
+        <Btn size="sm" variant="outline" icon="camera" onClick={() => ref.current?.click()} disabled={busy || urls.length >= PHOTO_MAX}>{busy ? '올리는 중…' : '사진 고르기'}</Btn>
+      </div>
+      {urls.length > 0 && (
+        <div className="flex gap-2 flex-wrap">
+          {urls.map((u) => (
+            <div key={u} className="relative">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={u} alt={title} className="w-16 h-16 object-cover rounded-lg border border-[var(--c-border)]" />
+              <button type="button" onClick={() => onRemove(u)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[var(--c-text-1)] text-[var(--c-card)] text-[10px] leading-none flex items-center justify-center" aria-label="사진 빼기">✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function WorkOrderModal({ appointment, workOrder, setWorkOrder, onSubmit, onSaveOnly, onClose, busy }: WorkOrderModalProps & { workOrder: any }) {
   const printRef = useRef<HTMLDivElement>(null);
-  const photoRef = useRef<HTMLInputElement>(null);
-  const [photoBusy, setPhotoBusy] = useState(false);
-  const uploadPhotos = async (files: FileList | null) => {
+  const [photoBusy, setPhotoBusy] = useState<'' | 'photos' | 'photos_internal'>('');
+  // 사진 칸 둘 (2026-11-27 사장님): photos = 출고 사진(손님·딜러 페이지에 보임), photos_internal = 입고 상태 사진(내부용, CRM 안에서만). 칸마다 최대 4장
+  const uploadPhotos = async (key: 'photos' | 'photos_internal', files: FileList | null) => {
     if (!files || files.length === 0) return;
-    setPhotoBusy(true);
+    setPhotoBusy(key);
     try {
-      let next: string[] = [...((workOrder.photos as string[] | undefined) || [])];
-      for (const f of Array.from(files).slice(0, 6 - next.length)) {
+      let next: string[] = [...((workOrder[key] as string[] | undefined) || [])];
+      for (const f of Array.from(files).slice(0, Math.max(0, PHOTO_MAX - next.length))) {
         const r = await resizeAndUploadPhoto(f);
         if ('error' in r) { alert(r.error); continue; }
         next = [...next, r.url];
       }
-      setWorkOrder({ ...workOrder, photos: next });
-    } finally { setPhotoBusy(false); if (photoRef.current) photoRef.current.value = ''; }
+      setWorkOrder({ ...workOrder, [key]: next });
+    } finally { setPhotoBusy(''); }
   };
 
   const handlePdfSave = async () => {
@@ -295,24 +321,10 @@ export default function WorkOrderModal({ appointment, workOrder, setWorkOrder, o
         <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
           <WorkSheet ref={printRef} workOrder={workOrder} head={{ date: new Date().toLocaleDateString('ko-KR'), car: appointment.service_type, plate: workOrder.car_number, name: appointment.customer?.name, source: null, phone: appointment.customer?.phone }} />
 
-          {/* 작업 사진·현장 메모 (2026-11-25 사장님 "완료 처리 때 사진 서너 장"): 손님 페이지·딜러 현황 페이지에 보이고, 현장 메모는 시공기 폼에 미리 채워진다 */}
+          {/* 작업 사진·현장 메모 (2026-11-25 사장님 "완료 처리 때 사진 서너 장" → 2026-11-27 입고 상태(내부)·출고(공개) 둘로, 과정 사진은 드라이브에 따로): 현장 메모는 시공기 폼에 미리 채워진다 */}
           <div className="mt-5 border-t border-[var(--c-border)] pt-4">
-            <div className="flex items-center justify-between gap-2 mb-2">
-              <label className="text-xs font-semibold text-[var(--c-text-1)]">작업 사진 <span className="font-normal text-[var(--c-text-3)]">최대 6장 · 손님 페이지와 딜러 현황 페이지에 보입니다 (번호판·얼굴은 가려서)</span></label>
-              <input ref={photoRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => uploadPhotos(e.target.files)} />
-              <Btn size="sm" variant="outline" icon="camera" onClick={() => photoRef.current?.click()} disabled={photoBusy || (workOrder.photos || []).length >= 6}>{photoBusy ? '올리는 중…' : '사진 고르기'}</Btn>
-            </div>
-            {(workOrder.photos || []).length > 0 && (
-              <div className="flex gap-2 flex-wrap mb-3">
-                {(workOrder.photos as string[]).map((u) => (
-                  <div key={u} className="relative">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={u} alt="작업 사진" className="w-20 h-20 object-cover rounded-lg border border-[var(--c-border)]" />
-                    <button type="button" onClick={() => setWorkOrder({ ...workOrder, photos: (workOrder.photos as string[]).filter((x) => x !== u) })} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[var(--c-text-1)] text-[var(--c-card)] text-[10px] leading-none flex items-center justify-center" aria-label="사진 빼기">✕</button>
-                  </div>
-                ))}
-              </div>
-            )}
+            <PhotoSlot title="입고 상태 사진" hint="내부용 — 손님·딜러에게 안 보임 · 문제 부위 기록" urls={(workOrder.photos_internal as string[] | undefined) || []} busy={photoBusy === 'photos_internal'} onPick={(f) => uploadPhotos('photos_internal', f)} onRemove={(u) => setWorkOrder({ ...workOrder, photos_internal: ((workOrder.photos_internal as string[] | undefined) || []).filter((x) => x !== u) })} />
+            <PhotoSlot title="출고 사진" hint="손님 페이지·딜러 페이지에 보임 (번호판·얼굴은 가려서)" urls={(workOrder.photos as string[] | undefined) || []} busy={photoBusy === 'photos'} onPick={(f) => uploadPhotos('photos', f)} onRemove={(u) => setWorkOrder({ ...workOrder, photos: ((workOrder.photos as string[] | undefined) || []).filter((x) => x !== u) })} />
             <label className="text-xs font-semibold text-[var(--c-text-1)] mb-1 block">현장 메모 <span className="font-normal text-[var(--c-text-3)]">이 차에서 있었던 일 한두 줄 — 시공기 쓸 때 그대로 재료가 됩니다</span></label>
             <textarea value={workOrder.field_note || ''} onChange={(e) => setWorkOrder({ ...workOrder, field_note: e.target.value })} rows={3} placeholder="예: 딜러 통해 입고. 본넷 끝단이 깊어 안쪽 마감에 시간이 갔고, 손님은 출고 때 도어 끝부터 보셨음" className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[var(--c-text-1)] resize-none" />
           </div>

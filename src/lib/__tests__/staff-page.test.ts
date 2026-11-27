@@ -101,3 +101,11 @@ describe('직원 페이지 — 작업 리스트 시트', () => {
     expect(toStaffCar(row({ memo: '오전 입고' })).sheet).toBeNull();
   });
 });
+
+describe('직원 페이지 — 내부용 사진', () => {
+  it('photos_internal 은 sheet 에도 응답 어디에도 없다', () => {
+    const memo = JSON.stringify({ ppf: ['전체PPF'], car_number: '12가3456', photos: ['https://x/out.jpg'], photos_internal: ['https://x/damage.jpg'] });
+    const raw = JSON.stringify(toStaffCar(row({ memo })));
+    expect(raw).not.toContain('photos_internal'); expect(raw).not.toContain('damage.jpg'); expect(raw).not.toContain('out.jpg');
+  });
+});
