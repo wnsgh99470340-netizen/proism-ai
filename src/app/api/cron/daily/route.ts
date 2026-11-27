@@ -81,6 +81,20 @@ export async function GET(request: NextRequest) {
       extras.morning = { model: m.model, counts: m.counts, push: mPush, url: mUrl, text: m.text };
     } catch (e) { extras.morning = { error: e instanceof Error ? e.message : String(e) }; }
 
+    // 매일: 오늘의 책 (2026-11-27 사장님 "매일 책 한 권 요약" + "맥이 아침에 꺼져 있어" — 맥의 예약 작업이 미리 만들어 Blob team/book/<날짜>.json 에 올려 두면 여기서 07시에 푸시만)
+    try {
+      const { blobs } = await list({ prefix: `team/book/${brief.date}.json`, limit: 1 });
+      const hit = blobs.find((b) => b.pathname === `team/book/${brief.date}.json`);
+      if (!hit) extras.book = { none: true };
+      else {
+        const bk = await fetch(hit.url, { cache: 'no-store' }).then((r) => r.json()) as { title?: string; body?: string; pdfUrl?: string; number?: string };
+        if (bk?.title && bk?.body) {
+          const bPush = await sendPushToAll({ title: `오늘의 책 — ${bk.title}`.slice(0, 60), body: bk.body, url: bk.pdfUrl || '/crm', tag: `book-${brief.date}` }).catch(() => ({ sent: 0, removed: 0 }));
+          extras.book = { title: bk.title, number: bk.number, pdfUrl: bk.pdfUrl, push: bPush };
+        } else extras.book = { bad: true };
+      }
+    } catch (e) { extras.book = { error: e instanceof Error ? e.message : String(e) }; }
+
     // 금요일: 빠진 것 알림
     if (weekday === 5 && brief.missed && brief.missed.total > 0) {
       extras.missedPush = await sendPushToAll({ title: `🔎 이번 주 빠진 것 ${brief.missed.total}건`, body: missedPushBody(brief.missed), url: '/crm', tag: `missed-${brief.date}` }).catch(() => ({ sent: 0, removed: 0 }));
