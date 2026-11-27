@@ -83,3 +83,19 @@ describe('직원 페이지 — 작업 내역 줄', () => {
     expect(toStaffCar(row({ memo: '오전 입고' })).plate).toBeNull();
   });
 });
+
+describe('직원 페이지 — 작업 리스트 시트', () => {
+  it('작업 내역서가 있으면 sheet, 전화·금액·사진·보증서 키 없음', () => {
+    const memo = JSON.stringify({ ppf: ['전체PPF'], ppf_etc: '50시리즈', car_number: '12가3456', amount: 5500000, photos: ['https://x/y.jpg'], warranty: { phone: '010-1234-5678', price: '550만원' }, notes: '잔금 30만원 고객 010-9999-8888', tinting: { vertex: { selected: ['900(비반사)'], density: '전면30 측후면 15' } } });
+    const c = toStaffCar(row({ memo, customer: { name: '홍길동', car_brand: 'BMW', car_model: 'X5', source: '블로그' } }));
+    expect(c.sheet).not.toBeNull();
+    expect(c.sheet!.head).toEqual({ date: '2026. 11. 27.', car: 'BMW X5', plate: '12가3456', name: '홍길동', source: '블로그' });
+    const raw = JSON.stringify(c.sheet);
+    for (const bad of ['amount', 'price', 'photos', 'warranty', 'phone', '5500000', '550만', '30만']) expect(raw).not.toContain(bad);
+    expect(raw).not.toMatch(/01[016789][-\s.]?\d{3,4}[-\s.]?\d{4}/);
+    expect(raw).toContain('50시리즈'); expect(raw).toContain('전면30 측후면 15');
+  });
+  it('작업 내역서가 없으면 sheet 는 null', () => {
+    expect(toStaffCar(row({ memo: '오전 입고' })).sheet).toBeNull();
+  });
+});

@@ -43,13 +43,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const cols = 'id, appointment_date, end_date, service_type, status, memo';
   let { data, error } = await supabase
     .from('appointments')
-    .select(`${cols}, customer:customers(name, car_brand, car_model, kind), vehicle:vehicles(brand, model)`)
+    .select(`${cols}, customer:customers(name, car_brand, car_model, kind, source), vehicle:vehicles(brand, model)`)
     .neq('status', '취소').gte('appointment_date', addBack(from)).lte('appointment_date', to)
     .order('appointment_date', { ascending: true });
   if (error || !data) { // vehicles 표가 없으면 join 이 실패 → 차량 없이
     const r = await supabase
       .from('appointments')
-      .select(`${cols}, customer:customers(name, car_brand, car_model, kind)`)
+      .select(`${cols}, customer:customers(name, car_brand, car_model, kind, source)`)
       .neq('status', '취소').gte('appointment_date', addBack(from)).lte('appointment_date', to)
       .order('appointment_date', { ascending: true });
     data = r.data as typeof data; error = r.error;

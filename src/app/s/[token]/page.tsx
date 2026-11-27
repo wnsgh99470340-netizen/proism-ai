@@ -1,14 +1,15 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
+import WorkSheet, { type WorkSheetHead } from '@/components/WorkSheet';
 
 /**
  * 직원용 예약 페이지 (2026-11-27 사장님 "예약/일정 탭만 직원들이 볼 수 있게 공유, 핸드폰 앱으로")
  * - /s/<코드>. 번호 4자리(STAFF_PIN)로 확인(sessionStorage) → 작은 달력 + 날짜별 예약 목록
  * - 읽기 전용. 전화·금액 없음. 밝은 톤(딜러 현황 페이지와 같은 변수). 60초마다·앱이 앞으로 올 때 다시 읽음
  */
-interface Car { id: string; name: string; car: string | null; service_type: string | null; appointment_date: string; end_date: string | null; status: string; note: string | null; plate?: string | null; work?: string[] }
+interface Car { id: string; name: string; car: string | null; service_type: string | null; appointment_date: string; end_date: string | null; status: string; note: string | null; plate?: string | null; work?: string[]; sheet?: { workOrder: Record<string, unknown>; head: WorkSheetHead } | null }
 interface Data { owner?: boolean; today: string; range: { from: string; to: string }; cars: Car[] }
 
 const VISIT_TYPES = ['QC점검', '메인터넌스'];
@@ -161,22 +162,25 @@ export default function StaffPage() {
                     const k = `${d}-${c.id}`;
                     return (
                       <li key={k} className="py-2.5">
-                        <button type="button" onClick={() => setOpen(open === k ? null : k)} className="w-full text-left flex items-start gap-3">
-                          <span className="min-w-0 flex-1">
+                        <div className="flex items-start gap-2">
+                          <button type="button" onClick={() => setOpen(k)} className="min-w-0 flex-1 text-left">
                             <span className="block text-[15px] font-semibold leading-snug break-keep">{/\s고객$/.test(c.name) && c.car ? c.car : <>{c.name}{c.car && <span className="text-[var(--c-text-3)] font-normal ml-1.5">{c.car}</span>}</>}{c.plate && <span className="text-[var(--c-text-4)] font-normal text-xs ml-1.5">{c.plate}</span>}</span>
                             <span className="block text-xs text-[var(--c-text-3)] mt-0.5">{[c.service_type, `${md(c.appointment_date)}${c.end_date && c.end_date !== c.appointment_date ? `~${md(c.end_date)}` : ''}`].filter(Boolean).join(' · ')}</span>
                             {/* 작업 내역 — 접지 않고 바로 (2026-11-27 사장님 "무슨 작업인지 확인할 수 있으면") */}
                             {(c.work?.length || 0) > 0 && (
                               <span className="block mt-1.5 space-y-0.5">
-                                {(open === k ? c.work! : c.work!.slice(0, 4)).map((w, i) => <span key={i} className="block text-[12px] leading-snug text-[var(--c-text-2)] break-keep">{w}</span>)}
-                                {open !== k && c.work!.length > 4 && <span className="block text-[11px] text-[var(--c-text-4)]">+{c.work!.length - 4}</span>}
+                                {c.work!.slice(0, 4).map((w, i) => <span key={i} className="block text-[12px] leading-snug text-[var(--c-text-2)] break-keep">{w}</span>)}
+                                {c.work!.length > 4 && <span className="block text-[11px] text-[var(--c-text-4)]">+{c.work!.length - 4}</span>}
                               </span>
                             )}
-                            {open !== k && c.note && <span className="block text-[11px] text-[var(--c-text-4)] mt-1 truncate">{c.note.split('\n')[0]}</span>}
+                            {c.note && <span className="block text-[11px] text-[var(--c-text-4)] mt-1 truncate">{c.note.split('\n')[0]}</span>}
+                          </button>
+                          <span className="shrink-0 flex flex-col items-end gap-1.5">
+                            <span className={`text-[11px] font-semibold px-2 py-1 rounded-full whitespace-nowrap ${chipCls(c)}`}>{chipLabel(c)}</span>
+                            <button type="button" onClick={() => setOpen(k)} className={`text-[11px] font-semibold underline underline-offset-2 ${c.sheet ? 'text-brand' : 'text-[var(--c-text-4)]'}`}>시트</button>
                           </span>
-                          <span className={`shrink-0 text-[11px] font-semibold px-2 py-1 rounded-full whitespace-nowrap ${chipCls(c)}`}>{chipLabel(c)}</span>
-                        </button>
-                        {open === k && c.note && <div className="mt-2 ml-1 border-l border-[var(--c-border)] pl-3 text-xs text-[var(--c-text-2)] whitespace-pre-line break-keep">{c.note}</div>}
+                        </div>
+                        {open === k && <SheetOverlay c={c} onClose={() => setOpen(null)} />}
                       </li>
                     );
                   })}
@@ -197,6 +201,70 @@ function Brand() {
     <div className="flex items-center gap-2.5">
       <span className="w-9 h-9 rounded-lg bg-brand text-white font-extrabold text-[13px] tracking-tight flex items-center justify-center">3M</span>
       <span className="font-bold text-[15px]">프로이즘 강남 서초점 <span className="text-[var(--c-text-3)] font-medium">예약 일정</span></span>
+    </div>
+  );
+}
+
+/** 작업 리스트 시트 오버레이 (2026-11-27 사장님 "이런 식으로 PNG 볼 수 있게") — CRM 작업 내역서 PDF 와 같은 WorkSheet, 연락처 숨김 */
+function SheetOverlay({ c, onClose }: { c: Car; onClose: () => void }) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const shotRef = useRef<HTMLDivElement>(null);
+  const [w, setW] = useState(360);
+  const [h, setH] = useState(0);
+  const [big, setBig] = useState(false);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    const fit = () => setW(boxRef.current?.clientWidth || Math.min(window.innerWidth - 32, 448));
+    fit(); window.addEventListener('resize', fit); return () => window.removeEventListener('resize', fit);
+  }, []);
+  useEffect(() => { setH(shotRef.current?.offsetHeight || 0); }, [c, w]);
+  const scale = Math.min(1, w / 800);
+  const savePng = async () => {
+    if (!shotRef.current) return;
+    setBusy(true);
+    try {
+      const html2canvas = (await import('html2canvas')).default;
+      const canvas = await html2canvas(shotRef.current, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+      const blob: Blob | null = await new Promise((r) => canvas.toBlob(r, 'image/png'));
+      if (!blob) throw new Error('그림을 만들지 못했습니다');
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = `작업리스트-${c.name}-${c.appointment_date}.png`; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    } catch (e) { alert(e instanceof Error ? e.message : '저장하지 못했습니다'); } finally { setBusy(false); }
+  };
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 overflow-y-auto" onClick={onClose}>
+      <div className="max-w-md mx-auto px-4 py-6" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-[var(--c-card)] rounded-2xl p-4">
+          <div className="flex items-start gap-2 mb-3">
+            <div className="min-w-0 flex-1">
+              <div className="text-[15px] font-bold break-keep">{c.name}{c.car && <span className="text-[var(--c-text-3)] font-normal ml-1.5">{c.car}</span>}</div>
+              <div className="text-xs text-[var(--c-text-3)] mt-0.5">{[c.service_type, `${md(c.appointment_date)}${c.end_date && c.end_date !== c.appointment_date ? `~${md(c.end_date)}` : ''}`, c.status].filter(Boolean).join(' · ')}</div>
+            </div>
+            <button type="button" onClick={onClose} aria-label="닫기" className="shrink-0 w-8 h-8 rounded-full border border-[var(--c-border)] flex items-center justify-center text-[var(--c-text-2)] text-lg leading-none">×</button>
+          </div>
+          {c.note && <div className="mb-3 border-l-2 border-[var(--c-border)] pl-3 text-xs text-[var(--c-text-2)] whitespace-pre-line break-keep">{c.note}</div>}
+          <div ref={boxRef} className="w-full">
+            {!c.sheet ? (
+              <div className="text-sm text-[var(--c-text-3)] bg-[var(--c-subtle)] rounded-xl px-3 py-3 break-keep">작업 내역서가 아직 없어요 — 사장님이 예약 줄에서 작업 내역서를 &apos;저장만 하기&apos; 하면 여기 보여요</div>
+            ) : big ? (
+              <div className="overflow-x-auto border border-[var(--c-border)] rounded-lg"><WorkSheet workOrder={c.sheet.workOrder} head={c.sheet.head} hidePhone /></div>
+            ) : (
+              <div className="border border-[var(--c-border)] rounded-lg overflow-hidden" style={{ height: h ? h * scale : undefined }}>
+                <div style={{ width: 800, transform: `scale(${scale})`, transformOrigin: 'top left' }}><WorkSheet workOrder={c.sheet.workOrder} head={c.sheet.head} hidePhone /></div>
+              </div>
+            )}
+          </div>
+          {c.sheet && (
+            <div className="flex gap-2 mt-3">
+              <button type="button" onClick={() => setBig((v) => !v)} className="flex-1 rounded-full border border-[var(--c-border)] py-2.5 text-sm font-semibold">{big ? '한눈에 보기' : '크게 보기'}</button>
+              <button type="button" onClick={savePng} disabled={busy} className="flex-1 rounded-full bg-[var(--c-text-1)] text-[var(--c-card)] py-2.5 text-sm font-semibold disabled:opacity-50">{busy ? '만드는 중…' : '이미지로 저장'}</button>
+            </div>
+          )}
+        </div>
+      </div>
+      {/* 저장용 원본 크기 사본 (화면 밖) */}
+      {c.sheet && <div style={{ position: 'absolute', left: '-9999px', top: 0 }} aria-hidden><WorkSheet ref={shotRef} workOrder={c.sheet.workOrder} head={c.sheet.head} hidePhone /></div>}
     </div>
   );
 }

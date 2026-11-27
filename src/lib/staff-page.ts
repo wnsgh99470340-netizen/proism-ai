@@ -24,7 +24,7 @@ export function staffVisibleRange(today: string): { from: string; to: string } {
 }
 
 /** 응답 키 — 시험으로 고정. 여기 없는 키(phone·amount·dealer·email 등)는 절대 내려가지 않는다 */
-export const STAFF_CAR_KEYS = ['id', 'name', 'car', 'plate', 'service_type', 'appointment_date', 'end_date', 'status', 'note', 'work'] as const;
+export const STAFF_CAR_KEYS = ['id', 'name', 'car', 'plate', 'service_type', 'appointment_date', 'end_date', 'status', 'note', 'work', 'sheet'] as const;
 export interface StaffCar {
   id: string; name: string; car: string | null; service_type: string | null;
   appointment_date: string; end_date: string | null; status: string; note: string | null;
@@ -32,11 +32,15 @@ export interface StaffCar {
   plate: string | null;
   /** 작업 내역 줄 — 작업 내역서 JSON 이면 workSummaryLines (사후관리 카드와 같은 함수), 아니면 [] */
   work: string[];
+  /** 작업 리스트 시트(WorkSheet) 재료 — 작업 내역서가 없으면 null. 연락처 없음, 금액·사진·보증서 키 제거 */
+  sheet: StaffSheet | null;
 }
+
+export interface StaffSheet { workOrder: Record<string, unknown>; head: { date: string; car: string | null; plate: string | null; name: string; source: string | null } }
 
 export interface StaffAppointmentRow {
   id: string; appointment_date: string; end_date?: string | null; service_type?: string | null; status: string; memo?: string | null;
-  customer?: { name?: string | null; car_brand?: string | null; car_model?: string | null } | null;
+  customer?: { name?: string | null; car_brand?: string | null; car_model?: string | null; source?: string | null } | null;
   vehicle?: { brand?: string | null; model?: string | null } | null;
   [k: string]: unknown;
 }
@@ -70,21 +74,46 @@ export function staffNote(memo: string | null | undefined): string | null {
   return t ? t.slice(0, 120) : null;
 }
 
+/** 시트에 넣지 않는 키: 금액·사진·보증서(전화·가격이 들어 있음)·연락처 */
+const SHEET_DROP = /amount|price|photo|warranty|phone|email|dealer|settlement|legacy/i;
+function cleanSheetValue(v: unknown): unknown {
+  if (typeof v === 'string') return maskSensitive(v);
+  if (Array.isArray(v)) return v.map(cleanSheetValue);
+  if (v && typeof v === 'object') {
+    const o: Record<string, unknown> = {};
+    for (const [k, x] of Object.entries(v as Record<string, unknown>)) if (!SHEET_DROP.test(k)) o[k] = cleanSheetValue(x);
+    return o;
+  }
+  return v;
+}
+/** 시트 일자 — 작업 내역서 PDF 의 toLocaleDateString('ko-KR') 모양 "2026. 11. 27." */
+const sheetDate = (iso: string) => { const [y, m, d] = iso.slice(0, 10).split('-').map(Number); return `${y}. ${m}. ${d}.`; };
+
+export function staffSheet(a: StaffAppointmentRow, car: string | null, plate: string | null, name: string): StaffSheet | null {
+  const w = parseWorkOrder(a.memo);
+  if (!w) return null;
+  return { workOrder: cleanSheetValue(w) as Record<string, unknown>, head: { date: sheetDate(a.end_date || a.appointment_date), car, plate, name, source: a.customer?.source || null } };
+}
+
 export function toStaffCar(a: StaffAppointmentRow): StaffCar {
   const v = a.vehicle && (a.vehicle.brand || a.vehicle.model) ? a.vehicle : null;
   const brand = v ? v.brand : a.customer?.car_brand;
   const model = v ? v.model : a.customer?.car_model;
+  const name = (a.customer?.name || '').trim() || '이름 없음';
+  const car = [brand, model].filter(Boolean).join(' ') || null;
+  const plate = (() => { const n = parseWorkOrder(a.memo)?.car_number; return typeof n === 'string' && n.trim() ? n.trim().slice(0, 16) : null; })();
   return {
     id: a.id,
-    name: (a.customer?.name || '').trim() || '이름 없음',
-    car: [brand, model].filter(Boolean).join(' ') || null,
+    name,
+    car,
     service_type: a.service_type || null,
     appointment_date: a.appointment_date,
     end_date: a.end_date || null,
     status: a.status,
     note: staffNote(a.memo),
-    plate: (() => { const n = parseWorkOrder(a.memo)?.car_number; return typeof n === 'string' && n.trim() ? n.trim().slice(0, 16) : null; })(),
+    plate,
     work: staffWork(a.memo),
+    sheet: staffSheet(a, car, plate, name),
   };
 }
 
