@@ -210,7 +210,7 @@ export async function composeMorningDirection(facts: MorningFacts): Promise<{ te
   const md = facts.date.slice(5).replace('-', '/').replace(/^0/, '').replace('/0', '/');
   if (!process.env.ANTHROPIC_API_KEY) return { text: fallbackText(facts), model: 'none' };
   try {
-    const text = await callClaude(SYSTEM, [{ role: 'user', content: `오늘은 ${facts.date} 이다. 제목은 "오늘의 방향 ${md}".\n\n[사실]\n${facts.text}` }], 1500, 'claude-sonnet-5-5');
+    const text = await callClaude(SYSTEM, [{ role: 'user', content: `오늘은 ${facts.date} 이다. 제목은 "오늘의 방향 ${md}".\n\n[사실]\n${facts.text}` }], 6000, 'claude-sonnet-5-5'); // 1500 이면 생각 토큰에 먹혀 본문이 250자에서 잘림 (2026-11-27 확인)
     const clean = text.trim();
     if (clean.length < 60) return { text: fallbackText(facts), model: `fallback-short(${clean.length}): ${clean.slice(0, 80)}` };
     return { text: clean.slice(0, 1500), model: 'claude-sonnet-5-5' };
