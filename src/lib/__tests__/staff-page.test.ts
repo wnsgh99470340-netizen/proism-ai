@@ -1,5 +1,6 @@
 // 직원용 예약 페이지 (2026-11-27): 범위·취소 제외·민감 필드 없음
 import { describe, it, expect } from 'vitest';
+import { PUBLIC_VEHICLE_COLS, publicVehicle } from '@/lib/vehicles';
 import { staffVisibleRange, staffCars, toStaffCar, staffNote, staffWork, STAFF_CAR_KEYS, staffToken } from '@/lib/staff-page';
 
 const today = '2026-11-27';
@@ -107,5 +108,17 @@ describe('직원 페이지 — 내부용 사진', () => {
     const memo = JSON.stringify({ ppf: ['전체PPF'], car_number: '12가3456', photos: ['https://x/out.jpg'], photos_internal: ['https://x/damage.jpg'] });
     const raw = JSON.stringify(toStaffCar(row({ memo })));
     expect(raw).not.toContain('photos_internal'); expect(raw).not.toContain('damage.jpg'); expect(raw).not.toContain('out.jpg');
+  });
+});
+
+describe('차량 사진(내부용)은 공개 응답에 없다 (2026-11-27)', () => {
+  it('공개 페이지가 읽는 vehicles 열에 photos 가 없고, 변환도 사진을 뗀다', () => {
+    expect(PUBLIC_VEHICLE_COLS).not.toMatch(/photos|\*/);
+    const v = publicVehicle({ id: 'v1', customer_id: 'c1', brand: 'BMW', model: 'X5', plate: '12가3456', photos: ['https://x/damage.jpg'], memo: '내부', is_primary: true });
+    expect(v).toEqual({ brand: 'BMW', model: 'X5', plate: '12가3456' });
+    expect(JSON.stringify(v)).not.toContain('damage');
+    // 직원 페이지 변환도 차량 사진을 옮기지 않는다
+    const c = toStaffCar(row({ vehicle: { brand: 'BMW', model: 'X5', photos: ['https://x/damage.jpg'] } as never }));
+    expect(JSON.stringify(c)).not.toContain('damage');
   });
 });

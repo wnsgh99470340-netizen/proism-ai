@@ -72,9 +72,9 @@ function PhotoSlot({ title, hint, urls, busy, onPick, onRemove }: { title: strin
 
 export default function WorkOrderModal({ appointment, workOrder, setWorkOrder, onSubmit, onSaveOnly, onClose, busy }: WorkOrderModalProps & { workOrder: any }) {
   const printRef = useRef<HTMLDivElement>(null);
-  const [photoBusy, setPhotoBusy] = useState<'' | 'photos' | 'photos_internal'>('');
-  // 사진 칸 둘 (2026-11-27 사장님): photos = 출고 사진(손님·딜러 페이지에 보임), photos_internal = 입고 상태 사진(내부용, CRM 안에서만). 칸마다 최대 4장
-  const uploadPhotos = async (key: 'photos' | 'photos_internal', files: FileList | null) => {
+  const [photoBusy, setPhotoBusy] = useState<'' | 'photos'>('');
+  // 사진 칸 (2026-11-27 사장님): photos = 출고 사진(손님·딜러 페이지에 보임), 최대 4장. 내부용 입고 상태 사진은 고객 상세 차량 카드로 옮김(vehicles.photos)
+  const uploadPhotos = async (key: 'photos', files: FileList | null) => {
     if (!files || files.length === 0) return;
     setPhotoBusy(key);
     try {
@@ -321,9 +321,8 @@ export default function WorkOrderModal({ appointment, workOrder, setWorkOrder, o
         <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
           <WorkSheet ref={printRef} workOrder={workOrder} head={{ date: new Date().toLocaleDateString('ko-KR'), car: appointment.service_type, plate: workOrder.car_number, name: appointment.customer?.name, source: null, phone: appointment.customer?.phone }} />
 
-          {/* 작업 사진·현장 메모 (2026-11-25 사장님 "완료 처리 때 사진 서너 장" → 2026-11-27 입고 상태(내부)·출고(공개) 둘로, 과정 사진은 드라이브에 따로): 현장 메모는 시공기 폼에 미리 채워진다 */}
+          {/* 작업 사진·현장 메모 (2026-11-25 사장님 "완료 처리 때 사진 서너 장" → 2026-11-27 출고 사진만(내부 사진은 차량 카드), 과정 사진은 드라이브에 따로): 현장 메모는 시공기 폼에 미리 채워진다 */}
           <div className="mt-5 border-t border-[var(--c-border)] pt-4">
-            <PhotoSlot title="입고 상태 사진" hint="내부용 — 손님·딜러에게 안 보임 · 문제 부위 기록" urls={(workOrder.photos_internal as string[] | undefined) || []} busy={photoBusy === 'photos_internal'} onPick={(f) => uploadPhotos('photos_internal', f)} onRemove={(u) => setWorkOrder({ ...workOrder, photos_internal: ((workOrder.photos_internal as string[] | undefined) || []).filter((x) => x !== u) })} />
             <PhotoSlot title="출고 사진" hint="손님 페이지·딜러 페이지에 보임 (번호판·얼굴은 가려서)" urls={(workOrder.photos as string[] | undefined) || []} busy={photoBusy === 'photos'} onPick={(f) => uploadPhotos('photos', f)} onRemove={(u) => setWorkOrder({ ...workOrder, photos: ((workOrder.photos as string[] | undefined) || []).filter((x) => x !== u) })} />
             <label className="text-xs font-semibold text-[var(--c-text-1)] mb-1 block">현장 메모 <span className="font-normal text-[var(--c-text-3)]">이 차에서 있었던 일 한두 줄 — 시공기 쓸 때 그대로 재료가 됩니다</span></label>
             <textarea value={workOrder.field_note || ''} onChange={(e) => setWorkOrder({ ...workOrder, field_note: e.target.value })} rows={3} placeholder="예: 딜러 통해 입고. 본넷 끝단이 깊어 안쪽 마감에 시간이 갔고, 손님은 출고 때 도어 끝부터 보셨음" className="w-full bg-[var(--c-input)] border border-[var(--c-border)] rounded-lg px-3 py-2 text-sm text-[var(--c-text-1)] outline-none focus:border-[var(--c-text-1)] resize-none" />

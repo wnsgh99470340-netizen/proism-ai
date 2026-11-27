@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { AUTH_COOKIE_NAME, isAuthCookieValid } from '@/lib/auth-cookie';
 import { todaySeoul } from '@/lib/local-date';
+import { PUBLIC_VEHICLE_COLS } from '@/lib/vehicles';
 import { staffToken, staffCars, staffVisibleRange, type StaffAppointmentRow } from '@/lib/staff-page';
 
 export const runtime = 'nodejs';
@@ -43,7 +44,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const cols = 'id, appointment_date, end_date, service_type, status, memo';
   let { data, error } = await supabase
     .from('appointments')
-    .select(`${cols}, customer:customers(name, phone, car_brand, car_model, kind, source), vehicle:vehicles(brand, model)`)
+    .select(`${cols}, customer:customers(name, phone, car_brand, car_model, kind, source), vehicle:vehicles(${PUBLIC_VEHICLE_COLS})`)
     .neq('status', '취소').gte('appointment_date', addBack(from)).lte('appointment_date', to)
     .order('appointment_date', { ascending: true });
   if (error || !data) { // vehicles 표가 없으면 join 이 실패 → 차량 없이
