@@ -21,6 +21,8 @@ export interface TimelineEvent {
   detail?: string;         // 작은 글씨 한 줄
   tone: TimelineTone;
   sortKey: number;         // 같은 날 안의 순서용
+  /** 아직 안 보낸 사후관리 문자(2026-11-28 사장님 "여기에 메인터넌스 문자 보내기") — 있으면 '앞으로' 줄에 문자 버튼 */
+  sms?: { followUpId: string; type: string; memo: string | null; sent: Record<string, boolean> };
 }
 
 export interface TimelineInput {
@@ -29,7 +31,7 @@ export interface TimelineInput {
   appointments: { id: string; appointment_date: string; end_date?: string | null; service_type: string | null; status: string; memo: string | null }[];
   services: { id: string; service_type: string; film_used?: string | null; service_date: string | null; completion_date?: string | null; amount?: number | null }[];
   consultations: { id: string; consultation_date: string; content: string | null; estimate?: string | null; memo: string | null }[];
-  followUps: { id: string; follow_up_type: string; scheduled_date: string; is_completed: boolean; completed_date: string | null; memo: string | null; service?: { service_type: string } | null }[];
+  followUps: { id: string; follow_up_type: string; scheduled_date: string; is_completed: boolean; completed_date: string | null; memo: string | null; sms_sent?: Record<string, boolean> | null; service?: { service_type: string } | null }[];
   referrals?: { receivedFrom: Referral | null; gave: Referral[] };
   points?: PointRow[];
   memberLink?: { created_at: string; last_seen_at: string | null; visits: number } | null;
@@ -105,6 +107,7 @@ export function buildTimeline(input: TimelineInput): { upcoming: TimelineEvent[]
   // 사후관리
   for (const f of input.followUps) {
     const t = f.follow_up_type;
+    const sms = { followUpId: f.id, type: t, memo: f.memo, sent: f.sms_sent || {} };
     const label = followUpLabel(t);
     const svc = f.service?.service_type ? ` (${f.service.service_type})` : '';
     const sched = toDate(f.scheduled_date);
@@ -112,11 +115,12 @@ export function buildTimeline(input: TimelineInput): { upcoming: TimelineEvent[]
     if (!sched || !done) continue;
     if (/^블랙리스트로 정리 /m.test(f.memo || '')) { push({ date: done, kind: 'care', title: `${label} 블랙리스트로 정리${svc}`, tone: 'muted' }); continue; }
     if (t === '입고안내') {
-      if (!f.is_completed) push({ date: sched, kind: 'arrival', title: '입고 안내 문자 보낼 날', tone: 'future' });
+      // 딜러에게 가는 입고 안내(memo 첫 줄 '(딜러)')는 번호가 다르니 여기선 버튼 없이 — 홈·사후관리 탭에서
+      if (!f.is_completed) push({ date: sched, kind: 'arrival', title: '입고 안내 문자 보낼 날', tone: 'future', sms: /\(딜러\)/.test(firstLine(f.memo)) ? undefined : sms });
       continue; // 보낸 뒤에는 예약 줄로 충분
     }
     if (t === '견적재연락' || t === '견적마무리') {
-      if (!f.is_completed) { push({ date: sched, kind: 'quote', title: `${label} 할 날`, tone: sched < input.today ? 'warn' : 'future' }); continue; }
+      if (!f.is_completed) { push({ date: sched, kind: 'quote', title: `${label} 할 날`, tone: sched < input.today ? 'warn' : 'future', sms }); continue; }
       const m = f.memo || '';
       if (/예약 잡혀 자동 정리/.test(m)) { if (t === '견적재연락') push({ date: done, kind: 'quote', title: '견적 → 예약으로 이어짐', tone: 'ok' }); continue; }
       const reason = quoteCloseReason(m);
@@ -134,7 +138,7 @@ export function buildTimeline(input: TimelineInput): { upcoming: TimelineEvent[]
       const got = m.match(/후기 받음 (\d{4}-\d{2}-\d{2})/);
       if (got) push({ date: got[1], kind: 'review', title: '후기 받음', tone: 'ok' });
       else if (f.is_completed) push({ date: done, kind: 'review', title: '후기 요청 정리', tone: 'muted' });
-      else push({ date: sched, kind: 'review', title: '후기 요청 할 날', tone: sched < input.today ? 'warn' : 'future' });
+      else push({ date: sched, kind: 'review', title: '후기 요청 할 날', tone: sched < input.today ? 'warn' : 'future', sms });
       continue;
     }
     // QC·메인터넌스
@@ -145,7 +149,7 @@ export function buildTimeline(input: TimelineInput): { upcoming: TimelineEvent[]
       push({ date: toDate(log?.date) || done, kind: 'care', title: `${label} 완료${svc}`, detail: log?.note ? short(log.note) : undefined, tone: 'ok' });
     } else {
       const visit = input.appointments.find((a) => a.service_type === t && a.status !== '취소' && a.status !== '완료' && a.appointment_date === f.scheduled_date);
-      push({ date: sched, kind: 'care', title: `${label} ${visit ? '방문 예정' : '연락할 날'}${svc}`, tone: sched < input.today ? 'warn' : 'future' });
+      push({ date: sched, kind: 'care', title: `${label} ${visit ? '방문 예정' : '연락할 날'}${svc}`, tone: sched < input.today ? 'warn' : 'future', sms: visit ? undefined : sms });
     }
   }
 

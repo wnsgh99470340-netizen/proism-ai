@@ -67,6 +67,7 @@ interface FollowUp {
   is_completed: boolean;
   completed_date: string | null;
   memo: string | null;
+  sms_sent?: Record<string, boolean> | null;
   service?: { service_type: string };
 }
 
@@ -279,7 +280,7 @@ export default function CustomerDetailPage() {
           </div>
         )}
         {/* 타임라인 (2026-11-23 사장님 "이카운트처럼 한 손님의 모든 일을 한 화면에 날짜순으로") */}
-        {(() => { const tl = buildTimeline({ today: todaySeoul(), customer, appointments: appts, services, consultations, followUps, referrals: refs.tableMissing ? undefined : refs, points: pts.tableMissing ? [] : pts.rows, memberLink }); return <CustomerTimeline upcoming={tl.upcoming} past={tl.past} today={todaySeoul()} />; })()}
+        {(() => { const tl = buildTimeline({ today: todaySeoul(), customer, appointments: appts, services, consultations, followUps, referrals: refs.tableMissing ? undefined : refs, points: pts.tableMissing ? [] : pts.rows, memberLink }); return <CustomerTimeline upcoming={tl.upcoming} past={tl.past} today={todaySeoul()} phone={customer.phone} car={[customer.car_brand, customer.car_model].filter(Boolean).join(' ')} onSent={fetchData} />; })()}
         {/* 딜러 기록: 넣어 주신 손님들 (2026-11-23) */}
         {isDealer(customer) && (
           <div className="bg-[var(--c-card)] border border-[var(--c-border)] rounded-xl p-5 mb-6">
